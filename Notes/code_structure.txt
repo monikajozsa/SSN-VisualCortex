@@ -1,0 +1,124 @@
+# this has changed! I want to use a package to create a diagram for all the dependencies
+
+network_example.py 
+	deffines SSN class for middle layer, (9x9 grid, where each location has 2x4 connected nodes and there is no long-range connection,2 is IE and 4 is phases)
+
+script_two_stage_lateral
+	
+	
+SSN_classes
+	_SSN_Base
+	SSN2DTopoV1_ONOFF
+	SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF)
+	SSN2DTopoV1
+
+util
+	Euler2fixedpt
+	Euler2fixedpt_fullTmax
+	toeplitz
+	take_log
+	ssn_init_param
+	find_A
+	make_gratings
+	create_gratings
+	create_stimuli
+	vmap_eval2 *** too many IO
+	vmap_eval3 *** too many IO
+	test_accuracies
+	param_ratios
+	ratio_w
+	load
+	recursively_load_dict_contents_from_group
+	load_param_from_csv
+	load_matrix_response
+	save_matrices
+	save_h5
+	recursively_save_dict_contents_to_group
+	
+	GaborFilter
+	JiaGrating
+	BW_Grating(JiaGrating)
+	
+analysis *** check what is being used	
+	param_ratios
+	param_ratios_two_layer
+	assemble_pars
+	case_1_interpolation *** too many IO
+	case_2
+	vmap_eval_hist
+	vmap_eval3
+	test_accuracies
+	initial_acc
+	accuracies
+	obtain_regular_indices
+	ori_tuning_curve_responses
+	obtain_min_max_indices
+	label_neuron
+	pre_post_bar_plots
+	full_width_half_max
+	sort_neurons
+	close_far_indices
+	sort_close_far_EI
+	
+two_layer_training_lateral_phases
+	exponentiate
+	create_data
+	our_max
+	sigmoid
+	sig
+	f_sigmoid
+	binary_loss
+	obtain_fixed_point
+	obtain_fixed_point_centre_E
+	leaky_relu
+	x_greater_than
+	x_less_than
+	sep_exponentiate
+	test_accuracy
+	generate_noise *** defined twice
+	constant_to_vec
+	middle_layer_fixed_point
+	_new_model *** too many IO, also ~200 lines
+	model *** check if it is used
+	new_two_stage_training
+	loss
+	save_params_dict_two_stage
+	evaluate_model_response
+	
+visualization
+	plot_losses
+	plot_training_accs
+	plot_sigmoid_outputs
+	plot_results
+	plot_results_two_layers
+	plot_losses
+	plot_losses_two_stage
+	plot_acc_vs_param
+	plot_all_sig
+	plot_histograms
+	plot_tuning_curves
+	plot_vec2map
+	plot_mutiple_gabor_filters
+	plot_individual_gabor
+	plot_tuning_curves_ssn
+	plot_close_far
+	plot_w_sig *** defined twice
+	plot_r_ref
+	plot_max_rates
+	
+Restructuring would be: 
+SSN-related code, the SSN_classes + ssn_init_param
+
+
+Input-related code, the 
+GaborFilter(class)
+create_filter(function)
+BW_Grating(JiaGrating)
+JiaGrating(class)
+find_A(func) This is defined in Gabor filter class and outside as well!
+make_gratings
+create_gratings
+create_stimuli
+
+
+Training-related code

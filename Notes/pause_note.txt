@@ -1,0 +1,15 @@
+########## adjusting rest of the code for a change #################
+I defined a stimuli_pars class, where I store parameters that were previously in a dictionary
+
+I needed to change the input of BW_Grating and JiaGrating
+
+BUT GaborFilter, find_A and BW_Grating within these all use the different "one-by-one" input style and they actually default some of the stimuli_pars to sg else (find_A)
+
+Note: that there is a find_A in the GaborFilter and out of the GaborFilter class and also, GaborFilter class has a GaborFilter function
+
+Note: last remaining dict is constant_ssn_pars that is not nice in the code
+Note: rename k in ssn because there is another k and it is confusing!
+Note: rename find_A in GaborFilter or the one out of it - try to keep the one outside of the class
+Note: rename GaborFilter function in GaborFilter class
+
+ 856 self.gabor_filters, self.A = self.create_gabor_filters()
