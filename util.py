@@ -1,18 +1,13 @@
 import jax
-from jax import random
 import math
 from PIL import Image
-from random import random
 from scipy.stats import norm
 import jax.numpy as np
-from jax import random
 from jax import vmap
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy
-# from torch.utils.data import DataLoader
 from numpy.random import binomial
-from pdb import set_trace
 import os
 import h5py
 from parameters import *
@@ -196,7 +191,7 @@ def Euler2fixedpt_fullTmax(
 
     avg_dx = y[int(Nmax / 2) : int(Nmax)].mean() / xtol
 
-    CONVG = False  ##NEEDS UPDATING
+    CONVG = False  ## NEEDS UPDATING *** MJ comment: why and how?
 
     if PLOT:
         import matplotlib.pyplot as plt
@@ -433,6 +428,92 @@ def find_A(
     return output
 
 
+class BW_Grating:
+    """    
+    """
+    def __init__(
+        self,
+        ori_deg,
+        jitter,
+        stimuli_pars,
+        phase = 0,
+        crop_f=None,
+    ):
+        self.ori_deg = ori_deg
+        self.jitter = jitter
+        self.outer_radius = stimuli_pars.outer_radius  # in degrees
+        self.inner_radius = stimuli_pars.inner_radius  # in degrees
+        self.grating_contrast = stimuli_pars.grating_contrast
+        self.std = stimuli_pars.std
+        degree_per_pixel = stimuli_pars.degree_per_pixel
+        pixel_per_degree = 1 / degree_per_pixel
+        self.pixel_per_degree = pixel_per_degree
+        edge_deg = stimuli_pars.edge_deg
+        size = int(edge_deg * 2 * pixel_per_degree) + 1
+        self.size = size
+        k = stimuli_pars.k
+        spatial_frequency = k * degree_per_pixel # 0.05235987755982988        
+        self.phase = phase
+        self.crop_f = crop_f
+        self.smooth_sd = self.pixel_per_degree / 6
+        self.spatial_freq = spatial_frequency or (1 / self.pixel_per_degree)
+        self.grating_size = round(self.outer_radius * self.pixel_per_degree)
+        self.angle = ((self.ori_deg + self.jitter) - 90) / 180 * numpy.pi
+   
+    def BW_image(self):
+        _BLACK = 0
+        _WHITE = 255
+        _GRAY = round((_WHITE + _BLACK) / 2)
+        
+        # Generate a 2D grid of coordinates
+        x, y = numpy.mgrid[-self.grating_size:self.grating_size + 1.0, -self.grating_size:self.grating_size + 1.0]
+
+        # Calculate the distance from the center for each pixel
+        edge_control = numpy.sqrt(x**2 + y**2) / self.pixel_per_degree
+        
+        # Create a matrix (alpha_channel) that is 255 (white) within the inner_radius and exponentially fades to 0 as the radius increases
+        overrado = edge_control > self.inner_radius
+        annulus = numpy.ones_like(edge_control)
+        annulus[overrado] *= numpy.exp(-0.5 * ((edge_control[overrado] - self.inner_radius) * self.pixel_per_degree)**2 / (2 * (self.smooth_sd**2)))
+        alpha_channel = annulus * _WHITE
+
+        # Generate the grating pattern, which is a centered and tilted sinusoidal matrix 
+        spatial_component = 2 * math.pi * self.spatial_freq * (y * numpy.sin(self.angle) + x * numpy.cos(self.angle))
+        gabor_sti = _GRAY * (1 + self.grating_contrast * numpy.cos(spatial_component + self.phase))
+
+        # Set pixels outside the grating size to gray
+        gabor_sti[edge_control > self.grating_size] = _GRAY
+
+        # Add Gaussian white noise to the grating
+        noise = numpy.random.normal(loc=0, scale=self.std, size=gabor_sti.shape)
+        noisy_gabor_sti = gabor_sti + noise
+
+        # Expand the grating to have three colors andconcatenate it with alpha_channel
+        gabor_sti_final = numpy.repeat(noisy_gabor_sti[:, :, numpy.newaxis], 3, axis=-1)        
+        gabor_sti_final_with_alpha = numpy.concatenate((gabor_sti_final, alpha_channel[:, :, numpy.newaxis]), axis=-1)
+        gabor_sti_final_with_alpha_image = Image.fromarray(gabor_sti_final_with_alpha.astype(numpy.uint8))
+
+        # Create a background image filled with gray
+        background = numpy.full((self.size, self.size, 3), _GRAY, dtype=numpy.uint8)
+        final_image = Image.fromarray(background)
+
+        # Paste the grating into the final image: paste the grating into a bounding box and apply the alpha channel as a mask
+        center_x, center_y = self.size // 2, self.size // 2
+        bounding_box = (center_x - self.grating_size, center_y - self.grating_size)
+        final_image.paste(gabor_sti_final_with_alpha_image, box=bounding_box, mask=gabor_sti_final_with_alpha_image)
+
+        # Sum the image over color channels
+        final_image_np = numpy.array(final_image, dtype=numpy.float16)
+        image = numpy.sum(final_image_np, axis=2)
+
+        # Crop the image if crop_f is specified
+        if self.crop_f:
+            image = image[self.crop_f:-self.crop_f, self.crop_f:-self.crop_f]
+
+        return image
+
+
+'''
 ##### CREATING GRATINGS, see https://gitlab.com/samueljamesbell/vpl-modelling ######
 _BLACK = 0
 _WHITE = 255
@@ -584,8 +665,6 @@ class BW_Grating(JiaGrating):
         if self.crop_f:
             image = image[self.crop_f : -self.crop_f, self.crop_f : -self.crop_f]
         return image
-
-
 # CREATE INPUT STIMULI
 def make_gratings(stimuli_pars):
     """
@@ -607,34 +686,27 @@ def make_gratings(stimuli_pars):
     )
 
     return ref, target
+'''
 
-
-def create_gratings(number, stimuli_pars):
+def create_gratings(stimuli_pars, n_trials):
     """
     Create input stimuli gratings.
     Input:
-        training_data: list of orientations, where each item of the list is [ref_ori, target_ori]. Length of list is number of trials
+        n_trials: number of trials
+        stimuli_pars: selection of parameters; here we use reference orientation, offset and jitter value
     Output:
         training_gratings: array of 1D reference and target stimuli. Shape is (n_trials, 2, n_pixels) - 2
 
     """
-    offset = stimuli_pars.offset
-    ref_ori = stimuli_pars.ref_ori
-    # initialise empty arrays
-    labels_list = []
-    training_gratings = []
-
-    for i in range(number):
-        if numpy.random.uniform(0, 1, 1) < 0.5:
-            label = 1
-        else:
-            label = 0
-
-        ref, target = make_gratings(stimuli_pars)
-
-        data_dict = {"ref": ref, "target": target, "label": label}
-        training_gratings.append(data_dict)
-
+    training_gratings = [
+        {
+            "ref": BW_Grating(ori_deg=stimuli_pars.ref_ori, jitter=numpy.random.randn(1) * stimuli_pars.jitter_val, stimuli_pars=stimuli_pars).BW_image().ravel(),
+            "target": BW_Grating(ori_deg=stimuli_pars.ref_ori - stimuli_pars.offset, jitter=numpy.random.randn(1) * stimuli_pars.jitter_val, stimuli_pars=stimuli_pars).BW_image().ravel(),
+            "label": numpy.random.choice([0, 1]),
+        }
+        for _ in range(n_trials)
+    ]
+    
     return training_gratings
 
 

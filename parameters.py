@@ -108,7 +108,8 @@ ssn_pars = SsnPars()
 '''
 
 # Input parameters
-class grid_pars():
+@dataclass(unsafe_hash=True)
+class GridPars:
     gridsize_Nx: int = 9 
     ''' grid-points across each edge - gives rise to dx = 0.8 mm '''
     gridsize_deg: float = 2 * 1.6  
@@ -119,19 +120,22 @@ class grid_pars():
     ''' ? are our grid points represent columns? (mm) '''
     sigma_RF: float = 0.4  
     ''' deg (visual angle), comes in make_grating_input, which Clara does not use as she uses Gabor filters '''
+grid_pars = GridPars()
 
 
-class filter_pars():
+@dataclass(unsafe_hash=True)
+class FilterPars:
     sigma_g = numpy.array(0.39 * 0.5 / 1.04) #
     conv_factor = numpy.array(2)
     k: float = np.pi/(6 * 0.5) # Clara approximated it by 1; Ke used 1 too
     edge_deg: float = grid_pars.gridsize_deg
     degree_per_pixel = numpy.array(0.05) 
     # convert degree to number of pixels (129 x 129), this could be calculated from earlier params '''
+filter_pars = FilterPars()
 
 
 @dataclass
-class StimuliPars(): #the attributes are changed within SSN_classes for a local instance
+class StimuliPars: #the attributes are changed within SSN_classes for a local instance
     inner_radius: float = 2.5 # inner radius of the stimulus
     outer_radius: float = 3.0 # outer radius of the stimulus: together with inner_radius, they define how the edge of the stimulus fades away to the gray background
     grating_contrast: float = 0.8 # from Current Biology 2020 Ke's paper
@@ -146,13 +150,16 @@ stimuli_pars = StimuliPars()
 
 
 # Network parameters
-class sig_pars:
+@dataclass(unsafe_hash=True)
+class SigPars:
     N_neurons: int = 25 #Error if you change it in training_supp, line r_ref = r_ref + noise_ref*np.sqrt(jax.nn.softplus(r_ref)) ***
     w_sig = numpy.random.normal(size=(N_neurons,)) / np.sqrt(N_neurons)
     b_sig: float = 0.0
+sig_pars = SigPars()
 
 
-class ssn_pars():
+@dataclass(unsafe_hash=True)
+class SSNPars:
     n = 2.0 # power law parameter
     k = 0.04 # power law parameter
     tauE = 20.0  # time constant for excitatory neurons in ms
@@ -161,20 +168,25 @@ class ssn_pars():
     A = None # normalization param for Gabors to get 100% contrast, see find_A
     A2 = None # normalization param for Gabors to get 100% contrast, see find_A
     phases = 2 # or 4
+ssn_pars = SSNPars()
 
 
-class conn_pars_m():
+@dataclass(unsafe_hash=True)
+class ConnParsM:
     PERIODIC: bool = False
     p_local = None
+conn_pars_m = ConnParsM()
 
 
-class conn_pars_s():
+@dataclass(unsafe_hash=True)
+class ConnParsS:
     PERIODIC: bool = False
     p_local = None
+conn_pars_s = ConnParsS()
 
 
-@dataclass
-class SsnLayerPars():
+@dataclass(unsafe_hash=True)
+class SsnLayerPars:
     sigma_oris = np.asarray([90.0, 90.0])
     kappa_pre = np.asarray([0.0, 0.0])
     kappa_post = np.asarray([0.0, 0.0]) 
@@ -191,7 +203,8 @@ ssn_layer_pars = SsnLayerPars(conn_pars_m, conn_pars_s, ssn_pars)
 
 
 # Training parameters
-class conv_pars():
+@dataclass(unsafe_hash=True)
+class ConvPars:
     dt: float = 1.0
     xtol: float = 1e-04
     Tmax: float = 250.0
@@ -199,10 +212,11 @@ class conv_pars():
     silent: bool = True
     Rmax_E = None
     Rmax_I = None
-    
+conv_pars = ConvPars()
+
 
 @dataclass
-class TrainingPars():
+class TrainingPars:
     eta = 10e-4
     batch_size = 50
     noise_type = "poisson"
@@ -212,8 +226,10 @@ class TrainingPars():
 training_pars = TrainingPars()
     
 
-class loss_pars():
+@dataclass(unsafe_hash=True)
+class LossPars:
     lambda_dx = 1
     lambda_r_max = 1
     lambda_w = 1
     lambda_b = 1
+loss_pars = LossPars()

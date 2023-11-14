@@ -1,4 +1,8 @@
 from training_supp import *
+from util import take_log
+import optax
+import time
+import csv
 
 def new_two_stage_training(
     ssn_layer_pars,
@@ -68,7 +72,6 @@ def new_two_stage_training(
 
     if ssn_ori_map == None:
         # Initialise networks
-        print("Creating new orientation map")
         ssn_mid = SSN2DTopoV1_ONOFF_local(
             ssn_pars=constant_ssn_pars["ssn_pars"],
             grid_pars=constant_ssn_pars["grid_pars"],
@@ -78,6 +81,7 @@ def new_two_stage_training(
             gE = constant_ssn_pars['gE'][0], 
             gI = constant_ssn_pars['gI'][0]
         )
+        print("New orientation map created for the middle layer.")
         constant_ssn_pars["ssn_mid_ori_map"] = ssn_mid.ori_map
         constant_ssn_pars["ssn_sup_ori_map"] = ssn_mid.ori_map
     else:
@@ -96,32 +100,11 @@ def new_two_stage_training(
     readout_pars = dict(w_sig=w_sig, b_sig=b_sig)
     ssn_layer_pars_dict = dict(logJ_2x2=logJ_2x2, kappa_pre=kappa_pre, kappa_post=kappa_post)
 
-    print(constant_ssn_pars["ssn_mid_ori_map"])
-
     test_size = batch_size if test_size is None else test_size
 
     # Initialise optimizer
     optimizer = optax.adam(eta)
     readout_state = optimizer.init(readout_pars)
-
-    print(
-        "Training model for {} epochs  with learning rate {}, sig_noise {} at offset {}, lam_w {}, batch size {}, noise_type {}".format(
-            epochs,
-            eta,
-            sig_noise,
-            offset,
-            constant_ssn_pars["loss_pars"].lambda_w,
-            batch_size,
-            noise_type,
-        )
-    )
-    print(
-        "Loss parameters dx {}, w {} ".format(
-            constant_ssn_pars["loss_pars"].lambda_dx,
-            constant_ssn_pars["loss_pars"].lambda_w,
-        )
-    )
-
     epoch_c = epochs
     loop_epochs = epochs
     flag = True
@@ -140,7 +123,7 @@ def new_two_stage_training(
         epoch_loss = 0
 
         # Load next batch of data and convert
-        train_data = create_data(stimuli_pars, number=batch_size)
+        train_data = create_data(stimuli_pars, batch_size)
 
         if epoch == epoch_c + extra_stop:
             debug_flag = True
@@ -178,7 +161,7 @@ def new_two_stage_training(
         # Save the parameters given a number of epochs
         if epoch in epochs_to_save:
             # Evaluate model
-            test_data = create_data(stimuli_pars, number=test_size)
+            test_data = create_data(stimuli_pars, test_size)
 
             start_time = time.time()
             # Compute loss and gradient
@@ -261,7 +244,7 @@ def new_two_stage_training(
             final_epoch = epoch
             print("Entering second stage at epoch {}".format(epoch))
 
-            #############START TRAINING NEW STAGE ##################################
+            ############# START TRAINING NEW STAGE #################
 
             # Initialise second optimizer
             ssn_layer_state = optimizer.init(ssn_layer_pars_dict)
@@ -270,7 +253,7 @@ def new_two_stage_training(
 
             for epoch in range(epoch, epochs + 1):
                 # Load next batch of data and convert
-                train_data = create_data(stimuli_pars, number=batch_size)
+                train_data = create_data(stimuli_pars, batch_size)
 
                 # Compute loss and gradient
                 constant_ssn_pars = generate_noise(
@@ -306,7 +289,7 @@ def new_two_stage_training(
                 # Save the parameters given a number of epochs
                 if epoch in epochs_to_save:
                     # Evaluate model
-                    test_data = create_data(stimuli_pars, number=test_size)
+                    test_data = create_data(stimuli_pars, test_size)
 
                     start_time = time.time()
                     constant_ssn_pars = generate_noise(
@@ -377,21 +360,10 @@ def new_two_stage_training(
         epoch += 1
 
     save_w_sigs = np.asarray(np.vstack(save_w_sigs))
-    visualization.plot_w_sig(
-        save_w_sigs,
-        epochs_to_save[: len(save_w_sigs)],
-        epoch_c,
-        save=os.path.join(results_dir + "_w_sig_evolution"),
-    )
 
     if flag == False:
         epoch_c = [epoch_c, extra_stop, final_epoch_2]
     r_refs = np.vstack(np.asarray(r_refs))
-
-    # Plot maximum rates achieved during training
-    visualization.plot_max_rates(
-        r_refs, epoch_c=epoch_c, save=os.path.join(results_dir + "_max_rates")
-    )
 
     return (
         [ssn_layer_pars_dict, readout_pars],
@@ -405,4 +377,3 @@ def new_two_stage_training(
         epoch_c,
         save_w_sigs,
     )
-

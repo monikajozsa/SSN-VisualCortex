@@ -1,24 +1,12 @@
-import os
 import matplotlib.pyplot as plt
-import time, os, json
-import pandas as pd
 import jax
-
 from jax import random
 import jax.numpy as np
 from jax import vmap
-import optax
-from functools import partial
-import math
-import csv
-import gc
-import time
 from torch.utils.data import DataLoader
 import numpy
 from SSN_classes import SSN2DTopoV1_ONOFF_local, SSN2DTopoV1
-from util import GaborFilter, BW_Grating, create_gratings, param_ratios, create_stimuli, take_log
-from IPython.core.debugger import set_trace
-import visualization
+from util import create_gratings
 
 # basic functions - consider moving them to util
 def our_max(x, beta=1):
@@ -78,11 +66,11 @@ def binary_loss(n, x):
     return -(n * np.log(x) + (1 - n) * np.log(1 - x))
 
 
-def create_data(stimuli_pars, number=100):
+def create_data(stimuli_pars, n_trials=100):
     """
     Create data for given jitter and noise value for testing (not dataloader)
     """
-    data = create_gratings(number=number, stimuli_pars=stimuli_pars)
+    data = create_gratings(stimuli_pars=stimuli_pars, n_trials=n_trials)
     train_data = next(iter(DataLoader(data, batch_size=len(data), shuffle=False)))
     train_data["ref"] = train_data["ref"].numpy()
     train_data["target"] = train_data["target"].numpy()
@@ -528,7 +516,8 @@ def save_params_dict_two_stage(ssn_layer_pars, readout_pars, true_acc, epoch):
 
     if "sigma_oris" in ssn_layer_pars.keys():
         if len(ssn_layer_pars["sigma_oris"]) == 1:
-            save_params[key] = np.exp(ssn_layer_pars[key])
+            # save_params[key] = np.exp(ssn_layer_pars[key]) # 
+            print("MJ error message: save_params[key] = np.exp(ssn_layer_pars[key]) would not work as key is undefined!")
         elif np.shape(ssn_layer_pars["sigma_oris"]) == (2, 2):
             save_params["sigma_orisEE"] = np.exp(ssn_layer_pars["sigma_oris"][0, 0])
             save_params["sigma_orisEI"] = np.exp(ssn_layer_pars["sigma_oris"][0, 1])

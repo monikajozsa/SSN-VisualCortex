@@ -1,22 +1,9 @@
 import matplotlib.pyplot as plt
-from matplotlib.colors import hsv_to_rgb
-
-import math
-from PIL import Image
-from random import random
-from scipy.stats import norm
 import pandas as pd
-import numpy
-# from torch.utils.data import DataLoader
-from numpy.random import binomial
-from pdb import set_trace
 import os
-
-import jax
-from jax import random
-from jax import vmap
 import jax.numpy as np
 
+#from analysis import obtain_min_max_indices, label_neuron, ori_tuning_curve_responses
 
 def plot_losses(training_losses, save_file=None):
     plt.plot(
@@ -127,8 +114,7 @@ def plot_sigmoid_outputs(
 
     if save:
         fig.savefig(save + ".png")
-    fig.show()
-    plt.close()
+    
 
 
 def plot_results(
@@ -326,10 +312,10 @@ def plot_losses_two_stage(
 
     if inset:
         left, bottom, width, height = [0.2, 0.22, 0.35, 0.25]
-        ax2 = fig.add_axes([left, bottom, width, height])
+        axs2 = fig.add_axes([left, bottom, width, height])
 
-        ax2.plot(training_losses[0, :], label="Binary loss")
-        ax2.legend()
+        axs2.plot(training_losses[0, :], label="Binary loss")
+        axs2.legend()
 
     if epoch_c == None:
         pass
@@ -337,20 +323,17 @@ def plot_losses_two_stage(
         if np.isscalar(epoch_c):
             axs1.axvline(x=epoch_c, c="r")
             if inset:
-                ax2.axvline(x=epoch_c, c="r")
+                axs2.axvline(x=epoch_c, c="r")
         else:
             axs1.axvline(x=epoch_c[0], c="r")
             axs1.axvline(x=epoch_c[0] + epoch_c[1], c="r")
             axs1.axvline(x=epoch_c[2], c="r")
             if inset:
-                ax2.axvline(x=epoch_c[0], c="r")
-                ax2.axvline(x=epoch_c[0] + epoch_c[1], c="r")
+                axs2.axvline(x=epoch_c[0], c="r")
+                axs2.axvline(x=epoch_c[0] + epoch_c[1], c="r")
                 axs1.axvline(x=epoch_c[2], c="r")
-
-    fig.show()
     if save:
         fig.savefig(save + ".png")
-    plt.close()
 
 
 def plot_acc_vs_param(to_plot, lambdas, type_param=None, param=None):

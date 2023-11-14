@@ -1,32 +1,17 @@
-import time, os, json
 import pandas as pd
-from tqdm import tqdm
-import seaborn as sns
-import pdb
-from pdb import set_trace
-from functools import partial
-import math
-import csv
 import numpy
 
-import jax
 from jax import random, vmap
 import jax.numpy as np
 
-# from sklearn.model_selection import train_test_split
 from util import create_gratings, take_log
 from training_supp import (
-    exponentiate,
     constant_to_vec,
     create_data,
     obtain_fixed_point,
-    exponentiate,
-    middle_layer_fixed_point,
     model,
     generate_noise,
 )
-from SSN_classes import SSN2DTopoV1_ONOFF_local, SSN2DTopoV1
-
 
 def param_ratios(results_file):
     results = pd.read_csv(results_file, header=0)

@@ -12,6 +12,8 @@ conda install -c conda-forge tqdm
 conda install -c anaconda seaborn
 pip install optax
 
+conda install -c conda-forge pycallgraph2
+conda install -c anaconda graphviz
 --------------------------
 
 in VS Code
