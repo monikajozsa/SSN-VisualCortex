@@ -1,19 +1,7 @@
-import os
-import matplotlib.pyplot as plt
-import time, os, json
-import pandas as pd
-from tqdm import tqdm
-import seaborn as sns
-import pdb
-from functools import partial
-import math
-import csv
-import time
 import numpy
 from pdb import set_trace
 from dataclasses import dataclass
 
-import jax
 import jax.numpy as np
 
 
@@ -41,71 +29,6 @@ def ssn_init_param(init_set, conn_pars, ssn_pars, middle=False):
 
     return J_2x2, s_2x2, gE, gI, conn_pars
 
-'''
-# Input parameters
-@dataclass(frozen=True)
-class GridPars():
-    gridsize_Nx: int = 9 
-    # grid-points across each edge - gives rise to dx = 0.8 mm 
-    gridsize_deg: float = 2 * 1.6  
-    # edge length in degrees - visual field 
-    magnif_factor: float = 2.0
-    # converts deg to mm (mm/deg) 
-    hyper_col: float = 0.4  
-    # ? are our grid points represent columns? (mm) 
-    sigma_RF: float = 0.4  
-    # deg (visual angle), comes in make_grating_input, which Clara does not use as she uses Gabor filters 
-
-grid_pars = GridPars()
-
-
-@dataclass
-class FilterPars():
-    sigma_g = numpy.array(0.39 * 0.5 / 1.04) #
-    conv_factor = numpy.array(2)
-    k: float = np.pi/(6 * 0.5) # Clara approximated it by 1; Ke used 1 too
-    edge_deg: float = grid_pars.gridsize_deg
-    degree_per_pixel = numpy.array(0.05) 
-    # convert degree to number of pixels (129 x 129), this could be calculated from earlier params 
-filter_pars = FilterPars()
-   
-
-@dataclass
-class StimuliPars():
-    inner_radius: float = 2.5 # inner radius of the stimulus
-    outer_radius: float = 3.0 # outer radius of the stimulus: together with inner_radius, they define how the edge of the stimulus fades away to the gray background
-    grating_contrast: float = 0.8 # from Current Biology 2020 Ke's paper
-    std: float = 0.0 # no noise at the moment but this is a Gaussian white noise added to the stimulus
-    jitter_val: float = 5.0 # uniform jitter between [-5, 5] to make the training stimulus vary
-    k: float = filter_pars.k # It would be great to get rid of this because FILTER_PARS HAS IT but then it is used when it is passed to new_two_stage_training at BW_Grating
-    edge_deg: float = filter_pars.edge_deg # same as for k
-    degree_per_pixel = filter_pars.degree_per_pixel # same as for k
-    ref_ori: float = 55.0
-    offset: float = 4.0
-stimuli_pars = StimuliPars()
-
-
-# Network parameters
-@dataclass
-class SigmoidPars():
-    N_neurons: int = 250
-    w_sig = numpy.random.normal(size=(N_neurons,)) / np.sqrt(N_neurons)
-    b_sig: float = 0.0
-sig_pars = SigmoidPars()
-
-
-@dataclass(frozen=True)
-class SsnPars():
-    n: float = 2.0 # power law parameter
-    k: float = 0.04 # power law parameter
-    tauE: float = 20.0  # time constant for excitatory neurons in ms
-    tauI: float = 10.0  # time constant for inhibitory neurons in ms~
-    psi: float = 0.774 # when we make J2x2 to normalize
-    A = None # normalization param for Gabors to get 100% contrast, see find_A
-    A2 = None # normalization param for Gabors to get 100% contrast, see find_A
-    phases: int = 2 # or 4
-ssn_pars = SsnPars()
-'''
 
 # Input parameters
 @dataclass(unsafe_hash=True)

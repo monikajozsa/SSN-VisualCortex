@@ -393,9 +393,9 @@ def find_A(
         local_stimuli_pars.jitter = 0
         
         test_grating = BW_Grating(
-            ori_deg=ori,
-            jitter = local_stimuli_pars.jitter,    
+            ori_deg=ori,  
             stimuli_pars=local_stimuli_pars,
+            jitter = local_stimuli_pars.jitter,  
             phase=phase,
         )
         test_stimuli = test_grating.BW_image()
@@ -434,8 +434,8 @@ class BW_Grating:
     def __init__(
         self,
         ori_deg,
-        jitter,
         stimuli_pars,
+        jitter = 0,
         phase = 0,
         crop_f=None,
     ):
@@ -455,7 +455,7 @@ class BW_Grating:
         spatial_frequency = k * degree_per_pixel # 0.05235987755982988        
         self.phase = phase
         self.crop_f = crop_f
-        self.smooth_sd = self.pixel_per_degree / 6
+        self.smooth_sd = self.pixel_per_degree / 6 
         self.spatial_freq = spatial_frequency or (1 / self.pixel_per_degree)
         self.grating_size = round(self.outer_radius * self.pixel_per_degree)
         self.angle = ((self.ori_deg + self.jitter) - 90) / 180 * numpy.pi
@@ -469,12 +469,15 @@ class BW_Grating:
         x, y = numpy.mgrid[-self.grating_size:self.grating_size + 1.0, -self.grating_size:self.grating_size + 1.0]
 
         # Calculate the distance from the center for each pixel
-        edge_control = numpy.sqrt(x**2 + y**2) / self.pixel_per_degree
+        edge_control_dist = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
+        edge_control = numpy.divide(edge_control_dist, self.pixel_per_degree)
         
         # Create a matrix (alpha_channel) that is 255 (white) within the inner_radius and exponentially fades to 0 as the radius increases
-        overrado = edge_control > self.inner_radius
-        annulus = numpy.ones_like(edge_control)
-        annulus[overrado] *= numpy.exp(-0.5 * ((edge_control[overrado] - self.inner_radius) * self.pixel_per_degree)**2 / (2 * (self.smooth_sd**2)))
+        overrado = numpy.nonzero(edge_control > self.inner_radius)
+        d = self.grating_size * 2 + 1
+        annulus = numpy.ones((d, d))
+
+        annulus[overrado] *= numpy.exp(-1 * ((edge_control[overrado] - self.inner_radius) * self.pixel_per_degree)**2 / (2 * (self.smooth_sd**2)))
         alpha_channel = annulus * _WHITE
 
         # Generate the grating pattern, which is a centered and tilted sinusoidal matrix 
@@ -482,7 +485,7 @@ class BW_Grating:
         gabor_sti = _GRAY * (1 + self.grating_contrast * numpy.cos(spatial_component + self.phase))
 
         # Set pixels outside the grating size to gray
-        gabor_sti[edge_control > self.grating_size] = _GRAY
+        gabor_sti[edge_control_dist > self.grating_size] = _GRAY
 
         # Add Gaussian white noise to the grating
         noise = numpy.random.normal(loc=0, scale=self.std, size=gabor_sti.shape)
@@ -513,98 +516,59 @@ class BW_Grating:
         return image
 
 
-'''
 ##### CREATING GRATINGS, see https://gitlab.com/samueljamesbell/vpl-modelling ######
+
 _BLACK = 0
 _WHITE = 255
 _GRAY = round((_WHITE + _BLACK) / 2)
 
 
 class JiaGrating:
-    def __init__(
-        self,
-        ori_deg,
-        stimuli_pars,
-        size,
-        pixel_per_degree,
-        phase,
-        jitter,
-        spatial_frequency=None,
-    ):
+
+    def __init__(self, ori_deg, size, outer_radius, inner_radius, pixel_per_degree, grating_contrast, phase, jitter, std = 0, spatial_frequency=None, ):
         self.ori_deg = ori_deg
         self.size = size
 
-        self.outer_radius = stimuli_pars.outer_radius  # in degrees
-        self.inner_radius = stimuli_pars.inner_radius  # in degrees
-        self.grating_contrast = stimuli_pars.grating_contrast
-        self.std = stimuli_pars.std
+        self.outer_radius = outer_radius #in degrees
+        self.inner_radius = inner_radius #in degrees
         self.pixel_per_degree = pixel_per_degree
+        self.grating_contrast = grating_contrast
         self.phase = phase
-        self.jitter = jitter
+        self.jitter =  jitter
+        self.std = std
 
         self.smooth_sd = self.pixel_per_degree / 6
         self.spatial_freq = spatial_frequency or (1 / self.pixel_per_degree)
         self.grating_size = round(self.outer_radius * self.pixel_per_degree)
         self.angle = ((self.ori_deg + self.jitter) - 90) / 180 * numpy.pi
+      
 
     def image(self):
-        x, y = numpy.mgrid[
-            -self.grating_size : self.grating_size + 1.0,
-            -self.grating_size : self.grating_size + 1.0,
-        ]
+       
+        x, y = numpy.mgrid[-self.grating_size:self.grating_size+1., -self.grating_size:self.grating_size+1.]
 
         d = self.grating_size * 2 + 1
         annulus = numpy.ones((d, d))
 
-        edge_control = numpy.divide(
-            numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2)), self.pixel_per_degree
-        )
+        edge_control = numpy.divide(numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2)), self.pixel_per_degree)
 
         overrado = numpy.nonzero(edge_control > self.inner_radius)
 
         for idx_x, idx_y in zip(*overrado):
-            annulus[idx_x, idx_y] = annulus[idx_x, idx_y] * numpy.exp(
-                -1
-                * (
-                    (
-                        (
-                            (edge_control[idx_x, idx_y] - self.inner_radius)
-                            * self.pixel_per_degree
-                        )
-                        ** 2
-                    )
-                    / (2 * (self.smooth_sd**2))
-                )
-            )
+            annulus[idx_x, idx_y] = annulus[idx_x, idx_y] * numpy.exp(-1 * ((((edge_control[idx_x, idx_y] - self.inner_radius) * self.pixel_per_degree) ** 2) / (2 * (self.smooth_sd ** 2))))    
+     
+        gabor_sti = _GRAY * (1 + self.grating_contrast * numpy.cos(2 * math.pi * self.spatial_freq * (y * numpy.sin(self.angle) + x * numpy.cos(self.angle)) + self.phase))
 
-        gabor_sti = _GRAY * (
-            1
-            + self.grating_contrast
-            * numpy.cos(
-                2
-                * math.pi
-                * self.spatial_freq
-                * (y * numpy.sin(self.angle) + x * numpy.cos(self.angle))
-                + self.phase
-            )
-        )
-
-        gabor_sti[
-            numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2)) > self.grating_size
-        ] = _GRAY
-
-        # Gaussian white noise
-        noise = numpy.random.normal(loc=0, scale=self.std, size=(d, d))
+        gabor_sti[numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2)) > self.grating_size] = _GRAY
+        
+        #New noise - Gaussian white noise
+        noise = numpy.random.normal(loc=0, scale=self.std, size = (d,d))
         noisy_gabor_sti = gabor_sti + noise
 
         gabor_sti_final = numpy.repeat(noisy_gabor_sti[:, :, numpy.newaxis], 3, axis=-1)
         alpha_channel = annulus * _WHITE
-        gabor_sti_final_with_alpha = numpy.concatenate(
-            (gabor_sti_final, alpha_channel[:, :, numpy.newaxis]), axis=-1
-        )
-        gabor_sti_final_with_alpha_image = Image.fromarray(
-            gabor_sti_final_with_alpha.astype(numpy.uint8)
-        )
+        gabor_sti_final_with_alpha = numpy.concatenate((gabor_sti_final, alpha_channel[:, :, numpy.newaxis]), axis=-1)
+        gabor_sti_final_with_alpha_image = Image.fromarray(gabor_sti_final_with_alpha.astype(numpy.uint8))
 
         center_x = int(self.size / 2)
         center_y = int(self.size / 2)
@@ -613,80 +577,41 @@ class JiaGrating:
         background = numpy.full((self.size, self.size, 3), _GRAY, dtype=numpy.uint8)
         final_image = Image.fromarray(background)
 
-        final_image.paste(
-            gabor_sti_final_with_alpha_image,
-            box=bounding_box,
-            mask=gabor_sti_final_with_alpha_image,
-        )
+        final_image.paste(gabor_sti_final_with_alpha_image, box=bounding_box, mask=gabor_sti_final_with_alpha_image)
 
         return final_image
 
 
-class BW_Grating(JiaGrating):
-    """
+class BW_Grating_Clara(JiaGrating):
+    '''
     Sub-class of Jia Grating.
-    Sums stimuli over channels and option to crop stimulus field.
-    """
-
-    def __init__(
-        self,
-        ori_deg,
-        jitter,
-        stimuli_pars,
-        phase = 0,
-        crop_f=None,
-    ):
-        degree_per_pixel = stimuli_pars.degree_per_pixel
-        pixel_per_degree = 1 / degree_per_pixel
-        edge_deg = stimuli_pars.edge_deg
-        size = int(edge_deg * 2 * pixel_per_degree) + 1
-        k = stimuli_pars.k
-        spatial_frequency = k * degree_per_pixel # 0.05235987755982988
-        self.crop_f = crop_f # consider getting rid of it if not used
-         # consider getting rid of it if not used
-
-        super().__init__(
-            ori_deg,
-            stimuli_pars,
-            size,
-            pixel_per_degree,
-            spatial_frequency,
-            jitter,
-        )
-
+    Sums stimuli over channels and option to crop stimulus field. 
+    '''
+    
+    def __init__(self, ori_deg, outer_radius, inner_radius, degree_per_pixel, grating_contrast, edge_deg, phase=0, jitter=0, std = 0, k=None, crop_f=None):
+        
+        self.crop_f=crop_f
+        pixel_per_degree=1/degree_per_pixel
+        size=int(edge_deg*2 *pixel_per_degree) + 1
+        spatial_frequency = k*degree_per_pixel
+        
+                
+        super().__init__( ori_deg, size, outer_radius, inner_radius, pixel_per_degree, grating_contrast, phase, jitter, std, spatial_frequency)
+        
     def BW_image(self):
-        # generate image using Jia Grating function
-        original = numpy.array(self.image(), dtype=numpy.float16)
-
-        # sum image over channels
-        image = numpy.sum(original, axis=2)
-
-        # crop image
+        
+        #generate image using Jia Grating function
+        final_image = self.image()
+        original=numpy.array(final_image, dtype=numpy.float16)
+        
+        #sum image over channels
+        image=numpy.sum(original, axis=2) 
+        
+        #crop image
         if self.crop_f:
-            image = image[self.crop_f : -self.crop_f, self.crop_f : -self.crop_f]
+            image=image[self.crop_f:-self.crop_f, self.crop_f:-self.crop_f]            
         return image
-# CREATE INPUT STIMULI
-def make_gratings(stimuli_pars):
-    """
-    Create reference and target stimulus given orientations using same jitter (randomly generated per trial) for reference and target.
-    """
-    offset = stimuli_pars.offset
-    ref_ori = stimuli_pars.ref_ori
-    target_ori = ref_ori - offset
-    jitter_val = stimuli_pars.jitter_val
-    # generate jitter for reference and target
-    jitter = numpy.random.uniform(-jitter_val, jitter_val, 1)
 
-    # create reference grating
-    ref = BW_Grating(ori_deg=ref_ori, jitter=jitter, stimuli_pars=stimuli_pars).BW_image().ravel()
-
-    # create target grating
-    target = (
-        BW_Grating(ori_deg=target_ori, jitter=jitter, stimuli_pars=stimuli_pars).BW_image().ravel()
-    )
-
-    return ref, target
-'''
 
 def create_gratings(stimuli_pars, n_trials):
     """
@@ -698,14 +623,31 @@ def create_gratings(stimuli_pars, n_trials):
         training_gratings: array of 1D reference and target stimuli. Shape is (n_trials, 2, n_pixels) - 2
 
     """
-    training_gratings = [
-        {
-            "ref": BW_Grating(ori_deg=stimuli_pars.ref_ori, jitter=numpy.random.randn(1) * stimuli_pars.jitter_val, stimuli_pars=stimuli_pars).BW_image().ravel(),
-            "target": BW_Grating(ori_deg=stimuli_pars.ref_ori - stimuli_pars.offset, jitter=numpy.random.randn(1) * stimuli_pars.jitter_val, stimuli_pars=stimuli_pars).BW_image().ravel(),
-            "label": numpy.random.choice([0, 1]),
-        }
-        for _ in range(n_trials)
-    ]
+
+    #initialise empty arrays
+    labels_list=[]
+    training_gratings=[]
+    
+    for i in range(n_trials):
+        
+        if numpy.random.uniform(0,1,1) < 0.5:
+            target_ori = stimuli_pars.ref_ori - stimuli_pars.offset
+            label = 1
+        else:
+            target_ori = stimuli_pars.ref_ori + stimuli_pars.offset
+            label = 0
+        set_trace()
+        jitter = numpy.random.uniform(-stimuli_pars.jitter_val, stimuli_pars.jitter_val, 1)
+        
+        #create reference grating
+        ref = BW_Grating(ori_deg = stimuli_pars.ref_ori, stimuli_pars=stimuli_pars, jitter=jitter).BW_image().ravel()
+
+        #create target grating
+        target = BW_Grating(ori_deg = target_ori, stimuli_pars=stimuli_pars, jitter=jitter).BW_image().ravel()
+        
+        data_dict = {'ref':ref, 'target': target, 'label':label}
+        training_gratings.append(data_dict)
+
     
     return training_gratings
 
@@ -718,7 +660,7 @@ def create_stimuli(stimuli_pars, ref_ori, number=10, jitter_val=5):
 
         # create reference grating
         ref = (
-            BW_Grating(ori_deg=ref_ori, jitter=jitter, stimuli_pars=stimuli_pars)
+            BW_Grating(ori_deg=ref_ori, stimuli_pars=stimuli_pars, jitter=jitter)
             .BW_image()
             .ravel()
         )
