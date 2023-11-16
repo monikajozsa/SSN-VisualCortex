@@ -96,12 +96,9 @@ def obtain_fixed_point(
             dt=dt,
             xtol=xtol,
             Tmax=Tmax,
-            verbose=verbose,
-            silent=silent,
             PLOT=PLOT,
             save=save,
             inds=inds,
-            print_dt=print_dt,
         )
     else:
         fp, _, avg_dx = ssn.fixed_point_r(
@@ -110,8 +107,6 @@ def obtain_fixed_point(
             dt=dt,
             xtol=xtol,
             Tmax=Tmax,
-            verbose=verbose,
-            silent=silent,
             PLOT=PLOT,
             save=save,
         )
