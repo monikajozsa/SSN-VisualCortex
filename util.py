@@ -288,12 +288,16 @@ class GaborFilter:
         conv_factor=None,
     ):
         """
-        Gabor filter class.
+        Gabor filter class. 
+        Called from SSN2DTopoV1_ONOFF_local.create_gabor_filters() and SSN2DTopoV1_ONOFF.create_gabor_filters() whose outputs are gabor_filters and A (attributes of SSN2DTopoV1_ONOFF and SSN2DTopoV1_ONOFF_local)
         Inputs:
-            x_i, y_i: centre of filter
+            x_i, y_i: centre of the filter
             k: preferred spatial frequency in cycles/degrees (radians)
             sigma_g: variance of Gaussian function
-            theta: preferred oritnation
+            theta: orientation map
+            edge_deg: extent of the filter in degrees
+            degree_per_pixel: resolution in degrees per pixel
+            phase: phase of the Gabor filter (default is 0)
             conv_factor: conversion factor from degrees to mm
         """
 
@@ -317,13 +321,14 @@ class GaborFilter:
         x_axis = np.linspace(-edge_deg, edge_deg, self.N_pixels, endpoint=True)
         y_axis = np.linspace(-edge_deg, edge_deg, self.N_pixels, endpoint=True)
 
-        # construct filter as attribute
+        # construct filter as an attribute
         self.filter = self.create_filter(x_axis, y_axis)
 
     def create_filter(self, x_axis, y_axis):
         """
         Create Gabor filters in vectorised form.
         """
+        # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
         x_axis = np.reshape(x_axis, (self.N_pixels, 1))
         x_i = np.repeat(self.x_i, self.N_pixels)
         x_i = np.reshape(x_i, (self.N_pixels, 1))
@@ -334,6 +339,7 @@ class GaborFilter:
         y_i = np.reshape(y_i, (self.N_pixels, 1))
         diff_y = y_axis - y_i.T
 
+        # Calculate the spatial component of the Gabor filter
         spatial = np.cos(
             self.k
             * np.pi
@@ -341,6 +347,7 @@ class GaborFilter:
             * (diff_x * np.cos(self.theta) + diff_y * np.sin(self.theta))
             + self.phase
         )
+        # Calculate the Gaussian component of the Gabor filter
         gaussian = np.exp(-0.5 * (diff_x**2 + diff_y**2) / self.sigma_g**2)
 
         return gaussian * spatial[::-1]  # same convention as stimuli
@@ -625,7 +632,6 @@ def create_gratings(stimuli_pars, n_trials):
     """
 
     #initialise empty arrays
-    labels_list=[]
     training_gratings=[]
     
     for i in range(n_trials):
@@ -636,7 +642,6 @@ def create_gratings(stimuli_pars, n_trials):
         else:
             target_ori = stimuli_pars.ref_ori + stimuli_pars.offset
             label = 0
-        set_trace()
         jitter = numpy.random.uniform(-stimuli_pars.jitter_val, stimuli_pars.jitter_val, 1)
         
         #create reference grating

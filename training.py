@@ -13,7 +13,6 @@ def new_two_stage_training(
     results_filename=None,
     second_eta=None,
     test_size=None,
-    results_dir=None,
     early_stop=0.7,
     extra_stop=20,
     ssn_ori_map=None,):
@@ -42,9 +41,7 @@ def new_two_stage_training(
     batch_size = training_pars.batch_size
     eta = training_pars.eta
     sig_noise = training_pars.sig_noise
-    noise_type = training_pars.noise_type
     ref_ori = stimuli_pars.ref_ori
-    offset = stimuli_pars.offset
 
     # Initialize loss
     val_loss_per_epoch = []

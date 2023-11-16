@@ -1,5 +1,4 @@
 import numpy
-from pdb import set_trace
 from dataclasses import dataclass
 
 import jax.numpy as np
@@ -144,7 +143,7 @@ class TrainingPars:
     batch_size = 50
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    epochs = 3  # was 5
+    epochs = 10  # was 5
     num_epochs_to_save = 2
 training_pars = TrainingPars()
     

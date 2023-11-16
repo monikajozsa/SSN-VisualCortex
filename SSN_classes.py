@@ -112,8 +112,6 @@ class _SSN_Base(object):
         dt=1,
         xtol=1e-5,
         PLOT=False,
-        verbose=True,
-        silent=False,
         save=None,
     ):
         if r_init is None:
@@ -135,11 +133,8 @@ class _SSN_Base(object):
         dt=1,
         xtol=1e-5,
         PLOT=True,
-        verbose=True,
-        silent=False,
         save=None,
         inds=None,
-        print_dt=False,
     ):
         if r_init is None:
             r_init = np.zeros(inp_vec.shape)  # np.zeros((self.N,))
@@ -197,7 +192,6 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
         sigma_oris=None,
         s_2x2=None,
         ori_map=None,
-        number_phases=2,
         **kwargs
     ):
         self.Nc = grid_pars.gridsize_Nx**2  # number of columns
@@ -463,7 +457,7 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
         MinSyn=1e-4,
         CellWiseNormalized=True,
         PERIODIC=True,
-    ):  # , prngKey=0):
+    ):  
         """
         make the full recurrent connectivity matrix W
         In:
@@ -579,7 +573,7 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
 
     def create_gabor_filters(
         self,
-    ):  # (self, edge_deg, k, sigma_g, conv_factor, degree_per_pixel, gE = 1, gI = 1, A=None):
+    ): 
         # Create array of filters
         e_filters = []
         if self.phases == 4:
@@ -694,10 +688,9 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
             )
 
         # remove mean so that input to constant grating is 0
-        SSN_filters = SSN_filters - np.mean(SSN_filters, axis=1)[:, None]
-        self.gabor_filters = SSN_filters
+        self.gabor_filters = SSN_filters - np.mean(SSN_filters, axis=1)[:, None]
 
-        return SSN_filters, self.A
+        return self.gabor_filters, self.A
 
     def select_type(self, vec, map_number):
         out = vec[(map_number - 1) * self.Nc : map_number * self.Nc]
@@ -804,21 +797,20 @@ class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
         self.Nc = grid_pars.gridsize_Nx**2  # number of columns
         Ni = Ne = self.phases * self.Nc
         n = ssn_pars.n
-
         self.k = ssn_pars.k
+        self.grid_pars = grid_pars
+        self.conn_pars = conn_pars
         tauE = ssn_pars.tauE
         tauI = ssn_pars.tauI
-
-        tau_vec = np.hstack([tauE * np.ones(self.Nc), tauI * np.ones(self.Nc)])
-        tau_vec = np.kron(np.ones((1, self.phases)), tau_vec).squeeze()
         self.tauE = tauE
         self.tauI = tauI
 
+        tau_vec = np.hstack([tauE * np.ones(self.Nc), tauI * np.ones(self.Nc)])
+        tau_vec = np.kron(np.ones((1, self.phases)), tau_vec).squeeze()
+
         super(SSN2DTopoV1_ONOFF, self).__init__(n=n, k=self.k, Ne=Ne, Ni=Ni,
-                                    tau_vec=tau_vec, **kwargs)
-  
-        self.grid_pars = grid_pars
-        self.conn_pars = conn_pars
+                                    tau_vec=tau_vec, **kwargs) # consider merging SSN
+        
         self._make_retinmap()
         if ori_map==None:
             self.ori_map = self._make_orimap()

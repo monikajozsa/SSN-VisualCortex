@@ -4,7 +4,6 @@ import numpy
 from jax import random, vmap
 import jax.numpy as np
 
-from util import create_gratings, take_log
 from training_supp import (
     constant_to_vec,
     create_data,
