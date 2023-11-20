@@ -139,11 +139,11 @@ conv_pars = ConvPars()
 
 @dataclass
 class TrainingPars:
-    eta = 10e-4
-    batch_size = 50
+    eta = 10e-3 # was 0e-4
+    batch_size = 100 # was 50
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    epochs = 10  # was 5
+    epochs = 20  # was 5
     num_epochs_to_save = 2
 training_pars = TrainingPars()
     

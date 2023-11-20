@@ -1,10 +1,7 @@
 import jax
 import jax.numpy as np
 from jax import random
-from jax import jit
 import matplotlib.pyplot as plt
-from functools import partial
-from pdb import set_trace
 import numpy
 
 from util import find_A, GaborFilter
