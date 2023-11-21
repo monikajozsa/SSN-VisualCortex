@@ -3,6 +3,10 @@ from util import take_log
 import optax
 import time
 import csv
+import numpy
+
+from SSN_classes import SSN2DTopoV1_ONOFF_local
+
 
 def new_two_stage_training(
     ssn_layer_pars,
@@ -15,7 +19,8 @@ def new_two_stage_training(
     test_size=None,
     early_stop=0.7,
     extra_stop=20,
-    ssn_ori_map=None,):
+    ssn_ori_map=None,
+):
     """
     Training function for two layer model in two stages: once readout layer is trained until early_stop (first stage), extra epochs are ran without updating, and then SSN layer parameters are trained (second stage). Second stage is nested in first stage. Accuracy is calculated on testing set before training and after first stage.
     Inputs:
@@ -37,7 +42,15 @@ def new_two_stage_training(
     w_sig = sigm_pars.w_sig
     b_sig = sigm_pars.b_sig
     epochs = training_pars.epochs
-    epochs_to_save =  np.insert((np.unique(np.linspace(1 , epochs, training_pars.num_epochs_to_save).astype(int))), 0 , 0)
+    epochs_to_save = np.insert(
+        (
+            np.unique(
+                np.linspace(1, epochs, training_pars.num_epochs_to_save).astype(int)
+            )
+        ),
+        0,
+        0,
+    )
     batch_size = training_pars.batch_size
     eta = training_pars.eta
     sig_noise = training_pars.sig_noise
@@ -62,7 +75,7 @@ def new_two_stage_training(
     logs_2x2 = np.log(s_2x2_s)
     logJ_2x2_m = take_log(J_2x2_m)
     logJ_2x2 = [logJ_2x2_m, logJ_2x2_s]
-    sigma_oris = np.log(sigma_oris_s)
+    log_sigma_oris = np.log(sigma_oris_s)
 
     # Define jax seed
     constant_ssn_pars["key"] = random.PRNGKey(numpy.random.randint(0, 10000))
@@ -73,10 +86,10 @@ def new_two_stage_training(
             ssn_pars=constant_ssn_pars["ssn_pars"],
             grid_pars=constant_ssn_pars["grid_pars"],
             conn_pars=constant_ssn_pars["conn_pars_m"],
-            filter_pars = constant_ssn_pars["filter_pars"],
-            J_2x2 = J_2x2_m, 
-            gE = constant_ssn_pars['gE'][0], 
-            gI = constant_ssn_pars['gI'][0]
+            filter_pars=constant_ssn_pars["filter_pars"],
+            J_2x2=J_2x2_m,
+            gE=constant_ssn_pars["gE"][0],
+            gI=constant_ssn_pars["gI"][0],
         )
         print("New orientation map created for the middle layer.")
         constant_ssn_pars["ssn_mid_ori_map"] = ssn_mid.ori_map
@@ -89,13 +102,15 @@ def new_two_stage_training(
     # Reassemble parameters into corresponding dictionaries
     constant_ssn_pars["logs_2x2"] = logs_2x2
     constant_ssn_pars["train_ori"] = ref_ori
-    constant_ssn_pars["sigma_oris"] = sigma_oris
+    constant_ssn_pars["log_sigma_oris"] = log_sigma_oris
     constant_ssn_pars["f_E"] = f_E
     constant_ssn_pars["f_I"] = f_I
     constant_ssn_pars["c_E"] = c_E
     constant_ssn_pars["c_I"] = c_I
     readout_pars = dict(w_sig=w_sig, b_sig=b_sig)
-    ssn_layer_pars_dict = dict(logJ_2x2=logJ_2x2, kappa_pre=kappa_pre, kappa_post=kappa_post)
+    ssn_layer_pars_dict = dict(
+        logJ_2x2=logJ_2x2, kappa_pre=kappa_pre, kappa_post=kappa_post
+    )
 
     test_size = batch_size if test_size is None else test_size
 
@@ -341,7 +356,9 @@ def new_two_stage_training(
                         ssn_layer_pars_dict["kappa_post"].at[1, :].set(kappa_post[1, :])
                     )
                     ssn_layer_pars_dict["sigma_oris"] = (
-                        ssn_layer_pars_dict["sigma_oris"].at[1, :].set(sigma_oris[1, :])
+                        ssn_layer_pars_dict["sigma_oris"]
+                        .at[1, :]
+                        .set(log_sigma_oris[1, :])
                     )
 
                 if epoch == 1:

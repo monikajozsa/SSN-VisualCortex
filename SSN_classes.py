@@ -7,6 +7,8 @@ import numpy
 from util import find_A, GaborFilter
 import util
 
+numpy.random.seed(0)
+
 
 class _SSN_Base(object):
     def __init__(self, n, k, Ne, Ni, tau_vec=None, W=None):
@@ -385,13 +387,6 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
                 * np.pi
                 / (hyper_col)
             )
-
-            ## JAX CHANGES ##
-            # key, subkey = random.split(key)
-            # sj = 2 *random.randint(key=key, shape=[1,1], minval=0, maxval=2)-1 #random number that's either + or -1.
-            # key, subkey = random.split(key)
-            # phij = random.uniform(key, shape=[1,1], minval=0, maxval=1)*2*np.pi
-
             # NUMPY RANDOM
             sj = (
                 2 * numpy.random.randint(0, 2) - 1
@@ -454,7 +449,7 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
         MinSyn=1e-4,
         CellWiseNormalized=True,
         PERIODIC=True,
-    ):  
+    ):
         """
         make the full recurrent connectivity matrix W
         In:
@@ -570,7 +565,7 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
 
     def create_gabor_filters(
         self,
-    ): 
+    ):
         # Create array of filters
         e_filters = []
         if self.phases == 4:
@@ -649,7 +644,7 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
                 edge_deg=self.edge_deg,
                 degree_per_pixel=self.degree_per_pixel,
                 indices=np.sort(self.ori_map.ravel()),
-                phase=0, # MJ comment: should we not define phase based on phases (btw, consider renaming it to n_phases) and pass that throuh here?
+                phase=0,  # MJ comment: should we not define phase based on phases (btw, consider renaming it to n_phases) and pass that throuh here?
                 return_all=False,
             )
             self.A = A
@@ -788,7 +783,17 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
 
 
 class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
-    def __init__(self, ssn_pars, grid_pars,  conn_pars, filter_pars, J_2x2, gE, gI, ori_map = None, **kwargs
+    def __init__(
+        self,
+        ssn_pars,
+        grid_pars,
+        conn_pars,
+        filter_pars,
+        J_2x2,
+        gE,
+        gI,
+        ori_map=None,
+        **kwargs
     ):
         self.phases = ssn_pars.phases
         self.Nc = grid_pars.gridsize_Nx**2  # number of columns
@@ -805,17 +810,18 @@ class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
         tau_vec = np.hstack([tauE * np.ones(self.Nc), tauI * np.ones(self.Nc)])
         tau_vec = np.kron(np.ones((1, self.phases)), tau_vec).squeeze()
 
-        super(SSN2DTopoV1_ONOFF, self).__init__(n=n, k=self.k, Ne=Ne, Ni=Ni,
-                                    tau_vec=tau_vec, **kwargs) # consider merging SSN
-        
+        super(SSN2DTopoV1_ONOFF, self).__init__(
+            n=n, k=self.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs
+        )  # consider merging SSN
+
         self._make_retinmap()
-        if ori_map==None:
+        if ori_map == None:
             self.ori_map = self._make_orimap()
         else:
             self.input_ori_map(ori_map)
-            
+
         self.gE, self.gI = gE, gI
-        
+
         # Gabor filter parameters
         self.edge_deg = filter_pars.edge_deg
         self.sigma_g = filter_pars.sigma_g
@@ -829,7 +835,7 @@ class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
 
         self.gabor_filters, self.A = self.create_gabor_filters()
         self.make_local_W(J_2x2)
-       
+
     def drdt(self, r, inp_vec):
         r1 = np.reshape(r, (-1, self.Nc))
         out = (-r + self.powlaw(np.ravel(self.W @ r1) + inp_vec)) / self.tau_vec
@@ -842,45 +848,61 @@ class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
 class SSN2DTopoV1(_SSN_Base):
     _Lring = 180
 
-    def __init__(self, ssn_pars, grid_pars, conn_pars, filter_pars, J_2x2, gE, gI, sigma_oris =None, s_2x2 = None, ori_map=None, train_ori = None, kappa_post = None, kappa_pre = None, **kwargs):
+    def __init__(
+        self,
+        ssn_pars,
+        grid_pars,
+        conn_pars,
+        filter_pars,
+        J_2x2,
+        gE,
+        gI,
+        sigma_oris=None,
+        s_2x2=None,
+        ori_map=None,
+        train_ori=None,
+        kappa_post=None,
+        kappa_pre=None,
+        **kwargs
+    ):
         Ni = Ne = grid_pars.gridsize_Nx**2
-        n=ssn_pars.n
-        self.k=ssn_pars.k
-        tauE= ssn_pars.tauE
-        tauI=ssn_pars.tauI
+        n = ssn_pars.n
+        self.k = ssn_pars.k
+        tauE = ssn_pars.tauE
+        tauI = ssn_pars.tauI
         self.tauE = tauE
         self.tauI = tauI
         tau_vec = np.hstack([tauE * np.ones(Ne), tauI * np.ones(Ni)])
 
-        super(SSN2DTopoV1, self).__init__(n=n, k=self.k, Ne=Ne, Ni=Ni,
-                                    tau_vec=tau_vec, **kwargs)
+        super(SSN2DTopoV1, self).__init__(
+            n=n, k=self.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs
+        )
 
         self.grid_pars = grid_pars
         self.conn_pars = conn_pars
         self.train_ori = train_ori
         self._make_retinmap()
-        
-        if ori_map==None:
+
+        if ori_map == None:
             self.ori_map = self._make_orimap()
         else:
             self.input_ori_map(ori_map)
 
-            
         self.gE, self.gI = gE, gI
-   
+
         self.edge_deg = filter_pars.edge_deg
         self.sigma_g = filter_pars.sigma_g
         self.k_filt = filter_pars.k
-        self.conv_factor =  filter_pars.conv_factor
+        self.conv_factor = filter_pars.conv_factor
         self.degree_per_pixel = filter_pars.degree_per_pixel
-        
-        self.A=ssn_pars.A
 
-        if kappa_post!=None:
+        self.A = ssn_pars.A
+
+        if kappa_post != None:
             self.W = self.make_new_W(J_2x2, s_2x2, sigma_oris, kappa_pre, kappa_post)
         else:
             self.W = self.make_W(J_2x2, s_2x2, sigma_oris)
-        
+
     @property
     def neuron_params(self):
         return dict(
@@ -1088,7 +1110,7 @@ class SSN2DTopoV1(_SSN_Base):
         MinSyn=1e-4,
         CellWiseNormalized=True,
         PERIODIC=True,
-    ):  
+    ):
         """
         make the full recurrent connectivity matrix W
         In:
@@ -1186,7 +1208,7 @@ class SSN2DTopoV1(_SSN_Base):
         MinSyn=1e-4,
         CellWiseNormalized=False,
         PERIODIC=True,
-    ): 
+    ):
         """
         make the full recurrent connectivity matrix W
         In:
@@ -1321,9 +1343,7 @@ class SSN2DTopoV1(_SSN_Base):
         # create inhibitory filters
         e_filters = self.gE * e_filters
         i_filters = self.gI * e_filters
-        SSN_filters = np.vstack(
-            [e_filters, i_filters]
-        )
+        SSN_filters = np.vstack([e_filters, i_filters])
 
         # remove mean so that input to constant grating is 0
         SSN_filters = SSN_filters - np.mean(SSN_filters, axis=1)[:, None]
@@ -1335,7 +1355,7 @@ class SSN2DTopoV1(_SSN_Base):
                 edge_deg=self.edge_deg,
                 degree_per_pixel=self.degree_per_pixel,
                 indices=np.sort(self.ori_map.ravel()),
-                phase = 0,
+                phase=0,
                 return_all=False,
             )
 

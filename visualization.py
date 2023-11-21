@@ -3,7 +3,8 @@ import pandas as pd
 import os
 import jax.numpy as np
 
-#from analysis import obtain_min_max_indices, label_neuron, ori_tuning_curve_responses
+# from analysis import obtain_min_max_indices, label_neuron, ori_tuning_curve_responses
+
 
 def plot_losses(training_losses, save_file=None):
     plt.plot(
@@ -114,7 +115,6 @@ def plot_sigmoid_outputs(
 
     if save:
         fig.savefig(save + ".png")
-    
 
 
 def plot_results(
@@ -702,4 +702,3 @@ def plot_w_sig(w_sig, epochs_to_save, epoch_c=None, save=None):
         plt.savefig(save + ".png")
     plt.show()
     plt.close()
-

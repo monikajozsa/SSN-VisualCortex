@@ -12,6 +12,7 @@ from training_supp import (
     generate_noise,
 )
 
+
 def param_ratios(results_file):
     results = pd.read_csv(results_file, header=0)
 
