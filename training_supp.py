@@ -4,6 +4,7 @@ from jax import random
 import jax.numpy as np
 from jax import vmap
 from torch.utils.data import DataLoader
+import numpy 
 
 from util import create_gratings, sep_exponentiate, constant_to_vec
 from model import two_layer_model, evaluate_model_response
@@ -25,7 +26,9 @@ def create_data(stimuli_pars, n_trials=100):
 def generate_noise(
     constant_ssn_pars, sig_noise, batch_size, length, noise_type="poisson"
 ):
-    constant_ssn_pars["key"], _ = random.split(constant_ssn_pars["key"])
+    key = jax.random.PRNGKey(0)
+
+    constant_ssn_pars["key"], _ = random.split(key)
     constant_ssn_pars["noise_ref"] = sig_noise * jax.random.normal(
         constant_ssn_pars["key"], shape=(batch_size, length)
     )
@@ -34,63 +37,6 @@ def generate_noise(
         constant_ssn_pars["key"], shape=(batch_size, length)
     )
     return constant_ssn_pars
-
-
-def test_accuracy(
-    ssn_layer_pars,
-    readout_pars,
-    constant_ssn_pars,
-    stimuli_pars,
-    offset,
-    ref_ori,
-    sig_noise,
-    save=None,
-    number_trials=5,
-    batch_size=5,
-):
-    """
-    Given network parameters, function generates random trials of data and calculates the accuracy per batch.
-    Input:
-        network parameters, number of trials and batch size of each trial
-    Output:
-        histogram of accuracies
-
-    """
-
-    all_accs = []
-
-    for i in range(number_trials):
-        testing_data = create_data(stimuli_pars, number=batch_size)
-
-        constant_ssn_pars = generate_noise(
-            constant_ssn_pars,
-            sig_noise=sig_noise,
-            batch_size=batch_size,
-            length=readout_pars["w_sig"].shape[0],
-        )
-
-        _, _, pred_label, _, _, _ = model(
-            ssn_layer_pars=ssn_layer_pars,
-            readout_pars=readout_pars,
-            constant_ssn_pars=constant_ssn_pars,
-            data=testing_data,
-            debug_flag=True,
-        )
-
-        true_accuracy = np.sum(testing_data["label"] == pred_label) / len(
-            testing_data["label"]
-        )
-        all_accs.append(true_accuracy)
-
-    plt.hist(all_accs)
-    plt.xlabel("Accuracy")
-    plt.ylabel("Frequency")
-
-    if save:
-        plt.savefig(save + ".png")
-
-    plt.show()
-    plt.close()
 
 
 jitted_model = jax.jit(
@@ -437,45 +383,3 @@ def vmap_eval3(
     print(losses.shape)
     print(accuracies.shape)
     return losses, accuracies
-
-
-def test_accuracies(
-    opt_pars,
-    ssn_pars,
-    grid_pars,
-    conn_pars,
-    filter_pars,
-    conv_pars,
-    stimuli_pars,
-    trials=5,
-    p=0.9,
-    printing=True,
-):
-    key = random.PRNGKey(7)
-    N_neurons = 25
-    accuracies = []
-    key, _ = random.split(key)
-    opt_pars["w_sig"] = random.normal(key, shape=(trials, N_neurons)) / np.sqrt(
-        N_neurons
-    )
-
-    train_data = create_data(stimuli_pars)
-
-    print(opt_pars["w_sig"].shape)
-    val_loss, accuracies = vmap_eval3(
-        opt_pars, ssn_pars, grid_pars, conn_pars, train_data, filter_pars, conv_pars
-    )
-
-    # calcualate how many accuracies are above 90
-    higher_90 = np.sum(accuracies[accuracies > p]) / len(accuracies)
-
-    if printing:
-        print(
-            "grating contrast = {}, jitter = {}, noise std={}, acc (% >90 ) = {}".format(
-                stimuli_pars.grating_contrast,
-                stimuli_pars.jitter_val,
-                stimuli_pars.std,
-                higher_90,
-            )
-        )
-    return higher_90, accuracies

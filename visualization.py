@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import jax.numpy as np
 
-# from analysis import obtain_min_max_indices, label_neuron, ori_tuning_curve_responses
+from analysis import obtain_min_max_indices, label_neuron, ori_tuning_curve_responses
 
 
 def plot_losses(training_losses, save_file=None):

@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy
 
@@ -485,3 +486,58 @@ def sort_close_far_EI(ssn, train_ori):
     i_far = sort_neurons(i_indices, far)
 
     return e_close, e_far, i_close, i_far
+
+
+def test_accuracy(
+    ssn_layer_pars,
+    readout_pars,
+    constant_ssn_pars,
+    stimuli_pars,
+    sig_noise,
+    save=None,
+    number_trials=5,
+    batch_size=5,
+):
+    """
+    Given network parameters, function generates random trials of data and calculates the accuracy per batch.
+    Input:
+        network parameters, number of trials and batch size of each trial
+    Output:
+        histogram of accuracies
+
+    """
+
+    all_accs = []
+
+    for i in range(number_trials):
+        testing_data = create_data(stimuli_pars, number=batch_size)
+
+        constant_ssn_pars = generate_noise(
+            constant_ssn_pars,
+            sig_noise=sig_noise,
+            batch_size=batch_size,
+            length=readout_pars["w_sig"].shape[0],
+        )
+
+        _, _, pred_label, _, _, _ = model(
+            ssn_layer_pars=ssn_layer_pars,
+            readout_pars=readout_pars,
+            constant_ssn_pars=constant_ssn_pars,
+            data=testing_data,
+            debug_flag=True,
+        )
+
+        true_accuracy = np.sum(testing_data["label"] == pred_label) / len(
+            testing_data["label"]
+        )
+        all_accs.append(true_accuracy)
+
+    plt.hist(all_accs)
+    plt.xlabel("Accuracy")
+    plt.ylabel("Frequency")
+
+    if save:
+        plt.savefig(save + ".png")
+
+    plt.show()
+    plt.close()

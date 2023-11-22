@@ -10,7 +10,7 @@ class GridPars:
     gridsize_Nx: int = 9
     """ size of the grid is gridsize_Nx x gridsize_Nx """
     gridsize_deg: float = 2 * 1.6
-    """ edge length in degrees - visual field """
+    """ edge length in degrees - visual field *** is it in degree? it is multiplied by 2, which is also the magnification factor"""
     magnif_factor: float = 2.0
     """ converts deg to mm (mm/deg) """
     hyper_col: float = 0.4

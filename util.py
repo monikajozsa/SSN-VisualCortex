@@ -12,6 +12,8 @@ import os
 import h5py
 from parameters import *
 
+numpy.random.seed(0)
+
 
 def Euler2fixedpt(
     dxdt,
