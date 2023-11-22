@@ -3,7 +3,7 @@ import jax.numpy as np
 import numpy
 
 from util import sep_exponentiate, constant_to_vec, leaky_relu, sigmoid, binary_loss
-from SSN_classes import SSN2DTopoV1_ONOFF_local, SSN2DTopoV1
+from SSN_classes import SSN_mid_local, SSN_sup
 
 
 def two_layer_model(
@@ -61,7 +61,7 @@ def two_layer_model(
     kappa_post = np.tanh(kappa_post)
 
     # Initialise network
-    ssn_mid = SSN2DTopoV1_ONOFF_local(
+    ssn_mid = SSN_mid_local(
         ssn_pars=ssn_pars,
         grid_pars=grid_pars,
         conn_pars=conn_pars_m,
@@ -71,7 +71,7 @@ def two_layer_model(
         gI=gI_m,
         ori_map=ssn_mid_ori_map,
     )
-    ssn_sup = SSN2DTopoV1(
+    ssn_sup = SSN_sup(
         ssn_pars=ssn_pars,
         grid_pars=grid_pars,
         conn_pars=conn_pars_s,
@@ -311,7 +311,6 @@ def obtain_fixed_point_centre_E(
     max_E = np.max(fp[: ssn.Ne])
     max_I = np.max(fp[ssn.Ne : -1])
 
-    # r_max = np.maximum(0, (max_E/Rmax_E - 1)) + np.maximum(0, (max_I/Rmax_I - 1))
     r_max = leaky_relu(max_E, R_thresh=Rmax_E, slope=1 / Rmax_E) + leaky_relu(
         max_I, R_thresh=Rmax_I, slope=1 / Rmax_I
     )

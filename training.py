@@ -5,7 +5,7 @@ import time
 import csv
 import numpy
 
-from SSN_classes import SSN2DTopoV1_ONOFF_local
+from SSN_classes import SSN_mid_local
 
 
 def new_two_stage_training(
@@ -82,7 +82,7 @@ def new_two_stage_training(
 
     if ssn_ori_map == None:
         # Initialise networks
-        ssn_mid = SSN2DTopoV1_ONOFF_local(
+        ssn_mid = SSN_mid_local(
             ssn_pars=constant_ssn_pars["ssn_pars"],
             grid_pars=constant_ssn_pars["grid_pars"],
             conn_pars=constant_ssn_pars["conn_pars_m"],

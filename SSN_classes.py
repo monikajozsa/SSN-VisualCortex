@@ -176,7 +176,7 @@ class _SSN_Base(object):
         return noise_sigsq, spatl_filt
 
 
-class SSN2DTopoV1_ONOFF(_SSN_Base):
+class SSN_mid(_SSN_Base):
     _Lring = 180
 
     def __init__(
@@ -206,7 +206,7 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
         tau_vec = np.hstack([tauE * np.ones(self.Nc), tauI * np.ones(self.Nc)])
         tau_vec = np.kron(np.array([1, 1]), tau_vec)
 
-        super(SSN2DTopoV1_ONOFF, self).__init__(
+        super(SSN_mid, self).__init__(
             n=n, k=k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs
         )
 
@@ -397,7 +397,7 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
             z = z + np.exp(1j * tmp)
 
         # ori map with preferred orientations in the range (0, _Lring] (i.e. (0, 180] by default)
-        self.ori_map = (np.angle(z) + np.pi) * SSN2DTopoV1_ONOFF._Lring / (2 * np.pi)
+        self.ori_map = (np.angle(z) + np.pi) * SSN_mid._Lring / (2 * np.pi)
         self.ori_vec = np.tile(self.ori_map.ravel(), (4,))
 
         return self.ori_map
@@ -433,7 +433,7 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
         xy_dist = np.sqrt(
             absdiff_x(xs[0] - xs[0].T) ** 2 + absdiff_y(ys[0] - ys[0].T) ** 2
         )
-        ori_dist = cosdiff_ring(oris[0] - oris[0].T, SSN2DTopoV1_ONOFF._Lring)
+        ori_dist = cosdiff_ring(oris[0] - oris[0].T, SSN_mid._Lring)
         self.xy_dist = xy_dist
         self.ori_dist = ori_dist
 
@@ -782,7 +782,7 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
         return contrast * ori_fac * spat_fac
 
 
-class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
+class SSN_mid_local(SSN_mid):
     def __init__(
         self,
         ssn_pars,
@@ -810,7 +810,7 @@ class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
         tau_vec = np.hstack([tauE * np.ones(self.Nc), tauI * np.ones(self.Nc)])
         tau_vec = np.kron(np.ones((1, self.phases)), tau_vec).squeeze()
 
-        super(SSN2DTopoV1_ONOFF, self).__init__(
+        super(SSN_mid, self).__init__(
             n=n, k=self.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs
         )  # consider merging SSN
 
@@ -845,7 +845,7 @@ class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
         self.W = np.kron(np.eye(self.phases), np.asarray(J_2x2))
 
 
-class SSN2DTopoV1(_SSN_Base):
+class SSN_sup(_SSN_Base):
     _Lring = 180
 
     def __init__(
@@ -874,7 +874,7 @@ class SSN2DTopoV1(_SSN_Base):
         self.tauI = tauI
         tau_vec = np.hstack([tauE * np.ones(Ne), tauI * np.ones(Ni)])
 
-        super(SSN2DTopoV1, self).__init__(
+        super(SSN_sup, self).__init__(
             n=n, k=self.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs
         )
 
@@ -1050,7 +1050,7 @@ class SSN2DTopoV1(_SSN_Base):
             z = z + np.exp(1j * tmp)
 
         # ori map with preferred orientations in the range (0, _Lring] (i.e. (0, 180] by default)
-        self.ori_map = (np.angle(z) + np.pi) * SSN2DTopoV1._Lring / (2 * np.pi)
+        self.ori_map = (np.angle(z) + np.pi) * SSN_sup._Lring / (2 * np.pi)
 
         self.ori_vec = np.tile(self.ori_map.ravel(), (2,))
         return self.ori_map
@@ -1088,10 +1088,10 @@ class SSN2DTopoV1(_SSN_Base):
         xy_dist = np.sqrt(
             absdiff_x(xs[0] - xs[0].T) ** 2 + absdiff_y(ys[0] - ys[0].T) ** 2
         )
-        ori_dist = cosdiff_ring(oris[0] - oris[0].T, SSN2DTopoV1._Lring)
+        ori_dist = cosdiff_ring(oris[0] - oris[0].T, SSN_sup._Lring)
         if self.train_ori != None:
             trained_ori_dist = cosdiff_ring(
-                oris[0] - self.train_ori, SSN2DTopoV1._Lring
+                oris[0] - self.train_ori, SSN_sup._Lring
             )  # NEW - calculate distance to trained orientation
             self.trained_ori_dist = trained_ori_dist.squeeze()
 

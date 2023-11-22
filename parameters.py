@@ -8,13 +8,13 @@ import jax.numpy as np
 @dataclass(unsafe_hash=True)
 class GridPars:
     gridsize_Nx: int = 9
-    """ grid-points across each edge - gives rise to dx = 0.8 mm """
+    """ size of the grid is gridsize_Nx x gridsize_Nx """
     gridsize_deg: float = 2 * 1.6
     """ edge length in degrees - visual field """
     magnif_factor: float = 2.0
     """ converts deg to mm (mm/deg) """
     hyper_col: float = 0.4
-    """ ? are our grid points represent columns? (mm) """
+    """ parameter to generate orientation map """
     sigma_RF: float = 0.4
     """ deg (visual angle), comes in make_grating_input, which Clara does not use as she uses Gabor filters """
 
@@ -24,12 +24,12 @@ grid_pars = GridPars()
 
 @dataclass(unsafe_hash=True)
 class FilterPars:
-    sigma_g = numpy.array(0.39 * 0.5 / 1.04)  #
-    conv_factor = numpy.array(2)
-    k: float = np.pi / (6 * 0.5)  # Clara approximated it by 1; Ke used 1 too
+    sigma_g = numpy.array(0.39 * 0.5 / 1.04)  # std of the Gaussian of the Gabor filter
+    conv_factor = numpy.array(2) # same as magnification factor
+    k: float = np.pi / (6 * 0.5)  # scaling parameters for the spacial frequency of the Gabor filter (Clara and Ke approximated it by 1)
     edge_deg: float = grid_pars.gridsize_deg
     degree_per_pixel = numpy.array(0.05)
-    # convert degree to number of pixels (129 x 129), this could be calculated from earlier params '''
+    # convert degree to number of pixels (129 x 129), note that this could be calculated from earlier parameters
 
 
 filter_pars = FilterPars()
@@ -39,29 +39,29 @@ filter_pars = FilterPars()
 class StimuliPars:  # the attributes are changed within SSN_classes for a local instance
     inner_radius: float = 2.5  # inner radius of the stimulus
     outer_radius: float = 3.0  # outer radius of the stimulus: together with inner_radius, they define how the edge of the stimulus fades away to the gray background
-    grating_contrast: float = 0.8  # from Current Biology 2020 Ke's paper
-    std: float = 0.0  # no noise at the moment but this is a Gaussian white noise added to the stimulus
+    grating_contrast: float = 0.8  # contrast of darkest and lightest point in the grid - see Ke's Current Biology paper from 2020
+    std: float = 0.0  # no noise at the moment but this is a Gaussian white noise added to the stimulus (after the Gabor filter? so to the grating)
     jitter_val: float = (
-        5.0  # uniform jitter between [-5, 5] to make the training stimulus vary
+        5.0  # Jitter is applied additively to the reference and task orientation (same jitter) to make the training stimulus vary. Jitter is taken from a uniform distribution [-jitter_val, jitter_val].
     )
     k: float = (
         filter_pars.k
     )  # It would be great to get rid of this because FILTER_PARS HAS IT but then it is used when it is passed to new_two_stage_training at BW_Grating
     edge_deg: float = filter_pars.edge_deg  # same as for k
     degree_per_pixel = filter_pars.degree_per_pixel  # same as for k
-    ref_ori: float = 55.0
-    offset: float = 4.0
+    ref_ori: float = 55.0 # reference orientation of the stimulus in degree
+    offset: float = 4.0 # difference between reference and task orientation in degree (task ori is eith ref_ori + offset or ref_or - offset)
 
 
 stimuli_pars = StimuliPars()
 
 
-# Network parameters
+# Sigmoid parameters
 @dataclass(unsafe_hash=True)
 class SigPars:
-    N_neurons: int = 25  # Error if you change it in training_supp, line r_ref = r_ref + noise_ref*np.sqrt(jax.nn.softplus(r_ref)) ***
-    w_sig = numpy.random.normal(size=(N_neurons,)) / np.sqrt(N_neurons)
-    b_sig: float = 0.0
+    N_neurons: int = 25  # 
+    w_sig = numpy.random.normal(size=(N_neurons,)) / np.sqrt(N_neurons) # weights between the superficial and the sigmoid layer
+    b_sig: float = 0.0 # bias added to the sigmoid layer
 
 
 sig_pars = SigPars()
@@ -73,8 +73,8 @@ class SSNPars:
     k = 0.04  # power law parameter
     tauE = 20.0  # time constant for excitatory neurons in ms
     tauI = 10.0  # time constant for inhibitory neurons in ms~
-    A = None  # normalization param for Gabors to get 100% contrast, see find_A
-    A2 = None  # normalization param for Gabors to get 100% contrast, see find_A
+    A = None  # multiply Gabor filters by this before the training normalization param for Gabors to get 100% contrast, see find_A
+    A2 = None  # different normalization for the accross phases normalization param for Gabors to get 100% contrast, see find_A
     phases = 2  # or 4
 
 
@@ -113,11 +113,11 @@ class SsnLayerPars:
         np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * psi
     )
     s_2x2_s = np.array([[0.2, 0.09], [0.4, 0.09]])
-    gE_s = 0.37328625 * 1.5
-    gI_s = 0.26144141 * 1.5
+    gE_s = 0.37328625 * 1.5 # multiplied the Gabor filter - not used for superficial
+    gI_s = 0.26144141 * 1.5 # 
     J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * psi
-    gE_m = 0.3
-    gI_m = 0.25
+    gE_m = 0.3 #
+    gI_m = 0.25 #
     gE = [gE_m, gE_s]
     gI = [gI_m, gI_s]
 

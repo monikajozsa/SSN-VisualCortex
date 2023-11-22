@@ -320,7 +320,7 @@ class GaborFilter:
     ):
         """
         Gabor filter class.
-        Called from SSN2DTopoV1_ONOFF_local.create_gabor_filters() and SSN2DTopoV1_ONOFF.create_gabor_filters() whose outputs are gabor_filters and A (attributes of SSN2DTopoV1_ONOFF and SSN2DTopoV1_ONOFF_local)
+        Called from SSN_mid_local.create_gabor_filters() and SSN_mid.create_gabor_filters() whose outputs are gabor_filters and A (attributes of SSN_mid and SSN_mid_local)
         Inputs:
             x_i, y_i: centre of the filter
             k: preferred spatial frequency in cycles/degrees (radians)
