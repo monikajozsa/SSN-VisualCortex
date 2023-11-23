@@ -1,13 +1,10 @@
 import jax
 import math
 from PIL import Image
-from scipy.stats import norm
 import jax.numpy as np
-from jax import vmap
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy
-from numpy.random import binomial
 import os
 import h5py
 from parameters import *
@@ -789,6 +786,51 @@ def create_gratings(stimuli_pars, n_trials):
 
     return training_gratings
 
+rng = numpy.random.default_rng(12345)
+def create_grating_pairs(n_trials, stimuli_pars):
+    '''
+    Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
+    Input:
+       stimuli pars
+       n_trials - batch size
+    
+    Output:
+        dictionary containing reference target and label 
+    
+    '''
+    
+    #initialise empty arrays
+    ref_ori = stimuli_pars.ref_ori
+    offset = stimuli_pars.offset
+    data_dict = {'ref':[], 'target': [], 'label':[]}
+    for i in range(n_trials):
+        uniform_dist_value = rng.uniform(low = 0, high = 1)
+        #if numpy.random.uniform(0,1,1) < 0.5:
+        if  uniform_dist_value < 0.5:
+            target_ori = ref_ori - offset
+            label = 1
+        else:
+            target_ori = ref_ori + offset
+            label = 0
+        jitter_val = stimuli_pars.jitter_val
+        #jitter = numpy.random.uniform(-jitter_val, jitter_val, 1)
+        jitter = rng.uniform(low = -jitter_val, high = jitter_val)
+        #create reference grating
+        ref = BW_Grating(ori_deg = ref_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
+
+        #create target grating
+        target = BW_Grating(ori_deg = target_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
+        
+        data_dict['ref'].append(ref)
+        data_dict['target'].append(target)
+        data_dict['label'].append(label)
+        #data_dict = {'ref':ref, 'target': target, 'label':label}
+        
+    data_dict['ref'] = np.asarray(data_dict['ref'])
+    data_dict['target'] = np.asarray(data_dict['target'])
+    data_dict['label'] = np.asarray(data_dict['label'])
+
+    return data_dict
 
 def create_stimuli(stimuli_pars, ref_ori, number=10, jitter_val=5):
     all_stimuli = []
