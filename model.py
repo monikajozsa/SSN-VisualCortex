@@ -247,8 +247,6 @@ def obtain_fixed_point(
     dt = conv_pars.dt
     xtol = conv_pars.xtol
     Tmax = conv_pars.Tmax
-    verbose = conv_pars.verbose
-    silent = conv_pars.silent
 
     # Find fixed point
     if PLOT == True:

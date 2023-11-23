@@ -15,8 +15,6 @@ class GridPars:
     """ converts deg to mm (mm/deg) """
     hyper_col: float = 0.4
     """ parameter to generate orientation map """
-    sigma_RF: float = 0.4
-    """ deg (visual angle), comes in make_grating_input, which Clara does not use as she uses Gabor filters """
 
 
 grid_pars = GridPars()
@@ -24,9 +22,9 @@ grid_pars = GridPars()
 
 @dataclass(unsafe_hash=True)
 class FilterPars:
-    sigma_g = numpy.array(0.39 * 0.5 / 1.04)  # std of the Gaussian of the Gabor filter
+    sigma_g = numpy.array(0.27)  # std of the Gaussian of the Gabor filter
     conv_factor = numpy.array(2) # same as magnification factor
-    k: float = np.pi / (6 * 0.5)  # scaling parameters for the spacial frequency of the Gabor filter (Clara and Ke approximated it by 1)
+    k: float = 1  # scaling parameters for the spacial frequency of the Gabor filter
     edge_deg: float = grid_pars.gridsize_deg
     degree_per_pixel = numpy.array(0.05)
     # convert degree to number of pixels (129 x 129), note that this could be calculated from earlier parameters
@@ -41,12 +39,8 @@ class StimuliPars:  # the attributes are changed within SSN_classes for a local 
     outer_radius: float = 3.0  # outer radius of the stimulus: together with inner_radius, they define how the edge of the stimulus fades away to the gray background
     grating_contrast: float = 0.8  # contrast of darkest and lightest point in the grid - see Ke's Current Biology paper from 2020
     std: float = 0.0  # no noise at the moment but this is a Gaussian white noise added to the stimulus (after the Gabor filter? so to the grating)
-    jitter_val: float = (
-        5.0  # Jitter is applied additively to the reference and task orientation (same jitter) to make the training stimulus vary. Jitter is taken from a uniform distribution [-jitter_val, jitter_val].
-    )
-    k: float = (
-        filter_pars.k
-    )  # It would be great to get rid of this because FILTER_PARS HAS IT but then it is used when it is passed to new_two_stage_training at BW_Grating
+    jitter_val: float = 5.0  # jitter is taken from a uniform distribution [-jitter_val, jitter_val]
+    k: float = filter_pars.k
     edge_deg: float = filter_pars.edge_deg  # same as for k
     degree_per_pixel = filter_pars.degree_per_pixel  # same as for k
     ref_ori: float = 55.0 # reference orientation of the stimulus in degree
@@ -60,9 +54,8 @@ stimuli_pars = StimuliPars()
 @dataclass(unsafe_hash=True)
 class SigPars:
     N_neurons: int = 25  # 
-    w_sig = numpy.random.normal(size=(N_neurons,)) / np.sqrt(N_neurons) # weights between the superficial and the sigmoid layer
+    w_sig = numpy.random.normal(scale = 0.25, size=(N_neurons,)) / np.sqrt(N_neurons) # weights between the superficial and the sigmoid layer
     b_sig: float = 0.0 # bias added to the sigmoid layer
-
 
 sig_pars = SigPars()
 
@@ -75,11 +68,11 @@ class SSNPars:
     tauI = 10.0  # time constant for inhibitory neurons in ms~
     A = None  # multiply Gabor filters by this before the training normalization param for Gabors to get 100% contrast, see find_A
     A2 = None  # different normalization for the accross phases normalization param for Gabors to get 100% contrast, see find_A
-    phases = 2  # or 4
+    phases = 4  # number of inh. and exc. neurons (with different Gabor filt.) per grid point in middle layer (2 or 4)
 
 
 ssn_pars = SSNPars()
-
+    
 
 @dataclass(unsafe_hash=True)
 class ConnParsM:
@@ -101,11 +94,11 @@ conn_pars_s = ConnParsS()
 
 @dataclass(unsafe_hash=True)
 class SsnLayerPars:
-    sigma_oris = np.asarray([90.0, 90.0])
+    sigma_oris = np.asarray([90.0, 90.0]) # degree
     kappa_pre = np.asarray([0.0, 0.0])
     kappa_post = np.asarray([0.0, 0.0])
-    f_E: float = 0.69  # Feedforwards connections
-    f_I: float = 0.0
+    f_E: float = np.log(1.11)  # Feedforwards connections
+    f_I: float = np.log(0.7)
     c_E: float = 5.0  # Excitatory constant for extra synaptic GABA
     c_I: float = 5.0  # Inhibitory constant for extra synaptic GABA
     psi: float = 0.774
@@ -129,12 +122,15 @@ ssn_layer_pars = SsnLayerPars()
 @dataclass(unsafe_hash=True)
 class ConvPars:
     dt: float = 1.0
+    '''Step size during convergence '''
     xtol: float = 1e-04
+    '''Convergence tolerance  '''
     Tmax: float = 250.0
-    verbose: bool = False
-    silent: bool = True
+    '''Maximum number of steps to be taken during convergence'''
     Rmax_E = None
+    '''Maximum firing rate for E neurons - rates above this are penalised'''
     Rmax_I = None
+    '''Maximum firing rate for I neurons - rates above this are penalised '''
 
 
 conv_pars = ConvPars()
@@ -142,12 +138,13 @@ conv_pars = ConvPars()
 
 @dataclass
 class TrainingPars:
-    eta = 10e-3  # was 0e-4
-    batch_size = 100  # was 50
+    eta = 10e-4  #
+    batch_size = 50  # was 50
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    epochs = 20  # was 5
-    num_epochs_to_save = 2
+    epochs = 5  # was 5
+    num_epochs_to_save = 3
+    first_stage_acc = 0.7 #not used yet but will be as I merge to Clara's current code
 
 
 training_pars = TrainingPars()
