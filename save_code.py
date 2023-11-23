@@ -32,10 +32,7 @@ def save_code():
         destination_path = os.path.join(subfolder_script_path, file_name)
         shutil.copyfile(source_path, destination_path)
 
-    print(f"Files copied successfully to: {final_folder_path}")
+    print(f"Script files copied successfully to: {script_directory}")
 
     # return final_folder_path to save results into it
     return final_folder_path
-
-# Example usage: 
-save_code()

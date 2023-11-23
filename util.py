@@ -740,52 +740,6 @@ class BW_Grating_Clara(JiaGrating):
         return image
 
 
-def create_gratings(stimuli_pars, n_trials):
-    """
-    Create input stimuli gratings.
-    Input:
-        n_trials: number of trials
-        stimuli_pars: selection of parameters; here we use reference orientation, offset and jitter value
-    Output:
-        training_gratings: array of 1D reference and target stimuli. Shape is (n_trials, 2, n_pixels) - 2
-
-    """
-
-    # initialise empty arrays
-    training_gratings = []
-
-    for i in range(n_trials):
-        if numpy.random.uniform(0, 1, 1) < 0.5:
-            target_ori = stimuli_pars.ref_ori - stimuli_pars.offset
-            label = 1
-        else:
-            target_ori = stimuli_pars.ref_ori + stimuli_pars.offset
-            label = 0
-        jitter = numpy.random.uniform(
-            -stimuli_pars.jitter_val, stimuli_pars.jitter_val, 1
-        )
-
-        # create reference grating
-        ref = (
-            BW_Grating(
-                ori_deg=stimuli_pars.ref_ori, stimuli_pars=stimuli_pars, jitter=jitter
-            )
-            .BW_image()
-            .ravel()
-        )
-
-        # create target grating
-        target = (
-            BW_Grating(ori_deg=target_ori, stimuli_pars=stimuli_pars, jitter=jitter)
-            .BW_image()
-            .ravel()
-        )
-
-        data_dict = {"ref": ref, "target": target, "label": label}
-        training_gratings.append(data_dict)
-
-    return training_gratings
-
 rng = numpy.random.default_rng(12345)
 def create_grating_pairs(n_trials, stimuli_pars):
     '''

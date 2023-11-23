@@ -6,21 +6,9 @@ from jax import vmap
 from torch.utils.data import DataLoader
 from SSN_classes import SSN_mid_local, SSN_sup
 
-from util import create_gratings, sep_exponentiate, constant_to_vec, binary_loss, sigmoid
-from model import two_layer_model, two_layer_model2
+from util import sep_exponentiate, constant_to_vec, binary_loss, sigmoid
+from model import two_layer_model
 
-
-def create_data(stimuli_pars, n_trials=100):
-    """
-    Create data for given jitter and noise value for testing (not dataloader)
-    """
-    data = create_gratings(stimuli_pars=stimuli_pars, n_trials=n_trials)
-    train_data = next(iter(DataLoader(data, batch_size=len(data), shuffle=False)))
-    train_data["ref"] = train_data["ref"].numpy()
-    train_data["target"] = train_data["target"].numpy()
-    train_data["label"] = train_data["label"].numpy()
-
-    return train_data
 
 rng_noise = numpy.random.default_rng(10)
 def generate_noise(sig_noise,  batch_size, length):
@@ -28,43 +16,6 @@ def generate_noise(sig_noise,  batch_size, length):
     Creates vectors of neural noise. Function creates N vectors, where N = batch_size, each vector of length = length. 
     '''
     return  rng_noise.normal(size = (batch_size, length))*sig_noise #sig_noise*numpy.random.randn(batch_size, length)
-
-
-vmap_model = vmap(
-    two_layer_model,
-    in_axes=(
-        [None, None],
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        {"ref": 0, "target": 0, "label": 0},
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        0,
-        0,
-        None,
-        None,
-        None,
-    ),
-)
 
 
 def ori_discrimination(ssn_layer_pars, readout_pars, constant_pars, conv_pars, loss_pars, train_data, noise_ref, noise_target):
@@ -105,10 +56,10 @@ def ori_discrimination(ssn_layer_pars, readout_pars, constant_pars, conv_pars, l
     constant_vector_sup = constant_to_vec(c_E = c_E, c_I = c_I, ssn = ssn_sup, sup=True)
     
     #Run reference through two layer model
-    r_ref, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = two_layer_model2(ssn_mid, ssn_sup, train_data['ref'], conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
+    r_ref, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = two_layer_model(ssn_mid, ssn_sup, train_data['ref'], conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
     
     #Run target through two layer model
-    r_target, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= two_layer_model2(ssn_mid, ssn_sup, train_data['target'], conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
+    r_target, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= two_layer_model(ssn_mid, ssn_sup, train_data['target'], conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
     
     noise_type = constant_pars.noise_type
     #Add noise

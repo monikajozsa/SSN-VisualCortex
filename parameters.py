@@ -138,12 +138,12 @@ conv_pars = ConvPars()
 
 @dataclass
 class TrainingPars:
-    eta = 10e-4  #
-    batch_size = 50  # was 50
+    eta = 10e-4  # learning rate
+    batch_size = 50  
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    epochs = 5  # was 5
-    num_epochs_to_save = 3
+    epochs = 20  # number of epochs
+    num_epochs_to_save = 4 # save every num_epochs_to_save epoch (first and last are always saved)
     first_stage_acc = 0.7 #not used yet but will be as I merge to Clara's current code
 
 
