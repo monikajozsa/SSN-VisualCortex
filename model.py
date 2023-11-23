@@ -5,6 +5,42 @@ import numpy
 from util import sep_exponentiate, constant_to_vec, leaky_relu, sigmoid, binary_loss
 from SSN_classes import SSN_mid_local, SSN_sup
 
+def two_layer_model2(ssn_m, ssn_s, stimuli, conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I):
+    '''
+    Run individual stimulus through two layer model. 
+    
+    Inputs:
+     ssn_mid, ssn_sup: middle and superficial layer classes
+     stimuli: stimuli to pass through network
+     conv_pars: convergence parameters for ssn 
+     constant_vector_mid, constant_vector_sup: extra synaptic constants for middle and superficial layer
+     f_E, f_I: feedforward connections between layers
+    
+    Outputs:
+     r_sup - fixed point of centre neurons (5x5) in superficial layer
+     loss related terms (wrt to middle and superficial layer) :
+         - r_max_": loss minimising maximum rates
+         - avg_dx_": loss minimising number of steps taken during convergence 
+     max_(E/I)_(mid/sup): maximum rate for each type of neuron in each layer 
+     
+    '''
+    
+    #Find input of middle layer
+    stimuli_gabor=np.matmul(ssn_m.gabor_filters, stimuli)
+ 
+    #Rectify input
+    SSN_mid_input = np.maximum(0, stimuli_gabor) + constant_vector_mid
+    
+    #Calculate steady state response of middle layer
+    r_mid, r_max_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid = middle_layer_fixed_point(ssn_m, SSN_mid_input, conv_pars, return_fp = True)
+    
+    #Concatenate input to superficial layer
+    sup_input_ref = np.hstack([r_mid*f_E, r_mid*f_I]) + constant_vector_sup
+    
+    #Calculate steady state response of superficial layer
+    r_sup, r_max_sup, avg_dx_sup, fp_sup, max_E_sup, max_I_sup= obtain_fixed_point_centre_E(ssn_s, sup_input_ref, conv_pars, return_fp= True)
+    return r_sup, [r_max_mid, r_max_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [fp_mid, fp_sup]
+
 
 def two_layer_model(
     logJ_2x2,
