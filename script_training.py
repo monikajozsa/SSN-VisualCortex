@@ -43,7 +43,6 @@ if ssn_pars.phases == 4:
 
 ####################### TRAINING PARAMETERS #######################
 
-
 # Collect constant parameters into single class
 class constant_pars:
     ssn_pars = ssn_pars
@@ -61,8 +60,8 @@ class constant_pars:
 
 
 # Collect training parameters into two dictionaries
-readout_pars = dict(w_sig=sig_pars.w_sig, b_sig=sig_pars.b_sig)
-ssn_layer_pars = dict(
+readout_pars_dict = dict(w_sig=sig_pars.w_sig, b_sig=sig_pars.b_sig)
+ssn_layer_pars_dict = dict(
     J_2x2_m=ssn_layer_pars.J_2x2_m,
     J_2x2_s=ssn_layer_pars.J_2x2_s,
     c_E=ssn_layer_pars.c_E,
@@ -89,8 +88,8 @@ results_filename = save_code()
     epochs_plot,
     save_w_sigs,
 ) = train_model(
-    ssn_layer_pars,
-    readout_pars,
+    ssn_layer_pars_dict,
+    readout_pars_dict,
     constant_pars,
     conv_pars,
     loss_pars,

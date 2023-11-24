@@ -568,12 +568,12 @@ class BW_Grating:
         return image
 
 
-def create_grating_pairs(n_trials, stimuli_pars):
+def create_grating_pairs(stimuli_pars, batch_size):
     '''
     Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
     Input:
        stimuli pars
-       n_trials - batch size
+       batch_size - batch size
     
     Output:
         dictionary containing reference target and label 
@@ -584,7 +584,7 @@ def create_grating_pairs(n_trials, stimuli_pars):
     ref_ori = stimuli_pars.ref_ori
     offset = stimuli_pars.offset
     data_dict = {'ref':[], 'target': [], 'label':[]}
-    for i in range(n_trials):
+    for i in range(batch_size):
         uniform_dist_value = numpy.random.uniform(low = 0, high = 1)
         if  uniform_dist_value < 0.5:
             target_ori = ref_ori - offset
@@ -610,36 +610,6 @@ def create_grating_pairs(n_trials, stimuli_pars):
     data_dict['label'] = np.asarray(data_dict['label'])
 
     return data_dict
-
-
-def create_stimuli(stimuli_pars, ref_ori, number=10, jitter_val=5):
-    all_stimuli = []
-
-    for i in range(0, number):
-        jitter = numpy.random.uniform(-jitter_val, jitter_val, 1)
-
-        # create reference grating
-        ref = (
-            BW_Grating(ori_deg=ref_ori, stimuli_pars=stimuli_pars, jitter=jitter)
-            .BW_image()
-            .ravel()
-        )
-        all_stimuli.append(ref)
-
-    return np.vstack([all_stimuli])
-
-
-### ANALYSIS RESULTS
-def param_ratios(results_file):
-    results = pd.read_csv(results_file, header=0)
-    res = results.to_numpy()
-    Js = res[:, 2:6]
-    ss = res[:, 6:10]
-    print(results.columns[2:6])
-    print("J ratios = ", np.array((Js[-1, :] / Js[0, :] - 1) * 100, dtype=int))
-    print(results.columns[6:10])
-    print(ss[-1, :] / ss[0, :])
-    print("s ratios = ", np.array((ss[-1, :] / ss[0, :] - 1) * 100, dtype=int))
 
 
 make_J2x2_o = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie, -Jii]])
