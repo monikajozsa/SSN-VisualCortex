@@ -5,12 +5,8 @@ import jax.numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy
-import os
-import h5py
 
 from parameters import StimuliPars
-
-numpy.random.seed(0)
 
 
 def Euler2fixedpt(
@@ -276,10 +272,6 @@ def sigmoid(x, epsilon=0.01):
 
 def sig(x):
     return 1 / (1 + np.exp(-x))
-
-
-def f_sigmoid(x, a=0.75):
-    return (1.25 - a) + 2 * a * sig(x)
 
 
 def take_log(J_2x2):
@@ -576,171 +568,6 @@ class BW_Grating:
         return image
 
 
-##### CREATING GRATINGS, see https://gitlab.com/samueljamesbell/vpl-modelling ######
-
-_BLACK = 0
-_WHITE = 255
-_GRAY = round((_WHITE + _BLACK) / 2)
-
-
-class JiaGrating:
-    def __init__(
-        self,
-        ori_deg,
-        size,
-        outer_radius,
-        inner_radius,
-        pixel_per_degree,
-        grating_contrast,
-        phase,
-        jitter,
-        std=0,
-        spatial_frequency=None,
-    ):
-        self.ori_deg = ori_deg
-        self.size = size
-
-        self.outer_radius = outer_radius  # in degrees
-        self.inner_radius = inner_radius  # in degrees
-        self.pixel_per_degree = pixel_per_degree
-        self.grating_contrast = grating_contrast
-        self.phase = phase
-        self.jitter = jitter
-        self.std = std
-
-        self.smooth_sd = self.pixel_per_degree / 6
-        self.spatial_freq = spatial_frequency or (1 / self.pixel_per_degree)
-        self.grating_size = round(self.outer_radius * self.pixel_per_degree)
-        self.angle = ((self.ori_deg + self.jitter) - 90) / 180 * numpy.pi
-
-    def image(self):
-        x, y = numpy.mgrid[
-            -self.grating_size : self.grating_size + 1.0,
-            -self.grating_size : self.grating_size + 1.0,
-        ]
-
-        d = self.grating_size * 2 + 1
-        annulus = numpy.ones((d, d))
-
-        edge_control = numpy.divide(
-            numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2)), self.pixel_per_degree
-        )
-
-        overrado = numpy.nonzero(edge_control > self.inner_radius)
-
-        for idx_x, idx_y in zip(*overrado):
-            annulus[idx_x, idx_y] = annulus[idx_x, idx_y] * numpy.exp(
-                -1
-                * (
-                    (
-                        (
-                            (edge_control[idx_x, idx_y] - self.inner_radius)
-                            * self.pixel_per_degree
-                        )
-                        ** 2
-                    )
-                    / (2 * (self.smooth_sd**2))
-                )
-            )
-
-        gabor_sti = _GRAY * (
-            1
-            + self.grating_contrast
-            * numpy.cos(
-                2
-                * math.pi
-                * self.spatial_freq
-                * (y * numpy.sin(self.angle) + x * numpy.cos(self.angle))
-                + self.phase
-            )
-        )
-
-        gabor_sti[
-            numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2)) > self.grating_size
-        ] = _GRAY
-
-        # New noise - Gaussian white noise
-        noise = numpy.random.normal(loc=0, scale=self.std, size=(d, d))
-        noisy_gabor_sti = gabor_sti + noise
-
-        gabor_sti_final = numpy.repeat(noisy_gabor_sti[:, :, numpy.newaxis], 3, axis=-1)
-        alpha_channel = annulus * _WHITE
-        gabor_sti_final_with_alpha = numpy.concatenate(
-            (gabor_sti_final, alpha_channel[:, :, numpy.newaxis]), axis=-1
-        )
-        gabor_sti_final_with_alpha_image = Image.fromarray(
-            gabor_sti_final_with_alpha.astype(numpy.uint8)
-        )
-
-        center_x = int(self.size / 2)
-        center_y = int(self.size / 2)
-        bounding_box = (center_x - self.grating_size, center_y - self.grating_size)
-
-        background = numpy.full((self.size, self.size, 3), _GRAY, dtype=numpy.uint8)
-        final_image = Image.fromarray(background)
-
-        final_image.paste(
-            gabor_sti_final_with_alpha_image,
-            box=bounding_box,
-            mask=gabor_sti_final_with_alpha_image,
-        )
-
-        return final_image
-
-
-class BW_Grating_Clara(JiaGrating):
-    """
-    Sub-class of Jia Grating.
-    Sums stimuli over channels and option to crop stimulus field.
-    """
-
-    def __init__(
-        self,
-        ori_deg,
-        outer_radius,
-        inner_radius,
-        degree_per_pixel,
-        grating_contrast,
-        edge_deg,
-        phase=0,
-        jitter=0,
-        std=0,
-        k=None,
-        crop_f=None,
-    ):
-        self.crop_f = crop_f
-        pixel_per_degree = 1 / degree_per_pixel
-        size = int(edge_deg * 2 * pixel_per_degree) + 1
-        spatial_frequency = k * degree_per_pixel
-
-        super().__init__(
-            ori_deg,
-            size,
-            outer_radius,
-            inner_radius,
-            pixel_per_degree,
-            grating_contrast,
-            phase,
-            jitter,
-            std,
-            spatial_frequency,
-        )
-
-    def BW_image(self):
-        # generate image using Jia Grating function
-        final_image = self.image()
-        original = numpy.array(final_image, dtype=numpy.float16)
-
-        # sum image over channels
-        image = numpy.sum(original, axis=2)
-
-        # crop image
-        if self.crop_f:
-            image = image[self.crop_f : -self.crop_f, self.crop_f : -self.crop_f]
-        return image
-
-
-rng = numpy.random.default_rng(12345)
 def create_grating_pairs(n_trials, stimuli_pars):
     '''
     Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
@@ -758,8 +585,7 @@ def create_grating_pairs(n_trials, stimuli_pars):
     offset = stimuli_pars.offset
     data_dict = {'ref':[], 'target': [], 'label':[]}
     for i in range(n_trials):
-        uniform_dist_value = rng.uniform(low = 0, high = 1)
-        #if numpy.random.uniform(0,1,1) < 0.5:
+        uniform_dist_value = numpy.random.uniform(low = 0, high = 1)
         if  uniform_dist_value < 0.5:
             target_ori = ref_ori - offset
             label = 1
@@ -767,8 +593,7 @@ def create_grating_pairs(n_trials, stimuli_pars):
             target_ori = ref_ori + offset
             label = 0
         jitter_val = stimuli_pars.jitter_val
-        #jitter = numpy.random.uniform(-jitter_val, jitter_val, 1)
-        jitter = rng.uniform(low = -jitter_val, high = jitter_val)
+        jitter = numpy.random.uniform(low = -jitter_val, high = jitter_val)
         #create reference grating
         ref = BW_Grating(ori_deg = ref_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
 
@@ -785,6 +610,7 @@ def create_grating_pairs(n_trials, stimuli_pars):
     data_dict['label'] = np.asarray(data_dict['label'])
 
     return data_dict
+
 
 def create_stimuli(stimuli_pars, ref_ori, number=10, jitter_val=5):
     all_stimuli = []
@@ -816,167 +642,7 @@ def param_ratios(results_file):
     print("s ratios = ", np.array((ss[-1, :] / ss[0, :] - 1) * 100, dtype=int))
 
 
-def ratio_w(new_pars, opt_pars):
-    all_ratios = []
-    for i in range(len(new_pars["w_sig"])):
-        all_ratios.append((new_pars["w_sig"][i] / opt_pars["w_sig"][i] - 1) * 100)
-
-    return np.asarray(all_ratios)
-
-
-def load(filename, ASLIST=False):
-    """
-    Default: load a hdf5 file (saved with io_dict_to_hdf5.save function above) as a hierarchical
-    python dictionary (as described in the doc_string of io_dict_to_hdf5.save).
-    if ASLIST is True: then it loads as a list (on in the first layer) and gives error if key's are not convertible
-    to integers. Unlike io_dict_to_hdf5.save, a mixed dictionary/list hierarchical version is not implemented currently
-    for .load
-    """
-
-    with h5py.File(filename, "r") as h5file:
-        out = recursively_load_dict_contents_from_group(h5file, "/")
-
-        if ASLIST:
-            outl = [None for l in range(len(out.keys()))]
-
-            for key, item in out.items():
-                outl[int(key)] = item
-
-            out = outl
-
-        return out
-
-
-def recursively_load_dict_contents_from_group(h5file, path):
-    ans = {}
-
-    for key, item in h5file[path].items():
-        if isinstance(item, h5py._hl.dataset.Dataset):
-            ans[key] = item[()]
-
-        elif isinstance(item, h5py._hl.group.Group):
-            ans[key] = recursively_load_dict_contents_from_group(
-                h5file, path + key + "/"
-            )
-
-    return ans
-
-
 make_J2x2_o = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie, -Jii]])
-
-
-def load_param_from_csv(results_filename, epoch):
-    all_results = pd.read_csv(results_filename, header=0)
-    epoch_params = all_results.loc[all_results["epoch"] == epoch]
-    params = []
-    J_m = [
-        np.abs(epoch_params[i].values[0])
-        for i in ["J_EE_m", "J_EI_m", "J_IE_m", "J_II_m"]
-    ]
-    J_s = [
-        np.abs(epoch_params[i].values[0])
-        for i in ["J_EE_s", "J_EI_s", "J_IE_s", "J_II_s"]
-    ]
-
-    J_2x2_m = make_J2x2_o(*J_m)
-    J_2x2_s = make_J2x2_o(*J_s)
-    params.append(J_2x2_m)
-    params.append(J_2x2_s)
-
-    if "c_E" in all_results.columns:
-        c_E = epoch_params["c_E"].values[0]
-        c_I = epoch_params["c_I"].values[0]
-        params.append(c_E)
-        params.append(c_I)
-
-    if "sigma_orisE" in all_results.columns:
-        sigma_oris = np.asarray(
-            [
-                epoch_params["sigma_orisE"].values[0],
-                epoch_params["sigma_orisI"].values[0],
-            ]
-        )
-        params.append(sigma_oris)
-
-    if "f_E" in all_results.columns:
-        f_E = epoch_params["f_E"].values[0]
-        f_I = epoch_params["f_I"].values[0]
-        params.append(f_E)
-        params.append(f_I)
-
-    if "kappa_preE" in all_results.columns:
-        kappa_pre = np.asarray(
-            [epoch_params["kappa_preE"].values[0], epoch_params["kappa_preI"].values[0]]
-        )
-        kappa_post = np.asarray(
-            [
-                epoch_params["kappa_postE"].values[0],
-                epoch_params["kappa_postI"].values[0],
-            ]
-        )
-        params.append(kappa_pre)
-        params.append(kappa_post)
-
-    return params
-
-
-def load_matrix_response(results_dir, layer):
-    run_dir = os.path.join(results_dir, "response_matrix_")
-
-    response_matrix_contrast_02 = np.load(run_dir + "0.2" + str(layer) + ".npy")
-    response_matrix_contrast_04 = np.load(run_dir + "0.4" + str(layer) + ".npy")
-    response_matrix_contrast_06 = np.load(run_dir + "0.6" + str(layer) + ".npy")
-    response_matrix_contrast_08 = np.load(run_dir + "0.8" + str(layer) + ".npy")
-    response_matrix_contrast_099 = np.load(run_dir + "0.99" + str(layer) + ".npy")
-
-    return (
-        response_matrix_contrast_02,
-        response_matrix_contrast_04,
-        response_matrix_contrast_06,
-        response_matrix_contrast_08,
-        response_matrix_contrast_099,
-    )
-
-
-def save_matrices(run_dir, contrast, matrix_sup, matrix_ref):
-    np.save(os.path.join(run_dir + str(contrast) + "sup.npy"), matrix_sup)
-    np.save(os.path.join(run_dir + str(contrast) + "mid.npy"), matrix_ref)
-
-
-def save_h5(filename, dic):
-    """
-    saves a python dictionary or list, with items that are themselves either
-    dictionaries or lists or (in the case of tree-leaves) numpy arrays
-    or basic scalar types (int/float/str/bytes) in a recursive
-    manner to an hdf5 file, with an intact hierarchy.
-    """
-
-    with h5py.File(filename, "w") as h5file:
-        recursively_save_dict_contents_to_group(h5file, "/", dic)
-
-
-def recursively_save_dict_contents_to_group(h5file, path, dic):
-    if isinstance(dic, dict):
-        iterator = dic.items()
-
-    elif isinstance(dic, list):
-        iterator = enumerate(dic)
-
-    else:
-        ValueError("Cannot save %s type" % type(item))
-
-    for key, item in iterator:  # dic.items():
-        if isinstance(dic, list):
-            key = str(key)
-
-        if isinstance(item, numpy.ndarray) or np.isscalar(item):
-            h5file[path + key] = item
-
-        elif isinstance(item, dict) or isinstance(item, list):
-            recursively_save_dict_contents_to_group(h5file, path + key + "/", item)
-
-        else:
-            raise ValueError("Cannot save %s type" % type(item))
 
 
 def constant_to_vec(c_E, c_I, ssn, sup=False):

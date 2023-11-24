@@ -1,8 +1,10 @@
 import os
 import jax.numpy as np
+import numpy
+
+numpy.random.seed(0)
 
 import util
-from SSN_classes import SSN_mid_local
 from training import train_model
 from parameters import (
     grid_pars,

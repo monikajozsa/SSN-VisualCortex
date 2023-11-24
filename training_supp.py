@@ -8,12 +8,11 @@ from util import sep_exponentiate, constant_to_vec, binary_loss, sigmoid
 from model import two_layer_model
 
 
-rng_noise = numpy.random.default_rng(10)
 def generate_noise(sig_noise,  batch_size, length):
     '''
     Creates vectors of neural noise. Function creates N vectors, where N = batch_size, each vector of length = length. 
     '''
-    return  rng_noise.normal(size = (batch_size, length))*sig_noise #sig_noise*numpy.random.randn(batch_size, length)
+    return  numpy.random.normal(size = (batch_size, length))*sig_noise
 
 
 def ori_discrimination(ssn_layer_pars, readout_pars, constant_pars, conv_pars, loss_pars, train_data, noise_ref, noise_target):
@@ -178,7 +177,7 @@ def save_params_dict_two_stage(ssn_layer_pars, readout_pars, true_acc, epoch ):
     
     if 'f_E' in ssn_layer_pars.keys():
 
-        save_params['f_E'] = np.exp(ssn_layer_pars['f_E'])#*f_sigmoid(ssn_layer_pars['f_E'])
+        save_params['f_E'] = np.exp(ssn_layer_pars['f_E'])
         save_params['f_I'] = np.exp(ssn_layer_pars['f_I'])
         
     #Add readout parameters

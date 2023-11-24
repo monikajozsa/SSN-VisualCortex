@@ -7,8 +7,6 @@ import numpy
 from util import find_A, GaborFilter
 import util
 
-numpy.random.seed(0)
-
 
 class _SSN_Base(object):
     def __init__(self, n, k, Ne, Ni, tau_vec=None, W=None):
@@ -387,10 +385,9 @@ class SSN_mid(_SSN_Base):
                 * np.pi
                 / (hyper_col)
             )
-            # NUMPY RANDOM
             sj = (
                 2 * numpy.random.randint(0, 2) - 1
-            )  # random number that's either + or -1.
+            )  # random number that's either +1 or -1.
             phij = numpy.random.rand() * 2 * np.pi
 
             tmp = (X * kj[0] + Y * kj[1]) * sj + phij
@@ -504,15 +501,13 @@ class SSN_mid(_SSN_Base):
                 if Jnoise > 0:  # add some noise
                     if Jnoise_GAUSSIAN:
                         ##JAX CHANGES##
-                        # jitter = np.random.standard_normal(W.shape)
                         key = random.PRNGKey(87)  # 87
-                        key, subkey = random.split(key)
+                        key, _ = random.split(key)
                         jitter = random.normal(key, W.shape)
                     else:
                         ##JAX CHANGES##
-                        # jitter = 2* np.random.random(W.shape) - 1
                         key = random.PRNGKey(87)
-                        key, subkey = random.split(key)
+                        key, _ = random.split(key)
                         jitter = 2 * random.uniform(key, W.shape) - 1
                     W = (1 + Jnoise * jitter) * W
 
@@ -970,8 +965,7 @@ class SSN_sup(_SSN_Base):
         for j in range(nn):
             kj = np.array([np.cos(j * np.pi/nn), np.sin(j * np.pi/nn)]) * 2*np.pi/(hyper_col)
 
-            #NUMPY RANDOM
-            sj = 2 * numpy.random.randint(0, 2)-1 #random number that's either + or -1.
+            sj = 2 * numpy.random.randint(0, 2)-1 #random number that's either +1 or -1.
             phij = numpy.random.rand()*2*np.pi
             
             tmp = (X*kj[0] + Y*kj[1]) * sj + phij
@@ -1083,19 +1077,16 @@ class SSN_sup(_SSN_Base):
                         W = np.exp(-xy_dist**2/(2*s_2x2[a,b]**2) -ori_dist**2/(2*sigma_oris[a,b]**2) -kappa_post[a,b] * trained_ori_dist[:, None]**2/2/45**2  -kappa_pre[a,b]*trained_ori_dist[None,:]**2/2/45**2)
 
 
-
                     if Jnoise > 0: # add some noise
                         if Jnoise_GAUSSIAN:
                             ##JAX CHANGES##
-                            #jitter = np.random.standard_normal(W.shape)
                             key = random.PRNGKey(87)
-                            key, subkey=random.split(key)
+                            key, _ = random.split(key)
                             jitter = random.normal(key, W.shape)
                         else:
                             ##JAX CHANGES##
-                           #jitter = 2* np.random.random(W.shape) - 1
                             key = random.PRNGKey(87)
-                            key, subkey=random.split(key)
+                            key, _ = random.split(key)
                             jitter = 2* random.uniform(key, W.shape) - 1
                         W = (1 + Jnoise * jitter) * W
 
