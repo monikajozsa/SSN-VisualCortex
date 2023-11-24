@@ -34,5 +34,6 @@ def save_code():
 
     print(f"Script files copied successfully to: {script_directory}")
 
-    # return final_folder_path to save results into it
-    return final_folder_path
+    # return path (inclusing filename) to save results into
+    results_filename = os.path.join(final_folder_path,f"{current_date}_v{version}_results.csv")
+    return results_filename

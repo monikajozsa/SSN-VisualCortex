@@ -1,9 +1,7 @@
-import jax
 import jax.numpy as np
 import numpy
 
-from util import sep_exponentiate, constant_to_vec, leaky_relu, sigmoid, binary_loss
-from SSN_classes import SSN_mid_local, SSN_sup
+from util import constant_to_vec, leaky_relu
 
 def two_layer_model(ssn_m, ssn_s, stimuli, conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I):
     '''

@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import numpy
 import os
 import h5py
-from parameters import *
+
+from parameters import StimuliPars
 
 numpy.random.seed(0)
 
@@ -385,7 +386,6 @@ class GaborFilter:
 
 ### FINDING CONSTANT FOR GABOR FILTERS ###
 def find_A(
-    conv_factor,
     k,
     sigma_g,
     edge_deg,
@@ -419,7 +419,7 @@ def find_A(
             degree_per_pixel=degree_per_pixel,
             phase=phase,
         )
-        # create local_stimui_pars to pass it to the BW_Gratings
+        # create local_stimui_pars to pass it to BW_Gratings
         local_stimuli_pars = StimuliPars()
         local_stimuli_pars.edge_deg = edge_deg
         local_stimuli_pars.k = k
@@ -427,12 +427,12 @@ def find_A(
         local_stimuli_pars.inner_radius = edge_deg * 2
         local_stimuli_pars.degree_per_pixel = degree_per_pixel
         local_stimuli_pars.grating_contrast = 0.99
-        local_stimuli_pars.jitter = 0
+        local_stimuli_pars.jitter_val = 0
 
         test_grating = BW_Grating(
             ori_deg=ori,
             stimuli_pars=local_stimuli_pars,
-            jitter=local_stimuli_pars.jitter,
+            jitter=local_stimuli_pars.jitter_val,
             phase=phase,
         )
         test_stimuli = test_grating.BW_image()

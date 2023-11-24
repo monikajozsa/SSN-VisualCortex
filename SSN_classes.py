@@ -638,13 +638,12 @@ class SSN_mid(_SSN_Base):
 
         if self.A == None:
             A = find_A(
-                conv_factor=self.conv_factor,
                 k=self.k_filt,
                 sigma_g=self.sigma_g,
                 edge_deg=self.edge_deg,
                 degree_per_pixel=self.degree_per_pixel,
                 indices=np.sort(self.ori_map.ravel()),
-                phase=0,  # MJ comment: should we not define phase based on phases (btw, consider renaming it to n_phases) and pass that throuh here?
+                phase=0,  
                 return_all=False,
             )
             self.A = A
@@ -655,7 +654,6 @@ class SSN_mid(_SSN_Base):
         if self.phases == 4:
             if self.A2 == None:
                 A2 = find_A(
-                    conv_factor=self.conv_factor,
                     k=self.k_filt,
                     sigma_g=self.sigma_g,
                     edge_deg=self.edge_deg,
@@ -781,7 +779,7 @@ class SSN_mid_local(SSN_mid):
 
         super(SSN_mid, self).__init__(
             n=n, k=self.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs
-        )  # consider merging SSN
+        ) 
 
         self._make_retinmap()
         if ori_map == None:

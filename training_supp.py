@@ -1,9 +1,7 @@
 import numpy
 import jax
-from jax import random
 import jax.numpy as np
 from jax import vmap
-from torch.utils.data import DataLoader
 from SSN_classes import SSN_mid_local, SSN_sup
 
 from util import sep_exponentiate, constant_to_vec, binary_loss, sigmoid
@@ -46,10 +44,6 @@ def ori_discrimination(ssn_layer_pars, readout_pars, constant_pars, conv_pars, l
     J_2x2_s = sep_exponentiate(logJ_2x2_s)
     ssn_mid=SSN_mid_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = constant_pars.gE[0], gI=constant_pars.gI[0], ori_map = constant_pars.ssn_ori_map)
     ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_s, J_2x2=J_2x2_s, s_2x2=constant_pars.s_2x2, sigma_oris = constant_pars.sigma_oris, ori_map = constant_pars.ssn_ori_map, train_ori = constant_pars.ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
-    
-    #Recalculate new connectivity matrix
-    #ssn_mid.make_local_W(J_2x2_m)
-    #ssn_sup.make_W(J_2x2_s, kappa_pre, kappa_post)
     
     #Create vector of extrasynaptic constants
     constant_vector_mid = constant_to_vec(c_E = c_E, c_I = c_I, ssn= ssn_mid)
