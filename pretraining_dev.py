@@ -1,13 +1,17 @@
 import os
 import jax.numpy as np
 import numpy
-numpy.random.seed(4)
+numpy.random.seed(0)
 
 import util
 from training import train_model
 from parameters import (
-    grid_pars,
     filter_pars,
+    ssn_pars
+)
+from pretraining_supp import get_trained_params, randomize_params, update_params
+from parameters import (
+    grid_pars,
     stimuli_pars,
     sig_pars,
     ssn_pars,
@@ -18,8 +22,7 @@ from parameters import (
     training_pars,
     loss_pars,
 )
-from save_code import save_code
-from pretraining_supp import get_trained_params, randomize_params
+from save_code import save_code, comment_param_file
 
 ssn_ori_map_loaded = np.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
 
@@ -41,8 +44,9 @@ if ssn_pars.phases == 4:
         indices=np.sort(ssn_ori_map_loaded.ravel()),
         phase=np.pi / 2,
     )
-
 ####################### TRAINING PARAMETERS #######################
+randomize_params(ssn_layer_pars, stimuli_pars, percent=0.2)
+results_filename, param_file_loc = save_code(ssn_layer_pars, stimuli_pars)
 
 # Collect constant parameters into single class
 class ConstantPars:
@@ -59,8 +63,7 @@ class ConstantPars:
     training_pars = training_pars
 
 constant_pars = ConstantPars()
-
-
+    
 # Collect training parameters into two dictionaries
 readout_pars_dict = dict(w_sig=sig_pars.w_sig, b_sig=sig_pars.b_sig)
 ssn_layer_pars_dict = dict(
@@ -74,22 +77,40 @@ ssn_layer_pars_dict = dict(
     kappa_post=ssn_layer_pars.kappa_post,
 )
 
-####################### TRAINING #######################
-results_filename, _ = save_code(ssn_layer_pars=None, stim_pars=None)
-(
-    [ssn_layer_pars, readout_pars],
-    val_loss_per_epoch,
-    all_losses,
-    train_accs,
-    train_sig_input,
-    train_sig_output,
-    val_sig_input,
-    val_sig_output,
-    epochs_plot,
-    save_w_sigs,
-) = train_model(
+####################### Pre-TRAINING #######################
+n_pretrain_loops=2
+for _ in range(n_pretrain_loops):
+    (
+        [ssn_layer_pars, readout_pars],
+        val_loss_per_epoch,
+        all_losses,
+        train_accs,
+        train_sig_input,
+        train_sig_output,
+        val_sig_input,
+        val_sig_output,
+        epochs_plot,
+        save_w_sigs,
+    ) = train_model(
         ssn_layer_pars_dict,
         readout_pars_dict,
         constant_pars,
-        results_filename,
+        results_filename
     )
+
+    stimuli_pars.ref_ori = numpy.random.uniform(low=0, high=180)
+    stimuli_pars.offset = numpy.random.uniform(low=4, high=5)
+    comment_param_file(ssn_layer_pars= None, stim_pars=stimuli_pars, param_file_loc=param_file_loc)
+    class constant_pars:
+        ssn_pars = ssn_pars
+        s_2x2 = ssn_layer_pars.s_2x2_s
+        sigma_oris = ssn_layer_pars.sigma_oris
+        grid_pars = grid_pars
+        conn_pars_m = conn_pars_m
+        conn_pars_s = conn_pars_s
+        gE = ssn_layer_pars.gE
+        gI = ssn_layer_pars.gI
+        filter_pars = filter_pars
+        noise_type = "poisson"
+        ssn_ori_map = ssn_ori_map_loaded
+        ref_ori = stimuli_pars.ref_ori

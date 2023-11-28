@@ -5,7 +5,7 @@ from jax import vmap
 from SSN_classes import SSN_mid_local, SSN_sup
 
 from util import sep_exponentiate, constant_to_vec, binary_loss, sigmoid
-from model import two_layer_model
+from model import evaluate_model_response
 
 
 def generate_noise(sig_noise,  batch_size, length):
@@ -15,7 +15,7 @@ def generate_noise(sig_noise,  batch_size, length):
     return  numpy.random.normal(size = (batch_size, length))*sig_noise
 
 
-def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars_dict, conv_pars, loss_pars, train_data, noise_ref, noise_target):
+def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, conv_pars, loss_pars, train_data, noise_ref, noise_target):
     
     '''
     Orientation discrimanation task ran using SSN two-layer model.The reference and target are run through the two layer model individually. 
@@ -35,39 +35,28 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars_dic
     f_I = np.exp(ssn_layer_pars_dict['f_I'])
     kappa_pre = np.tanh(ssn_layer_pars_dict['kappa_pre'])
     kappa_post = np.tanh(ssn_layer_pars_dict['kappa_post'])
-    
     w_sig = readout_pars_dict['w_sig']
     b_sig = readout_pars_dict['b_sig']
+    gI = constant_pars.ssn_layer_pars.gI[0]
+    gE = constant_pars.ssn_layer_pars.gE[0]
+    s_2x2 = constant_pars.ssn_layer_pars.s_2x2_s
+    sigma_oris = constant_pars.ssn_layer_pars.sigma_oris
+    ref_ori = constant_pars.stimuli_pars.ref_ori
     
     J_2x2_m = sep_exponentiate(log_J_2x2_m)
-    J_2x2_s = sep_exponentiate(log_J_2x2_s)
-    # *** this is something that would be great to get tid of - to call the ssn classes from inside the training
-    ssn_mid=SSN_mid_local(ssn_pars=constant_pars_dict.ssn_pars, grid_pars=constant_pars_dict.grid_pars, conn_pars=constant_pars_dict.conn_pars_m, filter_pars=constant_pars_dict.filter_pars, J_2x2=J_2x2_m, gE = constant_pars_dict.gE[0], gI=constant_pars_dict.gI[0], ori_map = constant_pars_dict.ssn_ori_map)
-    ssn_sup=SSN_sup(ssn_pars=constant_pars_dict.ssn_pars, grid_pars=constant_pars_dict.grid_pars, conn_pars=constant_pars_dict.conn_pars_s, J_2x2=J_2x2_s, s_2x2=constant_pars_dict.s_2x2, sigma_oris = constant_pars_dict.sigma_oris, ori_map = constant_pars_dict.ssn_ori_map, train_ori = constant_pars_dict.ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
+    J_2x2_s = sep_exponentiate(log_J_2x2_s)   
+
+    # Create middle and superficial SSN layers *** this is something that would be great to get tid of - to call the ssn classes from inside the training
+    ssn_mid=SSN_mid_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = gE, gI=gI, ori_map = constant_pars.ssn_ori_map)
+    ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_s, J_2x2=J_2x2_s, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_map = constant_pars.ssn_ori_map, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
-    #Create vector of extrasynaptic constants
-    constant_vector_mid = constant_to_vec(c_E = c_E, c_I = c_I, ssn= ssn_mid)
-    constant_vector_sup = constant_to_vec(c_E = c_E, c_I = c_I, ssn = ssn_sup, sup=True)
+    #Run reference and targetthrough two layer model
+    r_ref, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I)
+    r_target, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I)
     
-    #Run reference through two layer model
-    r_ref, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = two_layer_model(ssn_mid, ssn_sup, train_data['ref'], conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
-    
-    #Run target through two layer model
-    r_target, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= two_layer_model(ssn_mid, ssn_sup, train_data['target'], conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
-    
-    noise_type = constant_pars_dict.noise_type
     #Add noise
-    if noise_type =='additive':
-        r_ref = r_ref + noise_ref
-        r_target = r_target + noise_target
-        
-    elif noise_type == 'multiplicative':
-        r_ref = r_ref*(1 + noise_ref)
-        r_target = r_target*(1 + noise_target)
-        
-    elif noise_type =='poisson':
-        r_ref = r_ref + noise_ref*np.sqrt(jax.nn.softplus(r_ref))
-        r_target = r_target + noise_target*np.sqrt(jax.nn.softplus(r_target))
+    r_ref = r_ref + noise_ref*np.sqrt(jax.nn.softplus(r_ref))
+    r_target = r_target + noise_target*np.sqrt(jax.nn.softplus(r_target))
     
     #Find difference between reference and target
     delta_x = r_ref - r_target
@@ -96,7 +85,7 @@ vmap_ori_discrimination = vmap(ori_discrimination, in_axes = ({'log_J_2x2_m': No
 '''
 ssn_layer_pars_dict {'log_J_2x2_m': None, 'log_J_2x2_s':None, 'J_2x2_m': None, 'J_2x2_s':None, 'c_E':None, 'c_I':None, 'f_E':None, 'f_I':None, 'kappa_pre':None, 'kappa_post':None}, 
 readout_pars_dict   {'w_sig':None, 'b_sig':None}, 
-constant_pars_dict  None, 
+constant_pars  None, 
 conv_pars           None, 
 loss_pars           None, 
 train_data          {'ref':0, 'target':0, 'label':0}, 
@@ -106,14 +95,14 @@ noise_target        0
 jit_ori_discrimination = jax.jit(vmap_ori_discrimination, static_argnums = [2, 3, 4])
 
 
-def training_loss(ssn_layer_pars_dict, readout_pars_dict, constant_pars_dict, conv_pars, loss_pars, train_data, noise_ref, noise_target):
+def training_loss(ssn_layer_pars_dict, readout_pars_dict, constant_pars, conv_pars, loss_pars, train_data, noise_ref, noise_target):
     
     '''
     Run orientation discrimination task on given batch of data. Returns losses averaged over the trials within the batch. Function over which the gradient is taken.
     '''
     
     #Run orientation discrimination task
-    total_loss, all_losses, pred_label, sig_input, x, max_rates = jit_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars_dict, conv_pars, loss_pars, train_data, noise_ref, noise_target)
+    total_loss, all_losses, pred_label, sig_input, x, max_rates = jit_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, conv_pars, loss_pars, train_data, noise_ref, noise_target)
     
     #Total loss to take gradient with respect to 
     loss= np.mean(total_loss)

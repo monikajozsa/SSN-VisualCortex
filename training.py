@@ -11,10 +11,6 @@ def train_model(
     ssn_layer_pars_dict,
     readout_pars_dict,
     constant_pars,
-    conv_pars,
-    loss_pars,
-    training_pars,
-    stimuli_pars,
     results_filename=None,
 ):
     """
@@ -22,8 +18,23 @@ def train_model(
     first stage trains readout_pars_dict until accuracy reaches training_pars.first_stage_acc
     or for training_pars.epochs number of epochs if accuracy is not reached, 
     second stage trains ssn_layer_pars_dict for training_pars.epochs number of epochs
+    constant_pars:
+    grid_pars = grid_pars
+    stimuli_pars = stimuli_pars
+    conn_pars_m = conn_pars_m
+    conn_pars_s = conn_pars_s
+    filter_pars = filter_pars
+    ssn_ori_map = ssn_ori_map_loaded
+    ssn_pars = ssn_pars
+    ssn_layer_pars
+    conv_pars = conv_pars
+    loss_pars = loss_pars
+    training_pars = training_pars
     """
-
+    conv_pars = constant_pars.conv_pars
+    loss_pars = constant_pars.loss_pars
+    training_pars = constant_pars.training_pars
+    stimuli_pars = constant_pars.stimuli_pars
     # Initialize loss
     val_loss_per_epoch = []
     training_losses = []
@@ -33,56 +44,48 @@ def train_model(
     val_sig_input = []
     val_sig_output = []
     val_accs = []
-    r_refs = [] #
+    r_refs = [] 
     save_w_sigs = []
     first_stage_final_epoch = training_pars.epochs
     save_w_sigs.append(readout_pars_dict["w_sig"][:5])
-
-    batch_size = training_pars.batch_size
-    # Validation test size equals batch size
-    test_size = training_pars.batch_size
 
     # Take logs of parameters
     ssn_layer_pars_dict["log_J_2x2_m"] = take_log(ssn_layer_pars_dict["J_2x2_m"])
     ssn_layer_pars_dict["log_J_2x2_s"] = take_log(ssn_layer_pars_dict["J_2x2_s"])
 
     epochs_to_save =  np.linspace(1, training_pars.epochs, training_pars.num_epochs_to_save).astype(int)
+    batch_size = training_pars.batch_size
 
     # Initialise optimizer
     optimizer = optax.adam(training_pars.eta)
     readout_state = optimizer.init(readout_pars_dict)
 
+    # Gradient function for gradient descent algorithm
+    loss_and_grad_readout = jax.value_and_grad(training_loss, argnums=1, has_aux=True)
+    loss_and_grad_ssn = jax.value_and_grad(training_loss, argnums=0, has_aux=True)
+
     print(
-        "Training model for {} epochs  with learning rate {}, sig_noise {} at offset {}, lam_w {}, batch size {}, noise_type {}".format(
+        "Training model for {} epochs  with learning rate {}, sig_noise {} at offset {}, batch size {}".format(
             training_pars.epochs,
             training_pars.eta,
             training_pars.sig_noise,
             stimuli_pars.offset,
-            loss_pars.lambda_w,
             batch_size,
-            training_pars.noise_type,
         )
     )
 
-    # Initialise csv file
     if results_filename:
         print("Saving results to csv ", results_filename)
     else:
         print("#### NOT SAVING! ####")
 
-    # Gradient function for gradient descent algorithm
-    loss_and_grad_readout = jax.value_and_grad(training_loss, argnums=1, has_aux=True)
-    loss_and_grad_ssn = jax.value_and_grad(training_loss, argnums=0, has_aux=True)
+    ######## FIRST STAGE OF TRAINING: SIGMOID LAYER PARAMETERS #############
 
-
-    ######## FIRST STAGE OF TRAINING #############
     for epoch in range(1, training_pars.epochs + 1):
         start_time = time.time()
 
         # Create stimulus for middle layer
-        train_data = create_grating_pairs(
-            stimuli_pars=stimuli_pars, batch_size=batch_size
-        )
+        train_data = create_grating_pairs(stimuli_pars, batch_size)
 
         # Generate noise
         noise_ref = generate_noise(
@@ -124,7 +127,7 @@ def train_model(
         if epoch in epochs_to_save:
             # Evaluate model
             test_data = create_grating_pairs(
-                stimuli_pars=stimuli_pars, batch_size=test_size
+                stimuli_pars=stimuli_pars, batch_size=batch_size
             )
 
             # Generate noise
@@ -173,7 +176,7 @@ def train_model(
             val_sig_output.append(val_x)
             val_accs.append(true_acc)
 
-            # Save parameters
+            # Save results
             if results_filename:
                 save_params = save_params_dict_two_stage(
                     ssn_layer_pars_dict, readout_pars_dict, true_acc, epoch
@@ -215,7 +218,7 @@ def train_model(
         readout_pars_dict = optax.apply_updates(readout_pars_dict, updates)
         save_w_sigs.append(readout_pars_dict["w_sig"][:5])
 
-    #############START TRAINING NEW STAGE ##################################
+    ############# SECOND STAGE OF TRAINING: Middle and superficial layer parameters #############
 
     print("Entering second stage at epoch {}".format(epoch))
     # Restart number of epochs
@@ -264,7 +267,7 @@ def train_model(
         if epoch in epochs_to_save:
             # Evaluate model
             test_data = create_grating_pairs(
-                stimuli_pars=stimuli_pars, batch_size=test_size
+                stimuli_pars=stimuli_pars, batch_size=batch_size
             )
             # Generate noise
             noise_ref = generate_noise(

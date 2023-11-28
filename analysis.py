@@ -12,7 +12,9 @@ from training_supp import (
     model,
     generate_noise,
 )
-
+from util import BW_Grating
+from SSN_classes import SSN_mid_local, SSN_sup
+from model import two_layer_model
 
 def param_ratios(results_file):
     results = pd.read_csv(results_file, header=0)
@@ -541,3 +543,79 @@ def test_accuracy(
 
     plt.show()
     plt.close()
+
+def create_grating_single(stimuli_pars, n_trials = 10):
+
+    all_stimuli = []
+    jitter_val = stimuli_pars.jitter_val
+    ref_ori = stimuli_pars.ref_ori
+
+    for i in range(0, n_trials):
+        jitter = numpy.random.uniform(-jitter_val, jitter_val, 1)
+
+        #create reference grating
+        ref = BW_Grating(ori_deg = ref_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
+        all_stimuli.append(ref)
+    
+    return np.vstack([all_stimuli])
+
+
+def response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I, constant_pars, conv_pars, tuning_pars, radius_list, ori_list, trained_ori):
+    '''
+    Construct a response matrix of sizze n_orientations x n_neurons x n_radii
+    '''
+    #Initialize ssn
+    ssn_mid=SSN_mid_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = constant_pars.gE[0], gI=constant_pars.gI[0], ori_map = constant_pars.ssn_ori_map)
+    ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_s, J_2x2=J_2x2_s, s_2x2=constant_pars.s_2x2, sigma_oris = constant_pars.sigma_oris, ori_map = constant_pars.ssn_ori_map, train_ori = trained_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
+
+    responses_sup = []
+    responses_mid = []
+    inputs = []
+
+    constant_vector_mid = constant_to_vec(c_E = c_E, c_I = c_I, ssn= ssn_mid)
+    constant_vector_sup = constant_to_vec(c_E = c_E, c_I = c_I, ssn = ssn_sup, sup=True)
+    
+    for i in range(len(ori_list)):
+        
+        #Find responses at different stimuli radii
+        x_response_sup, x_response_mid = surround_suppression(ssn_mid, ssn_sup, tuning_pars, conv_pars, radius_list, constant_vector_mid, constant_vector_sup, f_E, f_I, ref_ori = ori_list[i])
+        print(x_response_sup.shape)
+        #inputs.append(SSN_input)
+        responses_sup.append(x_response_sup)
+        responses_mid.append(x_response_mid)
+        
+    return np.stack(responses_sup, axis = 2), np.stack(responses_mid, axis = 2)
+
+
+
+
+def surround_suppression(ssn_mid, ssn_sup, tuning_pars, conv_pars, radius_list, constant_vector_mid, constant_vector_sup, f_E, f_I, ref_ori, title= None):    
+    
+    '''
+    Produce matrix response for given two layer ssn network given a list of varying stimuli radii
+    '''
+    
+    all_responses_sup = []
+    all_responses_mid = []
+    
+    tuning_pars.ref_ori = ref_ori
+   
+    print(ref_ori) #create stimuli in the function just input radii)
+    for radii in radius_list:
+        
+        tuning_pars.outer_radius = radii
+        tuning_pars.inner_radius = radii*(2.5/3)
+        
+        stimuli = create_grating_single(n_trials = 1, stimuli_pars = tuning_pars)
+        stimuli = stimuli.squeeze()
+        
+        #stimuli = np.load('/mnt/d/ABG_Projects_Backup/ssn_modelling/ssn-simulator/debugging/new_stimuli.npy')
+        
+        r_sup, _, _, [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [fp_mid, fp_sup] = two_layer_model(ssn_mid, ssn_sup, stimuli, conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
+        
+         
+        all_responses_sup.append(fp_sup.ravel())
+        all_responses_mid.append(fp_mid.ravel())
+        print('Mean population response {} (max in population {}), centre neurons {}'.format(fp_sup.mean(), fp_sup.max(), fp_sup.mean()))
+    
+    return np.vstack(all_responses_sup), np.vstack(all_responses_mid)

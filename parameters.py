@@ -99,8 +99,8 @@ class SsnLayerPars:
     kappa_post = np.asarray([0.0, 0.0])
     f_E: float = np.log(1.11)  # Feedforwards connections
     f_I: float = np.log(0.7)
-    c_E: float = 5.0  # Excitatory constant for extra synaptic GABA
-    c_I: float = 5.0  # Inhibitory constant for extra synaptic GABA
+    c_E: float = 5.0  # baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers)
+    c_I: float = 5.0  # baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers)
     psi: float = 0.774
     J_2x2_s = (
         np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * psi
@@ -143,7 +143,7 @@ class TrainingPars:
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
     epochs = 20  # number of epochs
-    num_epochs_to_save = 4 # save every num_epochs_to_save epoch (first and last are always saved)
+    num_epochs_to_save = 50 # save num_epochs_to_save epoch (first and last are always saved)
     first_stage_acc = 0.7 #not used yet but will be as I merge to Clara's current code
 
 
