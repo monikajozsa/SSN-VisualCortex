@@ -233,7 +233,6 @@ class _SSN_Base(object):
 
         return xvec, CONVG, avg_dx
 
-
 class SSN_mid(_SSN_Base):
     _Lring = 180
 
@@ -559,7 +558,6 @@ class SSN_mid(_SSN_Base):
                     )
 
                 if Jnoise > 0:  # add some noise
-                    print("WARNING: JAX RND RANDOM IS IN USE")
                     if Jnoise_GAUSSIAN:
                         ##JAX CHANGES##
                         key = random.PRNGKey(87)  # 87
