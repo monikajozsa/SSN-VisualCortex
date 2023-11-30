@@ -22,7 +22,7 @@ from parameters import (
     training_pars,
     loss_pars,
 )
-from save_code import save_code, comment_param_file
+from save_code import save_code
 
 ssn_ori_map_loaded = np.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
 
@@ -46,7 +46,7 @@ if ssn_pars.phases == 4:
     )
 ####################### TRAINING PARAMETERS #######################
 randomize_params(ssn_layer_pars, stimuli_pars, percent=0.2)
-results_filename, param_file_loc = save_code(ssn_layer_pars, stimuli_pars)
+results_filename, _ = save_code()
 
 # Collect constant parameters into single class
 class ConstantPars:
@@ -78,8 +78,12 @@ ssn_layer_pars_dict = dict(
 )
 
 ####################### Pre-TRAINING #######################
-n_pretrain_loops=2
-for _ in range(n_pretrain_loops):
+#initialize ref_ori_list
+ref_ori_list = []
+offset_list = []
+
+n_pretrain_loops=10
+for i in range(n_pretrain_loops):
     (
         [ssn_layer_pars, readout_pars],
         val_loss_per_epoch,
@@ -100,17 +104,51 @@ for _ in range(n_pretrain_loops):
 
     stimuli_pars.ref_ori = numpy.random.uniform(low=0, high=180)
     stimuli_pars.offset = numpy.random.uniform(low=4, high=5)
-    comment_param_file(ssn_layer_pars= None, stim_pars=stimuli_pars, param_file_loc=param_file_loc)
-    class constant_pars:
-        ssn_pars = ssn_pars
-        s_2x2 = ssn_layer_pars.s_2x2_s
-        sigma_oris = ssn_layer_pars.sigma_oris
-        grid_pars = grid_pars
-        conn_pars_m = conn_pars_m
-        conn_pars_s = conn_pars_s
-        gE = ssn_layer_pars.gE
-        gI = ssn_layer_pars.gI
-        filter_pars = filter_pars
-        noise_type = "poisson"
-        ssn_ori_map = ssn_ori_map_loaded
-        ref_ori = stimuli_pars.ref_ori
+    ref_ori_list.append(stimuli_pars.ref_ori)
+    offset_list.append(stimuli_pars.offset)
+    constant_pars = ConstantPars()
+    constant_pars.stimuli_pars = stimuli_pars
+    ssn_layer_pars = ssn_layer_pars_dict
+    readout_pars = readout_pars_dict
+    print(i)
+
+import csv
+# save ref_ori_list and offset_list into a file
+with open('stim_list.csv', 'w', newline='') as f:
+    # Create a CSV writer
+    writer = csv.writer(f)
+
+    # Write the data to the CSV file
+    writer.writerows(ref_ori_list)
+    writer.writerows(offset_list)
+
+
+'''
+# plotting changes in J
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def plot_variable_against_epoch(file_path, var_names, xlabel='Epoch', ylabel='J values', title='J vs Epoch',islabel=False):
+    # Load the CSV file into a DataFrame
+    df = pd.read_csv(file_path)
+
+    # Plot each variable in J_values against 'epoch'
+    if islabel:
+        for var_name in var_names:
+            plt.plot(df['epoch'], df[var_name], label=var_name)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+    else:
+        for var_name in var_names:
+            plt.plot(df['epoch'], df[var_name],label='_nolegend_')
+
+
+file_path = 'C:/Users/jozsa/Desktop/Postdoc 2023-24/ABL-MJ/results/Nov27_v4/Nov27_v4_results.csv'
+J_values = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m','J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']  # Replace with the actual column names in your CSV file
+plot_variable_against_epoch(file_path, J_values)
+file_path = 'C:/Users/jozsa/Desktop/Postdoc 2023-24/ABL-MJ/results/Nov27_v3/Nov27_v3_results.csv'
+plot_variable_against_epoch(file_path, J_values, islabel=True)
+plt.legend(loc=2)  # Add a legend to differentiate between different J values
+plt.show()
+'''

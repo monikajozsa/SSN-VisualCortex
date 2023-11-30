@@ -116,9 +116,8 @@ class _SSN_Base(object):
         drdt = lambda r: self.drdt(r, inp_vec)
         if inp_vec.ndim > 1:
             drdt = lambda r: self.drdt_multi(r, inp_vec)
-        r_fp, CONVG, avg_dx = util.Euler2fixedpt_fullTmax(
-            drdt, r_init, Tmax, dt, xtol=xtol, PLOT=PLOT, save=save
-        )
+        r_fp, CONVG, avg_dx = self.Euler2fixedpt_fullTmax(
+            drdt, r_init, Tmax, dt, xtol=xtol, PLOT=PLOT)
 
         return r_fp, CONVG, avg_dx
 
@@ -172,6 +171,67 @@ class _SSN_Base(object):
         spatl_filt = np.array(1)
 
         return noise_sigsq, spatl_filt
+    
+    def Euler2fixedpt_fullTmax(self, dxdt, x_initial, Tmax, dt, xtol=1e-5, xmin=1e-0,PLOT=False):
+        """
+        Finds the fixed point of the D-dim ODE set dx/dt = dxdt(x), using the
+        Euler update with sufficiently large dt (to gain in computational time).
+        Checks for convergence to stop the updates early.
+
+        IN:
+        dxdt = a function handle giving the right hand side function of dynamical system
+        x_initial = initial condition for state variables (a column vector)
+        Tmax = maximum time to which it would run the Euler (same units as dt, e.g. ms)
+        dt = time step of Euler
+        xtol = tolerance in relative change in x for determining convergence
+        xmin = for x(i)<xmin, it checks convergenece based on absolute change, which must be smaller than xtol*xmin
+            Note that one can effectively make the convergence-check purely based on absolute,
+            as opposed to relative, change in x, by setting xmin to some very large
+            value and inputting a value for 'xtol' equal to xtol_desired/xmin.
+        PLOT: if True, plot the convergence of some component
+        inds: indices of x (state-vector) to plot
+
+        OUT:
+        xvec = found fixed point solution
+        CONVG = True if determined converged, False if not
+        avg_dx = ...
+        """
+
+        Nmax = int(Tmax / dt)
+        xvec = x_initial
+        CONVG = False
+        y = np.zeros(((Nmax)))
+
+        if PLOT:
+            xplot_all = np.zeros(((Nmax + 1)))
+            xplot_all = xplot_all.at[0].set(np.sum(xvec))
+
+            def loop(n, carry):
+                xvec, y, xplot_all = carry
+                dx = dxdt(xvec) * dt
+                xvec = xvec + dx
+                y = y.at[n].set(np.abs(dx / np.maximum(xmin, np.abs(xvec))).max())
+                xplot_all = xplot_all.at[n + 1].set(np.sum(xvec))
+                return (xvec, y, xplot_all)
+
+            xvec, y, xplot_all = jax.lax.fori_loop(0, Nmax, loop, (xvec, y, xplot_all))
+
+        else:
+
+            def loop(n, carry):
+                xvec, y = carry
+                dx = dxdt(xvec) * dt
+                xvec = xvec + dx
+                y = y.at[n].set(np.abs(dx / np.maximum(xmin, np.abs(xvec))).max())
+                return (xvec, y)
+
+            xvec, y = jax.lax.fori_loop(0, Nmax, loop, (xvec, y))
+
+        avg_dx = y[int(Nmax / 2) : int(Nmax)].mean() / xtol
+
+        CONVG = False  ## NEEDS UPDATING *** MJ comment: why and how?
+
+        return xvec, CONVG, avg_dx
 
 
 class SSN_mid(_SSN_Base):

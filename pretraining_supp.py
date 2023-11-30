@@ -14,19 +14,19 @@ def disturb_params(param_dict, percent = 0.1):
 
 def randomize_params(ssn_layer_pars,stimuli_pars, percent=0.1):
     params2disturb = dict(c_E_temp=ssn_layer_pars.c_E, c_I_temp=ssn_layer_pars.c_I, J_s_temp=ssn_layer_pars.J_2x2_s, J_m_temp=ssn_layer_pars.J_2x2_m, 
-                      kappa_pre_temp = ssn_layer_pars.kappa_pre, kappa_post_temp = ssn_layer_pars.kappa_post, f_E_temp=ssn_layer_pars.f_E, f_I_temp=ssn_layer_pars.f_I)
+                      kappa_pre_temp = ssn_layer_pars.kappa_pre, kappa_post_temp = ssn_layer_pars.kappa_post, f_E_temp=numpy.exp(ssn_layer_pars.f_E), f_I_temp=numpy.exp(ssn_layer_pars.f_I))
     params_disturbed = disturb_params(params2disturb, percent)
-    ssn_layer_pars.c_E = params_disturbed['c_E_temp']
-    ssn_layer_pars.c_I = params_disturbed['c_I_temp']
+    #ssn_layer_pars.c_E = params_disturbed['c_E_temp']
+    #ssn_layer_pars.c_I = params_disturbed['c_I_temp']
     ssn_layer_pars.J_2x2_s = params_disturbed['J_s_temp']
-    ssn_layer_pars.J_2x2_m = params_disturbed['J_m_temp']
-    ssn_layer_pars.kappa_pre = params_disturbed['kappa_pre_temp']
-    ssn_layer_pars.kappa_post = params_disturbed['kappa_post_temp']
-    ssn_layer_pars.f_E = params_disturbed['f_E_temp']
-    ssn_layer_pars.f_I = params_disturbed['f_I_temp']
+    #ssn_layer_pars.J_2x2_m = params_disturbed['J_m_temp']
+    #ssn_layer_pars.kappa_pre = params_disturbed['kappa_pre_temp']
+    #ssn_layer_pars.kappa_post = params_disturbed['kappa_post_temp']
+    #ssn_layer_pars.f_E = numpy.log(params_disturbed['f_E_temp'])
+    #ssn_layer_pars.f_I = numpy.log(params_disturbed['f_I_temp'])
 
     stimuli_pars.ref_ori = random.uniform(low=0, high=180)
-    stimuli_pars.offset = random.uniform(low=4, high=5)
+    #stimuli_pars.offset = random.uniform(low=4, high=5)
 
 def get_trained_params(results_file=None):
     if results_file is None:

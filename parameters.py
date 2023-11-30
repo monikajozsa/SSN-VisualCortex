@@ -44,7 +44,7 @@ class StimuliPars:  # the attributes are changed within SSN_classes for a local 
     edge_deg: float = filter_pars.edge_deg  # same as for k
     degree_per_pixel = filter_pars.degree_per_pixel  # same as for k
     ref_ori: float = 55.0 # reference orientation of the stimulus in degree
-    offset: float = 4.0 # difference between reference and task orientation in degree (task ori is eith ref_ori + offset or ref_or - offset)
+    offset: float = 4.0 # difference between reference and task orientation in degree (task ori is either ref_ori + offset or ref_or - offset)
 
 
 stimuli_pars = StimuliPars()
@@ -123,7 +123,7 @@ ssn_layer_pars = SsnLayerPars()
 class ConvPars:
     dt: float = 1.0
     '''Step size during convergence '''
-    xtol: float = 1e-04
+    xtol: float = 1e-03
     '''Convergence tolerance  '''
     Tmax: float = 250.0
     '''Maximum number of steps to be taken during convergence'''
@@ -138,12 +138,12 @@ conv_pars = ConvPars()
 
 @dataclass
 class TrainingPars:
-    eta = 10e-4  # learning rate
+    eta = 10e-3  # learning rate
     batch_size = 50  
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    epochs = 20  # number of epochs
-    num_epochs_to_save = 50 # save num_epochs_to_save epoch (first and last are always saved)
+    epochs = 5  # number of epochs
+    num_epochs_to_save = 5 # save num_epochs_to_save epoch (first and last are always saved)
     first_stage_acc = 0.7 #not used yet but will be as I merge to Clara's current code
 
 
@@ -153,9 +153,13 @@ training_pars = TrainingPars()
 @dataclass(unsafe_hash=True)
 class LossPars:
     lambda_dx = 1
+    ''' Constant for loss with respect to convergence of Euler function'''
     lambda_r_max = 1
+    ''' Constant for loss with respect to maximum rates in the network'''
     lambda_w = 1
+    ''' Constant for L2 regularizer of sigmoid layer weights'''
     lambda_b = 1
+    ''' Constant for L2 regulazier of sigmoid layer bias '''
 
 
 loss_pars = LossPars()

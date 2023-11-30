@@ -1,4 +1,4 @@
-from training_supp import training_loss, generate_noise, save_params_dict_two_stage
+from training_supp import training_loss, generate_noise, save_trained_params
 import jax
 import jax.numpy as np
 from util import take_log, create_grating_pairs
@@ -12,27 +12,15 @@ def train_model(
     readout_pars_dict,
     constant_pars,
     results_filename=None,
+    jit_on=True
 ):
     """
     Training function for two layer model in two stages: 
     first stage trains readout_pars_dict until accuracy reaches training_pars.first_stage_acc
     or for training_pars.epochs number of epochs if accuracy is not reached, 
     second stage trains ssn_layer_pars_dict for training_pars.epochs number of epochs
-    constant_pars:
-    grid_pars = grid_pars
-    stimuli_pars = stimuli_pars
-    conn_pars_m = conn_pars_m
-    conn_pars_s = conn_pars_s
-    filter_pars = filter_pars
-    ssn_ori_map = ssn_ori_map_loaded
-    ssn_pars = ssn_pars
-    ssn_layer_pars
-    conv_pars = conv_pars
-    loss_pars = loss_pars
-    training_pars = training_pars
+    constant_pars: grid_pars, stimuli_pars, conn_pars_m, conn_pars_s, filter_pars, ssn_ori_map, ssn_pars, ssn_layer_pars, conv_pars, loss_pars, training_pars
     """
-    conv_pars = constant_pars.conv_pars
-    loss_pars = constant_pars.loss_pars
     training_pars = constant_pars.training_pars
     stimuli_pars = constant_pars.stimuli_pars
     # Initialize loss
@@ -65,10 +53,11 @@ def train_model(
     loss_and_grad_ssn = jax.value_and_grad(training_loss, argnums=0, has_aux=True)
 
     print(
-        "Training model for {} epochs  with learning rate {}, sig_noise {} at offset {}, batch size {}".format(
+        "epochs: {} learning rate: {} sig_noise: {} ref ori: {} offset: {} batch size {}".format(
             training_pars.epochs,
             training_pars.eta,
             training_pars.sig_noise,
+            stimuli_pars.ref_ori,
             stimuli_pars.offset,
             batch_size,
         )
@@ -103,11 +92,10 @@ def train_model(
             ssn_layer_pars_dict,
             readout_pars_dict,
             constant_pars,
-            conv_pars,
-            loss_pars,
             train_data,
             noise_ref,
             noise_target,
+            jit_on
         )
 
         if epoch == 1:
@@ -148,11 +136,10 @@ def train_model(
                 ssn_layer_pars_dict,
                 readout_pars_dict,
                 constant_pars,
-                conv_pars,
-                loss_pars,
                 test_data,
                 noise_ref,
                 noise_target,
+                jit_on
             )
             val_time = time.time() - start_time
 
@@ -178,7 +165,7 @@ def train_model(
 
             # Save results
             if results_filename:
-                save_params = save_params_dict_two_stage(
+                save_params = save_trained_params(
                     ssn_layer_pars_dict, readout_pars_dict, true_acc, epoch
                 )
 
@@ -206,7 +193,7 @@ def train_model(
 
             # Save final parameters
             if results_filename:
-                save_params = save_params_dict_two_stage(
+                save_params = save_trained_params(
                     ssn_layer_pars_dict, readout_pars_dict, true_acc, epoch
                 )
                 results_writer.writerow(save_params)
@@ -248,8 +235,6 @@ def train_model(
             ssn_layer_pars_dict,
             readout_pars_dict,
             constant_pars,
-            conv_pars,
-            loss_pars,
             train_data,
             noise_ref,
             noise_target,
@@ -286,8 +271,6 @@ def train_model(
                 ssn_layer_pars_dict,
                 readout_pars_dict,
                 constant_pars,
-                conv_pars,
-                loss_pars,
                 test_data,
                 noise_ref,
                 noise_target,
@@ -311,7 +294,7 @@ def train_model(
             val_sig_output.append(val_x)
 
             if results_filename:
-                save_params = save_params_dict_two_stage(
+                save_params = save_trained_params(
                     ssn_layer_pars_dict,
                     readout_pars_dict,
                     true_acc,

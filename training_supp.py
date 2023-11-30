@@ -4,7 +4,7 @@ import jax.numpy as np
 from jax import vmap
 from SSN_classes import SSN_mid_local, SSN_sup
 
-from util import sep_exponentiate, constant_to_vec, binary_loss, sigmoid
+from util import sep_exponentiate, binary_loss, sigmoid
 from model import evaluate_model_response
 
 
@@ -12,10 +12,10 @@ def generate_noise(sig_noise,  batch_size, length):
     '''
     Creates vectors of neural noise. Function creates N vectors, where N = batch_size, each vector of length = length. 
     '''
-    return  numpy.random.normal(size = (batch_size, length))*sig_noise
+    return sig_noise*numpy.random.randn(batch_size, length)
 
 
-def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, conv_pars, loss_pars, train_data, noise_ref, noise_target):
+def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target):
     
     '''
     Orientation discrimanation task ran using SSN two-layer model.The reference and target are run through the two layer model individually. 
@@ -46,6 +46,8 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, co
     J_2x2_m = sep_exponentiate(log_J_2x2_m)
     J_2x2_s = sep_exponentiate(log_J_2x2_s)   
 
+    loss_pars = constant_pars.loss_pars
+    conv_pars = constant_pars.conv_pars
     # Create middle and superficial SSN layers *** this is something that would be great to get tid of - to call the ssn classes from inside the training
     ssn_mid=SSN_mid_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = gE, gI=gI, ori_map = constant_pars.ssn_ori_map)
     ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_s, J_2x2=J_2x2_s, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_map = constant_pars.ssn_ori_map, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
@@ -81,7 +83,7 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, co
     return loss, all_losses, pred_label, sig_input, x,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup]
 
 #Parallelize orientation discrimination task
-vmap_ori_discrimination = vmap(ori_discrimination, in_axes = ({'log_J_2x2_m': None, 'log_J_2x2_s':None, 'J_2x2_m': None, 'J_2x2_s':None, 'c_E':None, 'c_I':None, 'f_E':None, 'f_I':None, 'kappa_pre':None, 'kappa_post':None}, {'w_sig':None, 'b_sig':None}, None, None, None, {'ref':0, 'target':0, 'label':0}, 0, 0) )
+vmap_ori_discrimination = vmap(ori_discrimination, in_axes = ({'log_J_2x2_m': None, 'log_J_2x2_s':None, 'J_2x2_m': None, 'J_2x2_s':None, 'c_E':None, 'c_I':None, 'f_E':None, 'f_I':None, 'kappa_pre':None, 'kappa_post':None}, {'w_sig':None, 'b_sig':None}, None, {'ref':0, 'target':0, 'label':0}, 0, 0) )
 '''
 ssn_layer_pars_dict {'log_J_2x2_m': None, 'log_J_2x2_s':None, 'J_2x2_m': None, 'J_2x2_s':None, 'c_E':None, 'c_I':None, 'f_E':None, 'f_I':None, 'kappa_pre':None, 'kappa_post':None}, 
 readout_pars_dict   {'w_sig':None, 'b_sig':None}, 
@@ -92,17 +94,20 @@ train_data          {'ref':0, 'target':0, 'label':0},
 noise_ref           0,
 noise_target        0
 '''
-jit_ori_discrimination = jax.jit(vmap_ori_discrimination, static_argnums = [2, 3, 4])
+jit_ori_discrimination = jax.jit(vmap_ori_discrimination, static_argnums = [2])
 
 
-def training_loss(ssn_layer_pars_dict, readout_pars_dict, constant_pars, conv_pars, loss_pars, train_data, noise_ref, noise_target):
+def training_loss(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target, jit_on=True):
     
     '''
     Run orientation discrimination task on given batch of data. Returns losses averaged over the trials within the batch. Function over which the gradient is taken.
     '''
     
     #Run orientation discrimination task
-    total_loss, all_losses, pred_label, sig_input, x, max_rates = jit_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, conv_pars, loss_pars, train_data, noise_ref, noise_target)
+    if jit_on:
+        total_loss, all_losses, pred_label, sig_input, x, max_rates = jit_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target)
+    else:
+        total_loss, all_losses, pred_label, sig_input, x, max_rates = vmap_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target)
     
     #Total loss to take gradient with respect to 
     loss= np.mean(total_loss)
@@ -119,7 +124,7 @@ def training_loss(ssn_layer_pars_dict, readout_pars_dict, constant_pars, conv_pa
     return loss, [all_losses, true_accuracy, sig_input, x, max_rates]
 
 
-def save_params_dict_two_stage(ssn_layer_pars_dict, readout_pars_dict, true_acc, epoch ):
+def save_trained_params(ssn_layer_pars_dict, readout_pars_dict, true_acc, epoch ):
     
     '''
     Assemble trained parameters and epoch information into single dictionary for saving
@@ -130,10 +135,7 @@ def save_params_dict_two_stage(ssn_layer_pars_dict, readout_pars_dict, true_acc,
         single dictionary concatenating all information to be saved
     '''
     
-    
-    save_params = {}
     save_params= dict(epoch = epoch, val_accuracy= true_acc)
-    
     
     J_2x2_m = sep_exponentiate(ssn_layer_pars_dict['log_J_2x2_m'])
     Jm = dict(J_EE_m= J_2x2_m[0,0], J_EI_m = J_2x2_m[0,1], 

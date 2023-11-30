@@ -73,49 +73,38 @@ def middle_layer_fixed_point(
     inds=None,
     return_fp=False,
     print_dt=False,
-):
-    r_ss, avg_dx = obtain_fixed_point(
-        ssn=ssn,
-        ssn_input=ssn_input,
-        conv_pars=conv_pars,
-        PLOT=PLOT,
-        save=save,
-        inds=inds,
-        print_dt=print_dt,
-    )
+):    
+    fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars, PLOT = PLOT, save = save, inds = inds, print_dt = print_dt)
+    
+    #Add responses from E and I neurons
+    fp_E_on = ssn.select_type(fp, map_number = 1)
+    fp_E_off = ssn.select_type(fp, map_number = (ssn.phases+1))
 
-    # Separate responses for two phases - *** this could be written more generally for any number of phases
-    r_ss_on = ssn.select_type(r_ss, map_number=1)
-    r_ss_off = ssn.select_type(r_ss, map_number=(ssn.phases + 1))
+    layer_output = fp_E_on + fp_E_off
+    
+    #Find maximum rate
+    max_E =  np.max(np.asarray([fp_E_on, fp_E_off]))
+    max_I = np.maximum(np.max(fp[3*int(ssn.Ne/2):-1]), np.max(fp[int(ssn.Ne/2):ssn.Ne]))
+   
+    if ssn.phases==4:
+        fp_E_on_pi2 = ssn.select_type(fp, map_number = 3)
+        fp_E_off_pi2 = ssn.select_type(fp, map_number = 7)
 
-    layer_output = r_ss_on + r_ss_off
+        #Changes
+        layer_output = layer_output + fp_E_on_pi2 + fp_E_off_pi2    
+        max_E =  np.max(np.asarray([fp_E_on, fp_E_off, fp_E_on_pi2, fp_E_off_pi2]))
+        max_I = np.max(np.asarray([fp[int(x):int(x)+80] for x in numpy.linspace(81, 567, 4)]))
+     
 
-    # Find maximum rate
-    max_E = np.max(np.asarray([r_ss_on, r_ss_off]))
-    max_I = np.maximum(
-        np.max(r_ss[3 * int(ssn.Ne / 2) : -1]), np.max(r_ss[int(ssn.Ne / 2) : ssn.Ne])
-    )
-
-    if ssn.phases == 4:
-        r_ss_on_pi2 = ssn.select_type(r_ss, map_number=3)
-        r_ss_off_pi2 = ssn.select_type(r_ss, map_number=7)
-
-        layer_output = layer_output + r_ss_on_pi2 + r_ss_off_pi2
-        max_E = np.max(np.asarray([r_ss_on, r_ss_off, r_ss_on_pi2, r_ss_off_pi2]))
-        max_I = np.max(
-            np.asarray([r_ss[int(x) : int(x) + 80] for x in numpy.linspace(81, 567, 4)])
-        )
-
-    # Loss for high rates
-    r_max_loss = leaky_relu(max_E, R_thresh=Rmax_E, slope=1 / Rmax_E) + leaky_relu(
-        max_I, R_thresh=Rmax_I, slope=1 / Rmax_I
-    )
-
-    # layer_output = layer_output/ssn.phases
-    if return_fp == True:
-        return layer_output, r_max_loss, avg_dx, r_ss, max_E, max_I
+    #Loss for high rates
+    r_max = np.maximum(0, (max_E/Rmax_E - 1)) + np.maximum(0, (max_I/Rmax_I - 1))
+    #r_max = leaky_relu(max_E, R_thresh = Rmax_E, slope = 1/Rmax_E) + leaky_relu(max_I, R_thresh = Rmax_I, slope = 1/Rmax_I)
+    
+    #layer_output = layer_output/ssn.phases
+    if return_fp ==True:
+            return layer_output, r_max, avg_dx, fp, max_E, max_I
     else:
-        return layer_output, r_max_loss, avg_dx
+        return layer_output, r_max, avg_dx
 
 
 def obtain_fixed_point(

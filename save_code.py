@@ -1,9 +1,13 @@
 import os
 import shutil
 from datetime import datetime
-from dataclasses import fields
 
-def save_code(ssn_layer_pars, stim_pars):
+def save_code():
+    '''
+    This code is used to save code files to make results replicable.
+    1) It copies specific code files into a folder called 'script'
+    3) Returns the path to save the results into
+    '''
     # Get the current date
     current_date = datetime.now().strftime("%b%d")
 
@@ -37,46 +41,5 @@ def save_code(ssn_layer_pars, stim_pars):
 
     # return path (inclusing filename) to save results into
     results_filename = os.path.join(final_folder_path,f"{current_date}_v{version}_results.csv")
-    print(script_directory)
 
-    # if parameters were updated then add a comment to parameters.py about the updates
-    param_file_loc = os.path.join(script_directory, subfolder_script_path)
-    comment_param_file(ssn_layer_pars,stim_pars,param_file_loc)
-    return results_filename, param_file_loc
-    
-def comment_param_file(ssn_layer_pars, stim_pars, param_file_loc):
-    if ssn_layer_pars is not None:
-        # Read the existing content of the file
-        param_file_name =  os.path.join(param_file_loc, 'parameters.py')
-        with open(param_file_name, 'r') as file:
-            file_content = file.read()
-
-            # Create a comment based on the fields of the dataclass
-            comment_lines = ['# Updated ssn_layer_pars using randomize_params:']
-            for field in fields(ssn_layer_pars):
-                comment_lines.append(f'# {field.name}: {getattr(ssn_layer_pars, field.name)}')
-
-                # Add the comment to the existing content
-                updated_content = file_content + '\n' + '\n'.join(comment_lines)
-
-                # Write the updated content back to the file
-                with open(param_file_name, 'w') as file:
-                    file.write(updated_content)
-
-    if stim_pars is not None:
-        # Read the existing content of the file
-        with open(param_file_name, 'r') as file:
-            file_content = file.read()
-
-            # Create a comment based on the fields of the dataclass
-            comment_lines = ['# Updated stim_pars using randomize_params:']
-            for field in fields(stim_pars):
-                comment_lines.append(f'# {field.name}: {getattr(stim_pars, field.name)}')
-
-                # Add the comment to the existing content
-                updated_content = file_content + '\n' + '\n'.join(comment_lines)
-
-                # Write the updated content back to the file
-                with open(param_file_name, 'w') as file:
-                    file.write(updated_content)
-    
+    return results_filename, final_folder_path
