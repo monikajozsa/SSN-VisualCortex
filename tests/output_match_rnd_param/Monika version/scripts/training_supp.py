@@ -60,14 +60,17 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, tr
     r_ref = r_ref + noise_ref*np.sqrt(jax.nn.softplus(r_ref))
     r_target = r_target + noise_target*np.sqrt(jax.nn.softplus(r_target))
     
-    #Multiply (reference - target) by sigmoid layer weights and add bias
-    sig_input = np.dot(w_sig, (r_ref - r_target)) + b_sig 
+    #Find difference between reference and target
+    delta_x = r_ref - r_target
     
-    #Apply sigmoid function
-    sig_output = sigmoid(sig_input)
+    #Multiply delta by sigmoid lyer weights and add bias
+    sig_input = np.dot(w_sig, (delta_x)) + b_sig 
+    
+    #Apply sigmoid function - combine ref and target
+    x = sigmoid(sig_input)
     
     #Calculate losses
-    loss_binary=binary_loss(train_data['label'], sig_output)
+    loss_binary=binary_loss(train_data['label'], x)
     loss_avg_dx = loss_pars.lambda_dx*(avg_dx_ref_mid + avg_dx_target_mid + avg_dx_ref_sup + avg_dx_target_sup )/4
     loss_r_max =  loss_pars.lambda_r_max*(r_max_ref_mid + r_max_target_mid + r_max_ref_sup + r_max_target_sup )/4
     loss_w = loss_pars.lambda_w*(np.linalg.norm(w_sig)**2)
@@ -76,11 +79,21 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, tr
     #Combine all losses
     loss = loss_binary + loss_w + loss_b +  loss_avg_dx + loss_r_max
     all_losses = np.vstack((loss_binary, loss_avg_dx, loss_r_max, loss_w, loss_b, loss))
-    pred_label = np.round(sig_output) 
-    return loss, all_losses, pred_label, sig_input, sig_output,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup]
+    pred_label = np.round(x) 
+    return loss, all_losses, pred_label, sig_input, x,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup]
 
 #Parallelize orientation discrimination task
-vmap_ori_discrimination = vmap(ori_discrimination, in_axes = ({'log_J_2x2_m': None, 'log_J_2x2_s':None, 'c_E':None, 'c_I':None, 'f_E':None, 'f_I':None, 'kappa_pre':None, 'kappa_post':None}, {'w_sig':None, 'b_sig':None}, None, {'ref':0, 'target':0, 'label':0}, 0, 0) )
+vmap_ori_discrimination = vmap(ori_discrimination, in_axes = ({'log_J_2x2_m': None, 'log_J_2x2_s':None, 'J_2x2_m': None, 'J_2x2_s':None, 'c_E':None, 'c_I':None, 'f_E':None, 'f_I':None, 'kappa_pre':None, 'kappa_post':None}, {'w_sig':None, 'b_sig':None}, None, {'ref':0, 'target':0, 'label':0}, 0, 0) )
+'''
+ssn_layer_pars_dict {'log_J_2x2_m': None, 'log_J_2x2_s':None, 'J_2x2_m': None, 'J_2x2_s':None, 'c_E':None, 'c_I':None, 'f_E':None, 'f_I':None, 'kappa_pre':None, 'kappa_post':None}, 
+readout_pars_dict   {'w_sig':None, 'b_sig':None}, 
+constant_pars  None, 
+conv_pars           None, 
+loss_pars           None, 
+train_data          {'ref':0, 'target':0, 'label':0}, 
+noise_ref           0,
+noise_target        0
+'''
 jit_ori_discrimination = jax.jit(vmap_ori_discrimination, static_argnums = [2])
 
 
@@ -92,9 +105,9 @@ def training_loss(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_d
     
     #Run orientation discrimination task
     if jit_on:
-        total_loss, all_losses, pred_label, sig_input, sig_output, max_rates = jit_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target)
+        total_loss, all_losses, pred_label, sig_input, x, max_rates = jit_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target)
     else:
-        total_loss, all_losses, pred_label, sig_input, sig_output, max_rates = vmap_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target)
+        total_loss, all_losses, pred_label, sig_input, x, max_rates = vmap_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target)
     
     #Total loss to take gradient with respect to 
     loss= np.mean(total_loss)
@@ -108,5 +121,67 @@ def training_loss(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_d
     #Calculate accuracy 
     true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])  
     
-    return loss, [all_losses, true_accuracy, sig_input, sig_output, max_rates]
+    return loss, [all_losses, true_accuracy, sig_input, x, max_rates]
 
+
+def save_trained_params(ssn_layer_pars_dict, readout_pars_dict, true_acc, epoch ):
+    
+    '''
+    Assemble trained parameters and epoch information into single dictionary for saving
+    Inputs:
+        dictionaries containing trained parameters
+        other epoch parameters (accuracy, epoch number)
+    Outputs:
+        single dictionary concatenating all information to be saved
+    '''
+    
+    save_params= dict(epoch = epoch, val_accuracy= true_acc)
+    
+    J_2x2_m = sep_exponentiate(ssn_layer_pars_dict['log_J_2x2_m'])
+    Jm = dict(J_EE_m= J_2x2_m[0,0], J_EI_m = J_2x2_m[0,1], 
+                              J_IE_m = J_2x2_m[1,0], J_II_m = J_2x2_m[1,1])
+            
+    J_2x2_s = sep_exponentiate(ssn_layer_pars_dict['log_J_2x2_s'])
+    Js = dict(J_EE_s= J_2x2_s[0,0], J_EI_s = J_2x2_s[0,1], 
+                              J_IE_s = J_2x2_s[1,0], J_II_s = J_2x2_s[1,1])
+            
+    save_params.update(Jm)
+    save_params.update(Js)
+    
+    if 'c_E' in ssn_layer_pars_dict.keys():
+        save_params['c_E'] = ssn_layer_pars_dict['c_E']
+        save_params['c_I'] = ssn_layer_pars_dict['c_I']
+
+   
+    if 'sigma_oris' in ssn_layer_pars_dict.keys():
+
+        if np.shape(ssn_layer_pars_dict['sigma_oris'])==(2,2):
+            save_params['sigma_orisEE'] = np.exp(ssn_layer_pars_dict['sigma_oris'][0,0])
+            save_params['sigma_orisEI'] = np.exp(ssn_layer_pars_dict['sigma_oris'][0,1])
+        else:
+            sigma_oris = dict(sigma_orisE = np.exp(ssn_layer_pars_dict['sigma_oris'][0]), sigma_orisI = np.exp(ssn_layer_pars_dict['sigma_oris'][1]))
+            save_params.update(sigma_oris)
+      
+    if 'kappa_pre' in ssn_layer_pars_dict.keys():
+        if np.shape(ssn_layer_pars_dict['kappa_pre']) == (2,2):
+            save_params['kappa_preEE'] = np.tanh(ssn_layer_pars_dict['kappa_pre'][0,0])
+            save_params['kappa_preEI'] = np.tanh(ssn_layer_pars_dict['kappa_pre'][0,1])
+            save_params['kappa_postEE'] = np.tanh(ssn_layer_pars_dict['kappa_post'][0,0])
+            save_params['kappa_postEI'] = np.tanh(ssn_layer_pars_dict['kappa_post'][0,1])
+
+
+        else:
+            save_params['kappa_preE'] = np.tanh(ssn_layer_pars_dict['kappa_pre'][0])
+            save_params['kappa_preI'] = np.tanh(ssn_layer_pars_dict['kappa_pre'][1])
+            save_params['kappa_postE'] = np.tanh(ssn_layer_pars_dict['kappa_post'][0])
+            save_params['kappa_postI'] = np.tanh(ssn_layer_pars_dict['kappa_post'][1])
+    
+    if 'f_E' in ssn_layer_pars_dict.keys():
+
+        save_params['f_E'] = np.exp(ssn_layer_pars_dict['f_E'])
+        save_params['f_I'] = np.exp(ssn_layer_pars_dict['f_I'])
+        
+    #Add readout parameters
+    save_params.update(readout_pars_dict)
+
+    return save_params

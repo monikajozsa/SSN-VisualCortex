@@ -1,4 +1,5 @@
 import os
+import csv
 import jax.numpy as np
 import numpy
 numpy.random.seed(0)
@@ -6,12 +7,8 @@ numpy.random.seed(0)
 import util
 from training import train_model
 from parameters import (
-    filter_pars,
-    ssn_pars
-)
-from pretraining_supp import get_trained_params, randomize_params, update_params
-from parameters import (
     grid_pars,
+    filter_pars,
     stimuli_pars,
     sig_pars,
     ssn_pars,
@@ -23,8 +20,11 @@ from parameters import (
     loss_pars,
 )
 from save_code import save_code
+from pretraining_supp import randomize_params
+import visualization
 
 ssn_ori_map_loaded = np.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
+randomize_params(ssn_layer_pars, stimuli_pars, percent=0.2)
 
 # Find normalization constant of Gabor filters
 ssn_pars.A = util.find_A(
@@ -45,9 +45,8 @@ if ssn_pars.phases == 4:
         phase=np.pi / 2,
     )
 ####################### TRAINING PARAMETERS #######################
-randomize_params(ssn_layer_pars, stimuli_pars, percent=0.2)
-results_filename, _ = save_code()
-
+results_filename, results_folder_path = save_code()
+print(results_folder_path)
 # Collect constant parameters into single class
 class ConstantPars:
     grid_pars = grid_pars
@@ -78,11 +77,11 @@ ssn_layer_pars_dict = dict(
 )
 
 ####################### Pre-TRAINING #######################
-#initialize ref_ori_list
+#initialize ref_ori_list and offset_list
 ref_ori_list = []
 offset_list = []
 
-n_pretrain_loops=10
+n_pretrain_loops=50
 for i in range(n_pretrain_loops):
     (
         [ssn_layer_pars, readout_pars],
@@ -112,16 +111,45 @@ for i in range(n_pretrain_loops):
     readout_pars = readout_pars_dict
     print(i)
 
-import csv
+############ PLOTS ################
+# Save training and validation losses
+np.save(os.path.join(results_folder_path , "training_losses.npy"), all_losses)
+np.save(os.path.join(results_folder_path, "validation_losses.npy"), val_loss_per_epoch)
+
+# Plot J, c, f, kappa,
+results_plot_dir = os.path.join(results_folder_path, "plot_results")
+visualization.plot_results_two_layers(
+    results_filename, bernoulli=False, epochs_plot=epochs_plot, save=results_plot_dir
+)
+
+# Plot losses
+losses_dir = os.path.join(results_folder_path, "plot_losses")
+visualization.plot_losses_two_stage(
+    all_losses, val_loss_per_epoch, epochs_plot, save=losses_dir, inset=False
+)
+
+# Plot training_accs
+training_accs_dir = os.path.join(results_folder_path, "plot_training_accs")
+visualization.plot_training_accs(train_accs, epochs_plot, save=training_accs_dir)
+
+# Plot sigmoid layer parameters
+sig_dir = os.path.join(results_folder_path, "plot_sigmoid")
+visualization.plot_sigmoid_outputs(
+    train_sig_input=train_sig_input,
+    val_sig_input=val_sig_input,
+    train_sig_output=train_sig_output,
+    val_sig_output=val_sig_output,
+    epochs_plot=epochs_plot,
+    save=sig_dir,
+)
+
 # save ref_ori_list and offset_list into a file
-with open('stim_list.csv', 'w', newline='') as f:
+combined_stim_pars = list(zip(ref_ori_list, offset_list))
+with open(os.path.join(results_folder_path,'stim_list.csv'), 'w', newline='') as f:
     # Create a CSV writer
     writer = csv.writer(f)
-
     # Write the data to the CSV file
-    writer.writerows(ref_ori_list)
-    writer.writerows(offset_list)
-
+    writer.writerows(combined_stim_pars)
 
 '''
 # plotting changes in J

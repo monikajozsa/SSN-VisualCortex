@@ -5,7 +5,7 @@ import jax.numpy as np
 
 
 # Input parameters
-@dataclass
+@dataclass(unsafe_hash=True)
 class GridPars:
     gridsize_Nx: int = 9
     """ size of the grid is gridsize_Nx x gridsize_Nx """
@@ -20,7 +20,7 @@ class GridPars:
 grid_pars = GridPars()
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class FilterPars:
     sigma_g = numpy.array(0.27)  # std of the Gaussian of the Gabor filter
     conv_factor = numpy.array(2) # same as magnification factor
@@ -51,7 +51,7 @@ stimuli_pars = StimuliPars()
 
 
 # Sigmoid parameters
-@dataclass
+@dataclass(unsafe_hash=True)
 class SigPars:
     N_neurons: int = 25  # 
     w_sig = numpy.random.normal(scale = 0.25, size=(N_neurons,)) / np.sqrt(N_neurons) # weights between the superficial and the sigmoid layer
@@ -60,7 +60,7 @@ class SigPars:
 sig_pars = SigPars()
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class SSNPars:
     n = 2.0  # power law parameter
     k = 0.04  # power law parameter
@@ -74,7 +74,7 @@ class SSNPars:
 ssn_pars = SSNPars()
     
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class ConnParsM:
     PERIODIC: bool = False
     p_local = [1.0, 1.0]
@@ -83,7 +83,7 @@ class ConnParsM:
 conn_pars_m = ConnParsM()
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class ConnParsS:
     PERIODIC: bool = False
     p_local = [0.4, 0.7]
@@ -92,16 +92,16 @@ class ConnParsS:
 conn_pars_s = ConnParsS()
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class SsnLayerPars:
     sigma_oris = np.asarray([90.0, 90.0]) # degree
     kappa_pre = np.asarray([0.0, 0.0])
     kappa_post = np.asarray([0.0, 0.0])
-    f_E = np.log(1.11)  # Feedforwards connections
-    f_I = np.log(0.7)
-    c_E = 5.0  # baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers)
-    c_I = 5.0  # baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers)
-    psi = 0.774
+    f_E: float = np.log(1.11)  # Feedforwards connections
+    f_I: float = np.log(0.7)
+    c_E: float = 5.0  # baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers)
+    c_I: float = 5.0  # baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers)
+    psi: float = 0.774
     J_2x2_s = (
         np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * psi
     )
@@ -119,7 +119,7 @@ ssn_layer_pars = SsnLayerPars()
 
 
 # Training parameters
-@dataclass
+@dataclass(unsafe_hash=True)
 class ConvPars:
     dt: float = 1.0
     '''Step size during convergence '''
@@ -127,9 +127,9 @@ class ConvPars:
     '''Convergence tolerance  '''
     Tmax: float = 250.0
     '''Maximum number of steps to be taken during convergence'''
-    Rmax_E = 40
+    Rmax_E = None
     '''Maximum firing rate for E neurons - rates above this are penalised'''
-    Rmax_I = 80
+    Rmax_I = None
     '''Maximum firing rate for I neurons - rates above this are penalised '''
 
 
@@ -142,15 +142,15 @@ class TrainingPars:
     batch_size = 50  
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    epochs = 10 # number of epochs
-    validation_freq = 1  # calculate validation loss and accuracy every validation_freq epoch
+    epochs = 5  # number of epochs
+    num_epochs_to_save = 5 # save num_epochs_to_save epoch (first and last are always saved)
     first_stage_acc = 0.7 #not used yet but will be as I merge to Clara's current code
 
 
 training_pars = TrainingPars()
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class LossPars:
     lambda_dx = 1
     ''' Constant for loss with respect to convergence of Euler function'''

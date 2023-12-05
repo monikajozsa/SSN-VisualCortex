@@ -6,303 +6,77 @@ import jax.numpy as np
 from analysis import obtain_min_max_indices, label_neuron
 
 
-def plot_losses(training_losses, save_file=None):
-    plt.plot(
-        training_losses.T,
-        label=["Binary cross entropy", "Avg_dx", "R_max", "w", "b", "Total"],
-    )
-    plt.legend()
-    if save_file:
-        plt.savefig(save_file)
-    else:
-        plt.show()
-    plt.close()
-
-
-def plot_training_accs(training_accs, epoch_c=None, save=None):
-    plt.plot(training_accs)
-    plt.xlabel("Epoch")
-    plt.ylabel("Training accuracy")
-
-    if epoch_c == None:
-        pass
-    else:
-        if np.isscalar(epoch_c):
-            plt.axvline(x=epoch_c, c="r")
-        else:
-            plt.axvline(x=epoch_c[0], c="r")
-            plt.axvline(x=epoch_c[0] + epoch_c[1], c="r")
-            plt.axvline(x=epoch_c[2], c="r")
-
-    if save:
-        plt.savefig(save + ".png")
-    plt.show()
-    plt.close()
-
-
-def plot_sigmoid_outputs(
-    train_sig_input,
-    val_sig_input,
-    train_sig_output,
-    val_sig_output,
-    epoch_c=None,
-    save=None,
-):
-    # Find maximum and minimum of
-    max_train_sig_input = [item.max() for item in train_sig_input]
-    mean_train_sig_input = [item.mean() for item in train_sig_input]
-    min_train_sig_input = [item.min() for item in train_sig_input]
-
-    max_val_sig_input = [item[0].max() for item in val_sig_input]
-    mean_val_sig_input = [item[0].mean() for item in val_sig_input]
-    min_val_sig_input = [item[0].min() for item in val_sig_input]
-
-    epochs_to_plot = [item[1] for item in val_sig_input]
-
-    max_train_sig_output = [item.max() for item in train_sig_output]
-    mean_train_sig_output = [item.mean() for item in train_sig_output]
-    min_train_sig_output = [item.min() for item in train_sig_output]
-
-    max_val_sig_output = [item.max() for item in val_sig_output]
-    mean_val_sig_output = [item.mean() for item in val_sig_output]
-    min_val_sig_output = [item.min() for item in val_sig_output]
-
-    # Create plots
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 8))
-    # axes.vlines(x=epoch_c)
-
-    axes[0, 0].plot(max_train_sig_input, label="Max")
-    axes[0, 0].plot(mean_train_sig_input, label="Mean")
-    axes[0, 0].plot(min_train_sig_input, label="Min")
-    axes[0, 0].set_xlabel("Epoch")
-    axes[0, 0].legend()
-    axes[0, 0].set_title("Input to sigmoid layer (training) ")
-    # axes[0,0].vlines(x=epoch_c)
-
-    axes[0, 1].plot(epochs_to_plot, max_val_sig_input, label="Max")
-    axes[0, 1].plot(epochs_to_plot, mean_val_sig_input, label="Mean")
-    axes[0, 1].plot(epochs_to_plot, min_val_sig_input, label="Min")
-    axes[0, 1].set_xlabel("Epoch")
-    axes[0, 1].legend()
-    axes[0, 1].set_title("Input to sigmoid layer (validation)")
-    # axes[0,1].vlines(x=epoch_c)
-
-    axes[1, 0].plot(max_train_sig_output, label="Max")
-    axes[1, 0].plot(mean_train_sig_output, label="Mean")
-    axes[1, 0].plot(min_train_sig_output, label="Min")
-    axes[1, 0].set_xlabel("Epoch")
-    axes[1, 0].legend()
-    axes[1, 0].set_title("Output of sigmoid layer (training)")
-    # axes[1,0].vlines(x=epoch_c)
-
-    axes[1, 1].plot(epochs_to_plot, max_val_sig_output, label="Max")
-    axes[1, 1].plot(epochs_to_plot, mean_val_sig_output, label="Mean")
-    axes[1, 1].plot(epochs_to_plot, min_val_sig_output, label="Min")
-    axes[1, 1].set_xlabel("Epoch")
-    axes[1, 1].legend()
-    axes[1, 1].set_title("Output to sigmoid layer (validation)")
-    # axes[1,1].vlines(x=epoch_c)
-
-    fig.subplots_adjust(wspace=0.4, hspace=0.4)
-
-    if epoch_c == None:
-        pass
-    else:
-        if np.isscalar(epoch_c):
-            plt.axvline(x=epoch_c, c="r")
-        else:
-            plt.axvline(x=epoch_c[0], c="r")
-            plt.axvline(x=epoch_c[0] + epoch_c[1], c="r")
-
-    if save:
-        fig.savefig(save + ".png")
-    fig.show()
-    plt.close()
-
-
-def plot_results(
-    results_filename, bernoulli=True, epoch_c=None, save=None, norm_w=False
-):
-    """
-    Read csv file with results and plot parameters against epochs. Option to plot norm of w if it is saved.
-    """
-    results = pd.read_csv(results_filename, header=0)
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 8))
-
-    if "J_EE" in results.columns:
-        results.plot(x="epoch", y=["J_EE", "J_EI", "J_IE", "J_II"], ax=axes[0, 0])
-
-    if "s_EE" in results.columns:
-        results.plot(x="epoch", y=["s_EE", "s_EI", "s_IE", "s_II"], ax=axes[0, 1])
-
-    if "c_E" in results.columns:
-        results.plot(x="epoch", y=["c_E", "c_I"], ax=axes[1, 0])
-
-    if "sigma_orisE" in results.columns:
-        results.plot(x="epoch", y=["sigma_oriE", "sigma_oriI"], ax=axes[0, 1])
-
-    if "sigma_oris" in results.columns:
-        results.plot(x="epoch", y=["sigma_oris"], ax=axes[0, 1])
-
-    if "norm_w" in results.columns and norm_w == True:
-        results.plot(x="epoch", y=["norm_w"], ax=axes[1, 0])
-
-    if bernoulli == True:
-        results.plot(x="epoch", y=["val_accuracy", "ber_accuracy"], ax=axes[1, 1])
-    else:
-        results.plot(x="epoch", y=["val_accuracy"], ax=axes[1, 1])
-        if epoch_c:
-            plt.axvline(x=epoch_c, c="r")
-    if save:
-        fig.savefig(save + ".png")
-    fig.show()
-    plt.close()
-
-
-def plot_results_two_layers(
+def plot_results_from_csv(
     results_filename,
-    bernoulli=False,
-    save=None,
-    epoch_c=None,
-    norm_w=False,
-    param_sum=False,
-):
-    results = pd.read_csv(results_filename, header=0)
+    fig_filename=None):
+    # Read the CSV file into a Pandas DataFrame
+    df = pd.read_csv(results_filename, header=0)
 
-    fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(10, 10))
+    # Create a subplot with 2 rows and 4 columns
+    fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(25, 10))
 
-    if "J_EE_m" in results.columns:
-        colors = ["tab:blue", "tab:green", "tab:orange", "tab:red"]
-        param_list_m = ["J_EE_m", "J_EI_m", "J_IE_m", "J_II_m"]
-        param_list_s = ["J_EE_s", "J_EI_s", "J_IE_s", "J_II_s"]
+    # Plot accuracy and losses
+    for column in df.columns:
+        if 'acc' in column and 'val_' not in column:
+            axes[0, 0].plot(df['epoch'], df[column], label=column)
+        if 'val_acc' in column:
+            axes[0, 0].scatter(df['epoch'], df[column], label=column, marker='o', s=50)
+    axes[0, 0].legend(loc='lower left')
 
-        for i in range(4):
-            results.plot(
-                x="epoch", y=param_list_m[i], linestyle="-", ax=axes[0, 0], c=colors[i]
-            )
-            results.plot(
-                x="epoch", y=param_list_s[i], linestyle="--", ax=axes[0, 0], c=colors[i]
-            )
+    for column in df.columns:
+        if 'loss_' in column and 'val_loss' not in column:
+            axes[1, 0].plot(df['epoch'], df[column], label=column)
+        if 'val_loss' in column:
+            axes[1, 0].scatter(df['epoch'], df[column], label=column, marker='o', s=50)
+    axes[1, 0].legend(["binary cross entropy", "avg_dx", "r_max", "w_sig", "b_sig", "total loss"])
+    axes[1, 0].legend(loc='lower left')
+    #Plot changes in sigmoid weights and bias of the sigmoid layer
+    axes[0,1].plot(df['epoch'], df['b_sig'], label=column)
+    axes[0,1].legend("b_sig")
+    for column in df.columns:
+        if 'w_sig_' in column:
+            axes[1,1].plot(df['epoch'], df[column], label=column)
+    axes[1,1].set_ylabel("w_sig")
+    
+    #Plot changes in J and kappa in middle and superficial layer
+    colors = ["tab:blue", "tab:green", "tab:orange", "tab:red"]
+    i=0
+    for column in df.columns:
+        if 'J_m_' in column:
+            axes[0, 2].plot(df['epoch'], df[column], label=column, c=colors[i])
+            i=i+1
+    i=0
+    for column in df.columns:
+        if 'J_s_' in column:
+            axes[0, 2].plot(df['epoch'], df[column], label=column, linestyle="-", c=colors[i])
+            i=i+1      
+    axes[0,2].legend(loc="upper left")
+	
+    colors = ["tab:green", "tab:orange"]
+    axes[1, 2].plot(df['epoch'], df['kappa_preE'], label='kappa_preE', linestyle="-", c=colors[0])
+    axes[1, 2].plot(df['epoch'], df["kappa_preI"], label="kappa_preI", linestyle="--", c=colors[0])
+    axes[1, 2].plot(df['epoch'], df['kappa_postE'], label='kappa_postE', linestyle="-", c=colors[1])
+    axes[1, 2].plot(df['epoch'], df["kappa_postI"], label="kappa_postI", linestyle="--", c=colors[1])
+    axes[1,2].legend(["kappa_preE","kappa_preI","kappa_postE","kappa_postI"])
 
-    if "s_EE_s" in results.columns:
-        results.plot(
-            x="epoch", y=["s_EE_s", "s_EI_s", "s_IE_s", "s_II_s"], ax=axes[0, 1]
-        )
+    #Plot changes in baseline inhibition and excitation and feedforward weights (second stage of the training)
+    axes[0,3].plot(df['epoch'], df['c_E'], label='c_E')
+    axes[0,3].plot(df['epoch'], df['c_I'], label='c_I')
+    axes[0,3].legend(["c_E","c_I"])
 
-    if "c_E" in results.columns:
-        results.plot(x="epoch", y=["c_E", "c_I"], ax=axes[1, 0])
+    #Plot feedforward weights from middle to superficial layer (second stage of the training)
+    axes[1,3].plot(df['epoch'], df['f_E'], label='f_E')
+    axes[1,3].plot(df['epoch'], df['f_I'], label='f_I')
+    axes[1,3].legend(["f_E","f_I"])
 
-    if "sigma_orisE" in results.columns:
-        results.plot(
-            x="epoch", y="sigma_orisE", linestyle="-", ax=axes[0, 1], c="tab:blue"
-        )
-        results.plot(
-            x="epoch", y="sigma_orisI", linestyle="--", ax=axes[0, 1], c="tab:blue"
-        )
-
-    if "sigma_orisEE" in results.columns:
-        results.plot(
-            x="epoch", y="sigma_orisEE", linestyle="-", ax=axes[0, 1], c="tab:blue"
-        )
-        results.plot(
-            x="epoch", y="sigma_orisEI", linestyle="--", ax=axes[0, 1], c="tab:blue"
-        )
-
-    # option 1 training
-    if "kappa_preE" in results.columns:
-        colors = ["tab:green", "tab:orange"]
-        param_list_E = ["kappa_preE", "kappa_postE"]
-        param_list_I = ["kappa_preI", "kappa_postI"]
-
-        for i in range(2):
-            results.plot(
-                x="epoch", y=param_list_E[i], linestyle="-", ax=axes[2, 1], c=colors[i]
-            )
-            results.plot(
-                x="epoch", y=param_list_I[i], linestyle="--", ax=axes[2, 1], c=colors[i]
-            )
-
-    # option 2 training
-    if "kappa_preEE" in results.columns:
-        colors = ["tab:green", "tab:orange"]
-        param_list_E = ["kappa_preEE", "kappa_postEE"]
-        param_list_I = ["kappa_preEI", "kappa_postEI"]
-
-        for i in range(2):
-            results.plot(
-                x="epoch", y=param_list_E[i], linestyle="-", ax=axes[2, 1], c=colors[i]
-            )
-            results.plot(
-                x="epoch", y=param_list_I[i], linestyle="--", ax=axes[2, 1], c=colors[i]
-            )
-
-    if "sigma_oris" in results.columns:
-        results.plot(x="epoch", y=["sigma_oris"], ax=axes[0, 1])
-
-    if "norm_w" in results.columns and norm_w == True:
-        results.plot(x="epoch", y=["norm_w"], ax=axes[0, 1])
-
-    if "f_E" in results.columns:
-        results.plot(x="epoch", y=["f_E", "f_I"], ax=axes[1, 1])
-
-    if bernoulli == True:
-        results.plot(x="epoch", y=["val_accuracy", "ber_accuracy"], ax=axes[2, 0])
-    else:
-        results.plot(x="epoch", y=["val_accuracy"], ax=axes[2, 0])
-        # If passed criterion, plot both lines
-        if epoch_c == None:
-            pass
-        else:
-            if np.isscalar(epoch_c):
-                axes[2, 0].axvline(x=epoch_c, c="r")
-            else:
-                axes[2, 0].axvline(x=epoch_c[0], c="r")
-                axes[2, 0].axvline(x=epoch_c[0] + epoch_c[1], c="r")
-    if save:
-        fig.savefig(save + ".png")
+    if fig_filename:
+        fig.savefig(fig_filename + ".png")
     fig.show()
-    plt.close()
-
-    # Create plots of sum of parameters
-    if param_sum == True:
-        fig_2, axes_2 = plt.subplots(nrows=1, ncols=3, figsize=(14, 3))
-
-        axes_2[0].plot(results["J_IE_s"].to_numpy() + results["J_EE_s"])
-        axes_2[0].set_title("Sum of J_EE_s + J_IE_s")
-
-        axes_2[1].plot(results["J_IE_m"].to_numpy() + results["J_EE_m"])
-        axes_2[1].set_title("Sum of J_EE_m + J_IE_m")
-
-        axes_2[2].plot(results["f_E"].to_numpy() + results["f_I"])
-        axes_2[2].set_title("Sum of f_E + f_I")
-
-        if save:
-            fig_2.savefig(save + "_param_sum.png")
-
-        fig_2.show()
-    plt.close()
-
-
-def plot_losses(
-    training_losses, validation_losses, epochs_to_save, epoch_c=None, save=None
-):
-    plt.plot(
-        training_losses.T,
-        label=["Binary cross entropy", "Avg_dx", "R_max", "w", "b", "Training total"],
-    )
-    plt.plot(epochs_to_save, validation_losses, label="Validation")
-    plt.legend()
-    plt.title("Training losses")
-    if epoch_c:
-        plt.axvline(x=epoch_c, c="r")
-    if save:
-        plt.savefig(save + ".png")
-    plt.show()
     plt.close()
 
 
 def plot_losses_two_stage(
-    training_losses, val_loss_per_epoch, epoch_c=None, save=None, inset=None
+    training_losses, val_loss_per_epoch, epochs_plot=None, save=None, inset=None
 ):
     fig, axs1 = plt.subplots()
     axs1.plot(
@@ -320,21 +94,21 @@ def plot_losses_two_stage(
         axs2.plot(training_losses[0, :], label="Binary loss")
         axs2.legend()
 
-    if epoch_c == None:
+    if epochs_plot == None:
         pass
     else:
-        if np.isscalar(epoch_c):
-            axs1.axvline(x=epoch_c, c="r")
+        if np.isscalar(epochs_plot):
+            axs1.axvline(x=epochs_plot, c="r")
             if inset:
-                axs2.axvline(x=epoch_c, c="r")
+                axs2.axvline(x=epochs_plot, c="r")
         else:
-            axs1.axvline(x=epoch_c[0], c="r")
-            axs1.axvline(x=epoch_c[0] + epoch_c[1], c="r")
-            axs1.axvline(x=epoch_c[2], c="r")
+            axs1.axvline(x=epochs_plot[0], c="r")
+            axs1.axvline(x=epochs_plot[0] + epochs_plot[1], c="r")
+            axs1.axvline(x=epochs_plot[2], c="r")
             if inset:
-                axs2.axvline(x=epoch_c[0], c="r")
-                axs2.axvline(x=epoch_c[0] + epoch_c[1], c="r")
-                axs1.axvline(x=epoch_c[2], c="r")
+                axs2.axvline(x=epochs_plot[0], c="r")
+                axs2.axvline(x=epochs_plot[0] + epochs_plot[1], c="r")
+                axs1.axvline(x=epochs_plot[2], c="r")
     if save:
         fig.savefig(save + ".png")
     plt.close()
@@ -581,27 +355,6 @@ def plot_close_far(
     pre_far_mean = [E_E_pre_far[0], I_E_pre_far[0], E_I_pre_far[0], I_I_pre_far[0]]
     post_far_mean = [E_E_post_far[0], I_E_post_far[0], E_I_post_far[0], I_I_post_far[0]]
 
-    pre_close_error = [
-        E_E_pre_close[1],
-        I_E_pre_close[1],
-        E_I_pre_close[1],
-        I_I_pre_close[1],
-    ]
-    post_close_error = [
-        E_E_post_close[1],
-        I_E_post_close[1],
-        E_I_post_close[1],
-        I_I_post_close[1],
-    ]
-
-    pre_far_error = [E_E_pre_far[1], I_E_pre_far[1], E_I_pre_far[1], I_I_pre_far[1]]
-    post_far_error = [
-        E_E_post_far[1],
-        I_E_post_far[1],
-        E_I_post_far[1],
-        I_I_post_far[1],
-    ]
-
     X = np.arange(4)
     labels = ["EE", "IE", "EI", "II"]
     fig = plt.figure()
@@ -623,20 +376,20 @@ def plot_close_far(
     fig.show()
 
 
-def plot_r_ref(r_ref, epoch_c=None, save=None):
+def plot_r_ref(r_ref, epochs_plot=None, save=None):
     plt.plot(r_ref)
     plt.xlabel("Epoch")
     plt.ylabel("noise")
 
-    if epoch_c == None:
+    if epochs_plot == None:
         pass
     else:
-        if np.isscalar(epoch_c):
-            plt.axvline(x=epoch_c, c="r")
+        if np.isscalar(epochs_plot):
+            plt.axvline(x=epochs_plot, c="r")
         else:
-            plt.axvline(x=epoch_c[0], c="r")
-            plt.axvline(x=epoch_c[0] + epoch_c[1], c="r")
-            plt.axvline(x=epoch_c[2], c="r")
+            plt.axvline(x=epochs_plot[0], c="r")
+            plt.axvline(x=epochs_plot[0] + epochs_plot[1], c="r")
+            plt.axvline(x=epochs_plot[2], c="r")
 
     if save:
         plt.savefig(save + ".png")
@@ -644,35 +397,33 @@ def plot_r_ref(r_ref, epoch_c=None, save=None):
     plt.close()
 
 
-def plot_max_rates(max_rates, epoch_c=None, save=None):
+def plot_max_rates(max_rates, epochs_plot=None, save=None):
     plt.plot(max_rates, label=["E_mid", "I_mid", "E_sup", "I_sup"])
     plt.xlabel("Epoch")
     plt.ylabel("Maximum rates")
     plt.legend()
 
-    if epoch_c == None:
+    if epochs_plot == None:
         pass
     else:
-        if np.isscalar(epoch_c):
-            plt.axvline(x=epoch_c, c="r")
+        if np.isscalar(epochs_plot):
+            plt.axvline(x=epochs_plot, c="r")
         else:
-            plt.axvline(x=epoch_c[0], c="r")
-            plt.axvline(x=epoch_c[0] + epoch_c[1], c="r")
-            plt.axvline(x=epoch_c[2], c="r")
+            plt.axvline(x=epochs_plot[0], c="r")
+            plt.axvline(x=epochs_plot[0] + epochs_plot[1], c="r")
+            plt.axvline(x=epochs_plot[2], c="r")
 
     if save:
         plt.savefig(save + ".png")
-    plt.show()
     plt.close()
 
 
-def plot_w_sig(w_sig, epochs_to_save, epoch_c=None, save=None):
+def plot_w_sig(w_sig, epochs_plot=None, save=None):
     plt.plot(w_sig)
     plt.xlabel("Epoch")
     plt.ylabel("Values of w")
-    if epoch_c:
-        plt.axvline(x=epoch_c, c="r", label="criterion")
+    if epochs_plot:
+        plt.axvline(x=epochs_plot, c="r", label="criterion")
     if save:
         plt.savefig(save + ".png")
-    plt.show()
     plt.close()

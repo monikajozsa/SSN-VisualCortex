@@ -109,16 +109,17 @@ class _SSN_Base(object):
         dt=1,
         xtol=1e-5,
         PLOT=False,
+        save=None,
     ):
         if r_init is None:
             r_init = np.zeros(inp_vec.shape)  # np.zeros((self.N,))
         drdt = lambda r: self.drdt(r, inp_vec)
         if inp_vec.ndim > 1:
             drdt = lambda r: self.drdt_multi(r, inp_vec)
-        r_fp, avg_dx = self.Euler2fixedpt_fullTmax(
+        r_fp, CONVG, avg_dx = self.Euler2fixedpt_fullTmax(
             drdt, r_init, Tmax, dt, xtol=xtol, PLOT=PLOT)
 
-        return r_fp, avg_dx
+        return r_fp, CONVG, avg_dx
 
     def fixed_point_r_plot(
         self,
@@ -228,8 +229,9 @@ class _SSN_Base(object):
 
         avg_dx = y[int(Nmax / 2) : int(Nmax)].mean() / xtol
 
-        return xvec, avg_dx
+        CONVG = False  ## NEEDS UPDATING *** MJ comment: why and how?
 
+        return xvec, CONVG, avg_dx
 
 class SSN_mid(_SSN_Base):
     _Lring = 180
@@ -556,7 +558,6 @@ class SSN_mid(_SSN_Base):
                     )
 
                 if Jnoise > 0:  # add some noise
-                    print("WARNING: JAX RND RANDOM IS IN USE")
                     if Jnoise_GAUSSIAN:
                         ##JAX CHANGES##
                         key = random.PRNGKey(87)  # 87

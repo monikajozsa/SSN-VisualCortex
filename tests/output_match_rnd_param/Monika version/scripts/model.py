@@ -128,13 +128,14 @@ def obtain_fixed_point(
             inds=inds,
         )
     else:
-        r_ss, avg_dx = ssn.fixed_point_r(
+        r_ss, _, avg_dx = ssn.fixed_point_r(
             ssn_input,
             r_init=r_init,
             dt=dt,
             xtol=xtol,
             Tmax=Tmax,
             PLOT=PLOT,
+            save=save,
         )
 
     avg_dx = np.maximum(0, (avg_dx - 1))
@@ -146,6 +147,8 @@ def obtain_fixed_point_centre_E(
     ssn,
     ssn_input,
     conv_pars,
+    Rmax_E=40,
+    Rmax_I=80,
     inhibition=False,
     PLOT=False,
     save=None,
@@ -161,7 +164,7 @@ def obtain_fixed_point_centre_E(
         save=save,
         inds=inds,
     )
-    
+
     # Apply bounding box to data
     r_box = (ssn.apply_bounding_box(fp, size=3.2)).ravel()
 
@@ -173,8 +176,8 @@ def obtain_fixed_point_centre_E(
     max_E = np.max(fp[: ssn.Ne])
     max_I = np.max(fp[ssn.Ne : -1])
 
-    r_max = leaky_relu(max_E, R_thresh=conv_pars.Rmax_E, slope=1 / conv_pars.Rmax_E) + leaky_relu(
-        max_I, R_thresh=conv_pars.Rmax_I, slope=1 / conv_pars.Rmax_I
+    r_max = leaky_relu(max_E, R_thresh=Rmax_E, slope=1 / Rmax_E) + leaky_relu(
+        max_I, R_thresh=Rmax_I, slope=1 / Rmax_I
     )
 
     if return_fp == True:
