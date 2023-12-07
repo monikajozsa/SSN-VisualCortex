@@ -1,33 +1,48 @@
 import pandas as pd
 import numpy
 from numpy import random
+import copy
 
 
-def disturb_params(param_dict, percent = 0.1):
-    param_disturbed = param_dict
+def perturb_params(param_dict, percent = 0.1):
+    param_perturbed = copy.copy(param_dict)
     for key, param_array in param_dict.items():
         if type(param_array) == float:
             random_mtx = random.uniform(low=-1, high=1)
         else:
             random_mtx = random.uniform(low=-1, high=1, size=param_array.shape)
-        param_disturbed[key] = param_array + percent * param_array * random_mtx
-    return param_disturbed
+        param_perturbed[key] = param_array + percent * param_array * random_mtx
+    return param_perturbed
 
 def randomize_params(ssn_layer_pars,stimuli_pars, percent=0.1):
-    params2disturb = dict(c_E_temp=ssn_layer_pars.c_E, c_I_temp=ssn_layer_pars.c_I, J_s_temp=ssn_layer_pars.J_2x2_s, J_m_temp=ssn_layer_pars.J_2x2_m, 
+    #define the parameters that get perturbed
+    params2perturb = dict(c_E_temp=ssn_layer_pars.c_E, c_I_temp=ssn_layer_pars.c_I, J_s_temp=ssn_layer_pars.J_2x2_s, J_m_temp=ssn_layer_pars.J_2x2_m, 
                       kappa_pre_temp = ssn_layer_pars.kappa_pre, kappa_post_temp = ssn_layer_pars.kappa_post, f_E_temp=numpy.exp(ssn_layer_pars.f_E), f_I_temp=numpy.exp(ssn_layer_pars.f_I))
-    params_disturbed = disturb_params(params2disturb, percent)
-    #ssn_layer_pars.c_E = params_disturbed['c_E_temp']
-    #ssn_layer_pars.c_I = params_disturbed['c_I_temp']
-    ssn_layer_pars.J_2x2_s = params_disturbed['J_s_temp']
-    #ssn_layer_pars.J_2x2_m = params_disturbed['J_m_temp']
-    #ssn_layer_pars.kappa_pre = params_disturbed['kappa_pre_temp']
-    #ssn_layer_pars.kappa_post = params_disturbed['kappa_post_temp']
-    #ssn_layer_pars.f_E = numpy.log(params_disturbed['f_E_temp'])
-    #ssn_layer_pars.f_I = numpy.log(params_disturbed['f_I_temp'])
+    
+    # Perturb parameters under conditions for J_mid
+    i=0
+    cond1 = False
+    cond2 = False
+    while not cond1 and not cond2:
+        params_perturbed = perturb_params(params2perturb, percent)
+        cond1 = numpy.abs(params_perturbed['J_m_temp'][0,0]*params_perturbed['J_m_temp'][1,1]) < numpy.abs(params_perturbed['J_m_temp'][1,0]*params_perturbed['J_m_temp'][0,1])
+        cond2 = numpy.abs(params_perturbed['J_m_temp'][0,1]*ssn_layer_pars.gI_m) < numpy.abs(params_perturbed['J_m_temp'][1,1]*ssn_layer_pars.gE_m)
+        if i>10:
+            print("Perturbed parameters violate inequality conditions")
+            break
+        else:
+            i = i+1
 
     stimuli_pars.ref_ori = random.uniform(low=0, high=180)
-    #stimuli_pars.offset = random.uniform(low=4, high=5)
+    stimuli_pars.offset = random.uniform(low=4, high=5)
+    ssn_layer_pars.c_E = params_perturbed['c_E_temp']
+    ssn_layer_pars.c_I = params_perturbed['c_I_temp']
+    #ssn_layer_pars.kappa_pre = params_disturbed['kappa_pre_temp']
+    #ssn_layer_pars.kappa_post = params_disturbed['kappa_post_temp']
+    ssn_layer_pars.f_E = numpy.log(params_perturbed['f_E_temp'])
+    ssn_layer_pars.f_I = numpy.log(params_perturbed['f_I_temp'])
+    ssn_layer_pars.J_2x2_s = params_perturbed['J_s_temp']
+    ssn_layer_pars.J_2x2_m = params_perturbed['J_m_temp']    
 
 def get_trained_params(results_file=None):
     if results_file is None:

@@ -52,12 +52,12 @@ stimuli_pars = StimuliPars()
 
 # Sigmoid parameters
 @dataclass
-class SigPars:
+class ReadoutPars:
     N_neurons: int = 25  # 
     w_sig = numpy.random.normal(scale = 0.25, size=(N_neurons,)) / np.sqrt(N_neurons) # weights between the superficial and the sigmoid layer
     b_sig: float = 0.0 # bias added to the sigmoid layer
 
-sig_pars = SigPars()
+readout_pars = ReadoutPars()
 
 
 @dataclass
@@ -106,13 +106,9 @@ class SsnLayerPars:
         np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * psi
     )
     s_2x2_s = np.array([[0.2, 0.09], [0.4, 0.09]])
-    gE_s = 0.37328625 * 1.5 # multiplied the Gabor filter - not used for superficial
-    gI_s = 0.26144141 * 1.5 # 
     J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * psi
     gE_m = 0.3 #
-    gI_m = 0.25 #
-    gE = [gE_m, gE_s]
-    gI = [gI_m, gI_s]
+    gI_m = 0.25 # 
 
 
 ssn_layer_pars = SsnLayerPars()
@@ -123,7 +119,7 @@ ssn_layer_pars = SsnLayerPars()
 class ConvPars:
     dt: float = 1.0
     '''Step size during convergence '''
-    xtol: float = 1e-03
+    xtol: float = 1e-04
     '''Convergence tolerance  '''
     Tmax: float = 250.0
     '''Maximum number of steps to be taken during convergence'''
@@ -142,7 +138,7 @@ class TrainingPars:
     batch_size = 50  
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    epochs = 10 # number of epochs
+    epochs = 5 # number of epochs
     validation_freq = 1  # calculate validation loss and accuracy every validation_freq epoch
     first_stage_acc = 0.7 #not used yet but will be as I merge to Clara's current code
 

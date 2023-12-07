@@ -15,7 +15,7 @@ def generate_noise(sig_noise,  batch_size, length):
     return sig_noise*numpy.random.randn(batch_size, length)
 
 
-def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target):
+def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target): 
     
     '''
     Orientation discrimanation task ran using SSN two-layer model.The reference and target are run through the two layer model individually. 
@@ -37,8 +37,8 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, tr
     kappa_post = np.tanh(ssn_layer_pars_dict['kappa_post'])
     w_sig = readout_pars_dict['w_sig']
     b_sig = readout_pars_dict['b_sig']
-    gI = constant_pars.ssn_layer_pars.gI[0]
-    gE = constant_pars.ssn_layer_pars.gE[0]
+    gI = constant_pars.ssn_layer_pars.gI_m
+    gE = constant_pars.ssn_layer_pars.gE_m
     s_2x2 = constant_pars.ssn_layer_pars.s_2x2_s
     sigma_oris = constant_pars.ssn_layer_pars.sigma_oris
     ref_ori = constant_pars.stimuli_pars.ref_ori

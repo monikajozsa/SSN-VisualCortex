@@ -5,7 +5,7 @@ import numpy
 numpy.random.seed(0)
 
 import util
-from training import train_model
+from training import train_ori_discr
 from parameters import (
     grid_pars,
     filter_pars,

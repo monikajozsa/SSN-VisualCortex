@@ -159,17 +159,6 @@ class _SSN_Base(object):
             print("Did not reach fixed point.")
         return x_fp, CONVG
 
-    def make_noise_cov(self, noise_pars):
-        # the script assumes independent noise to E and I, and spatially uniform magnitude of noise
-        noise_sigsq = np.hstack(
-            (
-                noise_pars.stdevE**2 * np.ones(self.Ne),
-                noise_pars.stdevI**2 * np.ones(self.Ni),
-            )
-        )
-        spatl_filt = np.array(1)
-
-        return noise_sigsq, spatl_filt
     
     def Euler2fixedpt_fullTmax(self, dxdt, x_initial, Tmax, dt, xtol=1e-5, xmin=1e-0,PLOT=False):
         """
@@ -770,36 +759,6 @@ class SSN_mid(_SSN_Base):
         # map_vec = map_vec[start:start+size, start:start+size]
 
         return map_vec
-
-    def make_gabor_input(
-        self,
-        sigma_Gabor=0.5,
-        ONLY_E=False,
-        ori_s=None,
-        sig_ori_EF=32,
-        sig_ori_IF=None,
-        gE=1,
-        gI=1,
-        contrast=1,
-    ):
-        """
-        make the Gabor stimulus (a la Ray & Maunsell 2010) centered on the
-        grid-center, with sigma "sigma_Gabor",
-        with orientation "ori_s",
-        with the orientation tuning-width of E and I parts given by "sig_ori_EF"
-        and "sig_ori_IF", respectively, and with amplitue (maximum) of the E and I parts,
-        given by "contrast * gE" and "contrast * gI", respectively.
-        """
-        # make the orintation dependence factor:
-        ori_fac = self._make_inp_ori_dep(ONLY_E, ori_s, sig_ori_EF, sig_ori_IF, gE, gI)
-
-        # make the spatial envelope:
-        gaussian = lambda x: np.exp(-(x**2) / 2)
-        M = self.Ne if ONLY_E else self.N
-        r_vec = np.sqrt(self.x_vec_degs[:M] ** 2 + self.y_vec_degs[:M] ** 2)
-        spat_fac = gaussian(r_vec / sigma_Gabor)
-
-        return contrast * ori_fac * spat_fac
 
 
 class SSN_mid_local(SSN_mid):

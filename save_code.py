@@ -31,7 +31,7 @@ def save_code():
     script_directory = os.path.dirname(os.path.realpath(__file__))
 
     # Copy files into the folder
-    file_names = ['parameters.py', 'training.py', 'training_supp.py', 'model.py', 'util.py', 'SSN_classes.py', 'analysis.py', 'visualization.py']
+    file_names = ['script_training.py', 'parameters.py', 'training.py', 'training_supp.py', 'model.py', 'util.py', 'SSN_classes.py', 'analysis.py', 'visualization.py']
     for file_name in file_names:
         source_path = os.path.join(script_directory, file_name)
         destination_path = os.path.join(subfolder_script_path, file_name)
