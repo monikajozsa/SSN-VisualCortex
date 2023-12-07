@@ -2,7 +2,7 @@ import numpy
 import jax
 import jax.numpy as np
 from jax import vmap
-from SSN_classes import SSN_mid_local, SSN_sup
+from SSN_classes import SSN_mid, SSN_sup
 
 from util import sep_exponentiate, binary_loss, sigmoid
 from model import evaluate_model_response
@@ -49,7 +49,7 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, tr
     loss_pars = constant_pars.loss_pars
     conv_pars = constant_pars.conv_pars
     # Create middle and superficial SSN layers *** this is something that would be great to get tid of - to call the ssn classes from inside the training
-    ssn_mid=SSN_mid_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = gE, gI=gI, ori_map = constant_pars.ssn_ori_map)
+    ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = gE, gI=gI, ori_map = constant_pars.ssn_ori_map)
     ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_s, J_2x2=J_2x2_s, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_map = constant_pars.ssn_ori_map, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
     #Run reference and targetthrough two layer model

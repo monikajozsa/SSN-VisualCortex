@@ -4,7 +4,7 @@ import numpy
 import jax.numpy as np
 
 from util import BW_Grating
-from SSN_classes import SSN_mid_local, SSN_sup
+from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response
 
 def param_ratios(results_file):
@@ -287,7 +287,7 @@ def response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I,
     Construct a response matrix of sizze n_orientations x n_neurons x n_radii
     '''
     #Initialize ssn
-    ssn_mid=SSN_mid_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = constant_pars.gE[0], gI=constant_pars.gI[0], ori_map = constant_pars.ssn_ori_map)
+    ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = constant_pars.gE[0], gI=constant_pars.gI[0], ori_map = constant_pars.ssn_ori_map)
     ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_s, J_2x2=J_2x2_s, s_2x2=constant_pars.s_2x2, sigma_oris = constant_pars.sigma_oris, ori_map = constant_pars.ssn_ori_map, train_ori = trained_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
 
     responses_sup = []
