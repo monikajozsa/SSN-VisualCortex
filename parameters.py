@@ -135,12 +135,12 @@ conv_pars = ConvPars()
 @dataclass
 class TrainingPars:
     eta = 10e-3  # learning rate
-    batch_size = 50  
+    batch_size = 50
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
     epochs = 5 # number of epochs
     validation_freq = 1  # calculate validation loss and accuracy every validation_freq epoch
-    first_stage_acc = 0.7 #not used yet but will be as I merge to Clara's current code
+    first_stage_acc = 0.7 
 
 
 training_pars = TrainingPars()

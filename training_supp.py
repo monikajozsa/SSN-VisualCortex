@@ -26,7 +26,7 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, tr
         losses to take gradient with respect to
         sig_input, x: I/O values for sigmoid layer
     '''
-    
+    pretraining = constant_pars.pretraining
     log_J_2x2_m = ssn_layer_pars_dict['log_J_2x2_m']
     log_J_2x2_s = ssn_layer_pars_dict['log_J_2x2_s']
     c_E = ssn_layer_pars_dict['c_E']
@@ -56,27 +56,41 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, tr
     r_ref, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I)
     r_target, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I)
     
+    #Select the middle grid
+    N_readout=int(np.sqrt(len(noise_ref)))
+    N_grid=constant_pars.grid_pars.gridsize_Nx
+    start=int((N_grid-N_readout)/2)
+    r_ref_2D=np.reshape(r_ref,(N_grid,N_grid))
+    r_ref_box = jax.lax.dynamic_slice(r_ref_2D, (start, start), (N_readout,N_readout)).ravel()
+    r_target_2D=np.reshape(r_target,(N_grid,N_grid))
+    r_target_box = jax.lax.dynamic_slice(r_target_2D, (start, start), (N_readout,N_readout)).ravel()
+
     #Add noise
-    r_ref = r_ref + noise_ref*np.sqrt(jax.nn.softplus(r_ref))
-    r_target = r_target + noise_target*np.sqrt(jax.nn.softplus(r_target))
+    r_ref_box = r_ref_box + noise_ref*np.sqrt(jax.nn.softplus(r_ref_box))
+    r_target_box = r_target_box + noise_target*np.sqrt(jax.nn.softplus(r_target_box))
     
     #Multiply (reference - target) by sigmoid layer weights and add bias
-    sig_input = np.dot(w_sig, (r_ref - r_target)) + b_sig 
+    sig_input = np.dot(w_sig, (r_ref_box - r_target_box)) + b_sig 
     
     #Apply sigmoid function
     sig_output = sigmoid(sig_input)
     
     #Calculate losses
-    loss_binary=binary_loss(train_data['label'], sig_output)
+    if pretraining:
+        loss_output = np.mean(np.abs(train_data['label']-sig_output))
+        pred_label = None
+    else:
+        loss_output = binary_loss(train_data['label'], sig_output)
+        pred_label = np.round(sig_output) 
     loss_avg_dx = loss_pars.lambda_dx*(avg_dx_ref_mid + avg_dx_target_mid + avg_dx_ref_sup + avg_dx_target_sup )/4
     loss_r_max =  loss_pars.lambda_r_max*(r_max_ref_mid + r_max_target_mid + r_max_ref_sup + r_max_target_sup )/4
     loss_w = loss_pars.lambda_w*(np.linalg.norm(w_sig)**2)
     loss_b = loss_pars.lambda_b*(b_sig**2)
     
-    #Combine all losses
-    loss = loss_binary + loss_w + loss_b +  loss_avg_dx + loss_r_max
-    all_losses = np.vstack((loss_binary, loss_avg_dx, loss_r_max, loss_w, loss_b, loss))
-    pred_label = np.round(sig_output) 
+    #Combine all losses    
+    loss = loss_output + loss_w + loss_b +  loss_avg_dx + loss_r_max
+    all_losses = np.vstack((loss_output, loss_avg_dx, loss_r_max, loss_w, loss_b, loss))
+    
     return loss, all_losses, pred_label, sig_input, sig_output,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup]
 
 #Parallelize orientation discrimination task
@@ -106,7 +120,10 @@ def training_loss(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_d
     max_rates = [item.max() for item in max_rates]
     
     #Calculate accuracy 
-    true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])  
+    if constant_pars.pretraining:
+        true_accuracy = np.sum(np.abs(train_data['label']-sig_output))/len(train_data['label'])
+    else:
+        true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])  
     
     return loss, [all_losses, true_accuracy, sig_input, sig_output, max_rates]
 

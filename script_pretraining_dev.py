@@ -63,6 +63,7 @@ class ConstantPars:
     conv_pars = conv_pars
     loss_pars = loss_pars
     training_pars = training_pars
+    pretraining=False
 
 constant_pars = ConstantPars()
 
@@ -87,7 +88,7 @@ training_output_df = train_ori_discr(
         trained_pars_stage2,
         constant_pars,
         results_filename,
-        jit_on=True
+        jit_on=False
     )
 
 ######### PLOT RESULTS ############

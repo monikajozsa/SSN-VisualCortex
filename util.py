@@ -5,6 +5,7 @@ import jax.numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy
+import copy 
 
 from parameters import StimuliPars
 
@@ -410,7 +411,6 @@ class BW_Grating:
         self.smooth_sd = self.pixel_per_degree / 6
         self.spatial_freq = spatial_frequency or (1 / self.pixel_per_degree)
         self.grating_size = round(self.outer_radius * self.pixel_per_degree)
-        self.angle = ((self.ori_deg + self.jitter) - 90) / 180 * numpy.pi
 
     def BW_image(self):
         _BLACK = 0
@@ -441,11 +441,14 @@ class BW_Grating:
         alpha_channel = annulus * _WHITE
 
         # Generate the grating pattern, which is a centered and tilted sinusoidal matrix
+        #initialize output
+        angle = ((self.ori_deg + self.jitter) - 90) / 180 * numpy.pi
+
         spatial_component = (
             2
             * math.pi
             * self.spatial_freq
-            * (y * numpy.sin(self.angle) + x * numpy.cos(self.angle))
+            * (y * numpy.sin(angle) + x * numpy.cos(angle))
         )
         gabor_sti = _GRAY * (
             1 + self.grating_contrast * numpy.cos(spatial_component + self.phase)
@@ -458,7 +461,7 @@ class BW_Grating:
         noise = numpy.random.normal(loc=0, scale=self.std, size=gabor_sti.shape)
         noisy_gabor_sti = gabor_sti + noise
 
-        # Expand the grating to have three colors andconcatenate it with alpha_channel
+        # Expand the grating to have three colors and concatenate it with alpha_channel
         gabor_sti_final = numpy.repeat(noisy_gabor_sti[:, :, numpy.newaxis], 3, axis=-1)
         gabor_sti_final_with_alpha = numpy.concatenate(
             (gabor_sti_final, alpha_channel[:, :, numpy.newaxis]), axis=-1
@@ -482,11 +485,11 @@ class BW_Grating:
 
         # Sum the image over color channels
         final_image_np = numpy.array(final_image, dtype=numpy.float16)
-        image = numpy.sum(final_image_np, axis=2)
+        image=numpy.sum(final_image_np, axis=2)
 
         # Crop the image if crop_f is specified
         if self.crop_f:
-            image = image[self.crop_f : -self.crop_f, self.crop_f : -self.crop_f]
+            image = image[self.crop_f : -self.crop_f, self.crop_f : -self.crop_f]     
 
         return image
 
@@ -500,14 +503,14 @@ def create_grating_pairs(stimuli_pars, batch_size):
     
     Output:
         dictionary containing reference target and label 
-    
     '''
     
     #initialise empty arrays
     ref_ori = stimuli_pars.ref_ori
     offset = stimuli_pars.offset
     data_dict = {'ref':[], 'target': [], 'label':[]}
-    for i in range(batch_size):
+
+    for _ in range(batch_size):
         uniform_dist_value = numpy.random.uniform(low = 0, high = 1)
         if  uniform_dist_value < 0.5:
             target_ori = ref_ori - offset
@@ -517,6 +520,7 @@ def create_grating_pairs(stimuli_pars, batch_size):
             label = 0
         jitter_val = stimuli_pars.jitter_val
         jitter = numpy.random.uniform(low = -jitter_val, high = jitter_val)
+
         #create reference grating
         ref = BW_Grating(ori_deg = ref_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
 
@@ -526,12 +530,70 @@ def create_grating_pairs(stimuli_pars, batch_size):
         data_dict['ref'].append(ref)
         data_dict['target'].append(target)
         data_dict['label'].append(label)
-        #data_dict = {'ref':ref, 'target': target, 'label':label}
         
     data_dict['ref'] = np.asarray(data_dict['ref'])
     data_dict['target'] = np.asarray(data_dict['target'])
     data_dict['label'] = np.asarray(data_dict['label'])
 
+    return data_dict
+
+
+def generate_random_pairs(min_value, max_value, min_distance, batch_size=1):
+    '''
+    Create batch_size number of pairs of numbers between min_value and max_value with minumum distance min_distance.
+    '''
+    num1 = numpy.random.uniform(min_value, max_value,batch_size)
+    random_distance = numpy.random.uniform(min_distance, max_value - min_value,batch_size)
+    num2 = num1 + random_distance
+    num2[num2 > max_value] = num2[num2 > max_value] - (max_value - min_value)
+
+    return num1, num2
+
+
+def create_grating_pretraining(stimuli_pars, batch_size):
+    '''
+    Create input stimuli gratings for pretraining by randomizing ref_ori, k, inner_radius, outer_radius.
+    Output:
+        dictionary containing grating1, grating2 and difference between gratings that is calculated from features
+    '''
+    
+    #initialise empty data dictionary - names are not describing the purpose of the variables but this allows for reusing code
+    data_dict = {'ref': [], 'target': [], 'label':[]}
+
+    #randomize stimuli features
+    inner_radius1, inner_radius2 = generate_random_pairs(1.5, 3, 0.2, batch_size)
+    spac_freq1, spac_freq2 = generate_random_pairs(1, 2.5, 0.5, batch_size)
+    ori1, ori2 = generate_random_pairs(0, 180, 5, batch_size)
+
+    stimuli_pars1 = copy.copy(stimuli_pars)
+    stimuli_pars2 = copy.copy(stimuli_pars)
+
+    for i in range(batch_size):
+        #define features of stimulus1 and stimulus 2
+        stimuli_pars1.inner_radius = inner_radius1[i]
+        stimuli_pars1.outer_radius = inner_radius1[i]+5
+        stimuli_pars1.k = spac_freq1[i]
+        stimuli_pars1.ref_ori = ori1[i]
+        
+        stimuli_pars2.inner_radius = inner_radius2[i]
+        stimuli_pars2.outer_radius = inner_radius2[i]+5
+        stimuli_pars2.k = spac_freq2[i]
+        stimuli_pars2.ref_ori = ori2[i]
+
+        #generate stimulus1 and stimulus2
+        stim1 = BW_Grating(ori_deg = ori1[i], jitter=0, stimuli_pars = stimuli_pars1).BW_image().ravel()
+        stim2 = BW_Grating(ori_deg = ori2[i], jitter=0, stimuli_pars = stimuli_pars2).BW_image().ravel()
+        data_dict['ref'].append(stim1)
+        data_dict['target'].append(stim2)
+    
+    data_dict['ref']=np.asarray(data_dict['ref'])
+    data_dict['target']=np.asarray(data_dict['target'])
+    
+    spac_freq_diff=numpy.abs(spac_freq1-spac_freq2)/1.5**2
+    inner_radius_diff = numpy.abs(inner_radius1-inner_radius2)/1.5**2
+    ori_diff=numpy.sqrt((1 - numpy.cos(numpy.abs(ori1-ori2) * numpy.pi/180))/(1 - numpy.cos(numpy.pi)))
+    data_dict['label']= spac_freq_diff + inner_radius_diff + ori_diff
+   
     return data_dict
 
 
@@ -576,6 +638,6 @@ def leaky_relu(x, R_thresh, slope, height=0.15):
 
     return y
 
-
+#binary cross entropy
 def binary_loss(n, x):
     return -(n * np.log(x) + (1 - n) * np.log(1 - x))

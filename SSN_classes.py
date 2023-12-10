@@ -501,11 +501,11 @@ class SSN_sup(_SSN_Base):
         if select=='E':
             output = maps[0]
         if select =='I':
-            output=maps [1]
+            output = maps[1]
 
         return output
     
-    
+    '''
     def apply_bounding_box(self, vec, size = 3.2, select='E'):
 
         map_vec = self.select_type(vec, select)
@@ -517,7 +517,7 @@ class SSN_sup(_SSN_Base):
         map_vec = jax.lax.dynamic_slice(map_vec, (start, start), (size, size))
 
         return map_vec
-    
+        '''
 
 class SSN_mid(_SSN_Base):
     _Lring = 180
@@ -845,6 +845,7 @@ class SSN_mid(_SSN_Base):
         out = vec[(map_number - 1) * self.Nc : map_number * self.Nc]
         return out
 
+    '''
     def apply_bounding_box(self, vec, size=3.2, select=1):
         Nx = self.grid_pars.gridsize_Nx
         # map_vec = self.select_type(vec, select)
@@ -858,4 +859,4 @@ class SSN_mid(_SSN_Base):
         # map_vec = map_vec[start:start+size, start:start+size]
 
         return map_vec
-    
+   ''' 
