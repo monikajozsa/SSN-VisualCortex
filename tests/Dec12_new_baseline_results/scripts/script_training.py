@@ -6,9 +6,8 @@ import pandas as pd
 
 numpy.random.seed(0)
 
-
-from util_gabor import create_gabor_filters_util
-from util import take_log
+#from util_gabor import find_A
+from util import take_log, find_A
 from training import train_ori_discr
 from parameters import (
     grid_pars,
@@ -26,22 +25,30 @@ from parameters import (
 from save_code import save_code
 from pretraining_supp import randomize_params
 import visualization
-from SSN_classes import SSN_mid, SSN_sup
 
 ssn_ori_map_loaded = np.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
 #randomize_params(ssn_layer_pars, stimuli_pars, percent=0.2)
 
 # Find normalization constant of Gabor filters
-ssn_mid=SSN_mid(ssn_pars=ssn_pars, grid_pars=grid_pars, conn_pars=conn_pars_m, filter_pars=filter_pars, J_2x2=ssn_layer_pars.J_2x2_m, gE = ssn_layer_pars.gE_m, gI=ssn_layer_pars.gI_m, ori_map = ssn_ori_map_loaded)
-#ssn_sup=SSN_sup(ssn_pars=ssn_pars, grid_pars=grid_pars, conn_pars=conn_pars_s, J_2x2=ssn_layer_pars.J_2x2_s, s_2x2=ssn_layer_pars.s_2x2_s, sigma_oris = ssn_layer_pars.sigma_oris, ori_map = ssn_ori_map_loaded, train_ori = 0, kappa_post = ssn_layer_pars.kappa_post, kappa_pre = ssn_layer_pars.kappa_pre)
-
-gabor_filters_EI = numpy.array(ssn_mid.gabor_filters)
-gabor_filters = create_gabor_filters_util(ssn_ori_map_loaded, ssn_mid, filter_pars, ssn_pars.phases)
-# only difference is the *ssn_layer_pars.gE_m and *ssn_layer_pars.gI_m that I plan to do in model_evaluate function
+ssn_pars.A = find_A(
+    filter_pars.k,
+    filter_pars.sigma_g,
+    filter_pars.edge_deg,
+    filter_pars.degree_per_pixel,
+    indices=np.sort(ssn_ori_map_loaded.ravel()),
+    phase=0,
+)
+if ssn_pars.phases == 4:
+    ssn_pars.A2 = find_A(
+        filter_pars.k,
+        filter_pars.sigma_g,
+        filter_pars.edge_deg,
+        filter_pars.degree_per_pixel,
+        indices=np.sort(ssn_ori_map_loaded.ravel()),
+        phase=np.pi / 2,
+    )
  
 ####################### TRAINING PARAMETERS #######################
-
-#randomize_params(ssn_layer_pars, stimuli_pars, percent=0.1)
 # Collect constant parameters into single class
 class ConstantPars:
     grid_pars = grid_pars
@@ -55,8 +62,7 @@ class ConstantPars:
     conv_pars = conv_pars
     loss_pars = loss_pars
     training_pars = training_pars
-    gabor_filters = gabor_filters
-    readout_grid_size = readout_pars.readout_grid_size
+    readout_grid_size=readout_pars.readout_grid_size
     pretraining = False
 
 constant_pars = ConstantPars()
@@ -82,7 +88,7 @@ training_output_df = train_ori_discr(
         trained_pars_stage2,
         constant_pars,
         results_filename,
-        jit_on=False
+        jit_on=True
     )
 
 ######### PLOT RESULTS ############

@@ -5,7 +5,7 @@ from util import constant_to_vec, leaky_relu
 
 
 def evaluate_model_response(
-    ssn_mid, ssn_sup, stimuli, conv_pars, c_E, c_I, f_E, f_I, gabor_filters
+    ssn_mid, ssn_sup, stimuli, conv_pars, c_E, c_I, f_E, f_I, 
 ):
     '''
     Run individual stimulus through two layer model. 
@@ -30,8 +30,7 @@ def evaluate_model_response(
     constant_vector_sup = constant_to_vec(c_E=c_E, c_I=c_I, ssn=ssn_sup, sup=True)
 
     # Apply Gabor filters to stimuli to create input of middle layer
-    # in order to use the gabor_filters input, I need to multiply it by gE and gI in script_pretraining...
-    input_mid = np.matmul(gabor_filters, stimuli)
+    input_mid = np.matmul(ssn_mid.gabor_filters, stimuli)
 
     # Rectify middle layer input before fix point calculation
     SSN_mid_input = np.maximum(0, input_mid) + constant_vector

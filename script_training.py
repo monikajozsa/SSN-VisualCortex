@@ -6,7 +6,8 @@ import pandas as pd
 
 numpy.random.seed(0)
 
-from util import find_A, take_log
+from util_gabor import find_A
+from util import take_log
 from training import train_ori_discr
 from parameters import (
     grid_pars,
@@ -48,53 +49,53 @@ if ssn_pars.phases == 4:
     )
  
 ####################### TRAINING PARAMETERS #######################
+# Collect constant parameters into single class
+class ConstantPars:
+    grid_pars = grid_pars
+    stimuli_pars = stimuli_pars
+    conn_pars_m = conn_pars_m
+    conn_pars_s = conn_pars_s
+    filter_pars = filter_pars
+    ssn_ori_map = ssn_ori_map_loaded
+    ssn_pars = ssn_pars
+    ssn_layer_pars = ssn_layer_pars
+    conv_pars = conv_pars
+    loss_pars = loss_pars
+    training_pars = training_pars
+    readout_grid_size=readout_pars.readout_grid_size
+    pretraining = False
 
-for i in range(5):
-    numpy.random.seed(i)
-    randomize_params(ssn_layer_pars, stimuli_pars, percent=0.1)
-    # Collect constant parameters into single class
-    class ConstantPars:
-        grid_pars = grid_pars
-        stimuli_pars = stimuli_pars
-        conn_pars_m = conn_pars_m
-        conn_pars_s = conn_pars_s
-        filter_pars = filter_pars
-        ssn_ori_map = ssn_ori_map_loaded
-        ssn_pars = ssn_pars
-        ssn_layer_pars = ssn_layer_pars
-        conv_pars = conv_pars
-        loss_pars = loss_pars
-        training_pars = training_pars
+constant_pars = ConstantPars()
 
-    constant_pars = ConstantPars()
+# Collect training parameters into two dictionaries
+trained_pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
 
-    # Collect training parameters into two dictionaries
-    trained_pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
+trained_pars_stage2 = dict(
+    log_J_2x2_m= take_log(ssn_layer_pars.J_2x2_m),
+    log_J_2x2_s= take_log(ssn_layer_pars.J_2x2_s),
+    c_E=ssn_layer_pars.c_E,
+    c_I=ssn_layer_pars.c_I,
+    f_E=ssn_layer_pars.f_E,
+    f_I=ssn_layer_pars.f_I,
+    kappa_pre=ssn_layer_pars.kappa_pre,
+    kappa_post=ssn_layer_pars.kappa_post,
+)
 
-    trained_pars_stage2 = dict(
-        log_J_2x2_m= take_log(ssn_layer_pars.J_2x2_m),
-        log_J_2x2_s= take_log(ssn_layer_pars.J_2x2_s),
-        c_E=ssn_layer_pars.c_E,
-        c_I=ssn_layer_pars.c_I,
-        f_E=ssn_layer_pars.f_E,
-        f_I=ssn_layer_pars.f_I,
-        kappa_pre=ssn_layer_pars.kappa_pre,
-        kappa_post=ssn_layer_pars.kappa_post,
+model_elements=0
+####################### TRAINING #######################
+results_filename, final_folder_path = save_code()
+training_output_df = train_ori_discr(
+        trained_pars_stage1,
+        trained_pars_stage2,
+        constant_pars,
+        model_elements,
+        results_filename,
+        jit_on=True
     )
 
-    ####################### TRAINING #######################
-    results_filename, final_folder_path = save_code()
-    training_output_df = train_ori_discr(
-            trained_pars_stage1,
-            trained_pars_stage2,
-            constant_pars,
-            results_filename,
-            jit_on=True
-        )
+######### PLOT RESULTS ############
+# Load the DataFrame from the CSV file
+df = pd.read_csv(results_filename)
+fig_filename = os.path.join(final_folder_path,'results_fig')
 
-    ######### PLOT RESULTS ############
-    # Load the DataFrame from the CSV file
-    df = pd.read_csv(results_filename)
-    fig_filename = os.path.join(final_folder_path,'results_fig')
-
-    visualization.plot_results_from_csv(results_filename,fig_filename)
+visualization.plot_results_from_csv(results_filename,fig_filename)

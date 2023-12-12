@@ -1,3 +1,4 @@
+
 import numpy
 import jax
 import jax.numpy as np
@@ -49,15 +50,15 @@ def ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, constant_pars, tr
     loss_pars = constant_pars.loss_pars
     conv_pars = constant_pars.conv_pars
     # Create middle and superficial SSN layers *** this is something that would be great to get tid of - to call the ssn classes from inside the training
-    ## update middle layer parameters - does not work with jit!
+    ## update middle layer parameters
     ## model_elements.ssn_mid.J_2x2=J_2x2_m
     ## model_elements.ssn_mid.make_W(J_2x2_m)
     ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = gE, gI=gI, ori_map = constant_pars.ssn_ori_map)
     ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_s, J_2x2=J_2x2_s, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_map = constant_pars.ssn_ori_map, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
     #Run reference and targetthrough two layer model
-    r_ref, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, constant_pars.gabor_filters)
-    r_target, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I, constant_pars.gabor_filters)
+    r_ref, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I)
+    r_target, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I)
     
     #Select the middle grid
     N_readout=constant_pars.readout_grid_size

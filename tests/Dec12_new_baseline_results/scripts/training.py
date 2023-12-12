@@ -1,7 +1,10 @@
+
+import os
 import jax
 import jax.numpy as np
 import optax
 import time
+import csv
 import pandas as pd
 
 from util import create_grating_pairs, create_grating_pretraining
@@ -72,7 +75,7 @@ def make_dataframe(epochs,val_epochs, train_accs, train_losses_all,train_max_rat
     return df      
 
 
-def SGD_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, stage,jit_on):
+def SGD_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, stage, jit_on):
     if stage == 1:
         loss_and_grad_func = jax.value_and_grad(training_loss, argnums=1, has_aux=True)
     else:

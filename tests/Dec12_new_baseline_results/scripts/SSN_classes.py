@@ -4,8 +4,8 @@ from jax import random
 import matplotlib.pyplot as plt
 import numpy
 
-from util import Euler2fixedpt
-from util_gabor import GaborFilter, find_A
+from util import Euler2fixedpt, GaborFilter, find_A
+#from util_gabor import GaborFilter, find_A
 
 
 class _SSN_Base(object):
