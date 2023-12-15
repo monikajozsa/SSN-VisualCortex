@@ -1,5 +1,6 @@
 import numpy
 from PIL import Image
+
 from parameters import StimuliPars
 
 class BW_Grating:
@@ -278,11 +279,14 @@ def find_A(
 
     return output
 
+
 def create_gabor_filters_util(
     ori_map,
-    ssn_mid,
+    phases,
     filter_pars,
-    phases
+    grid_pars,
+    gE,
+    gI
 ):
     e_filters = []
     if phases == 4:
@@ -292,8 +296,8 @@ def create_gabor_filters_util(
     for i in range(ori_map.shape[0]):
         for j in range(ori_map.shape[1]):
             gabor = GaborFilter(
-                x_i=ssn_mid.x_map[i, j],
-                y_i=ssn_mid.y_map[i, j],
+                x_i=grid_pars.x_map[i, j],
+                y_i=grid_pars.y_map[i, j],
                 edge_deg=filter_pars.edge_deg,
                 k=filter_pars.k,
                 sigma_g=filter_pars.sigma_g,
@@ -306,8 +310,8 @@ def create_gabor_filters_util(
 
             if phases == 4:
                 gabor_2 = GaborFilter(
-                    x_i=ssn_mid.x_map[i, j],
-                    y_i=ssn_mid.y_map[i, j],
+                    x_i=grid_pars.x_map[i, j],
+                    y_i=grid_pars.y_map[i, j],
                     edge_deg=filter_pars.edge_deg,
                     k=filter_pars.k,
                     sigma_g=filter_pars.sigma_g,
@@ -319,8 +323,8 @@ def create_gabor_filters_util(
                 e_filters_pi2.append(gabor_2.filter.ravel())
 
     e_filters_o = numpy.array(e_filters)
-    e_filters = ssn_mid.gE * e_filters_o
-    i_filters = ssn_mid.gI * e_filters_o
+    e_filters = gE * e_filters_o
+    i_filters = gI * e_filters_o
 
     # create filters with phase equal to pi
     e_off_filters = -e_filters
@@ -329,8 +333,8 @@ def create_gabor_filters_util(
     if phases == 4:
         e_filters_o_pi2 = numpy.array(e_filters_pi2)
 
-        e_filters_pi2 = ssn_mid.gE * e_filters_o_pi2
-        i_filters_pi2 = ssn_mid.gI * e_filters_o_pi2
+        e_filters_pi2 = gE * e_filters_o_pi2
+        i_filters_pi2 = gI * e_filters_o_pi2
 
         # create filters with phase equal to -pi/2
         e_off_filters_pi2 = -e_filters_pi2
@@ -354,19 +358,38 @@ def create_gabor_filters_util(
         )
 
     # Normalise Gabor filters
-    SSN_filters = SSN_filters * ssn_mid.A
+    A = find_A(
+                k=filter_pars.k,
+                sigma_g=filter_pars.sigma_g,
+                edge_deg=filter_pars.edge_deg,
+                degree_per_pixel=filter_pars.degree_per_pixel,
+                indices=numpy.sort(ori_map.ravel()),
+                phase=0,  
+                return_all=False,
+            )
+    SSN_filters = SSN_filters * A
 
     if phases == 4:
+        A2 = find_A(
+            k=filter_pars.k,
+            sigma_g=filter_pars.sigma_g,
+            edge_deg=filter_pars.edge_deg,
+            degree_per_pixel=filter_pars.degree_per_pixel,
+            indices=numpy.sort(ori_map.ravel()),
+            phase=numpy.pi / 2,
+            return_all=False,
+        )
+
         SSN_filters = numpy.vstack( #*** Do sg with it, I got out of memory for 500 epochs...
             [
-                e_filters * ssn_mid.A,
-                i_filters * ssn_mid.A,
-                e_filters_pi2 * ssn_mid.A2,
-                i_filters_pi2 * ssn_mid.A2,
-                e_off_filters * ssn_mid.A,
-                i_off_filters * ssn_mid.A,
-                e_off_filters_pi2 * ssn_mid.A2,
-                i_off_filters_pi2 * ssn_mid.A2,
+                e_filters * A,
+                i_filters * A,
+                e_filters_pi2 * A2,
+                i_filters_pi2 * A2,
+                e_off_filters * A,
+                i_off_filters * A,
+                e_off_filters_pi2 * A2,
+                i_off_filters_pi2 * A2,
             ]
         )
 

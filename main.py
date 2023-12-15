@@ -1,14 +1,11 @@
 import os
-import jax.numpy as np
-import matplotlib.pyplot as plt
 import numpy
 import pandas as pd
 
 numpy.random.seed(0)
 
-
 from util_gabor import create_gabor_filters_util
-from util import take_log
+from util import take_log, save_code
 from training import train_ori_discr
 from parameters import (
     grid_pars,
@@ -16,40 +13,34 @@ from parameters import (
     stimuli_pars,
     readout_pars,
     ssn_pars,
-    conn_pars_m,
-    conn_pars_s,
     ssn_layer_pars,
     conv_pars,
     training_pars,
     loss_pars,
 )
-from save_code import save_code
-from pretraining_supp import randomize_params
 import visualization
-from SSN_classes import SSN_mid, SSN_sup
-
-ssn_ori_map_loaded = np.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
+#from pretraining_supp import randomize_params
 #randomize_params(ssn_layer_pars, stimuli_pars, percent=0.2)
 
-# Find normalization constant of Gabor filters
-ssn_mid=SSN_mid(ssn_pars=ssn_pars, grid_pars=grid_pars, conn_pars=conn_pars_m, filter_pars=filter_pars, J_2x2=ssn_layer_pars.J_2x2_m, gE = ssn_layer_pars.gE_m, gI=ssn_layer_pars.gI_m, ori_map = ssn_ori_map_loaded)
-#ssn_sup=SSN_sup(ssn_pars=ssn_pars, grid_pars=grid_pars, conn_pars=conn_pars_s, J_2x2=ssn_layer_pars.J_2x2_s, s_2x2=ssn_layer_pars.s_2x2_s, sigma_oris = ssn_layer_pars.sigma_oris, ori_map = ssn_ori_map_loaded, train_ori = 0, kappa_post = ssn_layer_pars.kappa_post, kappa_pre = ssn_layer_pars.kappa_pre)
+########## Initialize orientation map and gabor filters ############
 
-gabor_filters_EI = numpy.array(ssn_mid.gabor_filters)
-gabor_filters = create_gabor_filters_util(ssn_ori_map_loaded, ssn_mid, filter_pars, ssn_pars.phases)
-# only difference is the *ssn_layer_pars.gE_m and *ssn_layer_pars.gI_m that I plan to do in model_evaluate function
- 
+ssn_ori_map_loaded = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
+gabor_filters = create_gabor_filters_util(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
+def cosdiff_ring(d_x, L):
+    return numpy.sqrt(2 * (1 - numpy.cos(d_x * 2 * numpy.pi / L))) * L / (2 * numpy.pi)
+oris = ssn_ori_map_loaded.ravel()[:, None]
+ori_dist = cosdiff_ring(oris - oris.T, 180)
+
 ####################### TRAINING PARAMETERS #######################
 
-#randomize_params(ssn_layer_pars, stimuli_pars, percent=0.1)
 # Collect constant parameters into single class
 class ConstantPars:
     grid_pars = grid_pars
     stimuli_pars = stimuli_pars
-    conn_pars_m = conn_pars_m
-    conn_pars_s = conn_pars_s
     filter_pars = filter_pars
     ssn_ori_map = ssn_ori_map_loaded
+    oris = oris
+    ori_dist = ori_dist
     ssn_pars = ssn_pars
     ssn_layer_pars = ssn_layer_pars
     conv_pars = conv_pars
@@ -61,7 +52,7 @@ class ConstantPars:
 
 constant_pars = ConstantPars()
 
-# Collect training parameters into two dictionaries
+# Collect trained parameters into two dictionaries for the two stages
 trained_pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
 
 trained_pars_stage2 = dict(
@@ -76,18 +67,19 @@ trained_pars_stage2 = dict(
 )
 
 ####################### TRAINING #######################
+
 results_filename, final_folder_path = save_code()
 training_output_df = train_ori_discr(
         trained_pars_stage1,
         trained_pars_stage2,
         constant_pars,
         results_filename,
-        jit_on=False
+        jit_on=True
     )
 
 ######### PLOT RESULTS ############
-# Load the DataFrame from the CSV file
+
 df = pd.read_csv(results_filename)
-fig_filename = os.path.join(final_folder_path,'results_fig')
+fig_filename = os.path.join(final_folder_path,'results_pretraining')
 
 visualization.plot_results_from_csv(results_filename,fig_filename)

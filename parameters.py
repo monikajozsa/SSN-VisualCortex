@@ -3,6 +3,32 @@ from dataclasses import dataclass
 
 import jax.numpy as np
 
+def xy_distance(gridsize_Nx,gridsize_deg):
+
+    Nn = gridsize_Nx**2
+    gridsize_mm = gridsize_deg * 2
+    Lx = Ly = gridsize_mm
+    Nx = Ny = gridsize_Nx
+
+    # Simplified meshgrid creation
+    xs = numpy.linspace(0, Lx, Nx)
+    ys = numpy.linspace(0, Ly, Ny)
+    [x_map, y_map] = numpy.meshgrid(xs - xs[len(xs) // 2], ys - ys[len(ys) // 2])
+    y_map = -y_map # without this y_map decreases going upwards
+
+    # Flatten and tile in one step
+    x_vec = numpy.tile(x_map.ravel(), 2)
+    y_vec = numpy.tile(y_map.ravel(), 2)
+
+    # Reshape x_vec and y_vec
+    xs = x_vec.reshape(2, Nn, 1)
+    ys = y_vec.reshape(2, Nn, 1)
+
+    # Calculate distance using broadcasting
+    xy_dist = numpy.sqrt(numpy.square(xs[0] - xs[0].T) + numpy.square(ys[0] - ys[0].T))
+
+    return xy_dist, x_map, y_map
+
 
 # Input parameters
 @dataclass
@@ -13,8 +39,10 @@ class GridPars:
     """ edge length in degrees - visual field *** is it in degree? it is multiplied by 2, which is also the magnification factor"""
     magnif_factor: float = 2.0
     """ converts deg to mm (mm/deg) """
+    gridsize_mm = gridsize_deg * magnif_factor
     hyper_col: float = 0.4
     """ parameter to generate orientation map """
+    xy_dist, x_map, y_map = xy_distance(gridsize_Nx,gridsize_deg)
 
 
 grid_pars = GridPars()
@@ -38,7 +66,7 @@ class StimuliPars:  # the attributes are changed within SSN_classes for a local 
     inner_radius: float = 2.5  # inner radius of the stimulus
     outer_radius: float = 3.0  # outer radius of the stimulus: together with inner_radius, they define how the edge of the stimulus fades away to the gray background
     grating_contrast: float = 0.8  # contrast of darkest and lightest point in the grid - see Ke's Current Biology paper from 2020
-    std: float = 0.0  # no noise at the moment but this is a Gaussian white noise added to the stimulus (after the Gabor filter? so to the grating)
+    std: float = 0.0  # Gaussian white noise added to the stimulus (not simply at the end!)
     jitter_val: float = 5.0  # jitter is taken from a uniform distribution [-jitter_val, jitter_val]
     k: float = filter_pars.k
     edge_deg: float = filter_pars.edge_deg  # same as for k
@@ -72,24 +100,6 @@ class SSNPars:
 
 
 ssn_pars = SSNPars()
-    
-
-@dataclass
-class ConnParsM:
-    PERIODIC: bool = False
-    p_local = [1.0, 1.0]
-
-
-conn_pars_m = ConnParsM()
-
-
-@dataclass
-class ConnParsS:
-    PERIODIC: bool = False
-    p_local = [0.4, 0.7]
-
-
-conn_pars_s = ConnParsS()
 
 
 @dataclass
@@ -109,6 +119,8 @@ class SsnLayerPars:
     J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * psi
     gE_m = 0.3 #
     gI_m = 0.25 # 
+    p_local_s = [0.4, 0.7]
+    p_local_m = [1.0, 1.0]
 
 
 ssn_layer_pars = SsnLayerPars()
@@ -140,7 +152,7 @@ class TrainingPars:
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
     epochs = 5 # number of epochs
     validation_freq = 1  # calculate validation loss and accuracy every validation_freq epoch
-    first_stage_acc = 0.7 
+    first_stage_acc = 0.7
 
 
 training_pars = TrainingPars()

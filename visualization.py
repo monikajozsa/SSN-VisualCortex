@@ -28,7 +28,7 @@ def plot_results_from_csv(
             axes[1, 0].plot(df['epoch'], df[column], label=column, alpha=0.6)
         if 'val_loss' in column:
             axes[1, 0].scatter(df['epoch'], df[column], marker='o', s=50)
-    #axes[1, 0].legend(["binary cross entropy", "avg_dx", "r_max", "w_sig", "b_sig", "total loss"])
+    #axes[1, 0].legend(["readout", "avg_dx", "r_max", "w_sig", "b_sig", "total"])
     #axes[1, 0].legend(loc='lower left')
     #Plot changes in sigmoid weights and bias of the sigmoid layer
     axes[0,1].plot(df['epoch'], df['b_sig'], label=column)
@@ -36,7 +36,7 @@ def plot_results_from_csv(
     for column in df.columns:
         if 'w_sig_' in column:
             axes[1,1].plot(df['epoch'], df[column], label=column)
-    axes[1,1].legend("w sig")
+    axes[1,1].legend("w")
     
     #Plot changes in J and kappa in middle and superficial layer
     colors = ["tab:blue", "tab:green", "tab:orange", "tab:red"]

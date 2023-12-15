@@ -1,10 +1,11 @@
 import jax
-import math
 import jax.numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import numpy
 import copy 
+import os
+import shutil
+from datetime import datetime
 
 from util_gabor import BW_Grating
 
@@ -285,64 +286,46 @@ def create_grating_pretraining(stimuli_pars, batch_size):
     data_dict = {'ref': [], 'target': [], 'label':[]}
 
     #randomize stimuli features
-    inner_radius1, inner_radius2 = generate_random_pairs(1.5, 3, 0.2, batch_size)
-    spac_freq1, spac_freq2 = generate_random_pairs(1, 2.5, 0.5, batch_size)
+    #inner_radius1, inner_radius2 = generate_random_pairs(2, 3, 0.2, batch_size)
+    #spac_freq1, spac_freq2 = generate_random_pairs(1.5, 2.5, 0.5, batch_size)
     ori1, ori2 = generate_random_pairs(0, 180, 5, batch_size)
 
     stimuli_pars1 = copy.copy(stimuli_pars)
-    stimuli_pars2 = copy.copy(stimuli_pars)
+    #stimuli_pars2 = copy.copy(stimuli_pars)
 
     for i in range(batch_size):
         #define features of stimulus1 and stimulus 2
-        stimuli_pars1.inner_radius = inner_radius1[i]
-        stimuli_pars1.outer_radius = inner_radius1[i]+5
-        stimuli_pars1.k = spac_freq1[i]
+        #stimuli_pars1.inner_radius = inner_radius1[i]
+        #stimuli_pars1.outer_radius = inner_radius1[i]+5
+        #stimuli_pars1.k = spac_freq1[i]
         stimuli_pars1.ref_ori = ori1[i]
         
-        stimuli_pars2.inner_radius = inner_radius2[i]
-        stimuli_pars2.outer_radius = inner_radius2[i]+5
-        stimuli_pars2.k = spac_freq2[i]
-        stimuli_pars2.ref_ori = ori2[i]
+        #stimuli_pars2.inner_radius = inner_radius1[i] #simplified task - pairs have matching radius and spacial frequesncy
+        #stimuli_pars2.outer_radius = inner_radius1[i]+5
+        #stimuli_pars2.k = spac_freq1[i]
+        #stimuli_pars2.ref_ori = ori2[0]
 
         #generate stimulus1 and stimulus2
-        stim1 = BW_Grating(ori_deg = ori1[i], jitter=0, stimuli_pars = stimuli_pars1).BW_image().ravel()
-        stim2 = BW_Grating(ori_deg = ori2[i], jitter=0, stimuli_pars = stimuli_pars2).BW_image().ravel()
+        stim1 = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image().ravel()
+        #stim2 = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars2).BW_image().ravel()
         data_dict['ref'].append(stim1)
-        data_dict['target'].append(stim2)
+        data_dict['target'].append(stim1)
     
     data_dict['ref']=np.asarray(data_dict['ref'])
     data_dict['target']=np.asarray(data_dict['target'])
     
-    spac_freq_diff=numpy.abs(spac_freq1-spac_freq2)/1.5**2
-    inner_radius_diff = numpy.abs(inner_radius1-inner_radius2)/1.5**2
-    ori_diff=numpy.sqrt((1 - numpy.cos(numpy.abs(ori1-ori2) * numpy.pi/180))/(1 - numpy.cos(numpy.pi)))
-    data_dict['label']= spac_freq_diff + inner_radius_diff + ori_diff
+    ## *** simplified task - just orientation difference
+    #spac_freq_diff=numpy.abs(spac_freq1-spac_freq2)/1.5**2
+    #inner_radius_diff = numpy.abs(inner_radius1-inner_radius2)/1.5**2
+    ori_cos=numpy.cos(ori1 * numpy.pi/180)
+    #ori_sin=numpy.sqrt(numpy.sin(ori1[0] * numpy.pi/180))
+    ## we need to add the sin part as a separate dimension so that the loss is calculated from the difference in cos and sin
+    data_dict['label']= ori_cos#*numpy.ones_like(ori1) #+ spac_freq_diff + inner_radius_diff 
    
     return data_dict
 
 
 make_J2x2_o = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie, -Jii]])
-
-
-def constant_to_vec(c_E, c_I, ssn, sup=False):
-    edge_length = ssn.grid_pars.gridsize_Nx
-
-    matrix_E = np.ones((edge_length, edge_length)) * c_E
-    vec_E = np.ravel(matrix_E)
-
-    matrix_I = np.ones((edge_length, edge_length)) * c_I
-    vec_I = np.ravel(matrix_I)
-
-    constant_vec = np.hstack((vec_E, vec_I, vec_E, vec_I))
-
-    if sup == False and ssn.phases == 4:
-        constant_vec = np.kron(np.asarray([1, 1]), constant_vec)
-
-    if sup:
-        constant_vec = np.hstack((vec_E, vec_I))
-
-    return constant_vec
-
 
 def x_greater_than(x, constant, slope, height):
     return np.maximum(0, (x * slope - (1 - height)))
@@ -365,3 +348,46 @@ def leaky_relu(x, R_thresh, slope, height=0.15):
 #binary cross entropy
 def binary_loss(n, x):
     return -(n * np.log(x) + (1 - n) * np.log(1 - x))
+
+
+def save_code():
+    '''
+    This code is used to save code files to make results replicable.
+    1) It copies specific code files into a folder called 'script'
+    3) Returns the path to save the results into
+    '''
+    # Get the current date
+    current_date = datetime.now().strftime("%b%d")
+
+    # Create a folder name based on the current date
+    folder_name = f"results\{current_date}_v"
+
+    # Find the next available script version
+    version = 0
+    while os.path.exists(f"{folder_name}{version}"):
+        version += 1
+
+    # Create the folder for the results
+    final_folder_path = f"{folder_name}{version}"
+    os.makedirs(final_folder_path)
+
+    # Create a subfolder for the scripts
+    subfolder_script_path = f"{folder_name}{version}\scripts"
+    os.makedirs(subfolder_script_path)
+
+    # Get the path to the script's directory
+    script_directory = os.path.dirname(os.path.realpath(__file__))
+
+    # Copy files into the folder
+    file_names = ['main.py', 'util_gabor.py', 'pretraining_supp.py', 'parameters.py', 'training.py', 'training_supp.py', 'model.py', 'util.py', 'SSN_classes.py', 'analysis.py', 'visualization.py']
+    for file_name in file_names:
+        source_path = os.path.join(script_directory, file_name)
+        destination_path = os.path.join(subfolder_script_path, file_name)
+        shutil.copyfile(source_path, destination_path)
+
+    print(f"Script files copied successfully to: {script_directory}")
+
+    # return path (inclusing filename) to save results into
+    results_filename = os.path.join(final_folder_path,f"{current_date}_v{version}_results.csv")
+
+    return results_filename, final_folder_path

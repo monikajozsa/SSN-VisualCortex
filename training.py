@@ -3,105 +3,10 @@ import jax.numpy as np
 import optax
 import time
 import pandas as pd
+import numpy
 
 from util import create_grating_pairs, create_grating_pretraining
-from training_supp import training_loss, generate_noise
-#from visualization import plot_w_sig, plot_max_rates
-
-def make_dataframe(epochs,val_epochs, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all,b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s,c_E,c_I,f_E,f_I,kappa_pre,kappa_post):
-       
-    #Create DataFrame and fill it with variables
-    df = pd.DataFrame({
-        'epoch': epochs,
-        'acc': train_accs,
-        'val_acc' : None,
-    })
-    loss_names = ['loss_binary', 'loss_avg_dx', 'loss_r_max', 'loss_w_sig', 'loss_b_sig', 'loss_all']
-    for i in range(len(train_losses_all[0])):
-        df[loss_names[i]]=np.stack(train_losses_all)[:,i]
-    max_rates_names = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup']
-    for i in range(len(train_max_rates.T)):
-        df[max_rates_names[i]]=train_max_rates[:,i]
-    
-    df.loc[val_epochs, 'val_acc'] = val_accs        
-    val_loss_names = ['val_loss_binary', 'val_loss_avg_dx', 'val_loss_r_max', 'val_loss_w_sig', 'val_loss_b_sig', 'val_loss_all']
-    for i in range(len(val_losses_all)):
-        df[val_loss_names[i]] = None
-        df.loc[val_epochs, val_loss_names[i]] = val_losses_all[i,:]
-
-    #Add trained parameters
-    epochs_stage1=np.arange(len(b_sigs))
-    epochs_stage2=np.arange(len(b_sigs),len(b_sigs)+len(c_E)-1) #first values are default values saved at epoch 0
-    for i in range(len(np.stack(w_sigs).T)):
-        weight_name = f'w_sig_{i+1}'
-        df[weight_name] = None
-        df.loc[epochs_stage1, weight_name] = np.stack(w_sigs)[:,i]
-        df.loc[epochs_stage2, weight_name] = np.stack(w_sigs)[-1,i]
-    df['b_sig'] = None
-    df.loc[epochs_stage1,'b_sig'] = b_sigs
-    df.loc[epochs_stage2,'b_sig'] = b_sigs[-1]
-
-    J_m_names = ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II']
-    J_s_names = ['J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II']
-    for i in range(len(np.stack(log_J_2x2_m).T)):
-        df[J_m_names[i]] = None
-        df.loc[epochs_stage1, J_m_names[i]] = np.stack(log_J_2x2_m)[0,i]
-        df.loc[epochs_stage2, J_m_names[i]] = np.stack(log_J_2x2_m)[1:,i]
-    for i in range(len(np.stack(log_J_2x2_m).T)):
-        df[J_s_names[i]] = None
-        df.loc[epochs_stage1, J_s_names[i]] = np.stack(log_J_2x2_s)[0,i]
-        df.loc[epochs_stage2, J_s_names[i]] = np.stack(log_J_2x2_s)[1:,i]
-    df.loc[epochs_stage1,'c_E']=c_E[0]
-    df.loc[epochs_stage2,'c_E']=c_E[1:]
-    df.loc[epochs_stage1,'c_I']=c_I[0]
-    df.loc[epochs_stage2,'c_I']=c_I[1:]
-    df.loc[epochs_stage1,'f_E']=f_E[0]
-    df.loc[epochs_stage2,'f_E']=f_E[1:]
-    df.loc[epochs_stage1,'f_I']=f_I[0]
-    df.loc[epochs_stage2-1,'f_I']=f_I[1:]
-    kappa_names=['kappa_preE','kappa_preI','kappa_postE','kappa_postI']
-    for i in range(len(np.stack(kappa_pre).T)):
-        df[kappa_names[i]] = None
-        df.loc[epochs_stage1, kappa_names[i]] = np.stack(kappa_pre)[0,i]
-        df.loc[epochs_stage2, kappa_names[i]] = np.stack(kappa_pre)[1:,i]
-    for i in range(len(np.stack(kappa_pre).T)):
-        df[kappa_names[2+i]] = None
-        df.loc[epochs_stage1, kappa_names[2+i]] = np.stack(kappa_post)[0,i]
-        df.loc[epochs_stage2, kappa_names[2+i]] = np.stack(kappa_post)[1:,i]
-
-    return df      
-
-
-def SGD_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, stage,jit_on):
-    if stage == 1:
-        loss_and_grad_func = jax.value_and_grad(training_loss, argnums=1, has_aux=True)
-    else:
-        loss_and_grad_func = jax.value_and_grad(training_loss, argnums=0, has_aux=True)
-
-    # Create stimulus for middle layer: train_data has ref, target and label
-    train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size)
-
-    # Generate noise
-    noise_ref = generate_noise(
-        training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
-    )
-    noise_target = generate_noise(
-        training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
-    )
-
-    # Compute loss and gradient
-    [
-        loss, [all_losses, accuracy, sig_input, sig_output, max_rates],
-    ], grad = loss_and_grad_func(
-        ssn_layer_pars_dict,
-        readout_pars_dict,
-        constant_pars,
-        train_data,
-        noise_ref,
-        noise_target,
-        jit_on
-    )
-    return loss, all_losses, accuracy, sig_input, sig_output, max_rates, grad
+from training_supp import training_loss
 
 
 def train_ori_discr(
@@ -133,8 +38,12 @@ def train_ori_discr(
     c_I = [ssn_layer_pars_dict['c_I']]
     f_E = [ssn_layer_pars_dict['f_E']]
     f_I = [ssn_layer_pars_dict['f_I']]
-    kappa_pre = [ssn_layer_pars_dict['kappa_pre']]
-    kappa_post = [ssn_layer_pars_dict['kappa_post']]
+    if 'kappa_pre' in ssn_layer_pars_dict:
+        kappa_pre = [np.tanh(ssn_layer_pars_dict['kappa_pre'])]
+        kappa_post = [np.tanh(ssn_layer_pars_dict['kappa_post'])]
+    else:
+        kappa_pre = np.tanh(constant_pars.ssn_layer_pars.kappa_pre)
+        kappa_post = np.tanh(constant_pars.ssn_layer_pars.kappa_post)
 
     # Unpack input
     training_pars = constant_pars.training_pars
@@ -211,7 +120,7 @@ def train_ori_discr(
                 # Early stop in first stage of training
                 if (epoch > 20
                     and np.mean(np.asarray(train_accs[-20:])) > training_pars.first_stage_acc
-                )  or epoch > 100:
+                )  or epoch > 500:
                     print(
                         "Early stop: {} accuracy achieved at epoch {}".format(
                             training_pars.first_stage_acc, epoch
@@ -243,8 +152,9 @@ def train_ori_discr(
                 c_I.append(ssn_layer_pars_dict['c_I'])
                 f_E.append(ssn_layer_pars_dict['f_E'])
                 f_I.append(ssn_layer_pars_dict['f_I'])
-                kappa_pre.append(ssn_layer_pars_dict['kappa_pre'])
-                kappa_post.append(ssn_layer_pars_dict['kappa_post'])
+                if 'kappa_pre' in ssn_layer_pars_dict:
+                    kappa_pre.append(ssn_layer_pars_dict['kappa_pre'])
+                    kappa_post.append(ssn_layer_pars_dict['kappa_post'])
 
     ############# SAVING and RETURN OUTPUT #############
 
@@ -259,7 +169,10 @@ def train_ori_discr(
         val_epochs_all = np.concatenate((val_epochs_stage1,val_epochs_stage2))
         
         # Create DataFrame to save
-        df = make_dataframe(epochs,val_epochs_all, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all,b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s,c_E,c_I,f_E,f_I,kappa_pre,kappa_post)
+        if 'kappa_pre' in ssn_layer_pars_dict:
+            df = make_dataframe(epochs,val_epochs_all, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all,b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s,c_E,c_I,f_E,f_I, kappa_pre, kappa_post)
+        else:
+            df = make_dataframe(epochs,val_epochs_all, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all,b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s,c_E,c_I,f_E,f_I)
 
         # Save the DataFrame to a CSV file
         df.to_csv(results_filename, index=False)
@@ -267,11 +180,50 @@ def train_ori_discr(
     return df
 
 
+def generate_noise(sig_noise,  batch_size, length):
+    '''
+    Creates vectors of neural noise. Function creates N vectors, where N = batch_size, each vector of length = length. 
+    '''
+    return sig_noise*numpy.random.randn(batch_size, length)
+
+
+def SGD_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, stage,jit_on):
+    if stage == 1:
+        training_loss_val_and_grad = jax.value_and_grad(training_loss, argnums=1, has_aux=True)
+    else:
+        training_loss_val_and_grad = jax.value_and_grad(training_loss, argnums=0, has_aux=True)
+
+    # Create stimulus for middle layer: train_data has ref, target and label
+    train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size)
+
+    # Generate noise
+    noise_ref = generate_noise(
+        training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
+    )
+    noise_target = generate_noise(
+        training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
+    )
+
+    # Compute loss and gradient
+    [
+        loss, [all_losses, accuracy, sig_input, sig_output, max_rates],
+    ], grad = training_loss_val_and_grad(
+        ssn_layer_pars_dict,
+        readout_pars_dict,
+        constant_pars,
+        train_data,
+        noise_ref,
+        noise_target,
+        jit_on
+    )
+    return loss, all_losses, accuracy, sig_input, sig_output, max_rates, grad
+
+
 def SGD_gen_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, stage, jit_on=False):
     if stage == 1:
-        loss_and_grad_func = jax.value_and_grad(training_loss, argnums=1, has_aux=True)
+        training_loss_val_and_grad = jax.value_and_grad(training_loss, argnums=1, has_aux=True)
     else:
-        loss_and_grad_func = jax.value_and_grad(training_loss, argnums=0, has_aux=True)
+        training_loss_val_and_grad = jax.value_and_grad(training_loss, argnums=0, has_aux=True)
 
     # Create stimulus for middle layer: train_data has grating1, grating2, diff
     train_data = create_grating_pretraining(stimuli_pars, training_pars.batch_size)
@@ -280,20 +232,85 @@ def SGD_gen_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars
     noise_1 = generate_noise(
         training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
     )
-    noise_2 = generate_noise(
-        training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
-    )
+    #noise_2 = generate_noise(
+    #    training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
+    #)
 
     # Compute loss and gradient
     [
         loss, [all_losses, accuracy, sig_input, sig_output, max_rates],
-    ], grad = loss_and_grad_func(
+    ], grad = training_loss_val_and_grad(
         ssn_layer_pars_dict,
         readout_pars_dict,
         constant_pars,
         train_data,
         noise_1,
-        noise_2,
+        noise_1,
         jit_on
     )
     return loss, all_losses, accuracy, sig_input, sig_output, max_rates, grad
+
+
+def make_dataframe(epochs,val_epochs, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all,b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s,c_E,c_I,f_E,f_I,kappa_pre=None,kappa_post=None):
+       
+    #Create DataFrame and fill it with variables
+    df = pd.DataFrame({
+        'epoch': epochs,
+        'acc': train_accs,
+        'val_acc' : None,
+    })
+    loss_names = ['loss_binary', 'loss_avg_dx', 'loss_r_max', 'loss_w_sig', 'loss_b_sig', 'loss_all']
+    for i in range(len(train_losses_all[0])):
+        df[loss_names[i]]=np.stack(train_losses_all)[:,i]
+    max_rates_names = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup']
+    for i in range(len(train_max_rates.T)):
+        df[max_rates_names[i]]=train_max_rates[:,i]
+    
+    df.loc[val_epochs, 'val_acc'] = val_accs        
+    val_loss_names = ['val_loss_binary', 'val_loss_avg_dx', 'val_loss_r_max', 'val_loss_w_sig', 'val_loss_b_sig', 'val_loss_all']
+    for i in range(len(val_losses_all)):
+        df[val_loss_names[i]] = None
+        df.loc[val_epochs, val_loss_names[i]] = val_losses_all[i,:]
+
+    #Add trained parameters
+    epochs_stage1=np.arange(len(b_sigs))
+    epochs_stage2=np.arange(len(b_sigs),len(b_sigs)+len(c_E)-1) #first values are default values saved at epoch 0
+    for i in range(len(np.stack(w_sigs).T)):
+        weight_name = f'w_sig_{i+1}'
+        df[weight_name] = None
+        df.loc[epochs_stage1, weight_name] = np.stack(w_sigs)[:,i]
+        df.loc[epochs_stage2, weight_name] = np.stack(w_sigs)[-1,i]
+    df['b_sig'] = None
+    df.loc[epochs_stage1,'b_sig'] = b_sigs
+    df.loc[epochs_stage2,'b_sig'] = b_sigs[-1]
+
+    J_m_names = ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II']
+    J_s_names = ['J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II']
+    for i in range(len(np.stack(log_J_2x2_m).T)):
+        df[J_m_names[i]] = None
+        df.loc[epochs_stage1, J_m_names[i]] = np.stack(log_J_2x2_m)[0,i]
+        df.loc[epochs_stage2, J_m_names[i]] = np.stack(log_J_2x2_m)[1:,i]
+    for i in range(len(np.stack(log_J_2x2_m).T)):
+        df[J_s_names[i]] = None
+        df.loc[epochs_stage1, J_s_names[i]] = np.stack(log_J_2x2_s)[0,i]
+        df.loc[epochs_stage2, J_s_names[i]] = np.stack(log_J_2x2_s)[1:,i]
+    df.loc[epochs_stage1,'c_E']=c_E[0]
+    df.loc[epochs_stage2,'c_E']=c_E[1:]
+    df.loc[epochs_stage1,'c_I']=c_I[0]
+    df.loc[epochs_stage2,'c_I']=c_I[1:]
+    df.loc[epochs_stage1,'f_E']=f_E[0]
+    df.loc[epochs_stage2,'f_E']=f_E[1:]
+    df.loc[epochs_stage1,'f_I']=f_I[0]
+    df.loc[epochs_stage2-1,'f_I']=f_I[1:]
+    if kappa_pre is not None:
+        kappa_names=['kappa_preE','kappa_preI','kappa_postE','kappa_postI']
+        for i in range(len(np.stack(kappa_pre).T)):
+            df[kappa_names[i]] = None
+            df.loc[epochs_stage1, kappa_names[i]] = np.stack(kappa_pre)[0,i]
+            df.loc[epochs_stage2, kappa_names[i]] = np.stack(kappa_pre)[1:,i]
+        for i in range(len(np.stack(kappa_pre).T)):
+            df[kappa_names[2+i]] = None
+            df.loc[epochs_stage1, kappa_names[2+i]] = np.stack(kappa_post)[0,i]
+            df.loc[epochs_stage2, kappa_names[2+i]] = np.stack(kappa_post)[1:,i]
+
+    return df      

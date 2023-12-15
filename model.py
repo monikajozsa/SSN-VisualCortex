@@ -1,7 +1,4 @@
 import jax.numpy as np
-import numpy
-
-from util import constant_to_vec, leaky_relu
 
 
 def evaluate_model_response(
@@ -30,7 +27,6 @@ def evaluate_model_response(
     constant_vector_sup = constant_to_vec(c_E=c_E, c_I=c_I, ssn=ssn_sup, sup=True)
 
     # Apply Gabor filters to stimuli to create input of middle layer
-    # in order to use the gabor_filters input, I need to multiply it by gE and gI in script_pretraining...
     input_mid = np.matmul(gabor_filters, stimuli)
 
     # Rectify middle layer input before fix point calculation
@@ -135,45 +131,22 @@ def superficial_layer_fixed_point(
     else:
         return layer_output, r_max, avg_dx
 
-     
-'''
-def obtain_fixed_point_centre_E(
-    ssn,
-    ssn_input,
-    conv_pars,
-    inhibition=False,
-    PLOT=False,
-    save=None,
-    inds=None,
-    return_fp=False,
-):
-    # Obtain fixed point
-    fp, avg_dx = obtain_fixed_point(
-        ssn=ssn,
-        ssn_input=ssn_input,
-        conv_pars=conv_pars,
-        PLOT=PLOT,
-        save=save,
-        inds=inds,
-    )
-    
-    # Apply bounding box to data
-    r_box = (ssn.apply_bounding_box(fp, size=3.2)).ravel()
 
-    # Obtain inhibitory response
-    if inhibition == True:
-        r_box_i = ssn.apply_bounding_box(fp, size=3.2, select="I_ON").ravel()
-        r_box = [r_box, r_box_i]
+def constant_to_vec(c_E, c_I, ssn, sup=False):
+    edge_length = ssn.grid_pars.gridsize_Nx
 
-    max_E = np.max(fp[: ssn.Ne])
-    max_I = np.max(fp[ssn.Ne : -1])
+    matrix_E = np.ones((edge_length, edge_length)) * c_E
+    vec_E = np.ravel(matrix_E)
 
-    r_max = leaky_relu(max_E, R_thresh=conv_pars.Rmax_E, slope=1 / conv_pars.Rmax_E) + leaky_relu(
-        max_I, R_thresh=conv_pars.Rmax_I, slope=1 / conv_pars.Rmax_I
-    )
+    matrix_I = np.ones((edge_length, edge_length)) * c_I
+    vec_I = np.ravel(matrix_I)
 
-    if return_fp == True:
-        return r_box, r_max, avg_dx, fp, max_E, max_I
-    else:
-        return r_box, r_max, avg_dx
-'''
+    constant_vec = np.hstack((vec_E, vec_I, vec_E, vec_I))
+
+    if sup == False and ssn.phases == 4:
+        constant_vec = np.kron(np.asarray([1, 1]), constant_vec)
+
+    if sup:
+        constant_vec = np.hstack((vec_E, vec_I))
+
+    return constant_vec
