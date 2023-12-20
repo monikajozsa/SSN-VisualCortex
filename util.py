@@ -9,6 +9,51 @@ from datetime import datetime
 
 from util_gabor import BW_Grating
 
+def cosdiff_ring(d_x, L):
+    '''
+    Calculate the cosine-based distance.
+    Parameters:
+    d_x: The difference in the angular position.
+    L: The total angle.
+    '''
+    # Calculate the cosine of the scaled angular difference
+    cos_angle = numpy.cos(d_x * 2 * numpy.pi / L)
+
+    # Calculate scaled distance
+    distance = numpy.sqrt( (1 - cos_angle) * 2) * L / (2 * numpy.pi)
+
+    return distance
+
+def cosdiff_acc_threshold(pretrain_pars):
+    '''
+    Numeric calculation of the error tolerance
+    
+    Parameters:
+        d_x (float): angle difference to calcualte the tolerance value for (in degrees).
+        N (int): The number of random samples to generate.
+        
+    Returns:
+        float: The calculated error tolerance.
+    '''
+    std_err = pretrain_pars.std_err
+    N = pretrain_pars.N
+    max_ori_dist = pretrain_pars.max_ori_dist
+    min_ori_dist = pretrain_pars.min_ori_dist
+
+    # Generate a vector of N random angles in the range [0, 180) degrees
+    theta_vec = 2*(numpy.random.random_integers(0,1,N)-0.5) * numpy.random.uniform(min_ori_dist,max_ori_dist, N)
+
+    # Add random noise to each angle in theta_vec representing the naive subject's estimate
+    theta_vec_est = theta_vec + std_err*numpy.random.normal(0,1,N) #+ pretrain_pars.d_angle 
+    
+    # Calculate the squared differences between two sets of angles using cosdiff_ring
+    label1=numpy.sign(theta_vec)*cosdiff_ring(theta_vec, 180) / cosdiff_ring(max_ori_dist + min_ori_dist, 180)
+    label2=numpy.sign(theta_vec_est) * cosdiff_ring(theta_vec_est, 180) / cosdiff_ring(max_ori_dist + min_ori_dist, 180)
+    acc_threshold = 1 - numpy.mean(np.abs((label1 - label2)/2))
+
+    return acc_threshold
+
+
 def Euler2fixedpt(
     dxdt,
     x_initial,
@@ -20,8 +65,7 @@ def Euler2fixedpt(
     PLOT=True,
     save=None,
     inds=None,
-    verbose=True,
-    print_dt=False,
+    verbose=True
 ):
     """
     Finds the fixed point of the D-dim ODE set dx/dt = dxdt(x), using the
@@ -263,64 +307,78 @@ def create_grating_pairs(stimuli_pars, batch_size):
     return data_dict
 
 
-def generate_random_pairs(min_value, max_value, min_distance, batch_size=1):
+def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=None):
     '''
-    Create batch_size number of pairs of numbers between min_value and max_value with minumum distance min_distance.
+    Create batch_size number of pairs of numbers between min_value and max_value with minimum distance min_distance and maximum distance max_distance.
+    If tot_angle is provided, values wrap around between 0 and tot_angle.
     '''
+    if max_distance==None:
+        max_distance = max_value - min_value
+
+    # Generate the first numbers
     num1 = numpy.random.uniform(min_value, max_value,batch_size)
-    random_distance = numpy.random.uniform(min_distance, max_value - min_value,batch_size)
+   
+    # Generate a random distance within specified range
+    random_distance = numpy.random.uniform(min_distance,max_distance ,batch_size)
+
+    # Generate the second numbers with correction if they are out of the specified range
     num2 = num1 + random_distance
-    num2[num2 > max_value] = num2[num2 > max_value] - (max_value - min_value)
+
+    if tot_angle is not None:
+        # Apply wrap-around logic for tot_angle
+        num2[num2 > max_value] = num2[num2 > max_value] - tot_angle
+    else:
+        # Adjust values that exceed max_value
+        num2[num2 > max_value] = num1[num2 > max_value] - random_distance[num2 > max_value]
+        # Adjust values where num2 became smaller than min_value
+        under_min = num2 < min_value
+        for idx in numpy.where(num2[under_min]):
+            # Calculate a constraint for a new distance
+            max_dist_adjusted = max_value - num1[under_min][idx]
+            # Generate a new constrained random distance
+            constrained_random_dist = numpy.random.uniform(min_distance, max_dist_adjusted)
+            # Update num2
+            num2[under_min][idx] = num1[under_min][idx] + constrained_random_dist
 
     return num1, num2
 
 
-def create_grating_pretraining(stimuli_pars, batch_size):
+def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size):
     '''
     Create input stimuli gratings for pretraining by randomizing ref_ori, k, inner_radius, outer_radius.
     Output:
         dictionary containing grating1, grating2 and difference between gratings that is calculated from features
     '''
     
-    #initialise empty data dictionary - names are not describing the purpose of the variables but this allows for reusing code
+    # Initialise empty data dictionary - names are not describing the purpose of the variables but this allows for reusing code
     data_dict = {'ref': [], 'target': [], 'label':[]}
 
-    #randomize stimuli features
-    #inner_radius1, inner_radius2 = generate_random_pairs(2, 3, 0.2, batch_size)
-    #spac_freq1, spac_freq2 = generate_random_pairs(1.5, 2.5, 0.5, batch_size)
-    ori1, ori2 = generate_random_pairs(0, 180, 5, batch_size)
+    # Randomize orientations for stimulus1 and stimulus 2
+    L_ring = 180
+    min_ori_dist = pretrain_pars.min_ori_dist
+    max_ori_dist = pretrain_pars.max_ori_dist
+    ori1, ori2 = generate_random_pairs(min_value=0, max_value=L_ring, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring)
 
     stimuli_pars1 = copy.copy(stimuli_pars)
-    #stimuli_pars2 = copy.copy(stimuli_pars)
+    stimuli_pars2 = copy.copy(stimuli_pars)
 
     for i in range(batch_size):
-        #define features of stimulus1 and stimulus 2
-        #stimuli_pars1.inner_radius = inner_radius1[i]
-        #stimuli_pars1.outer_radius = inner_radius1[i]+5
-        #stimuli_pars1.k = spac_freq1[i]
+        # Define orientations for stimulus1 and stimulus 2
         stimuli_pars1.ref_ori = ori1[i]
-        
-        #stimuli_pars2.inner_radius = inner_radius1[i] #simplified task - pairs have matching radius and spacial frequesncy
-        #stimuli_pars2.outer_radius = inner_radius1[i]+5
-        #stimuli_pars2.k = spac_freq1[i]
-        #stimuli_pars2.ref_ori = ori2[0]
+        stimuli_pars2.ref_ori = ori2[i]
 
-        #generate stimulus1 and stimulus2
+        # Generate stimulus1 and stimulus2
         stim1 = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image().ravel()
-        #stim2 = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars2).BW_image().ravel()
+        stim2 = BW_Grating(ori_deg = stimuli_pars2.ref_ori, jitter=0, stimuli_pars = stimuli_pars2).BW_image().ravel()
         data_dict['ref'].append(stim1)
-        data_dict['target'].append(stim1)
+        data_dict['target'].append(stim2)
     
     data_dict['ref']=np.asarray(data_dict['ref'])
     data_dict['target']=np.asarray(data_dict['target'])
-    
-    ## *** simplified task - just orientation difference
-    #spac_freq_diff=numpy.abs(spac_freq1-spac_freq2)/1.5**2
-    #inner_radius_diff = numpy.abs(inner_radius1-inner_radius2)/1.5**2
-    ori_cos=numpy.cos(ori1 * numpy.pi/180)
-    #ori_sin=numpy.sqrt(numpy.sin(ori1[0] * numpy.pi/180))
-    ## we need to add the sin part as a separate dimension so that the loss is calculated from the difference in cos and sin
-    data_dict['label']= ori_cos#*numpy.ones_like(ori1) #+ spac_freq_diff + inner_radius_diff 
+
+    # Define label as the signed difference in angle using cosdiff_ring
+    data_dict['label'] = numpy.sign(ori1-ori2) * cosdiff_ring(ori1 - ori2, L_ring) / cosdiff_ring(max_ori_dist + min_ori_dist, L_ring)
+    #data_dict['ang_diff'] = ori1-ori2 # only for development stage
    
     return data_dict
 
@@ -379,7 +437,7 @@ def save_code():
     script_directory = os.path.dirname(os.path.realpath(__file__))
 
     # Copy files into the folder
-    file_names = ['main.py', 'util_gabor.py', 'pretraining_supp.py', 'parameters.py', 'training.py', 'training_supp.py', 'model.py', 'util.py', 'SSN_classes.py', 'analysis.py', 'visualization.py']
+    file_names = ['main.py', 'util_gabor.py', 'pretraining_supp.py', 'parameters.py', 'training.py', 'model.py', 'util.py', 'SSN_classes.py', 'analysis.py', 'visualization.py']
     for file_name in file_names:
         source_path = os.path.join(script_directory, file_name)
         destination_path = os.path.join(subfolder_script_path, file_name)

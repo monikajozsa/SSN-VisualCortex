@@ -3,6 +3,56 @@ from PIL import Image
 
 from parameters import StimuliPars
 
+def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
+	"""
+	Makes the orientation map for the grid by superposition of plane-waves.
+
+	Parameters:
+	hyper_col: Hyper column length for the network in retinotopic degrees.
+			   Determines the spatial frequency of the waves.
+	nn: Number of plane waves used to construct the map (30 by default).
+	X, Y: Coordinates for the grid points. If not provided, uses internal grid maps.
+
+	Outputs/side-effects:
+	ori_map: Orientation preference for each cell in the network.
+	ori_vec: Vectorized version of ori_map.
+	"""
+
+	# Set or update the hyper column length
+	if hyper_col is None:
+		hyper_col = 3.2
+	
+	# Initialize a complex plane to accumulate wave contributions
+	z = numpy.zeros_like(X, dtype=complex)
+
+	# Loop to create and superimpose plane waves
+	for j in range(nn):
+		# Wave vector for j-th plane wave, direction varies with j
+		kj = (numpy.array([numpy.cos(j * numpy.pi / nn), numpy.sin(j * numpy.pi / nn)]) * 2 * numpy.pi / hyper_col)
+
+		# Determine sign (+1 or -1) to vary wave orientation
+		if deterministic:
+			sj = 1 if j % 2 == 0 else -1
+		else:
+			sj = (2 * numpy.random.randint(0, 2) - 1)
+
+		# Define phase shift
+		if deterministic:
+			phij = 2 * numpy.pi * j/ nn
+		else:
+			phij = numpy.random.rand() * 2 * numpy.pi
+
+		# Construct the j-th wave and add to the total
+		tmp = (X * kj[0] + Y * kj[1]) * sj + phij
+		z += numpy.exp(1j * tmp)
+
+	# Convert the accumulated complex plane to orientation map
+	# Orientation values are in the range (0, 180] degrees
+	ori_map = (numpy.angle(z) + numpy.pi) * 180 / (2 * numpy.pi)
+
+	return ori_map
+
+
 class BW_Grating:
     """ """
 

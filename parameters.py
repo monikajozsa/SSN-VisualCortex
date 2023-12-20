@@ -3,6 +3,20 @@ from dataclasses import dataclass
 
 import jax.numpy as np
 
+# Pretraining parameters
+@dataclass
+class PreTrainPars:
+    min_ori_dist = 0
+    max_ori_dist = 50
+    std_err = 1 # stop first stage if the average accuracy in degrees reaches this threshold
+    N = 100000
+    acc_th = 0.95 # this is about getting the angle diff right up to 10 degrees (see cosdiff_acc_threshold)
+    Nstages = 1
+    is_on = False
+
+pretrain_pars = PreTrainPars()
+
+
 def xy_distance(gridsize_Nx,gridsize_deg):
 
     Nn = gridsize_Nx**2

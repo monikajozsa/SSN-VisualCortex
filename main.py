@@ -5,7 +5,7 @@ import pandas as pd
 numpy.random.seed(0)
 
 from util_gabor import create_gabor_filters_util
-from util import take_log, save_code
+from util import take_log, save_code, cosdiff_ring, cosdiff_acc_threshold
 from training import train_ori_discr
 from parameters import (
     grid_pars,
@@ -17,8 +17,10 @@ from parameters import (
     conv_pars,
     training_pars,
     loss_pars,
+    pretrain_pars
 )
 import visualization
+
 #from pretraining_supp import randomize_params
 #randomize_params(ssn_layer_pars, stimuli_pars, percent=0.2)
 
@@ -26,8 +28,7 @@ import visualization
 
 ssn_ori_map_loaded = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
 gabor_filters = create_gabor_filters_util(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
-def cosdiff_ring(d_x, L):
-    return numpy.sqrt(2 * (1 - numpy.cos(d_x * 2 * numpy.pi / L))) * L / (2 * numpy.pi)
+
 oris = ssn_ori_map_loaded.ravel()[:, None]
 ori_dist = cosdiff_ring(oris - oris.T, 180)
 
@@ -48,7 +49,7 @@ class ConstantPars:
     training_pars = training_pars
     gabor_filters = gabor_filters
     readout_grid_size = readout_pars.readout_grid_size
-    pretraining = False
+    pretrain_pars = pretrain_pars
 
 constant_pars = ConstantPars()
 
@@ -74,7 +75,7 @@ training_output_df = train_ori_discr(
         trained_pars_stage2,
         constant_pars,
         results_filename,
-        jit_on=True
+        jit_on=False
     )
 
 ######### PLOT RESULTS ############
