@@ -403,10 +403,6 @@ def leaky_relu(x, R_thresh, slope, height=0.15):
 
     return y
 
-#binary cross entropy
-def binary_loss(n, x):
-    return -(n * np.log(x) + (1 - n) * np.log(1 - x))
-
 
 def save_code():
     '''
@@ -418,7 +414,7 @@ def save_code():
     current_date = datetime.now().strftime("%b%d")
 
     # Create a folder name based on the current date
-    folder_name = f"results\{current_date}_v"
+    folder_name = f"results/{current_date}_v"
 
     # Find the next available script version
     version = 0
@@ -430,7 +426,7 @@ def save_code():
     os.makedirs(final_folder_path)
 
     # Create a subfolder for the scripts
-    subfolder_script_path = f"{folder_name}{version}\scripts"
+    subfolder_script_path = f"{folder_name}{version}/scripts"
     os.makedirs(subfolder_script_path)
 
     # Get the path to the script's directory

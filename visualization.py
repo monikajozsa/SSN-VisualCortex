@@ -52,12 +52,13 @@ def plot_results_from_csv(
             i=i+1      
     axes[0,2].legend(loc="upper left")
 	
-    colors = ["tab:green", "tab:orange"]
-    axes[1, 2].plot(df['epoch'], df['kappa_preE'], label='kappa_preE', linestyle="-", c=colors[0])
-    axes[1, 2].plot(df['epoch'], df["kappa_preI"], label="kappa_preI", linestyle="--", c=colors[0])
-    axes[1, 2].plot(df['epoch'], df['kappa_postE'], label='kappa_postE', linestyle="-", c=colors[1])
-    axes[1, 2].plot(df['epoch'], df["kappa_postI"], label="kappa_postI", linestyle="--", c=colors[1])
-    axes[1,2].legend(["kappa_preE","kappa_preI","kappa_postE","kappa_postI"])
+    if 'kappa_preE' in df.columns:
+        colors = ["tab:green", "tab:orange"]
+        axes[1, 2].plot(df['epoch'], df['kappa_preE'], label='kappa_preE', linestyle="-", c=colors[0])
+        axes[1, 2].plot(df['epoch'], df["kappa_preI"], label="kappa_preI", linestyle="--", c=colors[0])
+        axes[1, 2].plot(df['epoch'], df['kappa_postE'], label='kappa_postE', linestyle="-", c=colors[1])
+        axes[1, 2].plot(df['epoch'], df["kappa_postI"], label="kappa_postI", linestyle="--", c=colors[1])
+        axes[1,2].legend(["kappa_preE","kappa_preI","kappa_postE","kappa_postI"])
 
     #Plot changes in baseline inhibition and excitation and feedforward weights (second stage of the training)
     axes[0,3].plot(df['epoch'], df['c_E'], label='c_E')

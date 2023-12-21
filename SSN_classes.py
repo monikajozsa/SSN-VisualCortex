@@ -35,14 +35,6 @@ class _SSN_Base(object):
     def drdt(self, r, inp_vec):
         return (-r + self.powlaw(self.W @ r + inp_vec)) / self.tau_vec
 
-    def drdt_multi(self, r, inp_vec):
-        """
-        Compared to self.drdt allows for inp_vec and r to be
-        matrices with arbitrary shape[1]
-        """
-        drdt = ((-r + self.powlaw(self.W @ r + inp_vec)).T / self.tau_vec).T
-        return drdt
-
     def dxdt(self, x, inp_vec):
         """
         allowing for descendent SSN types whose state-vector, x, is different
@@ -91,84 +83,42 @@ class _SSN_Base(object):
 
     ######## FIXED POINT FUNCTIONS #################
 
-    def fixed_point_r(
-        self,
-        inp_vec,
-        r_init=None,
-        Tmax=500,
-        dt=1,
-        xtol=1e-5,
-        PLOT=False,
-    ):
+    def fixed_point_r(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5):
+        # Initialize the starting point for iteration.
         if r_init is None:
-            r_init = np.zeros(inp_vec.shape)  # np.zeros((self.N,))
-        if inp_vec.ndim > 1:
-            drdt = lambda r: self.drdt_multi(r, inp_vec)
-        else:
-            drdt = lambda r: self.drdt(r, inp_vec)
-        r_fp, avg_dx = self.Euler2fixedpt_fullTmax(
-            drdt, r_init, Tmax, dt, xtol=xtol, PLOT=PLOT)
+            r_init = np.zeros(inp_vec.shape)
 
+        # Set the derivative function
+        drdt = self.drdt
+
+        # Calculate the maximum number of iterations (Nmax) based on the total time (Tmax) and time step (dt).
+        Nmax = int(Tmax / dt)
+        
+        # Initialize the vector to be iterated over and an array to track the maximum change in each iteration.
+        xvec = r_init
+        y = np.zeros(Nmax)
+
+        # n: current iteration index, carry: tuple containing the current state and change tracking array.
+        def loop(n, carry):
+            xvec, y = carry
+            # Calculate the change (dx) using drdt and multiply by time step (dt).
+            dx = drdt(xvec, inp_vec) * dt
+            # Update the state by adding the change to the current state.
+            xvec = xvec + dx
+            # Update the change tracking array (y) with the maximum relative change at this iteration.
+            y = y.at[n].set(np.abs(dx / np.maximum(xtol, np.abs(xvec))).max())
+            return xvec, y
+
+        # Run the loop for Nmax iterations using JAX's fori_loop
+        r_fp, y = jax.lax.fori_loop(0, Nmax, loop, (xvec, y))
+
+        # Calculate the average of the maximum relative change over the second half of the iterations,
+        # normalized by the tolerance (xtol). This measures the convergence rate.
+        avg_dx = y[Nmax // 2:].mean() / xtol
+
+        # Return the final state (fixed point) and the average convergence rate.
         return r_fp, avg_dx
 
-        
-    def Euler2fixedpt_fullTmax(self, dxdt, x_initial, Tmax, dt, xtol=1e-5, xmin=1e-0,PLOT=False):
-        """
-        Finds the fixed point of the D-dim ODE set dx/dt = dxdt(x), using the
-        Euler update with sufficiently large dt (to gain in computational time).
-        Checks for convergence to stop the updates early.
-
-        IN:
-        dxdt = a function handle giving the right hand side function of dynamical system
-        x_initial = initial condition for state variables (a column vector)
-        Tmax = maximum time to which it would run the Euler (same units as dt, e.g. ms)
-        dt = time step of Euler
-        xtol = tolerance in relative change in x for determining convergence
-        xmin = for x(i)<xmin, it checks convergenece based on absolute change, which must be smaller than xtol*xmin
-            Note that one can effectively make the convergence-check purely based on absolute,
-            as opposed to relative, change in x, by setting xmin to some very large
-            value and inputting a value for 'xtol' equal to xtol_desired/xmin.
-        PLOT: if True, plot the convergence of some component
-        inds: indices of x (state-vector) to plot
-
-        OUT:
-        xvec = found fixed point solution
-        avg_dx = ...
-        """
-
-        Nmax = int(Tmax / dt)
-        xvec = x_initial
-        y = np.zeros(((Nmax)))
-
-        if PLOT:
-            xplot_all = np.zeros(((Nmax + 1)))
-            xplot_all = xplot_all.at[0].set(np.sum(xvec))
-
-            def loop(n, carry):
-                xvec, y, xplot_all = carry
-                dx = dxdt(xvec) * dt
-                xvec = xvec + dx
-                y = y.at[n].set(np.abs(dx / np.maximum(xmin, np.abs(xvec))).max())
-                xplot_all = xplot_all.at[n + 1].set(np.sum(xvec))
-                return (xvec, y, xplot_all)
-
-            xvec, y, xplot_all = jax.lax.fori_loop(0, Nmax, loop, (xvec, y, xplot_all))
-
-        else:
-
-            def loop(n, carry):
-                xvec, y = carry
-                dx = dxdt(xvec) * dt
-                xvec = xvec + dx
-                y = y.at[n].set(np.abs(dx / np.maximum(xmin, np.abs(xvec))).max())
-                return (xvec, y)
-
-            xvec, y = jax.lax.fori_loop(0, Nmax, loop, (xvec, y))
-
-        avg_dx = y[int(Nmax / 2) : int(Nmax)].mean() / xtol
-
-        return xvec, avg_dx
-    
     
     def make_noise_cov(self, noise_pars):
         # the script assumes independent noise to E and I, and spatially uniform magnitude of noise
@@ -378,6 +328,11 @@ class SSN_mid(_SSN_Base):
             n=self.n, k=self.k, tauE=self.tau_vec[0], tauI=self.tau_vec[self.Ne]
         )
     
-    def select_type(self, vec, map_number):
-        out = vec[(map_number - 1) * self.Nc : map_number * self.Nc]
+    def select_type(self, vec, map_numbers):
+        # Calculate start and end indices for each map_number
+        start_indices = (map_numbers - 1) * self.Nc
+        end_indices = map_numbers * self.Nc
+
+        # Use a list comprehension to extract slices for each map_number
+        out = np.array([vec[start:end] for start, end in zip(start_indices, end_indices)])
         return out

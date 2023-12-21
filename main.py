@@ -1,11 +1,12 @@
 import os
 import numpy
 import pandas as pd
+import copy
 
 numpy.random.seed(0)
 
 from util_gabor import create_gabor_filters_util
-from util import take_log, save_code, cosdiff_ring, cosdiff_acc_threshold
+from util import save_code, cosdiff_ring, cosdiff_acc_threshold
 from training import train_ori_discr
 from parameters import (
     grid_pars,
@@ -21,8 +22,7 @@ from parameters import (
 )
 import visualization
 
-#from pretraining_supp import randomize_params
-#randomize_params(ssn_layer_pars, stimuli_pars, percent=0.2)
+from pretraining_supp import randomize_params, load_pretrained_parameters
 
 ########## Initialize orientation map and gabor filters ############
 
@@ -33,7 +33,6 @@ oris = ssn_ori_map_loaded.ravel()[:, None]
 ori_dist = cosdiff_ring(oris - oris.T, 180)
 
 ####################### TRAINING PARAMETERS #######################
-
 # Collect constant parameters into single class
 class ConstantPars:
     grid_pars = grid_pars
@@ -52,31 +51,46 @@ class ConstantPars:
     pretrain_pars = pretrain_pars
 
 constant_pars = ConstantPars()
+constant_pars.pretrain_pars.is_on=True
+N_training=10
 
-# Collect trained parameters into two dictionaries for the two stages
-trained_pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
-
-trained_pars_stage2 = dict(
-    log_J_2x2_m= take_log(ssn_layer_pars.J_2x2_m),
-    log_J_2x2_s= take_log(ssn_layer_pars.J_2x2_s),
-    c_E=ssn_layer_pars.c_E,
-    c_I=ssn_layer_pars.c_I,
-    f_E=ssn_layer_pars.f_E,
-    f_I=ssn_layer_pars.f_I,
-    kappa_pre=ssn_layer_pars.kappa_pre,
-    kappa_post=ssn_layer_pars.kappa_post,
-)
-
-####################### TRAINING #######################
-
+# Save scripts
 results_filename, final_folder_path = save_code()
-training_output_df = train_ori_discr(
-        trained_pars_stage1,
-        trained_pars_stage2,
-        constant_pars,
-        results_filename,
-        jit_on=False
-    )
+
+for i in range(N_training):
+    results_filename
+    ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
+    # Get baseline parameters to-be-trained
+    ssn_layer_pars_pretrain = copy.copy(ssn_layer_pars)
+    readout_pars_pretrain = copy.copy(readout_pars)
+
+    # Perturb them by percent % and collect them into two dictionaries for the two stages of the pretraining
+    trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, percent=0.2)
+
+    # Pretrain parameters
+    training_output_df = train_ori_discr(
+            trained_pars_stage1,
+            trained_pars_stage2,
+            constant_pars,
+            results_filename,
+            jit_on=False
+        )
+    constant_pars.pretrain_pars.is_on=True
+
+    ##### FINE DISCRIMINATION #####
+    readout_grid_size=5
+    constant_pars.grid_pars.gridsize_Nx = readout_grid_size
+    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, readout_grid_size)
+
+    training_output_df = train_ori_discr(
+            trained_pars_stage1,
+            trained_pars_stage2,
+            constant_pars,
+            results_filename,
+            jit_on=False
+        )
+    constant_pars.pretrain_pars.is_on=True
+
 
 ######### PLOT RESULTS ############
 

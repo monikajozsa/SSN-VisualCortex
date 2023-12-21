@@ -10,8 +10,8 @@ class PreTrainPars:
     max_ori_dist = 50
     std_err = 1 # stop first stage if the average accuracy in degrees reaches this threshold
     N = 100000
-    acc_th = 0.95 # this is about getting the angle diff right up to 10 degrees (see cosdiff_acc_threshold)
-    Nstages = 1
+    acc_th = 0.9 # this is about getting the angle diff right up to 10 degrees (see cosdiff_acc_threshold)
+    Nstages = 2
     is_on = False
 
 pretrain_pars = PreTrainPars()
@@ -95,8 +95,11 @@ stimuli_pars = StimuliPars()
 # Sigmoid parameters
 @dataclass
 class ReadoutPars:
-    readout_grid_size: int = 5  # 
-    w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size**2,)) / np.sqrt(readout_grid_size**2) # weights between the superficial and the sigmoid layer
+    readout_grid_size = numpy.array([9, 5])  # first number is for the pretraining, second is for the training
+    if pretrain_pars.is_on:
+        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[0]**2,)) / np.sqrt(readout_grid_size[0]**2) # weights between the superficial and the sigmoid layer
+    else:
+        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / np.sqrt(readout_grid_size[1]**2) # weights between the superficial and the sigmoid layer
     b_sig: float = 0.0 # bias added to the sigmoid layer
 
 readout_pars = ReadoutPars()
@@ -163,8 +166,8 @@ class TrainingPars:
     eta = 10e-3  # learning rate
     batch_size = 50
     noise_type = "poisson"
-    sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    epochs = 5 # number of epochs
+    sig_noise = 0.1 if noise_type != "no_noise" else 0.0
+    epochs = 2 # number of epochs
     validation_freq = 1  # calculate validation loss and accuracy every validation_freq epoch
     first_stage_acc = 0.7
 

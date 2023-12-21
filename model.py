@@ -79,12 +79,16 @@ def middle_layer_fixed_point(
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
     
     #Add responses from E and I neurons
-    fp_E_1=ssn.select_type(fp, map_number = 1)
+    map_numbers_E = np.arange(1, 2 * ssn.phases, 2)
+    map_numbers_I = np.arange(2, 2 * ssn.phases + 1, 2)
+    fp_E=ssn.select_type(fp, map_numbers = map_numbers_E)
+    fp_I=ssn.select_type(fp, map_numbers = map_numbers_I)
+    '''fp_E_1=ssn.select_type(fp, map_number = 1)
     fp_E=np.empty((ssn.phases,*fp_E_1.shape))
     fp_I=np.empty_like(fp_E)
     for phase_i in range(ssn.phases):
         fp_E = fp_E.at[phase_i,:].set(ssn.select_type(fp, map_number = (phase_i-1)*2+1))
-        fp_I = fp_I.at[phase_i,:].set(ssn.select_type(fp, map_number = (phase_i+1)*2))
+        fp_I = fp_I.at[phase_i,:].set(ssn.select_type(fp, map_number = (phase_i+1)*2))'''
     
     #Define output as sum of E neurons
     layer_output = np.sum(fp_E, axis=0)
