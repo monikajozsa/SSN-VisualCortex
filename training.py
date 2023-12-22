@@ -47,9 +47,12 @@ def train_ori_discr(
 
     # Extract initial weights and biases for the readout and SSN layers
     w_sig_temp=readout_pars_dict['w_sig']
-    start = (constant_pars.readout_grid_size[0] - constant_pars.readout_grid_size[1]) // 2
-    end = start + constant_pars.readout_grid_size[1]
-    w_indices_to_save = numpy.array([i*constant_pars.readout_grid_size[0] + j for i in range(start, end) for j in range(start, end)])
+    if constant_pars.pretrain_pars.is_on:
+        start = (constant_pars.readout_grid_size[0] - constant_pars.readout_grid_size[1]) // 2
+        end = start + constant_pars.readout_grid_size[1]
+        w_indices_to_save = numpy.array([i*constant_pars.readout_grid_size[0] + j for i in range(start, end) for j in range(start, end)])
+    else:
+        w_indices_to_save = numpy.array([i for i in range(constant_pars.readout_grid_size[1] ** 2)])
     w_sigs = [w_sig_temp[w_indices_to_save]]
     b_sigs = [readout_pars_dict['b_sig']]
     log_J_2x2_m = [ssn_layer_pars_dict['log_J_2x2_m'].ravel()]

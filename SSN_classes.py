@@ -83,42 +83,29 @@ class _SSN_Base(object):
 
     ######## FIXED POINT FUNCTIONS #################
 
-    def fixed_point_r(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5):
-        # Initialize the starting point for iteration.
-        if r_init is None:
-            r_init = np.zeros(inp_vec.shape)
-
-        # Set the derivative function
-        drdt = self.drdt
-
-        # Calculate the maximum number of iterations (Nmax) based on the total time (Tmax) and time step (dt).
-        Nmax = int(Tmax / dt)
+    def fixed_point_r(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5, xmin=1e-0, Tmin=200):
         
-        # Initialize the vector to be iterated over and an array to track the maximum change in each iteration.
-        xvec = r_init
-        y = np.zeros(Nmax)
-
-        # n: current iteration index, carry: tuple containing the current state and change tracking array.
+        if r_init is None:
+            r_init = np.zeros(inp_vec.shape) # np.zeros((self.N,))
+        drdt = lambda r : self.drdt(r, inp_vec)
+        if inp_vec.ndim > 1:
+            drdt = lambda r : self.drdt_multi(r, inp_vec)
+        Nmax = int(Tmax/dt)
+        r_fp = r_init 
+        y = np.zeros(((Nmax)))  
+		
         def loop(n, carry):
-            xvec, y = carry
-            # Calculate the change (dx) using drdt and multiply by time step (dt).
-            dx = drdt(xvec, inp_vec) * dt
-            # Update the state by adding the change to the current state.
-            xvec = xvec + dx
-            # Update the change tracking array (y) with the maximum relative change at this iteration.
-            y = y.at[n].set(np.abs(dx / np.maximum(xtol, np.abs(xvec))).max())
-            return xvec, y
+            r_fp, y = carry
+            dr = drdt(r_fp) * dt
+            r_fp = r_fp + dr
+            y = y.at[n].set(np.abs( dr /np.maximum(xmin, np.abs(r_fp)) ).max())
+            return (r_fp, y)
 
-        # Run the loop for Nmax iterations using JAX's fori_loop
-        r_fp, y = jax.lax.fori_loop(0, Nmax, loop, (xvec, y))
-
-        # Calculate the average of the maximum relative change over the second half of the iterations,
-        # normalized by the tolerance (xtol). This measures the convergence rate.
-        avg_dx = y[Nmax // 2:].mean() / xtol
-
-        # Return the final state (fixed point) and the average convergence rate.
+        r_fp, y = jax.lax.fori_loop(0, Nmax, loop, (r_fp, y))
+        
+        avg_dx = y[int(Nmax/2):int(Nmax)].mean()/xtol
+    
         return r_fp, avg_dx
-
     
     def make_noise_cov(self, noise_pars):
         # the script assumes independent noise to E and I, and spatially uniform magnitude of noise

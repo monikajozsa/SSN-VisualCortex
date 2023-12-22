@@ -12,7 +12,7 @@ class PreTrainPars:
     N = 100000
     acc_th = 0.9 # this is about getting the angle diff right up to 10 degrees (see cosdiff_acc_threshold)
     Nstages = 2
-    is_on = False
+    is_on = True
 
 pretrain_pars = PreTrainPars()
 
@@ -97,9 +97,9 @@ stimuli_pars = StimuliPars()
 class ReadoutPars:
     readout_grid_size = numpy.array([9, 5])  # first number is for the pretraining, second is for the training
     if pretrain_pars.is_on:
-        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[0]**2,)) / np.sqrt(readout_grid_size[0]**2) # weights between the superficial and the sigmoid layer
+        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[0]**2,)) / numpy.sqrt(readout_grid_size[0]**2) # weights between the superficial and the sigmoid layer
     else:
-        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / np.sqrt(readout_grid_size[1]**2) # weights between the superficial and the sigmoid layer
+        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / numpy.sqrt(readout_grid_size[1]**2) # weights between the superficial and the sigmoid layer
     b_sig: float = 0.0 # bias added to the sigmoid layer
 
 readout_pars = ReadoutPars()

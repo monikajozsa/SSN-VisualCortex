@@ -8,6 +8,11 @@ numpy.random.seed(0)
 from util_gabor import create_gabor_filters_util
 from util import save_code, cosdiff_ring, cosdiff_acc_threshold
 from training import train_ori_discr
+
+from parameters import pretrain_pars
+# Setting pretraining to be true
+pretrain_pars.is_on=True
+
 from parameters import (
     grid_pars,
     filter_pars,
@@ -17,8 +22,7 @@ from parameters import (
     ssn_layer_pars,
     conv_pars,
     training_pars,
-    loss_pars,
-    pretrain_pars
+    loss_pars
 )
 import visualization
 
@@ -51,21 +55,23 @@ class ConstantPars:
     pretrain_pars = pretrain_pars
 
 constant_pars = ConstantPars()
-constant_pars.pretrain_pars.is_on=True
-N_training=10
+
+# Defining the number of random initializations for pretraining + training
+N_training=2
 
 # Save scripts
 results_filename, final_folder_path = save_code()
 
 for i in range(N_training):
-    results_filename
+    constant_pars.pretrain_pars.is_on=True
+    results_filename = f"{final_folder_path}/results_{i}.csv"
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
     # Get baseline parameters to-be-trained
     ssn_layer_pars_pretrain = copy.copy(ssn_layer_pars)
     readout_pars_pretrain = copy.copy(readout_pars)
 
     # Perturb them by percent % and collect them into two dictionaries for the two stages of the pretraining
-    trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, percent=0.2)
+    trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, percent=0.1)
 
     # Pretrain parameters
     training_output_df = train_ori_discr(
@@ -75,12 +81,10 @@ for i in range(N_training):
             results_filename,
             jit_on=False
         )
-    constant_pars.pretrain_pars.is_on=True
+    constant_pars.pretrain_pars.is_on=False
 
     ##### FINE DISCRIMINATION #####
-    readout_grid_size=5
-    constant_pars.grid_pars.gridsize_Nx = readout_grid_size
-    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, readout_grid_size)
+    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename)
 
     training_output_df = train_ori_discr(
             trained_pars_stage1,
@@ -89,7 +93,6 @@ for i in range(N_training):
             results_filename,
             jit_on=False
         )
-    constant_pars.pretrain_pars.is_on=True
 
 
 ######### PLOT RESULTS ############

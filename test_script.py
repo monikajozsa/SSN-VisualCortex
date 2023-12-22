@@ -20,7 +20,7 @@ from parameters import (
     loss_pars,
     pretrain_pars
 )
-
+# Overwrite parameters that usually change to baseline - check other parameters as a first step if error is large
 training_pars.batch_size=50
 training_pars.validation_freq=1
 training_pars.epochs=5
@@ -81,3 +81,5 @@ loss_err=numpy.mean((training_output_df['loss_binary']-readout_loss_baseline)/nu
 
 
 print("Percentage of deviation from baseline training loss and training accuracy: {}, {}".format(acc_err, loss_err))
+
+# If there is a difference : 1) check if parameters match 2) look for random number generation such as w_sig in parameters.py or train_data, and noise generation in training.py

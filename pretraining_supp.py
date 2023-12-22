@@ -20,8 +20,6 @@ def randomize_params(readout_pars, ssn_layer_pars, percent=0.1):
     pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
     pars_stage2_nolog = dict(J_m_temp=ssn_layer_pars.J_2x2_m, J_s_temp=ssn_layer_pars.J_2x2_s, c_E_temp=ssn_layer_pars.c_E, c_I_temp=ssn_layer_pars.c_I, f_E_temp=numpy.exp(ssn_layer_pars.f_E), f_I_temp=numpy.exp(ssn_layer_pars.f_I))
     
-    pars_stage1 = perturb_params(pars_stage1, percent)
-
     # Perturb parameters under conditions for J_mid
     i=0
     cond1 = False
@@ -48,28 +46,28 @@ def randomize_params(readout_pars, ssn_layer_pars, percent=0.1):
     return pars_stage1, pars_stage2
 
 
-def load_pretrained_parameters(file_path, readout_grid_size):
+def load_pretrained_parameters(file_path, readout_grid_size=5):
 
     # Get the last row of the given csv file
     df = pd.read_csv(file_path)
     last_row = df.iloc[-1]
 
     # Extract matrices from dataframe
-    w_sig_keys = [f'w_sig{i}' for i in range(1, readout_grid_size*readout_grid_size+1)] 
+    w_sig_keys = [f'w_sig_{i}' for i in range(1, readout_grid_size*readout_grid_size+1)] 
     J_m_keys = ['logJ_m_EE','logJ_m_EI','logJ_m_IE','logJ_m_II'] 
     J_s_keys = ['logJ_s_EE','logJ_s_EI','logJ_s_IE','logJ_s_II']
     J_m_values = last_row[J_m_keys].values.reshape(2, 2)
     J_s_values = last_row[J_s_keys].values.reshape(2, 2)
-    w_sig_values = last_row[w_sig_keys].values.reshape(9, 9)
+    w_sig_values = last_row[w_sig_keys].values
 
     pars_stage1 = dict(w_sig=w_sig_values, b_sig=last_row['b_sig'])
 
     pars_stage2 = dict(
         log_J_2x2_m = J_m_values,
         log_J_2x2_s = J_s_values,
-        c_E=last_row['c_E_temp'],
-        c_I=last_row['c_I_temp'],
-        f_E=last_row['f_E_temp'],
-        f_I=last_row['f_I_temp'],
+        c_E=last_row['c_E'],
+        c_I=last_row['c_I'],
+        f_E=last_row['f_E'],
+        f_I=last_row['f_I'],
     )
     return pars_stage1, pars_stage2
