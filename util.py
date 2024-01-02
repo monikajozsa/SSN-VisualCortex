@@ -258,7 +258,7 @@ def exponentiate(opt_pars):
 
 def sep_exponentiate(J_s):
     signs = np.array([[1, -1], [1, -1]])
-    new_J = np.exp(J_s) * signs
+    new_J = np.exp(np.array(J_s, dtype = float)) * signs
 
     return new_J
 

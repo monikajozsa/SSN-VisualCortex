@@ -446,4 +446,4 @@ def create_gabor_filters_util(
     # remove mean so that input to constant grating is 0
     gabor_filters = SSN_filters - numpy.mean(SSN_filters, axis=1)[:, None]
 
-    return gabor_filters
+    return gabor_filters, A, A2

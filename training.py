@@ -72,23 +72,26 @@ def train_ori_discr(
     # Unpack input
     training_pars = constant_pars.training_pars
     stimuli_pars = constant_pars.stimuli_pars
-    first_stage_final_epoch = training_pars.epochs
 
     # Initialise optimizer and set first stage accuracy threshold
     optimizer = optax.adam(training_pars.eta)
     if constant_pars.pretrain_pars.is_on:
+        Nepochs = training_pars.epochs[0]
+        first_stage_final_epoch = Nepochs
         if constant_pars.pretrain_pars.Nstages == 1:
             readout_state = optimizer.init(readout_pars_dict)
         else:
             first_stage_acc = constant_pars.pretrain_pars.acc_th
             readout_state = optimizer.init(readout_pars_dict)
     else:
+        Nepochs = training_pars.epochs[1]
+        first_stage_final_epoch = Nepochs
         first_stage_acc = training_pars.first_stage_acc
         readout_state = optimizer.init(readout_pars_dict)
 
     print(
         "epochs: {} ¦ learning rate: {} ¦ sig_noise: {} ¦ ref ori: {} ¦ offset: {} ¦ batch size {}".format(
-            training_pars.epochs,
+            Nepochs,
             training_pars.eta,
             training_pars.sig_noise,
             stimuli_pars.ref_ori,
@@ -104,7 +107,7 @@ def train_ori_discr(
 
     ######## Two-stage training: 1) parameters of sigmoid layer 2) parameters of SSN layers #############
     # Define epoch indices where losses an accuracy are validated
-    val_epochs = np.arange(1, training_pars.epochs + 1, training_pars.validation_freq)
+    val_epochs = np.arange(1, Nepochs + 1, training_pars.validation_freq)
 
     start_time = time.time()
 
@@ -113,7 +116,7 @@ def train_ori_discr(
             # Reinitialise optimizer
             ssn_layer_state = optimizer.init(ssn_layer_pars_dict)        
 
-        for epoch in range(1, training_pars.epochs + 1):
+        for epoch in range(1, Nepochs + 1):
             # Calculate loss and gradient on training data
             train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(stimuli_pars, training_pars,ssn_layer_pars_dict, readout_pars_dict, constant_pars, stage, jit_on)
             
@@ -191,9 +194,9 @@ def train_ori_discr(
     
     # Save results - both training and validation
     #Define epoch indices for training and validation
-    epochs = np.arange(0, first_stage_final_epoch+training_pars.epochs + 1)
+    epochs = np.arange(0, first_stage_final_epoch + Nepochs + 1)
     val_epochs_stage1 = val_epochs[val_epochs < first_stage_final_epoch + 1]
-    val_epochs_stage2 = np.arange(first_stage_final_epoch+1, first_stage_final_epoch+training_pars.epochs + 1, training_pars.validation_freq)
+    val_epochs_stage2 = np.arange(first_stage_final_epoch + 1, first_stage_final_epoch + Nepochs + 1, training_pars.validation_freq)
     val_epochs_all = np.concatenate((val_epochs_stage1,val_epochs_stage2))
     
     # Create DataFrame to save
@@ -343,8 +346,8 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_
     ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=constant_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = constant_pars.ori_dist, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
     #Run reference and targetthrough two layer model
-    r_ref, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, constant_pars.gabor_filters)
-    r_target, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I, constant_pars.gabor_filters)
+    r_ref, _, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, constant_pars.gabor_filters)
+    r_target, _, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I, constant_pars.gabor_filters)
 
     if pretraining:
         # Readout is from all neurons in sup layer

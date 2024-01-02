@@ -35,13 +35,6 @@ class _SSN_Base(object):
     def drdt(self, r, inp_vec):
         return (-r + self.powlaw(self.W @ r + inp_vec)) / self.tau_vec
 
-    def dxdt(self, x, inp_vec):
-        """
-        allowing for descendent SSN types whose state-vector, x, is different
-        than the rate-vector, r.
-        """
-        return self.drdt(x, inp_vec)
-
     def gains_from_v(self, v):
         return self.n * self.k * np.maximum(0, v) ** (self.n - 1)
 
@@ -83,13 +76,12 @@ class _SSN_Base(object):
 
     ######## FIXED POINT FUNCTIONS #################
 
-    def fixed_point_r(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5, xmin=1e-0, Tmin=200):
+    def fixed_point_r(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5, xmin=1e-0):
         
         if r_init is None:
             r_init = np.zeros(inp_vec.shape) # np.zeros((self.N,))
         drdt = lambda r : self.drdt(r, inp_vec)
-        if inp_vec.ndim > 1:
-            drdt = lambda r : self.drdt_multi(r, inp_vec)
+
         Nmax = int(Tmax/dt)
         r_fp = r_init 
         y = np.zeros(((Nmax)))  
@@ -301,6 +293,11 @@ class SSN_mid(_SSN_Base):
         self.make_W(J_2x2)
 
     def drdt(self, r, inp_vec):
+        r1 = np.reshape(r, (-1, self.Nc))
+        out = (-r + self.powlaw(np.ravel(self.W @ r1) + inp_vec)) / self.tau_vec
+        return out
+    
+    def drdt_nobatch(self, r, inp_vec):
         r1 = np.reshape(r, (-1, self.Nc))
         out = (-r + self.powlaw(np.ravel(self.W @ r1) + inp_vec)) / self.tau_vec
         return out

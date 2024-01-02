@@ -27,7 +27,11 @@ def evaluate_model_response(
     constant_vector_sup = constant_to_vec(c_E=c_E, c_I=c_I, ssn=ssn_sup, sup=True)
 
     # Apply Gabor filters to stimuli to create input of middle layer
-    input_mid = np.matmul(gabor_filters, stimuli)
+    if stimuli.shape[0]==1:
+        # handling the case when there are no batches
+        input_mid = np.reshape(np.matmul(gabor_filters, np.transpose(stimuli)),len(constant_vector))
+    else:
+        input_mid = np.matmul(gabor_filters, stimuli)
 
     # Rectify middle layer input before fix point calculation
     SSN_mid_input = np.maximum(0, input_mid) + constant_vector
@@ -43,7 +47,7 @@ def evaluate_model_response(
         ssn_sup, sup_input_ref, conv_pars, return_fp=True
     )
 
-    return r_sup, [r_max_mid, r_max_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [fp_mid, fp_sup]
+    return r_sup, r_mid, [r_max_mid, r_max_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [fp_mid, fp_sup]
 
 
 def obtain_fixed_point(

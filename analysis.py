@@ -1,11 +1,88 @@
 import pandas as pd
 import numpy
+import csv
+import os
 
 import jax.numpy as np
 
-from util import BW_Grating
+from util import BW_Grating, create_grating_pretraining, sep_exponentiate
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response
+
+def create_grating(stimuli_pars, batch_size):
+    '''
+    Create input stimuli gratings.
+    Input:
+       stimuli pars
+       batch_size - batch size
+    
+    Output:
+        dictionary containing stimuli gratings
+    '''
+    
+    #initialise empty arrays
+    ref_ori = stimuli_pars.ref_ori
+    data_dict = {'input':[]}
+
+    for _ in range(batch_size):
+        #create grating
+        ref = BW_Grating(ori_deg = ref_ori, jitter=0, stimuli_pars = stimuli_pars).BW_image().ravel()
+
+        data_dict['input'].append(ref)
+        
+    data_dict['input'] = np.asarray(data_dict['input'])
+
+    return data_dict
+
+def tuning_curves(constant_pars, trained_pars,tuning_curves_filename=None):
+    '''
+    Calculate responses of middle and superficial layers to different orientations.
+    '''
+    for key in list(trained_pars.keys()):  # Use list to make a copy of keys to avoid RuntimeError
+        # Check if key starts with 'log'
+        if key.startswith('log'):
+            # Create a new key by removing 'log' prefix
+            new_key = key[4:]
+            # Exponentiate the values and assign to the new key
+            trained_pars[new_key] = sep_exponentiate(trained_pars[key])
+    
+    ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=trained_pars['J_2x2_m'])
+    
+    N_ori = 60
+    new_rows = []
+    for i in range(N_ori):
+        constant_pars.stimuli_pars.ref_ori = 3*i
+        train_data = create_grating(constant_pars.stimuli_pars, 1)
+        ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=trained_pars['J_2x2_s'], p_local=constant_pars.ssn_layer_pars.p_local_s, oris=constant_pars.oris, s_2x2=constant_pars.ssn_layer_pars.s_2x2_s, sigma_oris = constant_pars.ssn_layer_pars.sigma_oris, ori_dist = constant_pars.ori_dist, train_ori = constant_pars.stimuli_pars.ref_ori)
+        _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data['input'], constant_pars.conv_pars, trained_pars['c_E'], trained_pars['c_I'], trained_pars['f_E'], trained_pars['f_I'], constant_pars.gabor_filters)
+        if i==0:
+            responses_mid = numpy.zeros((N_ori,len(r_mid_i)))
+            responses_sup = numpy.zeros((N_ori,len(r_sup_i)))
+        responses_mid[i,:] = r_mid_i
+        responses_sup[i,:] = r_sup_i
+    
+        # Save responses into csv file
+        if tuning_curves_filename is not None:
+ 
+            # Concatenate the new data as additional rows
+            new_row = numpy.concatenate((r_mid_i, r_sup_i), axis=0)
+            new_rows.append(new_row)
+
+    if tuning_curves_filename is not None:
+        new_rows_df = pd.DataFrame(new_rows)
+        if os.path.exists(tuning_curves_filename):
+            # Read existing data and concatenate new data
+            existing_df = pd.read_csv(tuning_curves_filename)
+            df = pd.concat([existing_df, new_rows_df], axis=0)
+        else:
+            # If CSV does not exist, use new data as the DataFrame
+            df = new_rows_df
+
+        # Write the DataFrame to CSV file
+        df.to_csv(tuning_curves_filename, index=False)
+        
+    return responses_sup, responses_mid
+
 
 def param_ratios(results_file):
     results = pd.read_csv(results_file, header=0)
