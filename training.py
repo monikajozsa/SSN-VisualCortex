@@ -361,8 +361,8 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_
         sig_output = sig_input
         loss_readout = np.mean(np.abs(sig_output-train_data['label']))
         pred_label = None
-        loss_avg_dx = loss_pars.lambda_dx*(avg_dx_ref_mid  + avg_dx_ref_sup )/4
-        loss_r_max =  loss_pars.lambda_r_max*(r_max_ref_mid + r_max_ref_sup )/4
+        loss_avg_dx = loss_pars.lambda_dx*(avg_dx_ref_mid + avg_dx_target_mid + avg_dx_ref_sup + avg_dx_target_sup)/4
+        loss_r_max =  loss_pars.lambda_r_max*(r_max_ref_mid + r_max_target_mid + r_max_ref_sup + r_max_target_sup)/4
     else:
         #Multiply (reference - target) by sigmoid layer weights, add bias and apply sigmoid funciton
         sig_input = np.dot(w_sig, (r_ref_box - r_target_box)) + b_sig     
