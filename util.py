@@ -383,8 +383,6 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size):
     return data_dict
 
 
-make_J2x2_o = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie, -Jii]])
-
 def x_greater_than(x, constant, slope, height):
     return np.maximum(0, (x * slope - (1 - height)))
 

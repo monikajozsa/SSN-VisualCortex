@@ -141,8 +141,8 @@ def train_ori_discr(
                 val_accs.append(val_acc)
                 
                 epoch_time = time.time() - start_time
-                print("Training loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Epoch: {} ¦ Runtime: {}".format(
-                    train_loss, val_loss, train_acc, val_acc, epoch, epoch_time
+                print("Training loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Epoch: {} ¦ Runtime: {} ¦ Ori: {}".format(
+                    train_loss, val_loss, train_acc, val_acc, epoch, epoch_time, stimuli_pars.ref_ori
                 ))
 
             # Updating parameters
@@ -216,9 +216,6 @@ def train_ori_discr(
 
 def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, stage,jit_on):
 
-    # Create stimulus for middle layer: train_data has ref, target and label
-    train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size)
-
     # Generate noise
     noise_ref = generate_noise(
         training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
@@ -228,33 +225,24 @@ def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, re
     )
 
     if constant_pars.pretrain_pars.is_on:
+        # Create stimulus for middle layer: train_data has ref, target and label
         train_data = create_grating_pretraining(stimuli_pars, constant_pars.pretrain_pars, training_pars.batch_size)
-        if constant_pars.pretrain_pars.Nstages == 1:
-            training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=[0,1], has_aux=True)
-            [loss, [all_losses, accuracy, sig_input, sig_output, max_rates]], (grad_readout, grad_ssn) = training_loss_val_and_grad(
-                ssn_layer_pars_dict,
-                readout_pars_dict,
-                constant_pars,
-                train_data,
-                noise_ref,
-                noise_target,
-                jit_on
-            )
+        if stage == 1:
+            training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True)
         else:
-            if stage == 1:
-                training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True)
-            else:
-                training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=0, has_aux=True)
-            [loss, [all_losses, accuracy, sig_input, sig_output, max_rates]], grad = training_loss_val_and_grad(
-                ssn_layer_pars_dict,
-                readout_pars_dict,
-                constant_pars,
-                train_data,
-                noise_ref,
-                noise_target,
-                jit_on
-            )
+            training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=0, has_aux=True)
+        [loss, [all_losses, accuracy, sig_input, sig_output, max_rates]], grad = training_loss_val_and_grad(
+            ssn_layer_pars_dict,
+            readout_pars_dict,
+            constant_pars,
+            train_data,
+            noise_ref,
+            noise_target,
+            jit_on
+        )
     else:
+        # Create stimulus for middle layer: train_data has ref, target and label
+        train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size)
         if stage == 1:
             training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True)
         else:

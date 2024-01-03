@@ -2,6 +2,7 @@ import pandas as pd
 import numpy
 import csv
 import os
+import copy 
 
 import jax.numpy as np
 
@@ -38,6 +39,7 @@ def tuning_curves(constant_pars, trained_pars,tuning_curves_filename=None):
     '''
     Calculate responses of middle and superficial layers to different orientations.
     '''
+    constant_pars_copy = copy.copy(constant_pars)
     for key in list(trained_pars.keys()):  # Use list to make a copy of keys to avoid RuntimeError
         # Check if key starts with 'log'
         if key.startswith('log'):
@@ -46,15 +48,15 @@ def tuning_curves(constant_pars, trained_pars,tuning_curves_filename=None):
             # Exponentiate the values and assign to the new key
             trained_pars[new_key] = sep_exponentiate(trained_pars[key])
     
-    ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=trained_pars['J_2x2_m'])
+    ssn_mid=SSN_mid(ssn_pars=constant_pars_copy.ssn_pars, grid_pars=constant_pars_copy.grid_pars, J_2x2=trained_pars['J_2x2_m'])
     
     N_ori = 60
     new_rows = []
     for i in range(N_ori):
-        constant_pars.stimuli_pars.ref_ori = 3*i
-        train_data = create_grating(constant_pars.stimuli_pars, 1)
-        ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=trained_pars['J_2x2_s'], p_local=constant_pars.ssn_layer_pars.p_local_s, oris=constant_pars.oris, s_2x2=constant_pars.ssn_layer_pars.s_2x2_s, sigma_oris = constant_pars.ssn_layer_pars.sigma_oris, ori_dist = constant_pars.ori_dist, train_ori = constant_pars.stimuli_pars.ref_ori)
-        _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data['input'], constant_pars.conv_pars, trained_pars['c_E'], trained_pars['c_I'], trained_pars['f_E'], trained_pars['f_I'], constant_pars.gabor_filters)
+        constant_pars_copy.stimuli_pars.ref_ori = 3*i
+        train_data = create_grating(constant_pars_copy.stimuli_pars, 1)
+        ssn_sup=SSN_sup(ssn_pars=constant_pars_copy.ssn_pars, grid_pars=constant_pars_copy.grid_pars, J_2x2=trained_pars['J_2x2_s'], p_local=constant_pars_copy.ssn_layer_pars.p_local_s, oris=constant_pars_copy.oris, s_2x2=constant_pars_copy.ssn_layer_pars.s_2x2_s, sigma_oris = constant_pars_copy.ssn_layer_pars.sigma_oris, ori_dist = constant_pars_copy.ori_dist, train_ori = constant_pars_copy.stimuli_pars.ref_ori)
+        _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data['input'], constant_pars_copy.conv_pars, trained_pars['c_E'], trained_pars['c_I'], trained_pars['f_E'], trained_pars['f_I'], constant_pars_copy.gabor_filters)
         if i==0:
             responses_mid = numpy.zeros((N_ori,len(r_mid_i)))
             responses_sup = numpy.zeros((N_ori,len(r_sup_i)))

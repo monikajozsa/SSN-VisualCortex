@@ -18,57 +18,84 @@ def plot_results_from_csv(
     # Plot accuracy and losses
     for column in df.columns:
         if 'acc' in column and 'val_' not in column:
-            axes[0, 0].plot(df['epoch'], df[column], label=column)
+            axes[0, 0].plot(range(len(df[column])), df[column], label=column)
         if 'val_acc' in column:
-            axes[0, 0].scatter(df['epoch'], df[column], label=column, marker='o', s=50)
-    axes[0, 0].legend(loc='lower left')
+            axes[0, 0].scatter(range(len(df[column])), df[column], label=column, marker='o', s=50)
+    axes[0, 0].legend(loc='lower right')
+    axes[0, 0].set_title('Accuracy')
 
     for column in df.columns:
         if 'loss_' in column and 'val_loss' not in column:
-            axes[1, 0].plot(df['epoch'], df[column], label=column, alpha=0.6)
+            axes[1, 0].plot(range(len(df[column])), df[column], label=column, alpha=0.6)
         if 'val_loss' in column:
-            axes[1, 0].scatter(df['epoch'], df[column], marker='o', s=50)
-    #axes[1, 0].legend(["readout", "avg_dx", "r_max", "w_sig", "b_sig", "total"])
-    #axes[1, 0].legend(loc='lower left')
+            axes[1, 0].scatter(range(len(df[column])), df[column], marker='o', s=50)
+    axes[1, 0].legend(["readout loss", "avg_dx", "r_max", "w_sig", "b_sig", "total"])
+    axes[1, 0].legend(loc='upper right')
+    axes[1, 0].set_title('Loss')
+
     #Plot changes in sigmoid weights and bias of the sigmoid layer
-    axes[0,1].plot(df['epoch'], df['b_sig'], label=column)
+    axes[0,1].plot(range(len(df[column])), df['b_sig'], label=column)
     axes[0,1].legend("b sig")
+    axes[0,1].set_title('Bias added to readout')
+
+    i=0
     for column in df.columns:
-        if 'w_sig_' in column:
-            axes[1,1].plot(df['epoch'], df[column], label=column)
+        if 'w_sig_' in column and i<10:
+            axes[1,1].plot(range(len(df[column])), df[column], label=column)
+            i = i+1
     axes[1,1].legend("w")
-    
-    #Plot changes in J and kappa in middle and superficial layer
+    axes[1,1].set_title('Readout weights')
+
+    #Plot changes in J_m and J_s
     colors = ["tab:blue", "tab:green", "tab:orange", "tab:red"]
     i=0
     for column in df.columns:
         if 'J_m_' in column:
-            axes[0, 2].plot(df['epoch'], df[column], label=column, c=colors[i])
+            axes[0, 2].plot(range(len(df[column])), df[column], label=column, c=colors[i])
             i=i+1
+    axes[0,2].legend(loc="upper left")
+    axes[0,2].set_title('Middle layer connectivities')
+
     i=0
     for column in df.columns:
         if 'J_s_' in column:
-            axes[0, 2].plot(df['epoch'], df[column], label=column, linestyle="--", c=colors[i])
+            axes[1, 2].plot(range(len(df[column])), df[column], label=column, c=colors[i])
             i=i+1      
-    axes[0,2].legend(loc="upper left")
-	
+    axes[1,2].legend(loc="upper left")
+    axes[1,2].set_title('Superficial layer connectivities')
+    
+    '''
     if 'kappa_preE' in df.columns:
         colors = ["tab:green", "tab:orange"]
-        axes[1, 2].plot(df['epoch'], df['kappa_preE'], label='kappa_preE', linestyle="-", c=colors[0])
-        axes[1, 2].plot(df['epoch'], df["kappa_preI"], label="kappa_preI", linestyle="--", c=colors[0])
-        axes[1, 2].plot(df['epoch'], df['kappa_postE'], label='kappa_postE', linestyle="-", c=colors[1])
-        axes[1, 2].plot(df['epoch'], df["kappa_postI"], label="kappa_postI", linestyle="--", c=colors[1])
+        axes[1, 2].plot(range(len(df[column])), df['kappa_preE'], label='kappa_preE', linestyle="-", c=colors[0])
+        axes[1, 2].plot(range(len(df[column])), df["kappa_preI"], label="kappa_preI", linestyle="--", c=colors[0])
+        axes[1, 2].plot(range(len(df[column])), df['kappa_postE'], label='kappa_postE', linestyle="-", c=colors[1])
+        axes[1, 2].plot(range(len(df[column])), df["kappa_postI"], label="kappa_postI", linestyle="--", c=colors[1])
         axes[1,2].legend(["kappa_preE","kappa_preI","kappa_postE","kappa_postI"])
+    '''
 
     #Plot changes in baseline inhibition and excitation and feedforward weights (second stage of the training)
-    axes[0,3].plot(df['epoch'], df['c_E'], label='c_E')
-    axes[0,3].plot(df['epoch'], df['c_I'], label='c_I')
+    axes[0,3].plot(range(len(df[column])), df['c_E'], label='c_E')
+    axes[0,3].plot(range(len(df[column])), df['c_I'], label='c_I')
     axes[0,3].legend(["c_E","c_I"])
+    axes[0,3].set_title('Baseline inh and exc inputs')
 
     #Plot feedforward weights from middle to superficial layer (second stage of the training)
-    axes[1,3].plot(df['epoch'], df['f_E'], label='f_E')
-    axes[1,3].plot(df['epoch'], df['f_I'], label='f_I')
+    axes[1,3].plot(range(len(df[column])), df['f_E'], label='f_E')
+    axes[1,3].plot(range(len(df[column])), df['f_I'], label='f_I')
     axes[1,3].legend(["f_E","f_I"])
+    axes[1,3].set_title('Weights between mid and sup layers')
+
+    for i in range(1, len(df['stage'])):
+        if df['stage'][i] != df['stage'][i-1]:
+            axes[0,0].axvline(x=i, color='red', linestyle='--')
+            axes[0,1].axvline(x=i, color='red', linestyle='--')
+            axes[0,2].axvline(x=i, color='red', linestyle='--')
+            axes[0,3].axvline(x=i, color='red', linestyle='--')
+            axes[1,0].axvline(x=i, color='red', linestyle='--')
+            axes[1,1].axvline(x=i, color='red', linestyle='--')
+            axes[1,2].axvline(x=i, color='red', linestyle='--')
+            axes[1,3].axvline(x=i, color='red', linestyle='--')
 
     if fig_filename:
         fig.savefig(fig_filename + ".png")

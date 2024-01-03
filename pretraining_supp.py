@@ -37,7 +37,7 @@ def randomize_params(readout_pars, ssn_layer_pars, constant_pars, percent=0.1):
         ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=params_perturbed['J_m_temp'])
         ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=params_perturbed['J_s_temp'], p_local=constant_pars.ssn_layer_pars.p_local_s, oris=constant_pars.oris, s_2x2=constant_pars.ssn_layer_pars.s_2x2_s, sigma_oris = constant_pars.ssn_layer_pars.sigma_oris, ori_dist = constant_pars.ori_dist, train_ori = constant_pars.stimuli_pars.ref_ori)
         train_data = create_grating_pretraining(constant_pars.stimuli_pars, constant_pars.pretrain_pars, 1)
-        r_ref,_, [_, _], [_, _],[_, _, _, _], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], constant_pars.conv_pars, params_perturbed['c_E_temp'], params_perturbed['c_I_temp'], params_perturbed['f_E_temp'], params_perturbed['f_I_temp'], constant_pars.gabor_filters)
+        r_ref,_, [_, _], [avg_dx_mid, avg_dx_sup],[_, _, _, _], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], constant_pars.conv_pars, params_perturbed['c_E_temp'], params_perturbed['c_I_temp'], params_perturbed['f_E_temp'], params_perturbed['f_I_temp'], constant_pars.gabor_filters)
         cond3 = numpy.any(numpy.isnan(r_ref))
         if i>20:
             print("Perturbed parameters violate inequality conditions or lead to divergence in diff equation.")
@@ -57,28 +57,28 @@ def randomize_params(readout_pars, ssn_layer_pars, constant_pars, percent=0.1):
     return pars_stage1, pars_stage2
 
 
-def load_pretrained_parameters(file_path, readout_grid_size=5):
+def load_pretrained_parameters(file_path, readout_grid_size=5, iloc_ind=-1):
 
     # Get the last row of the given csv file
     df = pd.read_csv(file_path)
-    last_row = df.iloc[-1]
+    selected_row = df.iloc[iloc_ind]
 
     # Extract matrices from dataframe
     w_sig_keys = [f'w_sig_{i}' for i in range(1, readout_grid_size*readout_grid_size+1)] 
     J_m_keys = ['logJ_m_EE','logJ_m_EI','logJ_m_IE','logJ_m_II'] 
     J_s_keys = ['logJ_s_EE','logJ_s_EI','logJ_s_IE','logJ_s_II']
-    J_m_values = last_row[J_m_keys].values.reshape(2, 2)
-    J_s_values = last_row[J_s_keys].values.reshape(2, 2)
-    w_sig_values = last_row[w_sig_keys].values
+    J_m_values = selected_row[J_m_keys].values.reshape(2, 2)
+    J_s_values = selected_row[J_s_keys].values.reshape(2, 2)
+    w_sig_values = selected_row[w_sig_keys].values
 
-    pars_stage1 = dict(w_sig=w_sig_values, b_sig=last_row['b_sig'])
+    pars_stage1 = dict(w_sig=w_sig_values, b_sig=selected_row['b_sig'])
 
     pars_stage2 = dict(
         log_J_2x2_m = J_m_values,
         log_J_2x2_s = J_s_values,
-        c_E=last_row['c_E'],
-        c_I=last_row['c_I'],
-        f_E=last_row['f_E'],
-        f_I=last_row['f_I'],
+        c_E=selected_row['c_E'],
+        c_I=selected_row['c_I'],
+        f_E=selected_row['f_E'],
+        f_I=selected_row['f_I'],
     )
     return pars_stage1, pars_stage2

@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as np
 from jax import random
+from jax import lax
 
 
 class _SSN_Base(object):
@@ -315,8 +316,16 @@ class SSN_mid(_SSN_Base):
     def select_type(self, vec, map_numbers):
         # Calculate start and end indices for each map_number
         start_indices = (map_numbers - 1) * self.Nc
-        end_indices = map_numbers * self.Nc
+        #end_indices = map_numbers * self.Nc
 
         # Use a list comprehension to extract slices for each map_number
-        out = np.array([vec[start:end] for start, end in zip(start_indices, end_indices)])
+        #out = np.array([vec[start:end] for start, end in zip(start_indices, end_indices)])
+
+        # the code above does not work when jit is on!
+        out = []
+        for start in start_indices:
+            slice = lax.dynamic_slice(vec, (start,), (self.Nc,))
+            out.append(slice)
+
+        out = np.array(out)
         return out

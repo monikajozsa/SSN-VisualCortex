@@ -61,7 +61,7 @@ class ConstantPars:
 constant_pars = ConstantPars()
 
 # Defining the number of random initializations for pretraining + training
-N_training = 5
+N_training = 3
 
 # Save scripts
 results_filename, final_folder_path = save_code()
@@ -80,20 +80,22 @@ for i in range(N_training):
 
     # Perturb them by percent % and collect them into two dictionaries for the two stages of the pretraining
     trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, constant_pars, percent=0.1)
-    start_time = time.time()
-    responses_sup_prepre, responses_mid_prepre = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepre)
-    print(time.time()-start_time)
+
     # Pretrain parameters
     training_output_df = train_ori_discr(
             trained_pars_stage1,
             trained_pars_stage2,
             constant_pars,
             results_filename,
-            jit_on=False
+            jit_on=True
         )
     constant_pars.pretrain_pars.is_on=False
     
+    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.epochs[1]]))
+    responses_sup_prepre, responses_mid_prepre = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepre)
+
     ##### FINE DISCRIMINATION #####
+    
     trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename)
     responses_sup_prepost, responses_mid_prepost = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepost)
 
@@ -102,7 +104,7 @@ for i in range(N_training):
             trained_pars_stage2,
             constant_pars,
             results_filename,
-            jit_on=False
+            jit_on=True
         )
     
     last_row = training_output_df.iloc[-1]
@@ -122,11 +124,3 @@ for i in range(N_training):
     responses_sup_post, responses_mid_post = tuning_curves(constant_pars, pars_stage2, tuning_curves_post)
 
 ######### PLOT RESULTS ############
-
-df = pd.read_csv(results_filename)
-results_fig_filename = os.path.join(final_folder_path,'trained_parameters')
-tc_fig_filename = os.path.join(final_folder_path,'tuning_curves')
-
-#visualization.plot_results_from_csv(results_filename,results_fig_filename)
-
-#visualization.plot_tc_from_csv(tuning_curves_prepre,tuning_curves_prepost,tuning_curves_post,tc_fig_filename)
