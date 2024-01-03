@@ -24,6 +24,7 @@ def cosdiff_ring(d_x, L):
 
     return distance
 
+
 def cosdiff_acc_threshold(pretrain_pars):
     '''
     Numeric calculation of the error tolerance
@@ -345,7 +346,7 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
 
 def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size):
     '''
-    Create input stimuli gratings for pretraining by randomizing ref_ori, k, inner_radius, outer_radius.
+    Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
     Output:
         dictionary containing grating1, grating2 and difference between gratings that is calculated from features
     '''
@@ -376,14 +377,11 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size):
     data_dict['ref']=np.asarray(data_dict['ref'])
     data_dict['target']=np.asarray(data_dict['target'])
 
-    # Define label as the signed difference in angle using cosdiff_ring
+    # Define label as the normalized signed difference in angle using cosdiff_ring
     data_dict['label'] = numpy.sign(ori1-ori2) * cosdiff_ring(ori1 - ori2, L_ring) / cosdiff_ring(max_ori_dist + min_ori_dist, L_ring)
-    #data_dict['ang_diff'] = ori1-ori2 # only for development stage
    
     return data_dict
 
-
-make_J2x2_o = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie, -Jii]])
 
 def x_greater_than(x, constant, slope, height):
     return np.maximum(0, (x * slope - (1 - height)))
