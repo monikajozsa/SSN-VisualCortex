@@ -23,22 +23,24 @@ def randomize_params(readout_pars, ssn_layer_pars, constant_pars, percent=0.1):
     pars_stage1['w_sig']=numpy.random.normal(scale = 0.25, size=(len(readout_pars.w_sig),)) / numpy.sqrt(len(readout_pars.w_sig))
     pars_stage2_nolog = dict(J_m_temp=ssn_layer_pars.J_2x2_m, J_s_temp=ssn_layer_pars.J_2x2_s, c_E_temp=ssn_layer_pars.c_E, c_I_temp=ssn_layer_pars.c_I, f_E_temp=ssn_layer_pars.f_E, f_I_temp=ssn_layer_pars.f_I)
     
-    # Perturb parameters under conditions for J_mid
+    # Perturb parameters under conditions for J_mid and convergence of the differential equations of the model
     i=0
     cond1 = False
     cond2 = False
-    cond3 = False
+    cond3 = True
+    cond4 = True
     tol_th = 1e-1
-    while not cond1 or not cond2 or cond3:
+    while not cond1 or not cond2 or cond3 or cond4:
         params_perturbed = perturb_params(pars_stage2_nolog, percent)
         cond1 = numpy.abs(params_perturbed['J_m_temp'][0,0]*params_perturbed['J_m_temp'][1,1]) + tol_th < numpy.abs(params_perturbed['J_m_temp'][1,0]*params_perturbed['J_m_temp'][0,1])
         cond2 = numpy.abs(params_perturbed['J_m_temp'][0,1]*ssn_layer_pars.gI_m) + tol_th < numpy.abs(params_perturbed['J_m_temp'][1,1]*ssn_layer_pars.gE_m)
-        # checking 
+        # checking the convergence of the differential equations of the model
         ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=params_perturbed['J_m_temp'])
         ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=params_perturbed['J_s_temp'], p_local=constant_pars.ssn_layer_pars.p_local_s, oris=constant_pars.oris, s_2x2=constant_pars.ssn_layer_pars.s_2x2_s, sigma_oris = constant_pars.ssn_layer_pars.sigma_oris, ori_dist = constant_pars.ori_dist, train_ori = constant_pars.stimuli_pars.ref_ori)
         train_data = create_grating_pretraining(constant_pars.stimuli_pars, constant_pars.pretrain_pars, 1)
         r_ref,_, [_, _], [avg_dx_mid, avg_dx_sup],[_, _, _, _], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], constant_pars.conv_pars, params_perturbed['c_E_temp'], params_perturbed['c_I_temp'], params_perturbed['f_E_temp'], params_perturbed['f_I_temp'], constant_pars.gabor_filters)
         cond3 = numpy.any(numpy.isnan(r_ref))
+        cond4 = avg_dx_mid + avg_dx_sup > 100
         if i>20:
             print("Perturbed parameters violate inequality conditions or lead to divergence in diff equation.")
             break

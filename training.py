@@ -141,8 +141,8 @@ def train_ori_discr(
                 val_accs.append(val_acc)
                 
                 epoch_time = time.time() - start_time
-                print("Training loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Epoch: {} ¦ Runtime: {} ¦ Ori: {}".format(
-                    train_loss, val_loss, train_acc, val_acc, epoch, epoch_time, stimuli_pars.ref_ori
+                print("Training loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Epoch: {} ¦ Runtime: {} ".format(
+                    train_loss, val_loss, train_acc, val_acc, epoch, epoch_time
                 ))
 
             # Updating parameters
