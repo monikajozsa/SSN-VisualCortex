@@ -54,16 +54,22 @@ def plot_results_from_csv(
             axes[0, 2].plot(range(len(df[column])), df[column], label=column, c=colors[i])
             i=i+1
     axes[0,2].legend(loc="upper left")
-    axes[0,2].set_title('Middle layer connectivities')
+    axes[0,2].set_title('Jmid and Jsup')
 
     i=0
     for column in df.columns:
         if 'J_s_' in column:
+            axes[0, 2].plot(range(len(df[column])), df[column], label=column, linestyle='--', c=colors[i])
+            i=i+1
+
+    # Plot maximum rates
+    i=0
+    for column in df.columns:
+        if 'maxr' in column:
             axes[1, 2].plot(range(len(df[column])), df[column], label=column, c=colors[i])
-            i=i+1      
+            i=i+1
     axes[1,2].legend(loc="upper left")
-    axes[1,2].set_title('Superficial layer connectivities')
-    
+    axes[1,2].set_title('Maximum rates')
     '''
     if 'kappa_preE' in df.columns:
         colors = ["tab:green", "tab:orange"]
