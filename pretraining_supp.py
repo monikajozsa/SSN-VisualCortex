@@ -40,7 +40,7 @@ def randomize_params(readout_pars, ssn_layer_pars, constant_pars, percent=0.1):
         train_data = create_grating_pretraining(constant_pars.stimuli_pars, constant_pars.pretrain_pars, 1)
         r_ref,_, [_, _], [avg_dx_mid, avg_dx_sup],[_, _, _, _], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], constant_pars.conv_pars, params_perturbed['c_E_temp'], params_perturbed['c_I_temp'], params_perturbed['f_E_temp'], params_perturbed['f_I_temp'], constant_pars.gabor_filters)
         cond3 = numpy.any(numpy.isnan(r_ref))
-        cond4 = avg_dx_mid + avg_dx_sup > 100
+        cond4 = avg_dx_mid + avg_dx_sup > 50
         if i>20:
             print("Perturbed parameters violate inequality conditions or lead to divergence in diff equation.")
             break
