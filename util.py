@@ -1,6 +1,8 @@
 import jax
 import jax.numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
 import numpy
 import copy 
 import os
@@ -17,10 +19,10 @@ def cosdiff_ring(d_x, L):
     L: The total angle.
     '''
     # Calculate the cosine of the scaled angular difference
-    cos_angle = numpy.cos(d_x * 2 * numpy.pi / L)
+    cos_angle = np.cos(d_x * 2 * np.pi / L)
 
     # Calculate scaled distance
-    distance = numpy.sqrt( (1 - cos_angle) * 2) * L / (2 * numpy.pi)
+    distance = np.sqrt( (1 - cos_angle) * 2) * L / (2 * np.pi)
 
     return distance
 
@@ -204,17 +206,6 @@ def toeplitz(c, r=None):
     The behavior when `c` or `r` is a scalar, or when `c` is complex and
     `r` is None, was changed in version 0.8.0.  The behavior in previous
     versions was undocumented and is no longer supported.
-    Examples
-    --------
-    >>> from scipy.linalg import toeplitz
-    >>> toeplitz([1,2,3], [1,4,5,6])
-    array([[1, 4, 5, 6],
-           [2, 1, 4, 5],
-           [3, 2, 1, 4]])
-    >>> toeplitz([1.0, 2+3j, 4-1j])
-    array([[ 1.+0.j,  2.-3.j,  4.+1.j],
-           [ 2.+3.j,  1.+0.j,  2.-3.j],
-           [ 4.-1.j,  2.+3.j,  1.+0.j]])
     """
     c = np.asarray(c).ravel()
     if r is None:
@@ -370,6 +361,18 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size):
 
         # Generate stimulus1 and stimulus2
         stim1 = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image().ravel()
+        
+        # testing some new jax-compatible vesion of BW_image
+        stim1_original = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image()
+        stim1_jax = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image_jax(rng_key=1)
+        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(25, 10))
+        axes[0].imshow(stim1_original)
+        axes[1].imshow(stim1_jax)
+        plt.colorbar(axes[0].imshow(stim1_original, cmap='viridis'), ax=axes[0])
+        plt.colorbar(axes[1].imshow(stim1_jax, cmap='viridis'), ax=axes[1])
+        fig.savefig('test_fig_compare')
+        # end of test code
+        
         stim2 = BW_Grating(ori_deg = stimuli_pars2.ref_ori, jitter=0, stimuli_pars = stimuli_pars2).BW_image().ravel()
         data_dict['ref'].append(stim1)
         data_dict['target'].append(stim2)
@@ -378,7 +381,7 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size):
     data_dict['target']=np.asarray(data_dict['target'])
 
     # Define label as the normalized signed difference in angle using cosdiff_ring
-    data_dict['label'] = numpy.sign(ori1-ori2) * cosdiff_ring(ori1 - ori2, L_ring) / cosdiff_ring(max_ori_dist + min_ori_dist, L_ring)
+    data_dict['label'] = np.sign(ori1-ori2) * cosdiff_ring(ori1 - ori2, L_ring) / cosdiff_ring(max_ori_dist + min_ori_dist, L_ring)
    
     return data_dict
 
@@ -437,7 +440,7 @@ def save_code():
         destination_path = os.path.join(subfolder_script_path, file_name)
         shutil.copyfile(source_path, destination_path)
 
-    print(f"Script files copied successfully to: {script_directory}")
+    print(f"Script files copied successfully to: {subfolder_script_path}")
 
     # return path (inclusing filename) to save results into
     results_filename = os.path.join(final_folder_path,f"{current_date}_v{version}_results.csv")

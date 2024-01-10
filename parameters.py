@@ -167,7 +167,7 @@ class TrainingPars:
     batch_size = 50
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    epochs = [500, 500] # number of epochs
+    epochs = [200, 100] # number of epochs
     validation_freq = 10  # calculate validation loss and accuracy every validation_freq epoch
     first_stage_acc = 0.7
 

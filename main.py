@@ -1,8 +1,7 @@
+
 import os
 import numpy
-import pandas as pd
 import copy
-import time
 
 numpy.random.seed(0)
 
@@ -26,8 +25,7 @@ from parameters import (
     training_pars,
     loss_pars
 )
-import visualization
-
+ 
 from pretraining_supp import randomize_params, load_pretrained_parameters
 
 ########## Initialize orientation map and gabor filters ############
@@ -124,3 +122,6 @@ for i in range(N_training):
     responses_sup_post, responses_mid_post = tuning_curves(constant_pars, pars_stage2, tuning_curves_post)
 
 ######### PLOT RESULTS ############
+from visualization import plot_results_from_csvs
+#final_folder_path='C:/Users/mj555/MJ Postdoc with YA/SSN-VisualCortex/results/Jan09_v0'
+plot_results_from_csvs(final_folder_path)

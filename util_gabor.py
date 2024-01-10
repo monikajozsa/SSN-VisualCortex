@@ -1,5 +1,10 @@
 import numpy
 from PIL import Image
+import jax.numpy as np
+from jax import random
+import matplotlib.pyplot as plt
+#import matplotlib
+#matplotlib.use('Agg')
 
 from parameters import StimuliPars
 
@@ -61,8 +66,7 @@ class BW_Grating:
         ori_deg,
         stimuli_pars,
         jitter=0,
-        phase=0,
-        crop_f=None,
+        phase=0
     ):
         self.ori_deg = ori_deg
         self.jitter = jitter
@@ -79,7 +83,6 @@ class BW_Grating:
         k = stimuli_pars.k
         spatial_frequency = k * degree_per_pixel  
         self.phase = phase
-        self.crop_f = crop_f
         self.smooth_sd = self.pixel_per_degree / 6
         self.spatial_freq = spatial_frequency or (1 / self.pixel_per_degree)
         self.grating_size = round(self.outer_radius * self.pixel_per_degree)
@@ -160,13 +163,85 @@ class BW_Grating:
         # Sum the image over color channels
         final_image_np = numpy.array(final_image, dtype=numpy.float16)
         image=numpy.sum(final_image_np, axis=2)
-
-        # Crop the image if crop_f is specified
-        if self.crop_f:
-            image = image[self.crop_f : -self.crop_f, self.crop_f : -self.crop_f]     
-
+       
         return image
+    
+    def BW_image_jax(self, rng_key):
+        _BLACK = 0
+        _WHITE = 255
+        _GRAY = round((_WHITE + _BLACK) / 2)
 
+        # Generate a 2D grid of coordinates
+        x, y = np.mgrid[
+            -self.grating_size : self.grating_size + 1.0,
+            -self.grating_size : self.grating_size + 1.0,
+        ]
+
+        # Calculate the distance from the center for each pixel
+        edge_control_dist = np.sqrt(np.power(x, 2) + np.power(y, 2))
+        edge_control = edge_control_dist / self.pixel_per_degree
+
+        # Create a matrix that fades to 0 as the radius increases
+        overrado = np.nonzero(edge_control > self.inner_radius)
+        d = self.grating_size * 2 + 1
+        annulus = np.ones((d, d))
+
+        annulus = annulus.at[overrado].multiply(
+            np.exp(-1 * ((edge_control[overrado] - self.inner_radius) * self.pixel_per_degree) ** 2 / (2 * (self.smooth_sd**2)))
+        )
+        alpha_channel = annulus * _WHITE
+
+        # Generate the grating pattern
+        angle = ((self.ori_deg + self.jitter) - 90) / 180 * np.pi
+        spatial_component = 2 * np.pi * self.spatial_freq * (y * np.sin(angle) + x * np.cos(angle))
+        gabor_sti = _GRAY * (1 + self.grating_contrast * np.cos(spatial_component + self.phase))
+
+        # Set pixels outside the grating size to gray
+        gabor_sti = gabor_sti.at[edge_control_dist > self.grating_size].set(_GRAY)
+
+        # Add Gaussian white noise to the grating
+        if self.std > 0:
+            noisy_gabor_sti = gabor_sti + random.normal(rng_key, gabor_sti.shape) * self.std
+        else:
+            noisy_gabor_sti = gabor_sti 
+        
+        # Add a second dimension for transparency
+        noisy_gabor_sti_2d = np.repeat(noisy_gabor_sti[:, :, np.newaxis], 1, axis=-1)
+        noisy_gabor_sti_with_alpha = np.floor(np.concatenate((noisy_gabor_sti_2d, alpha_channel[:, :, np.newaxis]), axis=-1))
+
+        # Create a background image filled with gray
+        background = np.full((self.size, self.size, 2), _GRAY, dtype=np.uint8)
+
+        # Paste the grating into the final image: paste the grating into a bounding box and apply the alpha channel as a mask
+        center_x, center_y = self.size // 2, self.size // 2
+        bounding_box = (center_x - self.grating_size, center_y - self.grating_size)
+        
+        noisy_gabor_sti_with_alpha_and_background = paste_jax(noisy_gabor_sti_with_alpha, background, bounding_box)
+        final_image = noisy_gabor_sti_with_alpha_and_background * 615 + 75 # *** I should figure out what determines the maximum and minimum of the image originally - contrast is not quite (3*255*0.8=612) and 690-75=615
+        
+        return np.round(final_image)
+    
+def paste_jax(alpha_image, background, bounding_box):
+    # Ensure the input arrays are in float32 dtype for JAX operations
+    alpha_image = np.array(alpha_image, dtype=np.float32)
+    background = np.array(background, dtype=np.float32)
+
+    # Extract dimensions
+    alpha_height, alpha_width, _ = alpha_image.shape
+    bbox_height, bbox_width = bounding_box
+
+    # Calculate the region of interest (ROI) in the background
+    roi = background[bbox_height:bbox_height+alpha_height, bbox_width:bbox_width+alpha_width]
+
+    # Apply the alpha image as a mask to the ROI
+    result_roi = (alpha_image[:, :, 1] * alpha_image[:, :, 0] + (1.0 - alpha_image[:, :, 1]) * roi[:,:,0])
+
+    # Place the modified ROI back into the background
+    combined_image = background.at[bbox_height:bbox_height+alpha_height, bbox_width:bbox_width+alpha_width,0].set(result_roi)
+    
+    normalized_final_image = (combined_image[:,:,0]-np.min(combined_image[:,:,0]))/ (np.max(combined_image[:,:,0]) - np.min(combined_image[:,:,0]))
+
+    return normalized_final_image
 
 #### CREATE GABOR FILTERS ####
 class GaborFilter:

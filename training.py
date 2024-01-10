@@ -62,6 +62,7 @@ def train_ori_discr(
     c_I = [ssn_layer_pars_dict['c_I']]
     f_E = [ssn_layer_pars_dict['f_E']]
     f_I = [ssn_layer_pars_dict['f_I']]
+    
     if 'kappa_pre' in ssn_layer_pars_dict:
         kappa_pre = [np.tanh(ssn_layer_pars_dict['kappa_pre'])]
         kappa_post = [np.tanh(ssn_layer_pars_dict['kappa_post'])]

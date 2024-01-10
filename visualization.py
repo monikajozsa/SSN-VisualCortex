@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import jax.numpy as np
+import numpy
+import sys
 
 from analysis import obtain_min_max_indices, label_neuron
 
@@ -11,84 +13,99 @@ def plot_results_from_csv(
     fig_filename=None):
     # Read the CSV file into a Pandas DataFrame
     df = pd.read_csv(results_filename, header=0)
-
+    N=len(df[df.columns[0]])
     # Create a subplot with 2 rows and 4 columns
     fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(25, 10))
 
     # Plot accuracy and losses
     for column in df.columns:
         if 'acc' in column and 'val_' not in column:
-            axes[0, 0].plot(range(len(df[column])), df[column], label=column)
+            axes[0, 0].plot(range(N), df[column], label=column)
         if 'val_acc' in column:
-            axes[0, 0].scatter(range(len(df[column])), df[column], label=column, marker='o', s=50)
+            axes[0, 0].scatter(range(N), df[column], label=column, marker='o', s=50)
     axes[0, 0].legend(loc='lower right')
     axes[0, 0].set_title('Accuracy')
 
     for column in df.columns:
         if 'loss_' in column and 'val_loss' not in column:
-            axes[1, 0].plot(range(len(df[column])), df[column], label=column, alpha=0.6)
+            axes[1, 0].plot(range(N), df[column], label=column, alpha=0.6)
         if 'val_loss' in column:
-            axes[1, 0].scatter(range(len(df[column])), df[column], marker='o', s=50)
+            axes[1, 0].scatter(range(N), df[column], marker='o', s=50)
     axes[1, 0].legend(["readout loss", "avg_dx", "r_max", "w_sig", "b_sig", "total"])
     axes[1, 0].legend(loc='upper right')
     axes[1, 0].set_title('Loss')
 
     #Plot changes in sigmoid weights and bias of the sigmoid layer
-    axes[0,1].plot(range(len(df[column])), df['b_sig'], label=column)
-    axes[0,1].legend("b sig")
-    axes[0,1].set_title('Bias added to readout')
+    axes[1,1].plot(range(N), df['b_sig'], label=column, linestyle='--', linewidth = 2)
+    axes[1,1].legend("b sig")
 
     i=0
     for column in df.columns:
         if 'w_sig_' in column and i<10:
-            axes[1,1].plot(range(len(df[column])), df[column], label=column)
+            axes[1,1].plot(range(N), df[column], label=column)
             i = i+1
-    axes[1,1].legend("w")
-    axes[1,1].set_title('Readout weights')
+    axes[1,1].set_title('Readout bias and weights')
 
     #Plot changes in J_m and J_s
-    colors = ["tab:blue", "tab:green", "tab:orange", "tab:red"]
-    i=0
     for column in df.columns:
         if 'J_m_' in column:
-            axes[0, 2].plot(range(len(df[column])), df[column], label=column, c=colors[i])
-            i=i+1
+            if 'EE' in column:
+                axes[0, 2].plot(range(N), numpy.exp(df[column]), label=column, c='tab:red')
+            if 'IE' in column:
+                axes[0, 2].plot(range(N), numpy.exp(df[column]), label=column, linestyle='--', c='tab:red')
+    for column in df.columns:
+        if 'J_m_' in column:
+            if 'II' in column:
+                axes[0, 2].plot(range(N), -numpy.exp(df[column]), label=column, c='tab:blue')
+            if 'EI' in column:
+                axes[0, 2].plot(range(N), -numpy.exp(df[column]), label=column, linestyle='--', c='tab:blue')
     axes[0,2].legend(loc="upper left")
-    axes[0,2].set_title('Jmid and Jsup')
+    axes[0,2].set_title('J in middle layer')
 
-    i=0
+    
     for column in df.columns:
         if 'J_s_' in column:
-            axes[0, 2].plot(range(len(df[column])), df[column], label=column, linestyle='--', c=colors[i])
-            i=i+1
+            if 'EE' in column:
+                axes[1, 2].plot(range(N), numpy.exp(df[column]), label=column, c='tab:red')
+            if 'IE' in column:
+                axes[1, 2].plot(range(N), numpy.exp(df[column]), label=column, linestyle='--', c='tab:red')
+    for column in df.columns:
+        if 'J_s_' in column:
+            if 'II' in column:
+                axes[1, 2].plot(range(N), -numpy.exp(df[column]), label=column, c='tab:blue')
+            if 'EI' in column:
+                axes[1, 2].plot(range(N), -numpy.exp(df[column]), label=column, linestyle='--', c='tab:blue')
+    axes[1,2].legend(loc="upper left")
+    axes[1,2].set_title('J in superficial layer')
 
     # Plot maximum rates
     i=0
+    colors = ["tab:blue", "tab:green", "tab:orange", "tab:red"]
     for column in df.columns:
         if 'maxr' in column:
-            axes[1, 2].plot(range(len(df[column])), df[column], label=column, c=colors[i])
+            axes[0, 1].plot(range(N), df[column], label=column, c=colors[i])
             i=i+1
-    axes[1,2].legend(loc="upper left")
-    axes[1,2].set_title('Maximum rates')
+    axes[0,1].legend(loc="upper left")
+    axes[0,1].set_title('Maximum rates')
     '''
     if 'kappa_preE' in df.columns:
         colors = ["tab:green", "tab:orange"]
-        axes[1, 2].plot(range(len(df[column])), df['kappa_preE'], label='kappa_preE', linestyle="-", c=colors[0])
-        axes[1, 2].plot(range(len(df[column])), df["kappa_preI"], label="kappa_preI", linestyle="--", c=colors[0])
-        axes[1, 2].plot(range(len(df[column])), df['kappa_postE'], label='kappa_postE', linestyle="-", c=colors[1])
-        axes[1, 2].plot(range(len(df[column])), df["kappa_postI"], label="kappa_postI", linestyle="--", c=colors[1])
+        axes[1, 2].plot(range(N), df['kappa_preE'], label='kappa_preE', linestyle="-", c=colors[0])
+        axes[1, 2].plot(range(N), df["kappa_preI"], label="kappa_preI", linestyle="--", c=colors[0])
+        axes[1, 2].plot(range(N), df['kappa_postE'], label='kappa_postE', linestyle="-", c=colors[1])
+        axes[1, 2].plot(range(N), df["kappa_postI"], label="kappa_postI", linestyle="--", c=colors[1])
         axes[1,2].legend(["kappa_preE","kappa_preI","kappa_postE","kappa_postI"])
     '''
 
     #Plot changes in baseline inhibition and excitation and feedforward weights (second stage of the training)
-    axes[0,3].plot(range(len(df[column])), df['c_E'], label='c_E')
-    axes[0,3].plot(range(len(df[column])), df['c_I'], label='c_I')
+    axes[0,3].plot(range(N), df['c_E'], label='c_E')
+    axes[0,3].plot(range(N), df['c_I'], label='c_I')
     axes[0,3].legend(["c_E","c_I"])
     axes[0,3].set_title('Baseline inh and exc inputs')
 
     #Plot feedforward weights from middle to superficial layer (second stage of the training)
-    axes[1,3].plot(range(len(df[column])), df['f_E'], label='f_E')
-    axes[1,3].plot(range(len(df[column])), df['f_I'], label='f_I')
+    axes[1,3].plot(range(N), numpy.exp(df['f_E']), label='f_E')
+    axes[1,3].plot(range(N), numpy.exp(df['f_I']), label='f_I')
     axes[1,3].legend(["f_E","f_I"])
     axes[1,3].set_title('Weights between mid and sup layers')
 
@@ -105,6 +122,61 @@ def plot_results_from_csv(
 
     if fig_filename:
         fig.savefig(fig_filename + ".png")
+    fig.show()
+    plt.close()
+
+
+def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
+    # Add folder_path to path
+    if folder_path not in sys.path:
+        sys.path.append(folder_path)
+
+    # Plot loss, accuracy and trained parameters
+    for j in range(num_runs):
+        results_filename = os.path.join(folder_path,f'results_{j}.csv')
+        results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}')
+    
+        plot_results_from_csv(results_filename,results_fig_filename)
+    
+    # Plot tuning curves before pretraining, after pretraining and after training  
+    num_mid_cells = 648
+    num_sup_cells = 164
+    num_runs_plotted = min(5,num_runs)    
+    
+    for j in range(num_runs_plotted):
+
+        tc_pre_pretrain = os.path.join(folder_path,f'tc_prepre_{j}.csv')
+        tc_post_pretrain =os.path.join(folder_path,f'tc_prepost_{j}.csv')
+        tc_post_train =os.path.join(folder_path,f'tc_post_{j}.csv')
+        df_tc_pre_pretrain = pd.read_csv(tc_pre_pretrain, header=0)
+        df_tc_post_pretrain = pd.read_csv(tc_post_pretrain, header=0)
+        df_tc_post_train = pd.read_csv(tc_post_train, header=0)
+
+        # Select num_rnd_cells randomly selected cells to plot from both middle and superficial layer cells
+        if j==0:
+            fig, axes = plt.subplots(nrows=num_rnd_cells, ncols=2*num_runs_plotted, figsize=(10*num_runs_plotted, 25))
+            mid_columns = df_tc_pre_pretrain.columns[0:num_mid_cells]
+            sup_columns = df_tc_pre_pretrain.columns[num_mid_cells:num_mid_cells+num_sup_cells]
+            selected_mid_columns = numpy.random.choice(mid_columns, size=num_rnd_cells, replace=False)
+            selected_sup_columns = numpy.random.choice(sup_columns, size=num_rnd_cells, replace=False)
+            N = len(df_tc_pre_pretrain[selected_mid_columns[0]])
+        
+        # Plot tuning curves
+        for i in range(num_rnd_cells):    
+            axes[i,2*j].plot(range(N), df_tc_pre_pretrain[selected_mid_columns[i]], label='pre-pretraining')
+            axes[i,2*j].plot(range(N), df_tc_post_pretrain[selected_mid_columns[i]], label='post-pretraining')
+            axes[i,2*j].plot(range(N), df_tc_post_train[selected_mid_columns[i]], label='post-training')
+            axes[i,2*j+1].plot(range(N), df_tc_pre_pretrain[selected_sup_columns[i]], label='pre-pretraining')
+            axes[i,2*j+1].plot(range(N), df_tc_post_pretrain[selected_sup_columns[i]], label='post-pretraining')
+            axes[i,2*j+1].plot(range(N), df_tc_post_train[selected_sup_columns[i]], label='post-training')
+            axes[i,2*j].legend(loc='upper left')
+            axes[i,2*j+1].legend(loc='upper left')
+
+        axes[0,2*j].set_title(f'Run{j+1} - Middle layer')
+        axes[0,2*j+1].set_title(f'Run{j+1} - Superficial layer')
+       
+    # Save plot
+    fig.savefig(os.path.join(folder_path,'tc_fig.png'))
     fig.show()
     plt.close()
 
