@@ -12,7 +12,7 @@ class PreTrainPars:
     N = 100000
     acc_th = 0.9 # this is about getting the angle diff right up to 10 degrees (see cosdiff_acc_threshold)
     Nstages = 2
-    is_on = False
+    is_on = True
 
 pretrain_pars = PreTrainPars()
 
@@ -87,7 +87,6 @@ class StimuliPars:  # the attributes are changed within SSN_classes for a local 
     degree_per_pixel = filter_pars.degree_per_pixel  # same as for k
     ref_ori: float = 55.0 # reference orientation of the stimulus in degree
     offset: float = 4.0 # difference between reference and task orientation in degree (task ori is either ref_ori + offset or ref_or - offset)
-
 
 stimuli_pars = StimuliPars()
 

@@ -6,7 +6,7 @@ import time
 
 numpy.random.seed(0)
 
-from util_gabor import create_gabor_filters_util
+from util_gabor import create_gabor_filters_util, BW_image_jax_supp
 from util import save_code, cosdiff_ring
 from training import train_ori_discr
 from analysis import tuning_curves
@@ -57,6 +57,7 @@ class ConstantPars:
     gabor_filters = gabor_filters
     readout_grid_size = readout_pars.readout_grid_size
     pretrain_pars = pretrain_pars
+    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
 
 constant_pars = ConstantPars()
 

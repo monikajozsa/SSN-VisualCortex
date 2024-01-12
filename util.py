@@ -10,7 +10,7 @@ import shutil
 from datetime import datetime
 import time
 
-from util_gabor import BW_Grating, jit_BW_image_jax
+from util_gabor import BW_Grating, jit_BW_image_jax, BW_image_jax
 
 def cosdiff_ring(d_x, L):
     '''
@@ -336,7 +336,7 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     return num1, num2
 
 
-def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size, jit_inp):
+def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all):
     '''
     Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
     Output:
@@ -352,25 +352,31 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size, jit_inp):
     max_ori_dist = pretrain_pars.max_ori_dist
     ori1, ori2 = generate_random_pairs(min_value=0, max_value=L_ring, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring)
 
-    stimuli_pars1 = copy.copy(stimuli_pars)
-    stimuli_pars2 = copy.copy(stimuli_pars)
+    #stimuli_pars1 = copy.copy(stimuli_pars) # needed for old version of BW_image
+    #stimuli_pars2 = copy.copy(stimuli_pars)
     
+    x = jit_inp_all[5]
+    y = jit_inp_all[6]
+    alpha_channel = jit_inp_all[7]
+    mask_jax = jit_inp_all[8]
+    background = jit_inp_all[9]
+    roi =jit_inp_all[10]
     for i in range(batch_size):
+        # Generate stimulus1 and stimulus2
+        stim1 = BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ori1[i],0, 1)
+        '''
+        ### testing a new jax-compatible vesion of BW_image
+        start_time = time.time()
         # Define orientations for stimulus1 and stimulus 2
         stimuli_pars1.ref_ori = ori1[i]
         stimuli_pars2.ref_ori = ori2[i]
 
-        # Generate stimulus1 and stimulus2
-        stim1 = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image().ravel()
-        '''
-        # testing some new jax-compatible vesion of BW_image
-        start_time = time.time()
         for _ in range(100):
             stim1_original = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image()
         print('original',time.time()-start_time)
         start_time = time.time()
         for _ in range(100):
-            stim1_jax = jit_BW_image_jax(jit_inp, ori1[i],0, 1)
+            stim1_jax = BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ori1[i],0, 1)
         print('with jit',time.time()-start_time)
         fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(25, 10))
         axes[0].imshow(stim1_original)
@@ -382,7 +388,9 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size, jit_inp):
         fig.savefig('test_fig_compare')
         # end of test code
         '''
-        stim2 = BW_Grating(ori_deg = stimuli_pars2.ref_ori, jitter=0, stimuli_pars = stimuli_pars2).BW_image().ravel()
+
+        stim2 = BW_image_jax(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2[i],0, 1)
+        
         data_dict['ref'].append(stim1)
         data_dict['target'].append(stim2)
     
