@@ -2,6 +2,7 @@
 import os
 import numpy
 import copy
+import jax.numpy as np
 
 numpy.random.seed(0)
 
@@ -32,6 +33,7 @@ from pretraining_supp import randomize_params, load_pretrained_parameters
 
 ssn_ori_map_loaded = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
 gabor_filters, A, A2 = create_gabor_filters_util(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
+gabor_filters = np.array(gabor_filters)
 ssn_pars.A = A
 ssn_pars.A2 = A2
 
