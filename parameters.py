@@ -12,7 +12,7 @@ class PreTrainPars:
     N = 100000
     acc_th = 0.9 # this is about getting the angle diff right up to 10 degrees (see cosdiff_acc_threshold)
     Nstages = 2
-    is_on = True
+    is_on = False
 
 pretrain_pars = PreTrainPars()
 
