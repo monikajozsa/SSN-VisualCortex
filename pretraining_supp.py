@@ -2,6 +2,7 @@ import pandas as pd
 import numpy
 from numpy import random
 import copy
+import jax.numpy as np
 
 from util import take_log, create_grating_pairs
 from SSN_classes import SSN_mid, SSN_sup
@@ -20,7 +21,8 @@ def perturb_params(param_dict, percent = 0.1):
 def randomize_params(readout_pars, ssn_layer_pars, constant_pars, percent=0.1):
     #define the parameters that get perturbed
     pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
-    pars_stage1['w_sig']=numpy.random.normal(scale = 0.25, size=(len(readout_pars.w_sig),)) / numpy.sqrt(len(readout_pars.w_sig))
+    temp_w_sig=numpy.random.normal(scale = 0.25, size=(len(readout_pars.w_sig),)) / numpy.sqrt(len(readout_pars.w_sig))
+    pars_stage1['w_sig']=np.array(temp_w_sig)
     pars_stage2_nolog = dict(J_m_temp=ssn_layer_pars.J_2x2_m, J_s_temp=ssn_layer_pars.J_2x2_s, c_E_temp=ssn_layer_pars.c_E, c_I_temp=ssn_layer_pars.c_I, f_E_temp=ssn_layer_pars.f_E, f_I_temp=ssn_layer_pars.f_I)
     
     # Perturb parameters under conditions for J_mid and convergence of the differential equations of the model
@@ -32,8 +34,8 @@ def randomize_params(readout_pars, ssn_layer_pars, constant_pars, percent=0.1):
     tol_th = 1e-1
     while not cond1 or not cond2 or cond3 or cond4:
         params_perturbed = perturb_params(pars_stage2_nolog, percent)
-        cond1 = numpy.abs(params_perturbed['J_m_temp'][0,0]*params_perturbed['J_m_temp'][1,1]) + tol_th < numpy.abs(params_perturbed['J_m_temp'][1,0]*params_perturbed['J_m_temp'][0,1])
-        cond2 = numpy.abs(params_perturbed['J_m_temp'][0,1]*ssn_layer_pars.gI_m) + tol_th < numpy.abs(params_perturbed['J_m_temp'][1,1]*ssn_layer_pars.gE_m)
+        cond1 = np.abs(params_perturbed['J_m_temp'][0,0]*params_perturbed['J_m_temp'][1,1]) + tol_th < np.abs(params_perturbed['J_m_temp'][1,0]*params_perturbed['J_m_temp'][0,1])
+        cond2 = np.abs(params_perturbed['J_m_temp'][0,1]*ssn_layer_pars.gI_m) + tol_th < np.abs(params_perturbed['J_m_temp'][1,1]*ssn_layer_pars.gE_m)
         # checking the convergence of the differential equations of the model
         ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=params_perturbed['J_m_temp'])
         ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=params_perturbed['J_s_temp'], p_local=constant_pars.ssn_layer_pars.p_local_s, oris=constant_pars.oris, s_2x2=constant_pars.ssn_layer_pars.s_2x2_s, sigma_oris = constant_pars.ssn_layer_pars.sigma_oris, ori_dist = constant_pars.ori_dist, train_ori = constant_pars.stimuli_pars.ref_ori)

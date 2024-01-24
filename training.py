@@ -16,6 +16,8 @@ def train_ori_discr(
     readout_pars_dict,
     ssn_layer_pars_dict,
     constant_pars,
+    threshold = 0.75,
+    offset_step = 0.25,
     results_filename=None,
     jit_on=True
 ):
@@ -44,6 +46,8 @@ def train_ori_discr(
     val_losses_all = []
     val_accs = []
     stages = [0]
+    threshold_variables = []
+    all_offsets = [constant_pars.stimuli_pars.offset]
 
     # Extract initial weights and biases for the readout and SSN layers
     w_sig_temp=readout_pars_dict['w_sig']
@@ -77,7 +81,7 @@ def train_ori_discr(
     # Initialise optimizer and set first stage accuracy threshold
     optimizer = optax.adam(training_pars.eta)
     if constant_pars.pretrain_pars.is_on:
-        Nepochs = training_pars.epochs[0]
+        Nepochs = training_pars.SGD_steps[0]
         first_stage_final_epoch = Nepochs
         if constant_pars.pretrain_pars.Nstages == 1:
             readout_state = optimizer.init(readout_pars_dict)
@@ -85,7 +89,7 @@ def train_ori_discr(
             first_stage_acc = constant_pars.pretrain_pars.acc_th
             readout_state = optimizer.init(readout_pars_dict)
     else:
-        Nepochs = training_pars.epochs[1]
+        Nepochs = training_pars.SGD_steps[1]
         first_stage_final_epoch = Nepochs
         first_stage_acc = training_pars.first_stage_acc
         readout_state = optimizer.init(readout_pars_dict)
@@ -117,9 +121,20 @@ def train_ori_discr(
             # Reinitialise optimizer
             ssn_layer_state = optimizer.init(ssn_layer_pars_dict)        
 
-        for epoch in range(1, Nepochs + 1):
+        for SGD_step in range(1, Nepochs + 1):
             # Calculate loss and gradient on training data
             train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(stimuli_pars, training_pars,ssn_layer_pars_dict, readout_pars_dict, constant_pars, stage, jit_on)
+            
+            # 3-down 1-up staircase algorithm for offset - irrelevant for pretraining
+            if train_acc < threshold:
+                threshold_variables.append(0)
+                if not constant_pars.pretrain_pars.is_on and SGD_step>10:
+                    stimuli_pars.offset =  stimuli_pars.offset + offset_step
+            else:
+                threshold_variables.append(1)
+                if not constant_pars.pretrain_pars.is_on and SGD_step>10 and np.sum(np.asarray(threshold_variables[-3:])) ==3:
+                    stimuli_pars.offset =  stimuli_pars.offset - offset_step
+            all_offsets.append(stimuli_pars.offset)
             
             # Store SGD_step output
             train_losses_all.append(train_loss_all.ravel())
@@ -128,13 +143,13 @@ def train_ori_discr(
             stages.append(stage)
 
             # VALIDATION
-            if epoch in val_epochs:
+            if SGD_step in val_epochs:
                 
                 #### Calculate loss for testing data ####
                 val_loss, val_loss_all , val_acc, _, _, _, _ = loss_and_grad_ori_discr(stimuli_pars, training_pars,ssn_layer_pars_dict, readout_pars_dict, constant_pars, stage, jit_on)
 
                 # Store SGD_step output from validation
-                if epoch == val_epochs[0] and stage==1:
+                if SGD_step == val_epochs[0] and stage==1:
                     val_losses_all = val_loss_all
                 else:
                     val_losses_all = np.hstack((val_losses_all, val_loss_all))
@@ -143,22 +158,22 @@ def train_ori_discr(
                 
                 epoch_time = time.time() - start_time
                 print("Training loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Epoch: {} ¦ Runtime: {} ".format(
-                    train_loss, val_loss, train_acc, val_acc, epoch, epoch_time
+                    train_loss, val_loss, train_acc, val_acc, SGD_step, epoch_time
                 ))
 
             # Updating parameters
             if stage == 1:
                 # Early stop in first stage of training
-                if (epoch > 20
+                if (SGD_step > 20
                     and np.mean(np.asarray(train_accs[-20:])) > first_stage_acc
-                )  or epoch > 500:
+                )  or SGD_step > 500:
                     print(
                         "Early stop: {} accuracy achieved at epoch {}".format(
-                            first_stage_acc, epoch
+                            first_stage_acc, SGD_step
                         )
                     )
                     # Update readout parameters
-                    first_stage_final_epoch = epoch
+                    first_stage_final_epoch = SGD_step
                     updates, readout_state = optimizer.update(grad, readout_state)
                     readout_pars_dict = optax.apply_updates(readout_pars_dict, updates)
                     w_sig_temp=readout_pars_dict['w_sig']
@@ -203,9 +218,9 @@ def train_ori_discr(
     # Create DataFrame to save
     
     if 'kappa_pre' in ssn_layer_pars_dict:
-        df = make_dataframe(stages, epochs,val_epochs_all, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I, kappa_pre, kappa_post)
+        df = make_dataframe(stages, epochs,val_epochs_all, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I, kappa_pre, kappa_post, all_offsets=all_offsets)
     else:
-        df = make_dataframe(stages, epochs,val_epochs_all, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I)
+        df = make_dataframe(stages, epochs,val_epochs_all, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I, all_offsets=all_offsets)
 
     # Save the DataFrame to a CSV file: append if file exists, write header only if file doesn't exist
     if results_filename:
@@ -224,10 +239,10 @@ def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, re
     noise_target = generate_noise(
         training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
     )
-    jit_inp = ( 20, 3.0, 2.5, 3.2, 1., 4., 0.8, 0.0)
+    
     if constant_pars.pretrain_pars.is_on:
         # Create stimulus for middle layer: train_data has ref, target and label
-        train_data = create_grating_pretraining(stimuli_pars, constant_pars.pretrain_pars, training_pars.batch_size,jit_inp)
+        train_data = create_grating_pretraining(constant_pars.pretrain_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp)
         if stage == 1:
             training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True)
         else:
@@ -243,7 +258,7 @@ def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, re
         )
     else:
         # Create stimulus for middle layer: train_data has ref, target and label
-        train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size)
+        train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp)
         if stage == 1:
             training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True)
         else:
@@ -395,7 +410,7 @@ def generate_noise(sig_noise,  batch_size, length):
     return sig_noise*numpy.random.randn(batch_size, length)
 
 
-def make_dataframe(stages, epochs,val_epochs, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all,b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s,c_E,c_I,f_E,f_I,kappa_pre=None,kappa_post=None):
+def make_dataframe(stages, epochs,val_epochs, train_accs, train_losses_all,train_max_rates, val_accs, val_losses_all,b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s,c_E,c_I,f_E,f_I,kappa_pre=None,kappa_post=None, all_offsets=None):
        
     #Create DataFrame and fill it with variables
     df = pd.DataFrame({
@@ -447,6 +462,12 @@ def make_dataframe(stages, epochs,val_epochs, train_accs, train_losses_all,train
     df.loc[epochs_stage2,'f_E']=f_E[1:]
     df.loc[epochs_stage1,'f_I']=f_I[0]
     df.loc[epochs_stage2,'f_I']=f_I[1:]
+    
+    if all_offsets is not None:
+        df.loc[epochs_stage1,'offset']= [all_offsets[i] for i in epochs_stage1]
+        df.loc[epochs_stage2,'offset'] = [all_offsets[i] for i in epochs_stage2]
+
+    
     if kappa_pre is not None:
         kappa_names=['kappa_preE','kappa_preI','kappa_postE','kappa_postI']
         for i in range(len(np.stack(kappa_pre).T)):

@@ -6,14 +6,13 @@ import jax.numpy as np
 
 numpy.random.seed(0)
 
-from util_gabor import create_gabor_filters_util
+from util_gabor import create_gabor_filters_util, BW_image_jax_supp
 from util import save_code, cosdiff_ring
 from training import train_ori_discr
 from analysis import tuning_curves
 
 from parameters import pretrain_pars
-# Setting pretraining to be true
-pretrain_pars.is_on=True
+# Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 
 from parameters import (
     grid_pars,
@@ -33,7 +32,6 @@ from pretraining_supp import randomize_params, load_pretrained_parameters
 
 ssn_ori_map_loaded = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
 gabor_filters, A, A2 = create_gabor_filters_util(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
-gabor_filters = np.array(gabor_filters)
 ssn_pars.A = A
 ssn_pars.A2 = A2
 
@@ -57,11 +55,12 @@ class ConstantPars:
     gabor_filters = gabor_filters
     readout_grid_size = readout_pars.readout_grid_size
     pretrain_pars = pretrain_pars
+    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
 
 constant_pars = ConstantPars()
 
 # Defining the number of random initializations for pretraining + training
-N_training = 4
+N_training = 2
 
 # Save scripts
 results_filename, final_folder_path = save_code()
@@ -86,12 +85,12 @@ for i in range(N_training):
             trained_pars_stage1,
             trained_pars_stage2,
             constant_pars,
-            results_filename,
+            results_filename=results_filename,
             jit_on=False
         )
     constant_pars.pretrain_pars.is_on=False
     
-    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.epochs[1]]))
+    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps[1]]))
     responses_sup_prepre, responses_mid_prepre = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepre)
 
     ##### FINE DISCRIMINATION #####
@@ -103,7 +102,7 @@ for i in range(N_training):
             trained_pars_stage1,
             trained_pars_stage2,
             constant_pars,
-            results_filename,
+            results_filename=results_filename,
             jit_on=False
         )
     
