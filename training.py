@@ -224,10 +224,10 @@ def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, re
     noise_target = generate_noise(
         training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
     )
-
+    jit_inp = ( 20, 3.0, 2.5, 3.2, 1., 4., 0.8, 0.0)
     if constant_pars.pretrain_pars.is_on:
         # Create stimulus for middle layer: train_data has ref, target and label
-        train_data = create_grating_pretraining(stimuli_pars, constant_pars.pretrain_pars, training_pars.batch_size)
+        train_data = create_grating_pretraining(stimuli_pars, constant_pars.pretrain_pars, training_pars.batch_size,jit_inp)
         if stage == 1:
             training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True)
         else:

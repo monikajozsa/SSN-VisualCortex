@@ -59,7 +59,7 @@ class ConstantPars:
 constant_pars = ConstantPars()
 
 # Defining the number of random initializations for pretraining + training
-N_training = 3
+N_training = 4
 
 # Save scripts
 results_filename, final_folder_path = save_code()
