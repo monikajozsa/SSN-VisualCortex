@@ -2,7 +2,6 @@
 import os
 import numpy
 import copy
-import jax.numpy as np
 
 numpy.random.seed(0)
 
@@ -54,6 +53,7 @@ class ConstantPars:
     training_pars = training_pars
     gabor_filters = gabor_filters
     readout_grid_size = readout_pars.readout_grid_size
+    middle_grid_ind = readout_pars.middle_grid_ind
     pretrain_pars = pretrain_pars
     BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
 

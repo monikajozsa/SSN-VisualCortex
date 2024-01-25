@@ -6,13 +6,14 @@ import jax.numpy as np
 # Pretraining parameters
 @dataclass
 class PreTrainPars:
-    min_ori_dist = 0
-    max_ori_dist = 50
+    min_ori_dist = 1
+    max_ori_dist = 30
     std_err = 1 # stop first stage if the average accuracy in degrees reaches this threshold
     N = 100000
     acc_th = 0.9 # this is about getting the angle diff right up to 10 degrees (see cosdiff_acc_threshold)
     Nstages = 2
     is_on = True
+    acc_check_freq = 10
 
 pretrain_pars = PreTrainPars()
 
@@ -96,6 +97,14 @@ stimuli_pars = StimuliPars()
 @dataclass
 class ReadoutPars:
     readout_grid_size = np.array([9, 5])  # first number is for the pretraining, second is for the training
+    # Define middle grid indices
+    middle_grid_ind = []
+    mid_grid_ind0=int((readout_grid_size[0]-readout_grid_size[1])/2)
+    mid_grid_ind1 = int(readout_grid_size[0]) - mid_grid_ind0
+    for i in range(mid_grid_ind0,mid_grid_ind1):  
+        row_start = i * readout_grid_size[0] 
+        middle_grid_ind.extend(range(row_start + mid_grid_ind0, row_start + mid_grid_ind1))
+
     if pretrain_pars.is_on:
         w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[0]**2,)) / np.sqrt(readout_grid_size[0]**2) # weights between the superficial and the sigmoid layer
         w_sig = np.array(w_sig)
@@ -169,7 +178,7 @@ class TrainingPars:
     batch_size = 50
     noise_type = "poisson"
     sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    SGD_steps = [100, 50] # number of SGD steps
+    SGD_steps = [1000, 50] # number of SGD steps
     validation_freq = 10  # calculate validation loss and accuracy every validation_freq SGD step
     first_stage_acc = 0.7
 

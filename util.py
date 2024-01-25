@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 import numpy
-import copy 
 import os
 import shutil
 from datetime import datetime
-import time
 
-from util_gabor import BW_Grating, jit_BW_image_jax, BW_image_jax
+from util_gabor import BW_Grating, BW_image_jax
+from model import evaluate_model_response
+from SSN_classes import SSN_mid, SSN_sup
 
 def cosdiff_ring(d_x, L):
     '''
@@ -151,8 +151,7 @@ def toeplitz(c, r=None):
     """
     Construct a Toeplitz matrix.
     The Toeplitz matrix has constant diagonals, with c as its first column
-    and r as its first row.  If r is not given, ``r == conjugate(c)`` is
-    assumed.
+    and r as its first row.  If r is not given, ``r == conjugate(c)``.
     Parameters
     ----------
     c : array_like
@@ -278,7 +277,7 @@ def create_grating_pairs(stimuli_pars, batch_size, jit_inp_all= None):
     return data_dict
 
 
-def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=None):
+def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=180):
     '''
     Create batch_size number of pairs of numbers between min_value and max_value with minimum distance min_distance and maximum distance max_distance.
     If tot_angle is provided, values wrap around between 0 and tot_angle.
@@ -287,10 +286,10 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
         max_distance = max_value - min_value
 
     # Generate the first numbers
-    num1 = numpy.random.uniform(min_value, max_value,batch_size)
+    num1 = numpy.random.uniform(min_value, max_value, batch_size)
    
     # Generate a random distance within specified range
-    random_distance = numpy.random.uniform(min_distance,max_distance ,batch_size)
+    random_distance = numpy.random.choice([-1, 1], batch_size) * numpy.random.uniform(min_distance,max_distance ,batch_size)
 
     # Generate the second numbers with correction if they are out of the specified range
     num2 = num1 + random_distance
@@ -348,7 +347,9 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all):
     data_dict['target']=np.asarray(data_dict['target'])
 
     # Define label as the normalized signed difference in angle using cosdiff_ring
-    data_dict['label'] = np.sign(ori1-ori2) * cosdiff_ring(ori1 - ori2, L_ring) / cosdiff_ring(max_ori_dist + min_ori_dist, L_ring)
+    ori_diff=ori1-ori2
+    ori_diff[ori_diff>max_ori_dist]=L_ring-ori_diff[ori_diff>max_ori_dist]
+    data_dict['label'] = np.sign(ori_diff) * cosdiff_ring(np.abs(ori_diff), L_ring) / cosdiff_ring(max_ori_dist - min_ori_dist, L_ring)
    
     return data_dict
 
@@ -413,3 +414,48 @@ def save_code():
     results_filename = os.path.join(final_folder_path,f"{current_date}_v{version}_results.csv")
 
     return results_filename, final_folder_path
+
+# Model does not learn - trying to improve it by switching first stage to linear regression
+# This function is in developmental stage - needs to be debugged and vectorized
+def linregression_sig_layer(ssn_layer_pars_dict, constant_pars, N=1000):
+    '''
+    This function calculates optimal w_sig and b_sig based on a large number of datapoints.
+    '''
+    log_J_2x2_m = ssn_layer_pars_dict['log_J_2x2_m']
+    log_J_2x2_s = ssn_layer_pars_dict['log_J_2x2_s']
+    c_E = ssn_layer_pars_dict['c_E']
+    c_I = ssn_layer_pars_dict['c_I']
+    f_E = np.exp(ssn_layer_pars_dict['f_E'])
+    f_I = np.exp(ssn_layer_pars_dict['f_I'])
+    if 'kappa_pre' in ssn_layer_pars_dict:
+        kappa_pre = np.tanh(ssn_layer_pars_dict['kappa_pre'])
+        kappa_post = np.tanh(ssn_layer_pars_dict['kappa_post'])
+    else:
+        kappa_pre = constant_pars.ssn_layer_pars.kappa_pre
+        kappa_post = constant_pars.ssn_layer_pars.kappa_post
+    p_local_s = constant_pars.ssn_layer_pars.p_local_s
+    s_2x2 = constant_pars.ssn_layer_pars.s_2x2_s
+    sigma_oris = constant_pars.ssn_layer_pars.sigma_oris
+    ref_ori = constant_pars.stimuli_pars.ref_ori
+    
+    J_2x2_m = sep_exponentiate(log_J_2x2_m)
+    J_2x2_s = sep_exponentiate(log_J_2x2_s)   
+
+    conv_pars = constant_pars.conv_pars
+    # Create middle and superficial SSN layers *** this is something that would be great to change - to call the ssn classes from inside the training
+    ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=J_2x2_m)
+    ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=constant_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = constant_pars.ori_dist, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
+    
+    train_data = create_grating_pretraining(constant_pars.pretrain_pars, N, constant_pars.BW_image_jax_inp)
+    X=np.zeros((len(train_data[0,:]),N))
+    for i in range(N):
+        data_ref=train_data['ref'][i,:]
+        data_target=train_data['target'][i,:]
+        r_ref, _, [_, _], [_, _],[_, _, _, _], [_,_] = evaluate_model_response(ssn_mid, ssn_sup, data_ref, conv_pars, c_E, c_I, f_E, f_I, constant_pars.gabor_filters)
+        r_target, _, [_, _], [_, _],[_, _, _, _], [_, _]= evaluate_model_response(ssn_mid, ssn_sup, data_target, conv_pars, c_E, c_I, f_E, f_I, constant_pars.gabor_filters)
+        X[:,i] = r_ref-r_target
+    
+    coefficients = np.polyfit(X, np.transpose(train_data['label']), 1)
+
+    return coefficients
+    #slope, intercept = coefficients[0], coefficients[1]
