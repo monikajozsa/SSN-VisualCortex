@@ -125,6 +125,11 @@ def plot_results_from_csv(
     fig.show()
     plt.close()
 
+    if fig_filename:
+        plt.plot(range(N), df['offset'], label='offset')
+        fig.savefig(fig_filename + "_offset.png")
+    plt.close()
+
 
 def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
     # Add folder_path to path

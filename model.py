@@ -1,6 +1,5 @@
 import jax.numpy as np
 
-
 def evaluate_model_response(
     ssn_mid, ssn_sup, stimuli, conv_pars, c_E, c_I, f_E, f_I, gabor_filters
 ):
@@ -87,13 +86,7 @@ def middle_layer_fixed_point(
     map_numbers_I = np.arange(2, 2 * ssn.phases + 1, 2)
     fp_E=ssn.select_type(fp, map_numbers = map_numbers_E)
     fp_I=ssn.select_type(fp, map_numbers = map_numbers_I)
-    '''fp_E_1=ssn.select_type(fp, map_number = 1)
-    fp_E=np.empty((ssn.phases,*fp_E_1.shape))
-    fp_I=np.empty_like(fp_E)
-    for phase_i in range(ssn.phases):
-        fp_E = fp_E.at[phase_i,:].set(ssn.select_type(fp, map_number = (phase_i-1)*2+1))
-        fp_I = fp_I.at[phase_i,:].set(ssn.select_type(fp, map_number = (phase_i+1)*2))'''
-    
+ 
     #Define output as sum of E neurons
     layer_output = np.sum(fp_E, axis=0)
     

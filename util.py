@@ -8,8 +8,9 @@ import copy
 import os
 import shutil
 from datetime import datetime
+import time
 
-from util_gabor import BW_Grating
+from util_gabor import BW_Grating, jit_BW_image_jax
 
 def cosdiff_ring(d_x, L):
     '''
@@ -335,7 +336,7 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     return num1, num2
 
 
-def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size):
+def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size, jit_inp):
     '''
     Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
     Output:
@@ -353,7 +354,7 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size):
 
     stimuli_pars1 = copy.copy(stimuli_pars)
     stimuli_pars2 = copy.copy(stimuli_pars)
-
+    
     for i in range(batch_size):
         # Define orientations for stimulus1 and stimulus 2
         stimuli_pars1.ref_ori = ori1[i]
@@ -363,16 +364,23 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size):
         stim1 = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image().ravel()
         
         # testing some new jax-compatible vesion of BW_image
+        start_time = time.time()
         stim1_original = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image()
-        stim1_jax = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image_jax(rng_key=1)
-        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(25, 10))
+        print(time.time()-start_time)
+        start_time = time.time()
+        
+        stim1_jax = jit_BW_image_jax(jit_inp, ori1[i],0, 1)
+        print(time.time()-start_time)
+        fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(25, 10))
         axes[0].imshow(stim1_original)
         axes[1].imshow(stim1_jax)
+        axes[2].imshow(stim1_original-stim1_jax)
         plt.colorbar(axes[0].imshow(stim1_original, cmap='viridis'), ax=axes[0])
         plt.colorbar(axes[1].imshow(stim1_jax, cmap='viridis'), ax=axes[1])
+        plt.colorbar(axes[2].imshow(stim1_original-stim1_jax, cmap='viridis'), ax=axes[2])
         fig.savefig('test_fig_compare')
         # end of test code
-        
+
         stim2 = BW_Grating(ori_deg = stimuli_pars2.ref_ori, jitter=0, stimuli_pars = stimuli_pars2).BW_image().ravel()
         data_dict['ref'].append(stim1)
         data_dict['target'].append(stim2)
