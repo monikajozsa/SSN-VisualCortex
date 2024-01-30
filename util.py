@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 import numpy
-import copy 
 import os
 import shutil
 from datetime import datetime
 import time
+import copy
 
-from util_gabor import BW_Grating, jit_BW_image_jax
+from util_gabor import BW_Grating, jit_BW_image_jax, BW_image_jax
 
 def cosdiff_ring(d_x, L):
     '''
@@ -26,36 +26,6 @@ def cosdiff_ring(d_x, L):
     distance = np.sqrt( (1 - cos_angle) * 2) * L / (2 * np.pi)
 
     return distance
-
-
-def cosdiff_acc_threshold(pretrain_pars):
-    '''
-    Numeric calculation of the error tolerance
-    
-    Parameters:
-        d_x (float): angle difference to calcualte the tolerance value for (in degrees).
-        N (int): The number of random samples to generate.
-        
-    Returns:
-        float: The calculated error tolerance.
-    '''
-    std_err = pretrain_pars.std_err
-    N = pretrain_pars.N
-    max_ori_dist = pretrain_pars.max_ori_dist
-    min_ori_dist = pretrain_pars.min_ori_dist
-
-    # Generate a vector of N random angles in the range [0, 180) degrees
-    theta_vec = 2*(numpy.random.random_integers(0,1,N)-0.5) * numpy.random.uniform(min_ori_dist,max_ori_dist, N)
-
-    # Add random noise to each angle in theta_vec representing the naive subject's estimate
-    theta_vec_est = theta_vec + std_err*numpy.random.normal(0,1,N) #+ pretrain_pars.d_angle 
-    
-    # Calculate the squared differences between two sets of angles using cosdiff_ring
-    label1=numpy.sign(theta_vec)*cosdiff_ring(theta_vec, 180) / cosdiff_ring(max_ori_dist + min_ori_dist, 180)
-    label2=numpy.sign(theta_vec_est) * cosdiff_ring(theta_vec_est, 180) / cosdiff_ring(max_ori_dist + min_ori_dist, 180)
-    acc_threshold = 1 - numpy.mean(np.abs((label1 - label2)/2))
-
-    return acc_threshold
 
 
 def Euler2fixedpt(
@@ -181,8 +151,7 @@ def toeplitz(c, r=None):
     """
     Construct a Toeplitz matrix.
     The Toeplitz matrix has constant diagonals, with c as its first column
-    and r as its first row.  If r is not given, ``r == conjugate(c)`` is
-    assumed.
+    and r as its first row.  If r is not given, ``r == conjugate(c)``.
     Parameters
     ----------
     c : array_like
@@ -256,7 +225,7 @@ def sep_exponentiate(J_s):
     return new_J
 
 
-def create_grating_pairs(stimuli_pars, batch_size):
+def create_grating_pairs(stimuli_pars, batch_size, jit_inp_all= None):
     '''
     Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
     Input:
@@ -282,13 +251,21 @@ def create_grating_pairs(stimuli_pars, batch_size):
             label = 0
         jitter_val = stimuli_pars.jitter_val
         jitter = numpy.random.uniform(low = -jitter_val, high = jitter_val)
-
-        #create reference grating
-        ref = BW_Grating(ori_deg = ref_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
-
-        #create target grating
-        target = BW_Grating(ori_deg = target_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
         
+        #create reference and target gratings
+        if jit_inp_all is None:
+            ref = BW_Grating(ori_deg = ref_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
+            target = BW_Grating(ori_deg = target_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
+        else:
+            x = jit_inp_all[5]
+            y = jit_inp_all[6]
+            alpha_channel = jit_inp_all[7]
+            mask_jax = jit_inp_all[8]
+            background = jit_inp_all[9]
+            roi =jit_inp_all[10]
+            ref = BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori, jitter, 1)
+            target = BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori, jitter, 1)
+
         data_dict['ref'].append(ref)
         data_dict['target'].append(target)
         data_dict['label'].append(label)
@@ -300,7 +277,7 @@ def create_grating_pairs(stimuli_pars, batch_size):
     return data_dict
 
 
-def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=None):
+def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=180):
     '''
     Create batch_size number of pairs of numbers between min_value and max_value with minimum distance min_distance and maximum distance max_distance.
     If tot_angle is provided, values wrap around between 0 and tot_angle.
@@ -309,10 +286,10 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
         max_distance = max_value - min_value
 
     # Generate the first numbers
-    num1 = numpy.random.uniform(min_value, max_value,batch_size)
+    num1 = numpy.random.uniform(min_value, max_value, batch_size)
    
     # Generate a random distance within specified range
-    random_distance = numpy.random.uniform(min_distance,max_distance ,batch_size)
+    random_distance = numpy.random.choice([-1, 1], batch_size) * numpy.random.uniform(min_distance,max_distance ,batch_size)
 
     # Generate the second numbers with correction if they are out of the specified range
     num2 = num1 + random_distance
@@ -336,7 +313,7 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     return num1, num2
 
 
-def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size, jit_inp):
+def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all):
     '''
     Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
     Output:
@@ -352,36 +329,17 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size, jit_inp):
     max_ori_dist = pretrain_pars.max_ori_dist
     ori1, ori2 = generate_random_pairs(min_value=0, max_value=L_ring, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring)
 
-    stimuli_pars1 = copy.copy(stimuli_pars)
-    stimuli_pars2 = copy.copy(stimuli_pars)
-    
+    x = jit_inp_all[5]
+    y = jit_inp_all[6]
+    alpha_channel = jit_inp_all[7]
+    mask_jax = jit_inp_all[8]
+    background = jit_inp_all[9]
+    roi =jit_inp_all[10]
     for i in range(batch_size):
-        # Define orientations for stimulus1 and stimulus 2
-        stimuli_pars1.ref_ori = ori1[i]
-        stimuli_pars2.ref_ori = ori2[i]
+        # Generate stimulus1 and stimulus2 with no jitter 
+        stim1 = BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ori1[i],0, 1)
+        stim2 = BW_image_jax(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2[i],0, 1)
 
-        # Generate stimulus1 and stimulus2
-        stim1 = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image().ravel()
-        
-        # testing some new jax-compatible vesion of BW_image
-        start_time = time.time()
-        stim1_original = BW_Grating(ori_deg = stimuli_pars1.ref_ori, jitter=0, stimuli_pars = stimuli_pars1).BW_image()
-        print(time.time()-start_time)
-        start_time = time.time()
-        
-        stim1_jax = jit_BW_image_jax(jit_inp, ori1[i],0, 1)
-        print(time.time()-start_time)
-        fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(25, 10))
-        axes[0].imshow(stim1_original)
-        axes[1].imshow(stim1_jax)
-        axes[2].imshow(stim1_original-stim1_jax)
-        plt.colorbar(axes[0].imshow(stim1_original, cmap='viridis'), ax=axes[0])
-        plt.colorbar(axes[1].imshow(stim1_jax, cmap='viridis'), ax=axes[1])
-        plt.colorbar(axes[2].imshow(stim1_original-stim1_jax, cmap='viridis'), ax=axes[2])
-        fig.savefig('test_fig_compare')
-        # end of test code
-
-        stim2 = BW_Grating(ori_deg = stimuli_pars2.ref_ori, jitter=0, stimuli_pars = stimuli_pars2).BW_image().ravel()
         data_dict['ref'].append(stim1)
         data_dict['target'].append(stim2)
     
@@ -389,7 +347,9 @@ def create_grating_pretraining(stimuli_pars,pretrain_pars, batch_size, jit_inp):
     data_dict['target']=np.asarray(data_dict['target'])
 
     # Define label as the normalized signed difference in angle using cosdiff_ring
-    data_dict['label'] = np.sign(ori1-ori2) * cosdiff_ring(ori1 - ori2, L_ring) / cosdiff_ring(max_ori_dist + min_ori_dist, L_ring)
+    ori_diff=ori1-ori2
+    ori_diff[ori_diff>max_ori_dist]=L_ring-ori_diff[ori_diff>max_ori_dist]
+    data_dict['label'] = np.sign(ori_diff) * cosdiff_ring(np.abs(ori_diff), L_ring) / cosdiff_ring(max_ori_dist - min_ori_dist, L_ring)
    
     return data_dict
 

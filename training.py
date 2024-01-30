@@ -119,7 +119,6 @@ def train_ori_discr(
     acc_check_ind = np.arange(1, numSGD_steps + 1, 50)
 
     start_time = time.time()
-    coeffs = linregression_sig_layer(ssn_layer_pars_dict, constant_pars)
 
     for stage in range(1,3):
         if stage ==2:
@@ -555,5 +554,6 @@ def make_dataframe(stages, epochs,val_epochs, train_accs, train_losses_all,train
             df[kappa_names[2+i]] = None
             df.loc[epochs_stage1, kappa_names[2+i]] = np.stack(kappa_post)[0,i]
             df.loc[epochs_stage2, kappa_names[2+i]] = np.stack(kappa_post)[1:,i]
+
 
     return df

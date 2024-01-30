@@ -23,7 +23,7 @@ from parameters import (
 # Overwrite parameters that usually change to baseline - check other parameters as a first step if error is large
 training_pars.batch_size=50
 training_pars.validation_freq=1
-training_pars.epochs=5
+training_pars.SGD_steps=5
 training_pars.first_stage_acc=0.7
 training_pars.sig_noise = 2.0
 
