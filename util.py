@@ -7,10 +7,8 @@ import numpy
 import os
 import shutil
 from datetime import datetime
-import time
-import copy
 
-from util_gabor import BW_Grating, jit_BW_image_jax, BW_image_jax
+from util_gabor import BW_Grating, BW_image_jax
 
 def cosdiff_ring(d_x, L):
     '''

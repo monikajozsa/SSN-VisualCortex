@@ -15,6 +15,7 @@ def perturb_params(param_dict, percent = 0.1):
             random_mtx = random.uniform(low=-1, high=1)
         else:
             random_mtx = random.uniform(low=-1, high=1, size=param_array.shape)
+            random_mtx = np.array(random_mtx)
         param_perturbed[key] = param_array + percent * param_array * random_mtx
     return param_perturbed
 

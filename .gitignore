@@ -4,3 +4,4 @@ Profiles/
 results/
 __pycache__/
 *.png
+stim_data_dict.pkl

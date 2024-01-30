@@ -10,7 +10,7 @@ from util_gabor import BW_image_jax_supp
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response
 
-def gen_stim(pretrain_pars, training_pars, stimuli_pars, file_name='stim_data_dict.pkl', N=1000):
+def gen_stim(pretrain_pars, training_pars, stimuli_pars, file_name='stim_data_dict.pkl', N=100):
     # Allocate dictionary for the stimuli
     data_dict = {
         "ref": [],
@@ -34,7 +34,7 @@ def gen_stim(pretrain_pars, training_pars, stimuli_pars, file_name='stim_data_di
     with open(file_name, 'wb') as file:
         pickle.dump(data_dict, file)
 
-gen_stim(pretrain_pars, training_pars, stimuli_pars)
+# gen_stim(pretrain_pars, training_pars, stimuli_pars)
 
 vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None) )
 

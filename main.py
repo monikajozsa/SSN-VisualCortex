@@ -86,7 +86,7 @@ for i in range(N_training):
             trained_pars_stage2,
             constant_pars,
             results_filename=results_filename,
-            jit_on=False
+            jit_on=True
         )
     constant_pars.pretrain_pars.is_on=False
     
@@ -103,7 +103,7 @@ for i in range(N_training):
             trained_pars_stage2,
             constant_pars,
             results_filename=results_filename,
-            jit_on=False
+            jit_on=True
         )
     
     last_row = training_output_df.iloc[-1]
