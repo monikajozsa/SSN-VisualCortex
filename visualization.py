@@ -25,6 +25,7 @@ def plot_results_from_csv(
             axes[0, 0].scatter(range(N), df[column], label=column, marker='o', s=50)
     axes[0, 0].legend(loc='lower right')
     axes[0, 0].set_title('Accuracy')
+    axes[0, 0].set_ylim(0, 1) 
 
     for column in df.columns:
         if 'loss_' in column and 'val_loss' not in column:
@@ -61,7 +62,6 @@ def plot_results_from_csv(
                 axes[0, 2].plot(range(N), -numpy.exp(df[column]), label=column, linestyle='--', c='tab:blue')
     axes[0,2].legend(loc="upper left")
     axes[0,2].set_title('J in middle layer')
-
     
     for column in df.columns:
         if 'J_s_' in column:
@@ -87,15 +87,6 @@ def plot_results_from_csv(
             i=i+1
     axes[0,1].legend(loc="upper left")
     axes[0,1].set_title('Maximum rates')
-    '''
-    if 'kappa_preE' in df.columns:
-        colors = ["tab:green", "tab:orange"]
-        axes[1, 2].plot(range(N), df['kappa_preE'], label='kappa_preE', linestyle="-", c=colors[0])
-        axes[1, 2].plot(range(N), df["kappa_preI"], label="kappa_preI", linestyle="--", c=colors[0])
-        axes[1, 2].plot(range(N), df['kappa_postE'], label='kappa_postE', linestyle="-", c=colors[1])
-        axes[1, 2].plot(range(N), df["kappa_postI"], label="kappa_postI", linestyle="--", c=colors[1])
-        axes[1,2].legend(["kappa_preE","kappa_preI","kappa_postE","kappa_postI"])
-    '''
 
     #Plot changes in baseline inhibition and excitation and feedforward weights (second stage of the training)
     axes[0,3].plot(range(N), df['c_E'], label='c_E')
@@ -122,12 +113,16 @@ def plot_results_from_csv(
 
     if fig_filename:
         fig.savefig(fig_filename + ".png")
-    fig.show()
+    #fig.show()
     plt.close()
 
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+
     if fig_filename:
-        plt.plot(range(N), df['offset'], label='offset')
-        fig.savefig(fig_filename + "_offset.png")
+        axes[0].plot(range(N), df['offset'], label='offset')
+        axes[1].plot(range(N), df['offsets_at_bl_acc'], label='offsets at bl acc', marker='o', s=50)
+        fig.savefig(fig_filename + "_offsets.png")
+    #fig.show()
     plt.close()
 
 

@@ -1,21 +1,64 @@
 import numpy
 from dataclasses import dataclass
-
+import jax
 import jax.numpy as np
 
 # Pretraining parameters
 @dataclass
 class PreTrainPars:
-    min_ori_dist = 1
-    max_ori_dist = 30
-    std_err = 1 # stop first stage if the average accuracy in degrees reaches this threshold
-    N = 100000
-    acc_th = 0.9 # this is about getting the angle diff right up to 10 degrees (see cosdiff_acc_threshold)
-    Nstages = 2
     is_on = True
-    acc_check_freq = 10
+    min_ori_dist = 20
+    max_ori_dist = 40
+    numStages = 1
+    acc_th = 0.749
+    acc_check_freq = 20
+    min_acc_check_ind = 10
 
 pretrain_pars = PreTrainPars()
+
+
+# Training parameters
+@dataclass
+class TrainingPars:
+    eta = 10e-3  # learning rate
+    batch_size = 50
+    noise_type = "poisson"
+    sig_noise = 1.0 if noise_type != "no_noise" else 0.0
+    SGD_steps = [50, 50] # number of SGD steps
+    validation_freq = 20  # calculate validation loss and accuracy every validation_freq SGD step
+    first_stage_acc_th = 0.7
+
+training_pars = TrainingPars()
+
+
+@dataclass
+class ConvPars:
+    dt: float = 1.0
+    '''Step size during convergence '''
+    xtol: float = 1e-04
+    '''Convergence tolerance  '''
+    Tmax: float = 250.0
+    '''Maximum number of steps to be taken during convergence'''
+    Rmax_E = 40
+    '''Maximum firing rate for E neurons - rates above this are penalised'''
+    Rmax_I = 80
+    '''Maximum firing rate for I neurons - rates above this are penalised '''
+
+conv_pars = ConvPars()
+
+
+@dataclass
+class LossPars:
+    lambda_dx = 1
+    ''' Constant for loss with respect to convergence of Euler function'''
+    lambda_r_max = 1
+    ''' Constant for loss with respect to maximum rates in the network'''
+    lambda_w = 1
+    ''' Constant for L2 regularizer of sigmoid layer weights'''
+    lambda_b = 1
+    ''' Constant for L2 regulazier of sigmoid layer bias '''
+
+loss_pars = LossPars()
 
 
 def xy_distance(gridsize_Nx,gridsize_deg):
@@ -59,7 +102,6 @@ class GridPars:
     """ parameter to generate orientation map """
     xy_dist, x_map, y_map = xy_distance(gridsize_Nx,gridsize_deg)
 
-
 grid_pars = GridPars()
 
 
@@ -71,7 +113,6 @@ class FilterPars:
     edge_deg: float = grid_pars.gridsize_deg
     degree_per_pixel = numpy.array(0.05)
     # convert degree to number of pixels (129 x 129), note that this could be calculated from earlier parameters
-
 
 filter_pars = FilterPars()
 
@@ -89,7 +130,6 @@ class StimuliPars:  # the attributes are changed within SSN_classes for a local 
     ref_ori: float = 55.0 # reference orientation of the stimulus in degree
     offset: float = 4.0 # difference between reference and task orientation in degree (task ori is either ref_ori + offset or ref_or - offset)
 
-
 stimuli_pars = StimuliPars()
 
 
@@ -104,7 +144,7 @@ class ReadoutPars:
     for i in range(mid_grid_ind0,mid_grid_ind1):  
         row_start = i * readout_grid_size[0] 
         middle_grid_ind.extend(range(row_start + mid_grid_ind0, row_start + mid_grid_ind1))
-
+    middle_grid_ind = np.array(middle_grid_ind)
     if pretrain_pars.is_on:
         w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[0]**2,)) / np.sqrt(readout_grid_size[0]**2) # weights between the superficial and the sigmoid layer
         w_sig = np.array(w_sig)
@@ -125,7 +165,6 @@ class SSNPars:
     A = None  # multiply Gabor filters by this before the training normalization param for Gabors to get 100% contrast, see find_A
     A2 = None  # different normalization for the accross phases normalization param for Gabors to get 100% contrast, see find_A
     phases = 4  # number of inh. and exc. neurons (with different Gabor filt.) per grid point in middle layer (has to be an even integer)
-
 
 ssn_pars = SSNPars()
 
@@ -150,52 +189,4 @@ class SsnLayerPars:
     p_local_s = [0.4, 0.7]
     p_local_m = [1.0, 1.0]
 
-
 ssn_layer_pars = SsnLayerPars()
-
-
-# Training parameters
-@dataclass
-class ConvPars:
-    dt: float = 1.0
-    '''Step size during convergence '''
-    xtol: float = 1e-04
-    '''Convergence tolerance  '''
-    Tmax: float = 250.0
-    '''Maximum number of steps to be taken during convergence'''
-    Rmax_E = 40
-    '''Maximum firing rate for E neurons - rates above this are penalised'''
-    Rmax_I = 80
-    '''Maximum firing rate for I neurons - rates above this are penalised '''
-
-
-conv_pars = ConvPars()
-
-
-@dataclass
-class TrainingPars:
-    eta = 10e-3  # learning rate
-    batch_size = 50
-    noise_type = "poisson"
-    sig_noise = 2.0 if noise_type != "no_noise" else 0.0
-    SGD_steps = [1000, 50] # number of SGD steps
-    validation_freq = 10  # calculate validation loss and accuracy every validation_freq SGD step
-    first_stage_acc = 0.7
-
-
-training_pars = TrainingPars()
-
-
-@dataclass
-class LossPars:
-    lambda_dx = 1
-    ''' Constant for loss with respect to convergence of Euler function'''
-    lambda_r_max = 1
-    ''' Constant for loss with respect to maximum rates in the network'''
-    lambda_w = 1
-    ''' Constant for L2 regularizer of sigmoid layer weights'''
-    lambda_b = 1
-    ''' Constant for L2 regulazier of sigmoid layer bias '''
-
-
-loss_pars = LossPars()

@@ -1,19 +1,13 @@
 import os
 import numpy
-import pandas as pd
 import copy
-import time
 
 numpy.random.seed(0)
 
-from util_gabor import create_gabor_filters_util
-from util import save_code, cosdiff_ring
+from util_gabor import create_gabor_filters_util, BW_image_jax_supp
+from util import cosdiff_ring
 from training import train_ori_discr
-from analysis import tuning_curves
-
-from parameters import pretrain_pars
-# Setting pretraining to be true
-
+from pretraining_supp import randomize_params
 from parameters import (
     grid_pars,
     filter_pars,
@@ -23,10 +17,12 @@ from parameters import (
     ssn_layer_pars,
     conv_pars,
     training_pars,
-    loss_pars
+    loss_pars,
+    pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
-
-from pretraining_supp import randomize_params
+from visualization import plot_results_from_csv
+if pretrain_pars.is_on:
+    raise ValueError('Set pretrain_pars.is_on to False in parameters.py to run training without pretraining!')
 
 ########## Initialize orientation map and gabor filters ############
 
@@ -54,21 +50,25 @@ class ConstantPars:
     training_pars = training_pars
     gabor_filters = gabor_filters
     readout_grid_size = readout_pars.readout_grid_size
+    middle_grid_ind = readout_pars.middle_grid_ind
     pretrain_pars = pretrain_pars
+    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
 
 constant_pars = ConstantPars()
 
-# Defining the number of random initializations for pretraining + training
-# Save scripts
-results_filename, final_folder_path = save_code()
+# Run training without pretraining
+results_filename='testing_new_version'
 
-# Pretraining + training for N_training random initialization
-trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars, ssn_layer_pars, constant_pars, percent=0.0)
-
+ssn_layer_pars_pretrain = copy.copy(ssn_layer_pars)
+readout_pars_pretrain = copy.copy(readout_pars)
+trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, constant_pars, percent=0.05)
 training_output_df = train_ori_discr(
-        trained_pars_stage1,
-        trained_pars_stage2,
-        constant_pars,
-        results_filename,
-        jit_on=False
-    )
+            trained_pars_stage1,
+            trained_pars_stage2,
+            constant_pars,
+            results_filename=results_filename,
+            jit_on=False
+        )
+
+results_fig_filename='testing_new_version_fig'
+plot_results_from_csv(results_filename,results_fig_filename)

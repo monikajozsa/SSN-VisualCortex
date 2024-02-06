@@ -1,4 +1,5 @@
 import jax.numpy as np
+from jax import vmap
 
 def evaluate_model_response(
     ssn_mid, ssn_sup, stimuli, conv_pars, c_E, c_I, f_E, f_I, gabor_filters
@@ -47,6 +48,8 @@ def evaluate_model_response(
     )
 
     return r_sup, r_mid, [r_max_mid, r_max_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [fp_mid, fp_sup]
+
+vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None))
 
 
 def obtain_fixed_point(
@@ -126,7 +129,6 @@ def superficial_layer_fixed_point(
     r_max = np.maximum(0, (max_E/Rmax_E - 1)) + np.maximum(0, (max_I/Rmax_I - 1))
     #r_max = leaky_relu(max_E, R_thresh = Rmax_E, slope = 1/Rmax_E) + leaky_relu(max_I, R_thresh = Rmax_I, slope = 1/Rmax_I)
     
-    #layer_output = layer_output/ssn.phases
     if return_fp ==True:
             return layer_output, r_max, avg_dx, fp, max_E, max_I
     else:

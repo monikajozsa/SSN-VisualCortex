@@ -6,7 +6,7 @@ import copy
 
 import jax.numpy as np
 
-from util import BW_Grating, create_grating_pretraining, sep_exponentiate
+from util import BW_Grating, sep_exponentiate
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response
 
@@ -35,7 +35,7 @@ def create_grating(stimuli_pars, batch_size):
 
     return data_dict
 
-def tuning_curves(constant_pars, trained_pars,tuning_curves_filename=None):
+def tuning_curves(constant_pars, trained_pars, tuning_curves_filename=None):
     '''
     Calculate responses of middle and superficial layers to different orientations.
     '''

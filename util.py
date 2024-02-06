@@ -7,8 +7,10 @@ import numpy
 import os
 import shutil
 from datetime import datetime
+import time
+import copy
 
-from util_gabor import BW_Grating, BW_image_jax
+from util_gabor import BW_Grating, jit_BW_image_jax
 
 def cosdiff_ring(d_x, L):
     '''
@@ -250,7 +252,7 @@ def create_grating_pairs(stimuli_pars, batch_size, jit_inp_all= None):
         jitter_val = stimuli_pars.jitter_val
         jitter = numpy.random.uniform(low = -jitter_val, high = jitter_val)
         
-        #create reference and target gratings
+        # Create reference and target gratings (if jit_inp_all is given then use the jit-compatible version of BW_image)
         if jit_inp_all is None:
             ref = BW_Grating(ori_deg = ref_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
             target = BW_Grating(ori_deg = target_ori, jitter=jitter, stimuli_pars = stimuli_pars).BW_image().ravel()
@@ -261,8 +263,8 @@ def create_grating_pairs(stimuli_pars, batch_size, jit_inp_all= None):
             mask_jax = jit_inp_all[8]
             background = jit_inp_all[9]
             roi =jit_inp_all[10]
-            ref = BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori, jitter, 1)
-            target = BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori, jitter, 1)
+            ref = jit_BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori, jitter, 1)
+            target = jit_BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori, jitter, 1)
 
         data_dict['ref'].append(ref)
         data_dict['target'].append(target)
@@ -275,7 +277,7 @@ def create_grating_pairs(stimuli_pars, batch_size, jit_inp_all= None):
     return data_dict
 
 
-def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=180):
+def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=180, numRnd_ori1=1):
     '''
     Create batch_size number of pairs of numbers between min_value and max_value with minimum distance min_distance and maximum distance max_distance.
     If tot_angle is provided, values wrap around between 0 and tot_angle.
@@ -284,34 +286,23 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
         max_distance = max_value - min_value
 
     # Generate the first numbers
-    num1 = numpy.random.uniform(min_value, max_value, batch_size)
-   
+    rnd_numbers = numpy.random.uniform(min_value, max_value, numRnd_ori1)
+    num1 = numpy.repeat(rnd_numbers, int(batch_size/numRnd_ori1))
+
     # Generate a random distance within specified range
     random_distance = numpy.random.choice([-1, 1], batch_size) * numpy.random.uniform(min_distance,max_distance ,batch_size)
 
     # Generate the second numbers with correction if they are out of the specified range
-    num2 = num1 + random_distance
+    num2 = num1 - random_distance
 
-    if tot_angle is not None:
-        # Apply wrap-around logic for tot_angle
-        num2[num2 > max_value] = num2[num2 > max_value] - tot_angle
-    else:
-        # Adjust values that exceed max_value
-        num2[num2 > max_value] = num1[num2 > max_value] - random_distance[num2 > max_value]
-        # Adjust values where num2 became smaller than min_value
-        under_min = num2 < min_value
-        for idx in numpy.where(num2[under_min]):
-            # Calculate a constraint for a new distance
-            max_dist_adjusted = max_value - num1[under_min][idx]
-            # Generate a new constrained random distance
-            constrained_random_dist = numpy.random.uniform(min_distance, max_dist_adjusted)
-            # Update num2
-            num2[under_min][idx] = num1[under_min][idx] + constrained_random_dist
-
-    return num1, num2
+    # Apply wrap-around logic
+    num2[num2 > tot_angle] = num2[num2 > tot_angle] - tot_angle
+    num2[num2 < 0] = num2[num2 < 0] + tot_angle
+    
+    return np.array(num1), np.array(num2), random_distance
 
 
-def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all):
+def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all, numRnd_ori1=1):
     '''
     Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
     Output:
@@ -325,7 +316,7 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all):
     L_ring = 180
     min_ori_dist = pretrain_pars.min_ori_dist
     max_ori_dist = pretrain_pars.max_ori_dist
-    ori1, ori2 = generate_random_pairs(min_value=0, max_value=L_ring, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring)
+    ori1, ori2, ori_diff = generate_random_pairs(min_value=max_ori_dist, max_value=180-max_ori_dist-1, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
 
     x = jit_inp_all[5]
     y = jit_inp_all[6]
@@ -335,8 +326,8 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all):
     roi =jit_inp_all[10]
     for i in range(batch_size):
         # Generate stimulus1 and stimulus2 with no jitter 
-        stim1 = BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ori1[i],0, 1)
-        stim2 = BW_image_jax(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2[i],0, 1)
+        stim1 = jit_BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ori1[i],0, 1)
+        stim2 = jit_BW_image_jax(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2[i],0, 1)
 
         data_dict['ref'].append(stim1)
         data_dict['target'].append(stim2)
@@ -345,9 +336,10 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all):
     data_dict['target']=np.asarray(data_dict['target'])
 
     # Define label as the normalized signed difference in angle using cosdiff_ring
-    ori_diff=ori1-ori2
-    ori_diff[ori_diff>max_ori_dist]=L_ring-ori_diff[ori_diff>max_ori_dist]
-    data_dict['label'] = np.sign(ori_diff) * cosdiff_ring(np.abs(ori_diff), L_ring) / cosdiff_ring(max_ori_dist - min_ori_dist, L_ring)
+    label = np.zeros_like(ori_diff)
+    data_dict['label'] = label.at[ori_diff > 0].set(1)
+
+    #data_dict['label'] = ori_diff #np.sign(ori_diff) * cosdiff_ring(np.abs(ori_diff), L_ring) / cosdiff_ring(max_ori_dist - min_ori_dist, L_ring)
    
     return data_dict
 

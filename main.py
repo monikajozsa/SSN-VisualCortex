@@ -1,18 +1,14 @@
-
 import os
 import numpy
 import copy
 
-numpy.random.seed(0)
+numpy.random.seed(10)
 
 from util_gabor import create_gabor_filters_util, BW_image_jax_supp
 from util import save_code, cosdiff_ring
 from training import train_ori_discr
 from analysis import tuning_curves
-
-from parameters import pretrain_pars
-# Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
-
+from pretraining_supp import randomize_params, load_pretrained_parameters
 from parameters import (
     grid_pars,
     filter_pars,
@@ -22,10 +18,9 @@ from parameters import (
     ssn_layer_pars,
     conv_pars,
     training_pars,
-    loss_pars
+    loss_pars,
+    pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
- 
-from pretraining_supp import randomize_params, load_pretrained_parameters
 
 ########## Initialize orientation map and gabor filters ############
 
@@ -59,19 +54,26 @@ class ConstantPars:
 
 constant_pars = ConstantPars()
 
+
 # Defining the number of random initializations for pretraining + training
-N_training = 2
+N_training = 1
 
 # Save scripts
 results_filename, final_folder_path = save_code()
-
+#results_filename='testin_file'
+#final_folder_path='results'
 # Pretraining + training for N_training random initialization
+if not pretrain_pars.is_on:
+    raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
+
 for i in range(N_training):
     constant_pars.pretrain_pars.is_on=True
+
     results_filename = f"{final_folder_path}/results_{i}.csv"
     tuning_curves_prepre = f"{final_folder_path}/tc_prepre_{i}.csv"
     tuning_curves_prepost = f"{final_folder_path}/tc_prepost_{i}.csv"
     tuning_curves_post = f"{final_folder_path}/tc_post_{i}.csv"
+
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
     # Get baseline parameters to-be-trained
     ssn_layer_pars_pretrain = copy.copy(ssn_layer_pars)
@@ -81,7 +83,7 @@ for i in range(N_training):
     trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, constant_pars, percent=0.1)
 
     # Pretrain parameters
-    training_output_df = train_ori_discr(
+    training_output_df, first_stage_final_step = train_ori_discr(
             trained_pars_stage1,
             trained_pars_stage2,
             constant_pars,
@@ -89,16 +91,17 @@ for i in range(N_training):
             jit_on=True
         )
     constant_pars.pretrain_pars.is_on=False
+    constant_pars.first_stage_final_step = first_stage_final_step
     
-    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps[1]]))
+    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps[0]]))
     responses_sup_prepre, responses_mid_prepre = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepre)
 
     ##### FINE DISCRIMINATION #####
     
-    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename)
+    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = first_stage_final_step)
     responses_sup_prepost, responses_mid_prepost = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepost)
 
-    training_output_df = train_ori_discr(
+    training_output_df, _ = train_ori_discr(
             trained_pars_stage1,
             trained_pars_stage2,
             constant_pars,
@@ -125,4 +128,5 @@ for i in range(N_training):
 ######### PLOT RESULTS ############
 from visualization import plot_results_from_csvs
 #final_folder_path='C:/Users/mj555/MJ Postdoc with YA/SSN-VisualCortex/results/Jan09_v0'
-plot_results_from_csvs(final_folder_path)
+
+plot_results_from_csvs(final_folder_path, N_training)

@@ -220,7 +220,7 @@ def BW_image_jax_supp(stimuli_pars):
     return BW_image_const_inp
 
 
-def BW_image_jax(BW_image_const_inp,x,y,alpha_channel,mask, background, roi, ref_ori, jitter, seed):
+def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, roi, ref_ori, jitter, seed):
     _GRAY = 128.0
     spatial_freq = BW_image_const_inp[0]
     grating_contrast = BW_image_const_inp[1]
@@ -384,9 +384,10 @@ def find_A(
             jitter=local_stimuli_pars.jitter_val,
         )
         
-        test_stimuli = test_grating.BW_image()
-
+        test_stimuli = np.array(test_grating.BW_image())
+        
         mean_removed_filter = gabor.filter - gabor.filter.mean()
+        
         # multiply filter and stimuli
         output_gabor = mean_removed_filter.ravel() @ test_stimuli.ravel()
 
