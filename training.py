@@ -74,7 +74,7 @@ def train_ori_discr(
         numStages = 2
     
     # Define SGD_steps indices where losses an accuracy are validated
-    val_steps = np.arange(1, numSGD_steps + 1, training_pars.validation_freq)
+    val_steps = np.arange(1, numSGD_steps, training_pars.validation_freq)
     first_stage_final_step = numSGD_steps
 
     print(
@@ -235,8 +235,8 @@ def train_ori_discr(
             if not pretrain_on and stage==1 and SGD_step > 100:
                 avg_acc = np.mean(np.asarray(train_accs[-20:]))
                 if avg_acc > first_stage_acc_th:
-                    print("Early stop: accuracy {} reached target {} / or SGD step {} reached max (500) for stage 1 training".format(
-                            avg_acc, first_stage_acc_th, SGD_step)
+                    print("Early stop: accuracy {} reached target {} for stage 1 training".format(
+                            avg_acc, first_stage_acc_th)
                     )
                     # Store final step index and exit first training loop
                     first_stage_final_step = SGD_step
@@ -247,12 +247,12 @@ def train_ori_discr(
 
     # Define SGD_steps indices for training and validation
     if pretrain_on:
-        SGD_steps = np.arange(0, first_stage_final_step )
-        val_SGD_steps = val_steps[val_steps < first_stage_final_step +1]
+        SGD_steps = np.arange(1, first_stage_final_step +1 )
+        val_SGD_steps = val_steps[val_steps < first_stage_final_step + 1]
         offsets = None
     else:
-        SGD_steps = np.arange(0, first_stage_final_step + numSGD_steps)
-        val_SGD_steps_stage1 = val_steps[val_steps < first_stage_final_step+1]
+        SGD_steps = np.arange(1, first_stage_final_step + numSGD_steps + 1)
+        val_SGD_steps_stage1 = val_steps[val_steps < first_stage_final_step + 1]
         val_SGD_steps_stage2 = np.arange(first_stage_final_step, first_stage_final_step + numSGD_steps, training_pars.validation_freq)
         val_SGD_steps = np.hstack([val_SGD_steps_stage1, val_SGD_steps_stage2])
         offsets_at_bl_acc = None
@@ -555,7 +555,7 @@ def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train
     # Define SGD steps for the different stages
     SGD_steps_stage1=np.arange(len(b_sigs))
     if max(stages)==2:
-        SGD_steps_stage2=np.arange(len(b_sigs),len(b_sigs)+len(c_E)-1)
+        SGD_steps_stage2=np.arange(len(b_sigs),len(b_sigs)+len(c_E))
     
     # Add parameters that are trained in two stages during training and in one stage during pretraining
     max_stages = max(1,max(stages))
@@ -609,30 +609,30 @@ def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train
                 weight_name = f'w_sig_{i+1}'
                 df.loc[SGD_steps_stage2, weight_name] = w_sigs[-1,i]
             for i in range(len(log_J_2x2_m[0])):
-                df.loc[SGD_steps_stage2, J_m_names[i]] = log_J_2x2_m[1:,i]
+                df.loc[SGD_steps_stage2, J_m_names[i]] = log_J_2x2_m[:,i]
             for i in range(len(log_J_2x2_s[0])):
-                df.loc[SGD_steps_stage2, J_s_names[i]] = log_J_2x2_s[1:,i]
+                df.loc[SGD_steps_stage2, J_s_names[i]] = log_J_2x2_s[:,i]
             
             df.loc[SGD_steps_stage2,'b_sig'] = b_sigs[-1]
             
             for i in range(len(log_J_2x2_m[0])):
-                df.loc[SGD_steps_stage2, J_m_names[i]] = log_J_2x2_m[1:,i]
+                df.loc[SGD_steps_stage2, J_m_names[i]] = log_J_2x2_m[:,i]
             for i in range(len(log_J_2x2_s[0])):
-                df.loc[SGD_steps_stage2, J_s_names[i]] = log_J_2x2_s[1:,i]
+                df.loc[SGD_steps_stage2, J_s_names[i]] = log_J_2x2_s[:,i]
             
-            df.loc[SGD_steps_stage2,'c_E']=c_E[1:]
-            df.loc[SGD_steps_stage2,'c_I']=c_I[1:]
-            df.loc[SGD_steps_stage2,'f_E']=f_E[1:]
-            df.loc[SGD_steps_stage2,'f_I']=f_I[1:]
+            df.loc[SGD_steps_stage2,'c_E']=c_E
+            df.loc[SGD_steps_stage2,'c_I']=c_I
+            df.loc[SGD_steps_stage2,'f_E']=f_E
+            df.loc[SGD_steps_stage2,'f_I']=f_I
             
             if offsets is not None:
                 df.loc[SGD_steps_stage2,'offset'] = offsets[SGD_steps_stage2]
         
     # Add offset corresponding to accuracy test during pretraining
     if offsets_at_bl_acc is not None:
-        df['offsets_at_bl_acc']=None
+        df['offsets_pretrain']=None
         offsets_at_bl_acc=np.hstack(offsets_at_bl_acc)
-        df.loc[acc_check_ind,'offsets_at_bl_acc']=offsets_at_bl_acc
+        df.loc[acc_check_ind,'offsets_pretrain']=offsets_at_bl_acc
 
     return df
 
