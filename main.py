@@ -98,7 +98,7 @@ for i in range(N_training):
 
     ##### FINE DISCRIMINATION #####
     
-    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = first_stage_final_step)
+    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = first_stage_final_step-1)
     responses_sup_prepost, responses_mid_prepost = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepost)
 
     training_output_df, _ = train_ori_discr(

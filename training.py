@@ -44,22 +44,11 @@ def train_ori_discr(
     stimuli_pars = constant_pars.stimuli_pars
     pretrain_on = constant_pars.pretrain_pars.is_on
 
-    # Initial weights and biases for readout layer - only save weights of middle grid
+    # Define indices of sigmoid layer weights to save
     if pretrain_on:
         w_indices_to_save = constant_pars.middle_grid_ind
     else:
         w_indices_to_save = numpy.array([i for i in range(constant_pars.readout_grid_size[1] ** 2)])
-    w_sig_temp=readout_pars_dict['w_sig']
-    w_sigs = [w_sig_temp[w_indices_to_save]]
-    b_sigs = [readout_pars_dict['b_sig']]
-
-    # Initial parameters of SSN layers
-    log_J_2x2_m = [ssn_layer_pars_dict['log_J_2x2_m'].ravel()]
-    log_J_2x2_s = [ssn_layer_pars_dict['log_J_2x2_s'].ravel()]
-    c_E = [ssn_layer_pars_dict['c_E']]
-    c_I = [ssn_layer_pars_dict['c_I']]
-    f_E = [ssn_layer_pars_dict['f_E']]
-    f_I = [ssn_layer_pars_dict['f_I']]    
 
     # Initialise optimizer and set first stage accuracy threshold
     optimizer = optax.adam(training_pars.eta)
@@ -115,7 +104,7 @@ def train_ori_discr(
             train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(stimuli_pars, training_pars,ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, training_loss_val_and_grad)
             if jax.numpy.isnan(train_loss):
                 raise ValueError('Training failed - grad became nan.')
-            if SGD_step==1:
+            if SGD_step==1 and stage==1:
                 train_losses_all=[train_loss_all.ravel()]
                 train_accs=[train_acc]
                 train_max_rates=[train_max_rate]
@@ -142,7 +131,7 @@ def train_ori_discr(
                     temp_threshold=1
                     if not pretrain_on and SGD_step>10 and np.sum(np.asarray(threshold_variables[-3:])) ==3:
                         stimuli_pars.offset =  stimuli_pars.offset - offset_step
-                if SGD_step==1:
+                if SGD_step==1 and stage==1:
                     offsets=[stimuli_pars.offset]
                     threshold_variables=[temp_threshold]
                 else:
@@ -155,7 +144,7 @@ def train_ori_discr(
                 val_loss_vec, val_acc_vec = binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, stimuli_pars.offset)
                 val_loss = np.mean(val_loss_vec)
                 val_acc = np.mean(val_acc_vec)
-                if SGD_step==val_steps[0]:
+                if SGD_step==val_steps[0] and stage==1:
                     val_accs=[val_acc]
                     val_losses=[val_loss]
                 else:
@@ -171,30 +160,14 @@ def train_ori_discr(
             if numStages==1:
                 updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
                 ssn_layer_pars_dict = optax.apply_updates(ssn_layer_pars_dict, updates_ssn)
-                log_J_2x2_m.append(ssn_layer_pars_dict['log_J_2x2_m'].ravel())
-                log_J_2x2_s.append(ssn_layer_pars_dict['log_J_2x2_s'].ravel())
-                c_E.append(ssn_layer_pars_dict['c_E'])
-                c_I.append(ssn_layer_pars_dict['c_I'])
-                f_E.append(ssn_layer_pars_dict['f_E'])
-                f_I.append(ssn_layer_pars_dict['f_I'])
-
-                updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
-                readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
-                w_sig_temp=readout_pars_dict['w_sig']
-                w_sigs.append(w_sig_temp[w_indices_to_save])
-                b_sigs.append(readout_pars_dict['b_sig'])
-            else:
-                if stage == 1:
-                    # Update readout parameters
-                    updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout)
-                    readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
-                    w_sig_temp=readout_pars_dict['w_sig']
-                    w_sigs.append(w_sig_temp[w_indices_to_save])
-                    b_sigs.append(readout_pars_dict['b_sig'])
-                else:                    
-                    # Update ssn layer parameters
-                    updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
-                    ssn_layer_pars_dict = optax.apply_updates(ssn_layer_pars_dict, updates_ssn)
+                if SGD_step==1 and stage==1:
+                    log_J_2x2_m = [ssn_layer_pars_dict['log_J_2x2_m'].ravel()]
+                    log_J_2x2_s = [ssn_layer_pars_dict['log_J_2x2_s'].ravel()]
+                    c_E = [ssn_layer_pars_dict['c_E']]
+                    c_I = [ssn_layer_pars_dict['c_I']]
+                    f_E = [ssn_layer_pars_dict['f_E']]
+                    f_I = [ssn_layer_pars_dict['f_I']]
+                else:
                     log_J_2x2_m.append(ssn_layer_pars_dict['log_J_2x2_m'].ravel())
                     log_J_2x2_s.append(ssn_layer_pars_dict['log_J_2x2_s'].ravel())
                     c_E.append(ssn_layer_pars_dict['c_E'])
@@ -202,12 +175,52 @@ def train_ori_discr(
                     f_E.append(ssn_layer_pars_dict['f_E'])
                     f_I.append(ssn_layer_pars_dict['f_I'])
 
+                updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
+                readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
+                w_sig_temp=readout_pars_dict['w_sig']
+                if SGD_step==1 and stage==1:
+                    w_sigs = [w_sig_temp[w_indices_to_save]]
+                    b_sigs = [readout_pars_dict['b_sig']]
+                else:
+                    w_sigs.append(w_sig_temp[w_indices_to_save])
+                    b_sigs.append(readout_pars_dict['b_sig'])
+            else:
+                if stage == 1:
+                    # Update readout parameters
+                    updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout)
+                    readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
+                    w_sig_temp=readout_pars_dict['w_sig']
+                    if SGD_step==1 and stage==1:
+                        w_sigs = [w_sig_temp[w_indices_to_save]]
+                        b_sigs = [readout_pars_dict['b_sig']]
+                    else:
+                        w_sigs.append(w_sig_temp[w_indices_to_save])
+                        b_sigs.append(readout_pars_dict['b_sig'])
+                else:                    
+                    # Update ssn layer parameters
+                    updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
+                    ssn_layer_pars_dict = optax.apply_updates(ssn_layer_pars_dict, updates_ssn)
+                    if SGD_step==1:
+                        log_J_2x2_m = [ssn_layer_pars_dict['log_J_2x2_m'].ravel()]
+                        log_J_2x2_s = [ssn_layer_pars_dict['log_J_2x2_s'].ravel()]
+                        c_E = [ssn_layer_pars_dict['c_E']]
+                        c_I = [ssn_layer_pars_dict['c_I']]
+                        f_E = [ssn_layer_pars_dict['f_E']]
+                        f_I = [ssn_layer_pars_dict['f_I']]
+                    else:
+                        log_J_2x2_m.append(ssn_layer_pars_dict['log_J_2x2_m'].ravel())
+                        log_J_2x2_s.append(ssn_layer_pars_dict['log_J_2x2_s'].ravel())
+                        c_E.append(ssn_layer_pars_dict['c_E'])
+                        c_I.append(ssn_layer_pars_dict['c_I'])
+                        f_E.append(ssn_layer_pars_dict['f_E'])
+                        f_I.append(ssn_layer_pars_dict['f_I'])
+
             # v) Check for early stopping during pre-training: binary task accuracy check
             if pretrain_on and SGD_step in acc_check_ind:
                 acc_mean = mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, test_offset_vec)
                 # fit log-linear curve to acc_mean and test_offset_vec and find where it crosses baseline_acc=0.794
                 offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec)
-                if SGD_step==acc_check_ind[0]:
+                if SGD_step==acc_check_ind[0] and stage==1:
                     offsets_at_bl_acc=[offset_at_bl_acc]
                 else:
                     offsets_at_bl_acc.append(offset_at_bl_acc)
@@ -545,7 +558,7 @@ def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train
         SGD_steps_stage2=np.arange(len(b_sigs),len(b_sigs)+len(c_E)-1)
     
     # Add parameters that are trained in two stages during training and in one stage during pretraining
-    max_stages = max(stages)
+    max_stages = max(1,max(stages))
     for stage_i in range(max_stages):
         if stage_i == 0:
             for i in range(len(w_sigs[0])):
@@ -591,7 +604,7 @@ def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train
                 offsets=np.hstack(offsets)
                 df.loc[SGD_steps_stage1,'offset']= offsets[SGD_steps_stage1]
 
-        else: # repeat for stage two for training
+        else: # repeat last values for stage two for training
             for i in range(len(w_sigs[0])):
                 weight_name = f'w_sig_{i+1}'
                 df.loc[SGD_steps_stage2, weight_name] = w_sigs[-1,i]

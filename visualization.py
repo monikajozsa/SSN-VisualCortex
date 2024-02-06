@@ -119,8 +119,11 @@ def plot_results_from_csv(
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
 
     if fig_filename:
-        axes[0].plot(range(N), df['offset'], label='offset')
-        axes[1].plot(range(N), df['offsets_at_bl_acc'], label='offsets at bl acc', marker='o', s=50)
+        num_pretraining_steps= sum(df['stage'] == df['stage'][i-1])
+        for column in df.columns:
+            if 'offset' in column:
+                axes[0].scatter(range(num_pretraining_steps), df[column][0:num_pretraining_steps], label='offsets at bl acc', marker='o', s=50)
+                axes[1].plot(range(num_pretraining_steps,N), df[column][num_pretraining_steps:N], label='offset')
         fig.savefig(fig_filename + "_offsets.png")
     #fig.show()
     plt.close()
