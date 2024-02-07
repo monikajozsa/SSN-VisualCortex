@@ -71,7 +71,7 @@ def readout_pars_from_regr(readout_pars, ssn_layer_pars_dict, constant_pars, N=5
     This function sets readout_pars based on N sample data using linear regression. This method is to initialize w_sig, b_sig optimally (given limited data) for a set of perturbed ssn_layer parameters.
     '''
     # Generate stimuli and label data for setting w_sig and b_sig based on linear regression (pretraining)
-    data = create_grating_pretraining(constant_pars.pretrain_pars, N, BW_image_jax_supp(constant_pars.stimuli_pars), numRnd_ori1=int(N/10))
+    data = create_grating_pretraining(constant_pars.pretrain_pars, N, BW_image_jax_supp(constant_pars.stimuli_pars), numRnd_ori1=N)
     
     # Get model response for stimuli data['ref'] and data['target']
     log_J_2x2_m = ssn_layer_pars_dict['log_J_2x2_m']

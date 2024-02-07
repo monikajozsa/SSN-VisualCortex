@@ -7,8 +7,99 @@ import sys
 
 from analysis import obtain_min_max_indices, label_neuron
 
-def barplots_from_csv(results_filename):
-    return None
+def calculate_relative_change(df):
+    # Find index where 'stage' is 1 for the first time
+    ind0 = df.index[df['stage'] == 0][0]
+    ind1 = df.index[df['stage'] == 1][0]
+
+    relative_changes = numpy.zeros((12,2))
+    # Calculate relative changes in Jm and Js
+    J_m_EE = numpy.exp(df['logJ_m_EE'])
+    J_m_IE = numpy.exp(df['logJ_m_IE'])
+    J_m_EI = -1 * numpy.exp(df['logJ_m_EI'])
+    J_m_II = -1 * numpy.exp(df['logJ_m_II'])
+    J_s_EE = numpy.exp(df['logJ_s_EE'])
+    J_s_IE = numpy.exp(df['logJ_s_IE'])
+    J_s_EI = -1 * numpy.exp(df['logJ_s_EI'])
+    J_s_II = -1 * numpy.exp(df['logJ_s_II'])
+    relative_changes[0,0] =(J_m_EE.iloc[ind1] - J_m_EE.iloc[ind0]) / J_m_EE.iloc[ind0]
+    relative_changes[0,1] =(J_m_EE.iloc[-1] - J_m_EE.iloc[ind1]) / J_m_EE.iloc[ind1]
+    relative_changes[1,0] =(J_m_IE.iloc[ind1] - J_m_IE.iloc[ind0]) / J_m_IE.iloc[ind0]
+    relative_changes[1,1] =(J_m_IE.iloc[-1] - J_m_IE.iloc[ind1]) / J_m_IE.iloc[ind1]
+    relative_changes[2,0] =(J_m_EI.iloc[ind1] - J_m_EI.iloc[ind0]) / J_m_EI.iloc[ind0]
+    relative_changes[2,1] =(J_m_EI.iloc[-1] - J_m_EI.iloc[ind1]) / J_m_EI.iloc[ind1]
+    relative_changes[3,0] =(J_m_II.iloc[ind1] - J_m_II.iloc[ind0]) / J_m_II.iloc[ind0]
+    relative_changes[3,1] =(J_m_II.iloc[-1] - J_m_II.iloc[ind1]) / J_m_II.iloc[ind1]
+
+    relative_changes[4,0] =(J_s_EE.iloc[ind1] - J_s_EE.iloc[ind0]) / J_s_EE.iloc[ind0]
+    relative_changes[4,1] =(J_s_EE.iloc[-1] - J_s_EE.iloc[ind1]) / J_s_EE.iloc[ind1]
+    relative_changes[5,0] =(J_s_IE.iloc[ind1] - J_s_IE.iloc[ind0]) / J_s_IE.iloc[ind0]
+    relative_changes[5,1] =(J_s_IE.iloc[-1] - J_s_IE.iloc[ind1]) / J_s_IE.iloc[ind1]
+    relative_changes[6,0] =(J_s_EI.iloc[ind1] - J_s_EI.iloc[ind0]) / J_s_EI.iloc[ind0]
+    relative_changes[6,1] =(J_s_EI.iloc[-1] - J_s_EI.iloc[ind1]) / J_s_EI.iloc[ind1]
+    relative_changes[7,0] =(J_s_II.iloc[ind1] - J_s_II.iloc[ind0]) / J_s_II.iloc[ind0]
+    relative_changes[7,1] =(J_s_II.iloc[-1] - J_s_II.iloc[ind1]) / J_s_II.iloc[ind1]
+
+    # in c and f 
+    relative_changes[8,0] = (df['c_E'].iloc[ind1] - df['c_E'].iloc[ind0]) / df['c_E'].iloc[ind0]
+    relative_changes[8,1] = (df['c_E'].iloc[-1] - df['c_E'].iloc[ind1]) / df['c_E'].iloc[ind1]
+    relative_changes[9,0] = (df['c_I'].iloc[ind1] - df['c_I'].iloc[ind0]) / df['c_I'].iloc[ind0]
+    relative_changes[9,1] = (df['c_I'].iloc[-1] - df['c_I'].iloc[ind1]) / df['c_I'].iloc[ind1]
+    relative_changes[10,0] = (df['f_E'].iloc[ind1] - df['f_E'].iloc[ind0]) / df['f_E'].iloc[ind0]
+    relative_changes[10,1] = (df['f_E'].iloc[-1] - df['f_E'].iloc[ind1]) / df['f_E'].iloc[ind1]
+    relative_changes[11,0] = (df['f_I'].iloc[ind1] - df['f_I'].iloc[ind0]) / df['f_I'].iloc[ind0]
+    relative_changes[11,1] = (df['f_I'].iloc[-1] - df['f_I'].iloc[ind1]) / df['f_I'].iloc[ind1]
+    return relative_changes
+
+
+def barplots_from_csvs(directory, plot_filename = None):
+    # List to store relative changes from each file
+    relative_changes_pretrain = []
+    relative_changes_train = []
+
+    # Iterate through each file in the directory
+    for filename in os.listdir(directory):
+        if filename.endswith('.csv'):
+            filepath = os.path.join(directory, filename)
+            # Read CSV file
+            df = pd.read_csv(filepath)
+            # Calculate relative change
+            relative_changes = calculate_relative_change(df)
+            relative_changes_pretrain.append(relative_changes[:,0])
+            relative_changes_train.append(relative_changes[:,1])
+    
+    # Plotting bar plots
+    # Define groups of parameters and plot each parameter group
+    groups = [
+        ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II'],
+        ['J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II'],
+        ['c_E', 'c_I'], ['f_E', 'f_I']
+    ]
+    num_groups = len(groups)
+    fig, axs = plt.subplots(2, num_groups, figsize=(5*num_groups, 10))  # Create subplots for each group
+    
+    relative_changes_train = numpy.array(relative_changes_train)
+    relative_changes_pretrain = numpy.array(relative_changes_pretrain)
+    group_indices = [0,4,8,10,12]
+    titles_pretrain=['Jm changes in pretraining', 'Js changes in pretraining', 'c changes in pretraining', 'f changes in pretraining']
+    titles_train=['Jm changes in training', 'Js changes in training', 'c changes in training', 'f changes in training']
+    for i, group in enumerate(groups):
+        group_data = relative_changes_pretrain[:, group_indices[i]:group_indices[i+1]]  # Extract data for the current group
+        axs[0,i].boxplot(group_data, labels=group)
+        axs[0,i].set_title(titles_pretrain[i])
+    for i, group in enumerate(groups):
+        group_data = relative_changes_train[:, group_indices[i]:group_indices[i+1]]  # Extract data for the current group
+        axs[1,i].boxplot(group_data, labels=group)
+        axs[1,i].set_title(titles_train[i])
+        
+    plt.tight_layout()
+    
+    if plot_filename is not None:
+        full_path = os.path.join(directory, plot_filename + ".png")
+        fig.savefig(full_path)
+
+    plt.close()
+
 
 def plot_results_from_csv(
     results_filename,
@@ -17,14 +108,14 @@ def plot_results_from_csv(
     df = pd.read_csv(results_filename, header=0)
     N=len(df[df.columns[0]])
     # Create a subplot with 2 rows and 4 columns
-    fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(25, 10))
+    fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(35, 10))
 
     # Plot accuracy and losses
     for column in df.columns:
         if 'acc' in column and 'val_' not in column:
-            axes[0, 0].plot(range(N), df[column], label=column)
+            axes[0, 0].plot(range(N), df[column], label=column, alpha=0.6)
         if 'val_acc' in column:
-            axes[0, 0].scatter(range(N), df[column], label=column, marker='o', s=50)
+            axes[0, 0].scatter(range(N), df[column], label=column, marker='o', s=50, c='green')
     axes[0, 0].legend(loc='lower right')
     axes[0, 0].set_title('Accuracy')
     axes[0, 0].set_ylim(0, 1) 
@@ -42,6 +133,18 @@ def plot_results_from_csv(
     axes[1,1].plot(range(N), df['b_sig'], label=column, linestyle='--', linewidth = 2)
     axes[1,1].legend("b sig")
 
+    num_pretraining_steps= sum(df['stage'] == df['stage'][0])
+    for column in df.columns:
+        if 'offset' in column:
+            axes[0,4].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*5, label='offsets at bl acc', alpha=0.2)
+            axes[0,4].scatter(range(num_pretraining_steps), df[column][0:num_pretraining_steps], label='offsets at bl acc', marker='o', s=50)
+            axes[0,4].grid(color='gray', linestyle='-', linewidth=0.5)
+            axes[0,4].set_title('Offset with accuracy 0.749')
+            axes[1,4].plot(range(N-num_pretraining_steps,N), df[column][N-num_pretraining_steps:N], label='offset')
+            axes[1,4].grid(color='gray', linestyle='-', linewidth=0.5)
+            axes[1,4].set_ylim(0, 20)
+            axes[1,4].set_title('Offset during staircase training')
+            
     i=0
     for column in df.columns:
         if 'w_sig_' in column and i<10:
@@ -115,19 +218,6 @@ def plot_results_from_csv(
 
     if fig_filename:
         fig.savefig(fig_filename + ".png")
-    #fig.show()
-    plt.close()
-
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
-
-    if fig_filename:
-        num_pretraining_steps= sum(df['stage'] == df['stage'][i-1])
-        for column in df.columns:
-            if 'offset' in column:
-                axes[0].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*5, label='offsets at bl acc')
-                axes[0].scatter(range(num_pretraining_steps), df[column][0:num_pretraining_steps], label='offsets at bl acc', marker='o', s=50)
-                axes[1].plot(range(num_pretraining_steps,N), df[column][num_pretraining_steps:N], label='offset')
-        fig.savefig(fig_filename + "_offsets.png")
     #fig.show()
     plt.close()
 

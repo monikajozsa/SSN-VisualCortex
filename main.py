@@ -3,7 +3,7 @@ import numpy
 import copy
 import time
 
-numpy.random.seed(1)
+numpy.random.seed(60)
 
 from util_gabor import create_gabor_filters_util, BW_image_jax_supp
 from util import save_code, cosdiff_ring
@@ -68,73 +68,86 @@ if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 starting_time_in_main= time.time()
+numFailedRuns = 0
 for i in range(N_training):
-    constant_pars.pretrain_pars.is_on=True
+    if numFailedRuns<10:
+        constant_pars.pretrain_pars.is_on=True
 
-    results_filename = f"{final_folder_path}/results_{i}.csv"
-    tuning_curves_prepre = f"{final_folder_path}/tc_prepre_{i}.csv"
-    tuning_curves_prepost = f"{final_folder_path}/tc_prepost_{i}.csv"
-    tuning_curves_post = f"{final_folder_path}/tc_post_{i}.csv"
+        results_filename = f"{final_folder_path}/results_{i}.csv"
+        tuning_curves_prepre = f"{final_folder_path}/tc_prepre_{i}.csv"
+        tuning_curves_prepost = f"{final_folder_path}/tc_prepost_{i}.csv"
+        tuning_curves_post = f"{final_folder_path}/tc_post_{i}.csv"
 
-    ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
-    # Get baseline parameters to-be-trained
-    ssn_layer_pars_pretrain = copy.copy(ssn_layer_pars)
-    readout_pars_pretrain = copy.copy(readout_pars)
+        ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
+        # Get baseline parameters to-be-trained
+        ssn_layer_pars_pretrain = copy.copy(ssn_layer_pars)
+        readout_pars_pretrain = copy.copy(readout_pars)
 
-    # Perturb them by percent % and collect them into two dictionaries for the two stages of the pretraining
-    trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, constant_pars, percent=0.1)
+        # Perturb them by percent % and collect them into two dictionaries for the two stages of the pretraining
+        trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, constant_pars, percent=0.1)
 
-    # Pretrain parameters
-    training_output_df, first_stage_final_step = train_ori_discr(
-            trained_pars_stage1,
-            trained_pars_stage2,
-            constant_pars,
-            results_filename=results_filename,
-            jit_on=True
+        # Pretrain parameters
+        training_output_df, first_stage_final_step = train_ori_discr(
+                trained_pars_stage1,
+                trained_pars_stage2,
+                constant_pars,
+                results_filename=results_filename,
+                jit_on=True
+            )
+        if training_output_df is None:
+            print('######### Stopped run {} because of NaN values #########'.format(i))
+            i = i-1
+            numFailedRuns = numFailedRuns+1
+            continue
+        constant_pars.pretrain_pars.is_on=False
+        constant_pars.first_stage_final_step = first_stage_final_step
+        
+        trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps[0]]))
+        responses_sup_prepre, responses_mid_prepre = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepre)#pretty slow
+
+        ##### FINE DISCRIMINATION #####
+        
+        trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = first_stage_final_step-1)
+        #testing val_loss_vec, val_acc_vec = binary_task_acc_test(training_pars, trained_pars_stage2, trained_pars_stage1, constant_pars, True, 4.0)
+        responses_sup_prepost, responses_mid_prepost = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepost)
+
+        training_output_df, _ = train_ori_discr(
+                trained_pars_stage1,
+                trained_pars_stage2,
+                constant_pars,
+                results_filename=results_filename,
+                jit_on=True
+            )
+        
+        last_row = training_output_df.iloc[-1]
+        J_m_keys = ['logJ_m_EE','logJ_m_EI','logJ_m_IE','logJ_m_II'] 
+        J_s_keys = ['logJ_s_EE','logJ_s_EI','logJ_s_IE','logJ_s_II']
+        J_m_values = last_row[J_m_keys].values.reshape(2, 2)
+        J_s_values = last_row[J_s_keys].values.reshape(2, 2)
+
+        pars_stage2 = dict(
+            log_J_2x2_m = J_m_values,
+            log_J_2x2_s = J_s_values,
+            c_E=last_row['c_E'],
+            c_I=last_row['c_I'],
+            f_E=last_row['f_E'],
+            f_I=last_row['f_I'],
         )
-    if training_output_df is None:
-        print('Stopped run {} because of NaN values'.format(i))
-        continue
-    constant_pars.pretrain_pars.is_on=False
-    constant_pars.first_stage_final_step = first_stage_final_step
-    
-    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps[0]]))
-    responses_sup_prepre, responses_mid_prepre = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepre)#pretty slow
+        responses_sup_post, responses_mid_post = tuning_curves(constant_pars, pars_stage2, tuning_curves_post)
 
-    ##### FINE DISCRIMINATION #####
-    
-    trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = first_stage_final_step-1)
-    #testing val_loss_vec, val_acc_vec = binary_task_acc_test(training_pars, trained_pars_stage2, trained_pars_stage1, constant_pars, True, 4.0)
-    responses_sup_prepost, responses_mid_prepost = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepost)
-
-    training_output_df, _ = train_ori_discr(
-            trained_pars_stage1,
-            trained_pars_stage2,
-            constant_pars,
-            results_filename=results_filename,
-            jit_on=True
-        )
-    
-    last_row = training_output_df.iloc[-1]
-    J_m_keys = ['logJ_m_EE','logJ_m_EI','logJ_m_IE','logJ_m_II'] 
-    J_s_keys = ['logJ_s_EE','logJ_s_EI','logJ_s_IE','logJ_s_II']
-    J_m_values = last_row[J_m_keys].values.reshape(2, 2)
-    J_s_values = last_row[J_s_keys].values.reshape(2, 2)
-
-    pars_stage2 = dict(
-        log_J_2x2_m = J_m_values,
-        log_J_2x2_s = J_s_values,
-        c_E=last_row['c_E'],
-        c_I=last_row['c_I'],
-        f_E=last_row['f_E'],
-        f_I=last_row['f_I'],
-    )
-    responses_sup_post, responses_mid_post = tuning_curves(constant_pars, pars_stage2, tuning_curves_post)
-    print('runtime of one pretraining+training', time.time()-starting_time_in_main)
+        print('runtime of one pretraining+training', time.time()-starting_time_in_main)
+        print('number of failed runs = ', numFailedRuns)
 
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs
-#final_folder_path='C:/Users/jozsa/Postdoc YA/SSN-VisualCortex/results/Feb06_v0'
-final_folder_path='results/Feb07_v0'
-plot_results_from_csvs(final_folder_path, 1)
+#final_folder_path='results/Feb07_v2'
+plot_results_from_csvs(final_folder_path, N_training)
+
+'''
+from visualization import barplots_from_csvs
+
+directory = 'C:/Users/jozsa/Postdoc YA/SSN-VisualCortex/results/boxplot_testing'
+boxplot_file_name = 'boxplot_first'
+barplots_from_csvs(directory, boxplot_file_name)
+'''

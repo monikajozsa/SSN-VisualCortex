@@ -168,6 +168,8 @@ def train_ori_discr(
             # iv) Parameter update: pretraining is one-stage, training is two-stage
             if numStages==1:
                 updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
+                if updates_ssn['c_E'] is None:
+                    return None, None
                 ssn_layer_pars_dict = optax.apply_updates(ssn_layer_pars_dict, updates_ssn)
                 if SGD_step==1 and stage==1:
                     log_J_2x2_m = [ssn_layer_pars_dict['log_J_2x2_m'].ravel()]
@@ -241,7 +243,7 @@ def train_ori_discr(
                     break
 
             # vi) Check for early stopping during training - *** note that we could combine v) and vi)
-            if not pretrain_on and stage==1 and SGD_step > 100:
+            if not pretrain_on and stage==1:
                 avg_acc = np.mean(np.asarray(train_accs[-20:]))
                 if avg_acc > first_stage_acc_th:
                     print("Early stop: accuracy {} reached target {} for stage 1 training".format(
@@ -294,7 +296,7 @@ def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, re
     
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
     if constant_pars.pretrain_pars.is_on:
-        train_data = create_grating_pretraining(constant_pars.pretrain_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp, 10)
+        train_data = create_grating_pretraining(constant_pars.pretrain_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp, numRnd_ori1=training_pars.batch_size)
     else:
         train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp)
 
@@ -374,7 +376,7 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_
     pred_label = np.round(sig_output)
     # ii) Calculate other loss terms
     loss_avg_dx = loss_pars.lambda_dx*(avg_dx_ref_mid + avg_dx_target_mid + avg_dx_ref_sup + avg_dx_target_sup )/4
-    loss_r_max =  loss_pars.lambda_r_max*(r_max_ref_mid + r_max_target_mid + r_max_ref_sup + r_max_target_sup )/4
+    loss_r_max =  loss_pars.lambda_r_max*np.max(r_max_ref_mid + r_max_target_mid + r_max_ref_sup + r_max_target_sup) **2
     loss_w = loss_pars.lambda_w*(np.linalg.norm(w_sig)**2)
     loss_b = loss_pars.lambda_b*(b_sig**2)   
     loss = loss_readout + loss_w + loss_b +  loss_avg_dx + loss_r_max
@@ -406,10 +408,7 @@ def batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, 
     max_rates = [item.max() for item in max_rates]
     
     #Calculate accuracy 
-    if constant_pars.pretrain_pars.is_on:
-        true_accuracy = np.corrcoef(sig_output, train_data['label'])[0,1]
-    else:
-        true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])  
+    true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])  
     
     return loss, [all_losses, true_accuracy, sig_input, sig_output, max_rates]
 
