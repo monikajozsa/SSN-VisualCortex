@@ -265,7 +265,7 @@ def create_grating_pairs(stimuli_pars, batch_size, jit_inp_all= None):
             roi =jit_inp_all[10]
             ref = jit_BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori, jitter, 1)
             target = jit_BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori, jitter, 1)
-
+        
         data_dict['ref'].append(ref)
         data_dict['target'].append(target)
         data_dict['label'].append(label)

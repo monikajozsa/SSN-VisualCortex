@@ -7,6 +7,8 @@ import sys
 
 from analysis import obtain_min_max_indices, label_neuron
 
+def barplots_from_csv(results_filename):
+    return None
 
 def plot_results_from_csv(
     results_filename,

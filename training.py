@@ -102,8 +102,10 @@ def train_ori_discr(
         for SGD_step in range(1, numSGD_steps + 1):
             # i) Evaluate model loss and accuracy and calculate gradient + store the result
             train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(stimuli_pars, training_pars,ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, training_loss_val_and_grad)
+
             if jax.numpy.isnan(train_loss):
-                raise ValueError('Training failed - grad became nan.')
+                return None, None
+            
             if SGD_step==1 and stage==1:
                 train_losses_all=[train_loss_all.ravel()]
                 train_accs=[train_acc]
@@ -138,10 +140,17 @@ def train_ori_discr(
                     offsets.append(stimuli_pars.offset)
                     threshold_variables.append(temp_threshold)
 
-            # iii) Loss and accuracy validation on new data + printing results
+            # iii) Loss and accuracy validation on new data + printing results    
             if SGD_step in val_steps:
                 #### Calculate loss and accuracy - *** could be switched to mean loss and acc easily
                 val_loss_vec, val_acc_vec = binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, stimuli_pars.offset)
+                # Possible check for binary_task_acc_test
+                #constant_pars_temp=copy.deepcopy(constant_pars)
+                #constant_pars_temp.pretrain_pars.is_on=False
+                #readout_pars_dict_temp=copy.deepcopy(readout_pars_dict)
+                #readout_pars_dict_temp['w_sig'] = readout_pars_dict_temp['w_sig'][constant_pars_temp.middle_grid_ind]
+                #loss_check, _, acc_check, _, _, _, _ = loss_and_grad_ori_discr(stimuli_pars, training_pars,ssn_layer_pars_dict, readout_pars_dict_temp, constant_pars_temp, jit_on, training_loss_val_and_grad)
+            
                 val_loss = np.mean(val_loss_vec)
                 val_acc = np.mean(val_acc_vec)
                 if SGD_step==val_steps[0] and stage==1:
@@ -214,10 +223,10 @@ def train_ori_discr(
                         c_I.append(ssn_layer_pars_dict['c_I'])
                         f_E.append(ssn_layer_pars_dict['f_E'])
                         f_I.append(ssn_layer_pars_dict['f_I'])
-
+            
             # v) Check for early stopping during pre-training: binary task accuracy check
             if pretrain_on and SGD_step in acc_check_ind:
-                acc_mean = mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, test_offset_vec)
+                acc_mean, _, _ = mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, test_offset_vec)
                 # fit log-linear curve to acc_mean and test_offset_vec and find where it crosses baseline_acc=0.794
                 offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec)
                 if SGD_step==acc_check_ind[0] and stage==1:
@@ -242,6 +251,10 @@ def train_ori_discr(
                     first_stage_final_step = SGD_step
                     break
 
+            #testing if SGD_step==numSGD_steps:
+            #    _, acc_check, loss_check = mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, True, np.array([4.0, 4.0, 4.0, 4.0, 4.0]))
+            #    print([np.mean(loss_check.ravel()), np.std(loss_check.ravel())])
+            #    print([np.mean(acc_check.ravel()), np.std(acc_check.ravel())])
 
     ############# SAVING and RETURN OUTPUT #############
 
@@ -250,6 +263,7 @@ def train_ori_discr(
         SGD_steps = np.arange(1, first_stage_final_step +1 )
         val_SGD_steps = val_steps[val_steps < first_stage_final_step + 1]
         offsets = None
+        acc_check_ind = acc_check_ind[acc_check_ind < first_stage_final_step + 1]
     else:
         SGD_steps = np.arange(1, first_stage_final_step + numSGD_steps + 1)
         val_SGD_steps_stage1 = val_steps[val_steps < first_stage_final_step + 1]
@@ -280,7 +294,7 @@ def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, re
     
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
     if constant_pars.pretrain_pars.is_on:
-        train_data = create_grating_pretraining(constant_pars.pretrain_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp)
+        train_data = create_grating_pretraining(constant_pars.pretrain_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp, 10)
     else:
         train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp)
 
@@ -435,20 +449,21 @@ def binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, 
     - true_accuracy: mean and std of true accuracies for each offset  over sample_size samples.
     '''
     # Create copies of stimuli and readout_pars_dict because their 
-    stored_flag = constant_pars.pretrain_pars.is_on
+    pretrain_is_on_saved = constant_pars.pretrain_pars.is_on
     constant_pars.pretrain_pars.is_on=False # this is to get the accuracy metric that corresponds to the binary task and not the regression task
-    stimuli_pars_copy = copy.deepcopy(constant_pars.stimuli_pars)    
-    if stored_flag:
+      
+    if pretrain_is_on_saved:
         readout_pars_dict_copy = copy.deepcopy(readout_pars_dict)
         readout_pars_dict_copy['w_sig'] = readout_pars_dict_copy['w_sig'][constant_pars.middle_grid_ind]
     else:
-        readout_pars_dict_copy = readout_pars_dict 
+        readout_pars_dict_copy = copy.deepcopy(readout_pars_dict)
     
     # Iterate over each offset by using vmap outside of the function
-    stimuli_pars_copy.offset = offset_vmap
+    offset_saved = constant_pars.stimuli_pars.offset
+    constant_pars.stimuli_pars.offset = offset_vmap
     
     # Generate noise that is added to the output of the model
-    noise_ref = generate_noise(
+    noise_ref = generate_noise(#sig_noise*numpy.random.randn(batch_size, length)
         training_pars.sig_noise, training_pars.batch_size, readout_pars_dict_copy["w_sig"].shape[0]
     )
     noise_target = generate_noise(
@@ -456,33 +471,35 @@ def binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, 
     )
     
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
-    train_data = create_grating_pairs(stimuli_pars_copy, training_pars.batch_size, constant_pars.BW_image_jax_inp)
+    train_data = create_grating_pairs(constant_pars.stimuli_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp)
 
     # Calculate loss and accuracy
     loss, [_, acc, _, _, _] = batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict_copy, constant_pars, train_data, noise_ref, noise_target, jit_on)
 
-    constant_pars.pretrain_pars.is_on = stored_flag
-
+    constant_pars.pretrain_pars.is_on = pretrain_is_on_saved
+    constant_pars.stimuli_pars.offset = offset_saved
+    
     return loss, acc
 
-vmap_binary_task_acc_test = vmap(binary_task_acc_test, in_axes=(None, None, None, None, None, 0))
-
-def mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, offset_vmap):
+def mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, offset_vec,sample_size = 5):
     # Initialize arrays to store loss, accuracy, and max rates
-    N = len(offset_vmap)
-    sample_size = 5 # the number of samples to test for each offset
+    N = len(offset_vec)
     accuracy = numpy.zeros((N,sample_size))
+    loss = numpy.zeros((N,sample_size))
+    
     accuracy_mean = numpy.zeros((N))
 
-    # Test each sample for the current offset
-    for j in range(sample_size):
-        _, temp_acc = vmap_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, offset_vmap)
-        accuracy[:,j] = temp_acc
+    # For the all the offsets, calculate fine discrimination accuracy sample_size times
+    for i in range(N):
+        for j in range(sample_size):
+            temp_loss, temp_acc = binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, offset_vec[i])
+            accuracy[i,j] = temp_acc
+            loss[i,j] = temp_loss
         
     # Calculate mean loss and accuracy
     accuracy_mean = np.mean(accuracy, axis=1)
 
-    return accuracy_mean
+    return accuracy_mean, accuracy, loss
 
 
 def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=numpy.linspace(1, 60, 200), baseline_acc=0.794):
@@ -536,6 +553,7 @@ def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train
 
     # Add validation accuracies at specified SGD steps
     df['val_acc'] = None
+    val_SGD_steps = val_SGD_steps-1
     df.loc[val_SGD_steps, 'val_acc'] = val_accs
 
     # Add different types of training and validation losses to df
@@ -632,6 +650,7 @@ def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train
     if offsets_at_bl_acc is not None:
         df['offsets_pretrain']=None
         offsets_at_bl_acc=np.hstack(offsets_at_bl_acc)
+        acc_check_ind = acc_check_ind -1
         df.loc[acc_check_ind,'offsets_pretrain']=offsets_at_bl_acc
 
     return df

@@ -1,8 +1,9 @@
 import os
 import numpy
 import copy
+import time
 
-numpy.random.seed(10)
+numpy.random.seed(1)
 
 from util_gabor import create_gabor_filters_util, BW_image_jax_supp
 from util import save_code, cosdiff_ring
@@ -21,7 +22,7 @@ from parameters import (
     loss_pars,
     pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
-
+from training import binary_task_acc_test
 ########## Initialize orientation map and gabor filters ############
 
 ssn_ori_map_loaded = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
@@ -34,6 +35,7 @@ ori_dist = cosdiff_ring(oris - oris.T, 180)
 
 ####################### TRAINING PARAMETERS #######################
 # Collect constant parameters into single class
+#@dataclass
 class ConstantPars:
     grid_pars = grid_pars
     stimuli_pars = stimuli_pars
@@ -56,16 +58,16 @@ constant_pars = ConstantPars()
 
 
 # Defining the number of random initializations for pretraining + training
-N_training = 1
+N_training = 2
 
 # Save scripts
 results_filename, final_folder_path = save_code()
-#results_filename='testin_file'
-#final_folder_path='results'
+
 # Pretraining + training for N_training random initialization
 if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
+starting_time_in_main= time.time()
 for i in range(N_training):
     constant_pars.pretrain_pars.is_on=True
 
@@ -90,15 +92,19 @@ for i in range(N_training):
             results_filename=results_filename,
             jit_on=True
         )
+    if training_output_df is None:
+        print('Stopped run {} because of NaN values'.format(i))
+        continue
     constant_pars.pretrain_pars.is_on=False
     constant_pars.first_stage_final_step = first_stage_final_step
     
     trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps[0]]))
-    responses_sup_prepre, responses_mid_prepre = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepre)
+    responses_sup_prepre, responses_mid_prepre = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepre)#pretty slow
 
     ##### FINE DISCRIMINATION #####
     
     trained_pars_stage1, trained_pars_stage2 = load_pretrained_parameters(results_filename, iloc_ind = first_stage_final_step-1)
+    #testing val_loss_vec, val_acc_vec = binary_task_acc_test(training_pars, trained_pars_stage2, trained_pars_stage1, constant_pars, True, 4.0)
     responses_sup_prepost, responses_mid_prepost = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepost)
 
     training_output_df, _ = train_ori_discr(
@@ -124,9 +130,11 @@ for i in range(N_training):
         f_I=last_row['f_I'],
     )
     responses_sup_post, responses_mid_post = tuning_curves(constant_pars, pars_stage2, tuning_curves_post)
+    print('runtime of one pretraining+training', time.time()-starting_time_in_main)
 
 ######### PLOT RESULTS ############
-from visualization import plot_results_from_csvs
-#final_folder_path='C:/Users/mj555/MJ Postdoc with YA/SSN-VisualCortex/results/Jan09_v0'
 
-plot_results_from_csvs(final_folder_path, N_training)
+from visualization import plot_results_from_csvs
+#final_folder_path='C:/Users/jozsa/Postdoc YA/SSN-VisualCortex/results/Feb06_v0'
+final_folder_path='results/Feb07_v0'
+plot_results_from_csvs(final_folder_path, 1)

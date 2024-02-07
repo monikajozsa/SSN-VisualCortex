@@ -33,11 +33,11 @@ def randomize_params(readout_pars, ssn_layer_pars, constant_pars, percent=0.1):
     cond3 = False
     cond4 = False
     cond5 = False
-    tol_th = 1e-1
+    #tol_th = 1e-1
     while not (cond1 and cond2 and cond3 and cond4 and cond5):
         params_perturbed = perturb_params(pars_stage2_nolog, percent)
-        cond1 = np.abs(params_perturbed['J_m_temp'][0,0]*params_perturbed['J_m_temp'][1,1]) + 7.5*tol_th < np.abs(params_perturbed['J_m_temp'][1,0]*params_perturbed['J_m_temp'][0,1])
-        cond2 = np.abs(params_perturbed['J_m_temp'][0,1]*ssn_layer_pars.gI_m) + tol_th < np.abs(params_perturbed['J_m_temp'][1,1]*ssn_layer_pars.gE_m)
+        cond1 = np.abs(params_perturbed['J_m_temp'][0,0]*params_perturbed['J_m_temp'][1,1])*1.1 < np.abs(params_perturbed['J_m_temp'][1,0]*params_perturbed['J_m_temp'][0,1])
+        cond2 = np.abs(params_perturbed['J_m_temp'][0,1]*ssn_layer_pars.gI_m)*1.1 < np.abs(params_perturbed['J_m_temp'][1,1]*ssn_layer_pars.gE_m)
         # checking the convergence of the differential equations of the model
         ssn_mid=SSN_mid(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=params_perturbed['J_m_temp'])
         ssn_sup=SSN_sup(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, J_2x2=params_perturbed['J_s_temp'], p_local=constant_pars.ssn_layer_pars.p_local_s, oris=constant_pars.oris, s_2x2=constant_pars.ssn_layer_pars.s_2x2_s, sigma_oris = constant_pars.ssn_layer_pars.sigma_oris, ori_dist = constant_pars.ori_dist, train_ori = constant_pars.stimuli_pars.ref_ori)
