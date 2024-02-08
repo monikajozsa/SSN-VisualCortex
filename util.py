@@ -293,11 +293,11 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     random_distance = numpy.random.choice([-1, 1], batch_size) * numpy.random.uniform(min_distance,max_distance ,batch_size)
 
     # Generate the second numbers with correction if they are out of the specified range
-    num2 = num1 - random_distance
+    num2 = num1 - random_distance #order and sign are important!
 
     # Apply wrap-around logic
-    num2[num2 > tot_angle] = num2[num2 > tot_angle] - tot_angle
-    num2[num2 < 0] = num2[num2 < 0] + tot_angle
+    #num2[num2 > tot_angle] = num2[num2 > tot_angle] - tot_angle
+    #num2[num2 < 0] = num2[num2 < 0] + tot_angle
     
     return np.array(num1), np.array(num2), random_distance
 
@@ -316,7 +316,7 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all, numRnd_or
     L_ring = 180
     min_ori_dist = pretrain_pars.min_ori_dist
     max_ori_dist = pretrain_pars.max_ori_dist
-    ori1, ori2, ori_diff = generate_random_pairs(min_value=max_ori_dist, max_value=180-max_ori_dist-1, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
+    ori1, ori2, ori_diff = generate_random_pairs(min_value=10, max_value=170, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
 
     x = jit_inp_all[5]
     y = jit_inp_all[6]

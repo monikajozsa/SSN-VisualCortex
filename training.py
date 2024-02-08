@@ -375,12 +375,12 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_
     loss_readout = binary_loss(train_data['label'], sig_output)
     pred_label = np.round(sig_output)
     # ii) Calculate other loss terms
-    loss_avg_dx = loss_pars.lambda_dx*(avg_dx_ref_mid + avg_dx_target_mid + avg_dx_ref_sup + avg_dx_target_sup )/4
-    loss_r_max =  loss_pars.lambda_r_max*np.max(r_max_ref_mid + r_max_target_mid + r_max_ref_sup + r_max_target_sup) **2
+    loss_dx_max = loss_pars.lambda_dx*np.max(np.array([avg_dx_ref_mid, avg_dx_target_mid, avg_dx_ref_sup, avg_dx_target_sup]))
+    loss_r_max =  loss_pars.lambda_r_max*np.max(np.array([r_max_ref_mid, r_max_target_mid, r_max_ref_sup, r_max_target_sup]))
     loss_w = loss_pars.lambda_w*(np.linalg.norm(w_sig)**2)
     loss_b = loss_pars.lambda_b*(b_sig**2)   
-    loss = loss_readout + loss_w + loss_b +  loss_avg_dx + loss_r_max
-    all_losses = np.vstack((loss_readout, loss_avg_dx, loss_r_max, loss_w, loss_b, loss))
+    loss = loss_readout + loss_w + loss_b +  loss_dx_max + loss_r_max
+    all_losses = np.vstack((loss_readout, loss_dx_max, loss_r_max, loss_w, loss_b, loss))
     
     return loss, all_losses, pred_label, sig_input, sig_output,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup]
 
@@ -556,7 +556,7 @@ def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train
     df.loc[val_SGD_steps, 'val_acc'] = val_accs
 
     # Add different types of training and validation losses to df
-    loss_names = ['loss_binary', 'loss_avg_dx', 'loss_r_max', 'loss_w_sig', 'loss_b_sig', 'loss_all']
+    loss_names = ['loss_binary', 'loss_dx_max', 'loss_r_max', 'loss_w_sig', 'loss_b_sig', 'loss_all']
     for i in range(len(train_losses_all[0])):
         df[loss_names[i]]=train_losses_all[:,i]
     

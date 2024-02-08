@@ -39,7 +39,7 @@ def tuning_curves(constant_pars, trained_pars, tuning_curves_filename=None, ori_
     '''
     Calculate responses of middle and superficial layers to different orientations.
     '''
-    ref_ori_saved = constant_pars.stimuli_pars.ref_ori
+    ref_ori_saved = float(constant_pars.stimuli_pars.ref_ori)
     for key in list(trained_pars.keys()):  # Use list to make a copy of keys to avoid RuntimeError
         # Check if key starts with 'log'
         if key.startswith('log'):

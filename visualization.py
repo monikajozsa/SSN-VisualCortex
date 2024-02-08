@@ -8,11 +8,6 @@ import sys
 from analysis import obtain_min_max_indices, label_neuron
 
 def calculate_relative_change(df):
-    # Find index where 'stage' is 1 for the first time
-    ind0 = df.index[df['stage'] == 0][0]
-    ind1 = df.index[df['stage'] == 1][0]
-
-    relative_changes = numpy.zeros((12,2))
     # Calculate relative changes in Jm and Js
     J_m_EE = numpy.exp(df['logJ_m_EE'])
     J_m_IE = numpy.exp(df['logJ_m_IE'])
@@ -22,33 +17,41 @@ def calculate_relative_change(df):
     J_s_IE = numpy.exp(df['logJ_s_IE'])
     J_s_EI = -1 * numpy.exp(df['logJ_s_EI'])
     J_s_II = -1 * numpy.exp(df['logJ_s_II'])
-    relative_changes[0,0] =(J_m_EE.iloc[ind1] - J_m_EE.iloc[ind0]) / J_m_EE.iloc[ind0]
+
+    relative_changes = numpy.zeros((12,2))
+
+    # Calculate relative changes in parameters before and after training
+    ind1 = df.index[df['stage'] == 1][0]
     relative_changes[0,1] =(J_m_EE.iloc[-1] - J_m_EE.iloc[ind1]) / J_m_EE.iloc[ind1]
-    relative_changes[1,0] =(J_m_IE.iloc[ind1] - J_m_IE.iloc[ind0]) / J_m_IE.iloc[ind0]
     relative_changes[1,1] =(J_m_IE.iloc[-1] - J_m_IE.iloc[ind1]) / J_m_IE.iloc[ind1]
-    relative_changes[2,0] =(J_m_EI.iloc[ind1] - J_m_EI.iloc[ind0]) / J_m_EI.iloc[ind0]
     relative_changes[2,1] =(J_m_EI.iloc[-1] - J_m_EI.iloc[ind1]) / J_m_EI.iloc[ind1]
-    relative_changes[3,0] =(J_m_II.iloc[ind1] - J_m_II.iloc[ind0]) / J_m_II.iloc[ind0]
     relative_changes[3,1] =(J_m_II.iloc[-1] - J_m_II.iloc[ind1]) / J_m_II.iloc[ind1]
-
-    relative_changes[4,0] =(J_s_EE.iloc[ind1] - J_s_EE.iloc[ind0]) / J_s_EE.iloc[ind0]
     relative_changes[4,1] =(J_s_EE.iloc[-1] - J_s_EE.iloc[ind1]) / J_s_EE.iloc[ind1]
-    relative_changes[5,0] =(J_s_IE.iloc[ind1] - J_s_IE.iloc[ind0]) / J_s_IE.iloc[ind0]
     relative_changes[5,1] =(J_s_IE.iloc[-1] - J_s_IE.iloc[ind1]) / J_s_IE.iloc[ind1]
-    relative_changes[6,0] =(J_s_EI.iloc[ind1] - J_s_EI.iloc[ind0]) / J_s_EI.iloc[ind0]
     relative_changes[6,1] =(J_s_EI.iloc[-1] - J_s_EI.iloc[ind1]) / J_s_EI.iloc[ind1]
-    relative_changes[7,0] =(J_s_II.iloc[ind1] - J_s_II.iloc[ind0]) / J_s_II.iloc[ind0]
     relative_changes[7,1] =(J_s_II.iloc[-1] - J_s_II.iloc[ind1]) / J_s_II.iloc[ind1]
-
-    # in c and f 
-    relative_changes[8,0] = (df['c_E'].iloc[ind1] - df['c_E'].iloc[ind0]) / df['c_E'].iloc[ind0]
     relative_changes[8,1] = (df['c_E'].iloc[-1] - df['c_E'].iloc[ind1]) / df['c_E'].iloc[ind1]
-    relative_changes[9,0] = (df['c_I'].iloc[ind1] - df['c_I'].iloc[ind0]) / df['c_I'].iloc[ind0]
     relative_changes[9,1] = (df['c_I'].iloc[-1] - df['c_I'].iloc[ind1]) / df['c_I'].iloc[ind1]
-    relative_changes[10,0] = (df['f_E'].iloc[ind1] - df['f_E'].iloc[ind0]) / df['f_E'].iloc[ind0]
     relative_changes[10,1] = (df['f_E'].iloc[-1] - df['f_E'].iloc[ind1]) / df['f_E'].iloc[ind1]
-    relative_changes[11,0] = (df['f_I'].iloc[ind1] - df['f_I'].iloc[ind0]) / df['f_I'].iloc[ind0]
     relative_changes[11,1] = (df['f_I'].iloc[-1] - df['f_I'].iloc[ind1]) / df['f_I'].iloc[ind1]
+
+    # Calculate relative changes in parameters before and after pretraining
+    pretraining_on = float(np.sum(df['stage'].ravel() == 0))>0
+    if pretraining_on:
+        ind0 = df.index[df['stage'] == 0][0]
+        relative_changes[0,0] =(J_m_EE.iloc[ind1] - J_m_EE.iloc[ind0]) / J_m_EE.iloc[ind0]
+        relative_changes[1,0] =(J_m_IE.iloc[ind1] - J_m_IE.iloc[ind0]) / J_m_IE.iloc[ind0]
+        relative_changes[2,0] =(J_m_EI.iloc[ind1] - J_m_EI.iloc[ind0]) / J_m_EI.iloc[ind0]
+        relative_changes[3,0] =(J_m_II.iloc[ind1] - J_m_II.iloc[ind0]) / J_m_II.iloc[ind0]
+        relative_changes[4,0] =(J_s_EE.iloc[ind1] - J_s_EE.iloc[ind0]) / J_s_EE.iloc[ind0]
+        relative_changes[5,0] =(J_s_IE.iloc[ind1] - J_s_IE.iloc[ind0]) / J_s_IE.iloc[ind0]
+        relative_changes[6,0] =(J_s_EI.iloc[ind1] - J_s_EI.iloc[ind0]) / J_s_EI.iloc[ind0]
+        relative_changes[7,0] =(J_s_II.iloc[ind1] - J_s_II.iloc[ind0]) / J_s_II.iloc[ind0]
+        relative_changes[8,0] = (df['c_E'].iloc[ind1] - df['c_E'].iloc[ind0]) / df['c_E'].iloc[ind0]
+        relative_changes[9,0] = (df['c_I'].iloc[ind1] - df['c_I'].iloc[ind0]) / df['c_I'].iloc[ind0]
+        relative_changes[10,0] = (df['f_E'].iloc[ind1] - df['f_E'].iloc[ind0]) / df['f_E'].iloc[ind0]
+        relative_changes[11,0] = (df['f_I'].iloc[ind1] - df['f_I'].iloc[ind0]) / df['f_I'].iloc[ind0]
+    
     return relative_changes
 
 
@@ -59,7 +62,7 @@ def barplots_from_csvs(directory, plot_filename = None):
 
     # Iterate through each file in the directory
     for filename in os.listdir(directory):
-        if filename.endswith('.csv'):
+        if filename.endswith('.csv') and filename.startswith('result'):
             filepath = os.path.join(directory, filename)
             # Read CSV file
             df = pd.read_csv(filepath)
@@ -83,10 +86,11 @@ def barplots_from_csvs(directory, plot_filename = None):
     group_indices = [0,4,8,10,12]
     titles_pretrain=['Jm changes in pretraining', 'Js changes in pretraining', 'c changes in pretraining', 'f changes in pretraining']
     titles_train=['Jm changes in training', 'Js changes in training', 'c changes in training', 'f changes in training']
-    for i, group in enumerate(groups):
-        group_data = relative_changes_pretrain[:, group_indices[i]:group_indices[i+1]]  # Extract data for the current group
-        axs[0,i].boxplot(group_data, labels=group)
-        axs[0,i].set_title(titles_pretrain[i])
+    if np.sum(np.abs(relative_changes[:,0])) >0:
+        for i, group in enumerate(groups):
+            group_data = relative_changes_pretrain[:, group_indices[i]:group_indices[i+1]]  # Extract data for the current group
+            axs[0,i].boxplot(group_data, labels=group)
+            axs[0,i].set_title(titles_pretrain[i])
     for i, group in enumerate(groups):
         group_data = relative_changes_train[:, group_indices[i]:group_indices[i+1]]  # Extract data for the current group
         axs[1,i].boxplot(group_data, labels=group)
@@ -125,7 +129,7 @@ def plot_results_from_csv(
             axes[1, 0].plot(range(N), df[column], label=column, alpha=0.6)
         if 'val_loss' in column:
             axes[1, 0].scatter(range(N), df[column], marker='o', s=50)
-    axes[1, 0].legend(["readout loss", "avg_dx", "r_max", "w_sig", "b_sig", "total"])
+    axes[1, 0].legend(["readout loss", "dx_max", "r_max", "w_sig", "b_sig", "total"])
     axes[1, 0].legend(loc='upper right')
     axes[1, 0].set_title('Loss')
 
@@ -133,18 +137,25 @@ def plot_results_from_csv(
     axes[1,1].plot(range(N), df['b_sig'], label=column, linestyle='--', linewidth = 2)
     axes[1,1].legend("b sig")
 
-    num_pretraining_steps= sum(df['stage'] == df['stage'][0])
+    num_pretraining_steps= sum(df['stage'] == 0)
+
     for column in df.columns:
         if 'offset' in column:
             axes[0,4].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*5, label='offsets at bl acc', alpha=0.2)
             axes[0,4].scatter(range(num_pretraining_steps), df[column][0:num_pretraining_steps], label='offsets at bl acc', marker='o', s=50)
             axes[0,4].grid(color='gray', linestyle='-', linewidth=0.5)
             axes[0,4].set_title('Offset with accuracy 0.749')
-            axes[1,4].plot(range(N-num_pretraining_steps,N), df[column][N-num_pretraining_steps:N], label='offset')
-            axes[1,4].grid(color='gray', linestyle='-', linewidth=0.5)
-            axes[1,4].set_ylim(0, 20)
-            axes[1,4].set_title('Offset during staircase training')
-            
+            if num_pretraining_steps==0:#if there was no pretraining
+                axes[1,4].plot(range(N), df[column], label='offset')
+                axes[1,4].grid(color='gray', linestyle='-', linewidth=0.5)
+                axes[1,4].set_ylim(0, 20)
+                axes[1,4].set_title('Offset during staircase training')
+            else:
+                axes[1,4].plot(range(num_pretraining_steps,N), df[column][num_pretraining_steps:N], label='offset')
+                axes[1,4].grid(color='gray', linestyle='-', linewidth=0.5)
+                axes[1,4].set_ylim(0, max(df[column][num_pretraining_steps:N])+1)
+                axes[1,4].set_title('Offset during staircase training')
+                
     i=0
     for column in df.columns:
         if 'w_sig_' in column and i<10:
@@ -238,14 +249,16 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
     num_mid_cells = 648
     num_sup_cells = 164
     num_runs_plotted = min(5,num_runs)    
-    
+    tc_post_pretrain =os.path.join(folder_path,f'tc_prepost_0.csv')
+    pretrain_ison = os.path.exists('filename.txt')
     for j in range(num_runs_plotted):
 
         tc_pre_pretrain = os.path.join(folder_path,f'tc_prepre_{j}.csv')
         tc_post_pretrain =os.path.join(folder_path,f'tc_prepost_{j}.csv')
         tc_post_train =os.path.join(folder_path,f'tc_post_{j}.csv')
         df_tc_pre_pretrain = pd.read_csv(tc_pre_pretrain, header=0)
-        df_tc_post_pretrain = pd.read_csv(tc_post_pretrain, header=0)
+        if pretrain_ison:
+            df_tc_post_pretrain = pd.read_csv(tc_post_pretrain, header=0)
         df_tc_post_train = pd.read_csv(tc_post_train, header=0)
 
         # Select num_rnd_cells randomly selected cells to plot from both middle and superficial layer cells
@@ -260,10 +273,11 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
         # Plot tuning curves
         for i in range(num_rnd_cells):    
             axes[i,2*j].plot(range(N), df_tc_pre_pretrain[selected_mid_columns[i]], label='pre-pretraining')
-            axes[i,2*j].plot(range(N), df_tc_post_pretrain[selected_mid_columns[i]], label='post-pretraining')
-            axes[i,2*j].plot(range(N), df_tc_post_train[selected_mid_columns[i]], label='post-training')
             axes[i,2*j+1].plot(range(N), df_tc_pre_pretrain[selected_sup_columns[i]], label='pre-pretraining')
-            axes[i,2*j+1].plot(range(N), df_tc_post_pretrain[selected_sup_columns[i]], label='post-pretraining')
+            if pretrain_ison:
+                axes[i,2*j].plot(range(N), df_tc_post_pretrain[selected_mid_columns[i]], label='post-pretraining')
+                axes[i,2*j+1].plot(range(N), df_tc_post_pretrain[selected_sup_columns[i]], label='post-pretraining')
+            axes[i,2*j].plot(range(N), df_tc_post_train[selected_mid_columns[i]], label='post-training')
             axes[i,2*j+1].plot(range(N), df_tc_post_train[selected_sup_columns[i]], label='post-training')
             axes[i,2*j].legend(loc='upper left')
             axes[i,2*j+1].legend(loc='upper left')

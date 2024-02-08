@@ -1,9 +1,10 @@
+# ref ori (10, 170) and no wrap around in generate_random_pairs and max dx and max r in loss - no squaring
 import os
 import numpy
 import copy
 import time
 
-numpy.random.seed(60)
+numpy.random.seed(44)
 
 from util_gabor import create_gabor_filters_util, BW_image_jax_supp
 from util import save_code, cosdiff_ring
@@ -23,6 +24,11 @@ from parameters import (
     pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
 from training import binary_task_acc_test
+
+# Checking that pretrain_pars.is_on is on
+if not pretrain_pars.is_on:
+    raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
+
 ########## Initialize orientation map and gabor filters ############
 
 ssn_ori_map_loaded = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
@@ -56,21 +62,19 @@ class ConstantPars:
 
 constant_pars = ConstantPars()
 
+ref_ori_saved = float(stimuli_pars.ref_ori)
 
 # Defining the number of random initializations for pretraining + training
-N_training = 2
+N_training = 1
 
 # Save scripts
 results_filename, final_folder_path = save_code()
 
-# Pretraining + training for N_training random initialization
-if not pretrain_pars.is_on:
-    raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
-
 starting_time_in_main= time.time()
 numFailedRuns = 0
 for i in range(N_training):
-    if numFailedRuns<10:
+    if numFailedRuns<20:
+        constant_pars.stimuli_pars.ref_ori=ref_ori_saved # this changes during training because of the staircase
         constant_pars.pretrain_pars.is_on=True
 
         results_filename = f"{final_folder_path}/results_{i}.csv"
@@ -144,10 +148,8 @@ from visualization import plot_results_from_csvs
 #final_folder_path='results/Feb07_v2'
 plot_results_from_csvs(final_folder_path, N_training)
 
-'''
+
 from visualization import barplots_from_csvs
 
-directory = 'C:/Users/jozsa/Postdoc YA/SSN-VisualCortex/results/boxplot_testing'
-boxplot_file_name = 'boxplot_first'
-barplots_from_csvs(directory, boxplot_file_name)
-'''
+boxplot_file_name = 'boxplot_pretraining'
+barplots_from_csvs(final_folder_path, boxplot_file_name)
