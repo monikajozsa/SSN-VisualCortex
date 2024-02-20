@@ -1,18 +1,17 @@
 import numpy
 from dataclasses import dataclass
-import jax
 import jax.numpy as np
 
 # Pretraining parameters
 @dataclass
 class PreTrainPars:
     is_on = True
-    min_ori_dist = 20
-    max_ori_dist = 40
+    min_ori_dist = 15
+    max_ori_dist = 45
     numStages = 1
     acc_th = 0.749
-    acc_check_freq = 10
-    min_acc_check_ind = 10
+    acc_check_freq = 20
+    min_acc_check_ind = 100
 
 pretrain_pars = PreTrainPars()
 
@@ -21,10 +20,10 @@ pretrain_pars = PreTrainPars()
 @dataclass
 class TrainingPars:
     eta = 10e-3  # learning rate
-    batch_size = 50
+    batch_size = [50, 50]
     noise_type = "poisson"
     sig_noise = 1.0 if noise_type != "no_noise" else 0.0
-    SGD_steps = [500, 500] # number of SGD steps
+    SGD_steps = [100, 50] # number of SGD steps
     validation_freq = 20  # calculate validation loss and accuracy every validation_freq SGD step
     first_stage_acc_th = 0.65
 
@@ -136,20 +135,20 @@ stimuli_pars = StimuliPars()
 # Sigmoid parameters
 @dataclass
 class ReadoutPars:
-    readout_grid_size = np.array([9, 5])  # first number is for the pretraining, second is for the training
+    readout_grid_size = np.array([grid_pars.gridsize_Nx, 5])  # first number is for the pretraining, second is for the training
     # Define middle grid indices
     middle_grid_ind = []
-    mid_grid_ind0=int((readout_grid_size[0]-readout_grid_size[1])/2)
+    mid_grid_ind0 = int((readout_grid_size[0]-readout_grid_size[1])/2)
     mid_grid_ind1 = int(readout_grid_size[0]) - mid_grid_ind0
     for i in range(mid_grid_ind0,mid_grid_ind1):  
         row_start = i * readout_grid_size[0] 
         middle_grid_ind.extend(range(row_start + mid_grid_ind0, row_start + mid_grid_ind1))
     middle_grid_ind = np.array(middle_grid_ind)
     if pretrain_pars.is_on:
-        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[0]**2,)) / np.sqrt(readout_grid_size[0]**2) # weights between the superficial and the sigmoid layer
+        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[0]**2,)) / readout_grid_size[0] # weights between the superficial and the sigmoid layer
         w_sig = np.array(w_sig)
     else:
-        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / np.sqrt(readout_grid_size[1]**2) # weights between the superficial and the sigmoid layer
+        w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / readout_grid_size[1] # weights between the superficial and the sigmoid layer
         w_sig = np.array(w_sig)
     b_sig: float = 0.0 # bias added to the sigmoid layer
 

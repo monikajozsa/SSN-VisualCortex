@@ -21,36 +21,36 @@ def calculate_relative_change(df):
     relative_changes = numpy.zeros((12,2))
 
     # Calculate relative changes in parameters before and after training
-    ind1 = df.index[df['stage'] == 1][0]
-    relative_changes[0,1] =(J_m_EE.iloc[-1] - J_m_EE.iloc[ind1]) / J_m_EE.iloc[ind1]
-    relative_changes[1,1] =(J_m_IE.iloc[-1] - J_m_IE.iloc[ind1]) / J_m_IE.iloc[ind1]
-    relative_changes[2,1] =(J_m_EI.iloc[-1] - J_m_EI.iloc[ind1]) / J_m_EI.iloc[ind1]
-    relative_changes[3,1] =(J_m_II.iloc[-1] - J_m_II.iloc[ind1]) / J_m_II.iloc[ind1]
-    relative_changes[4,1] =(J_s_EE.iloc[-1] - J_s_EE.iloc[ind1]) / J_s_EE.iloc[ind1]
-    relative_changes[5,1] =(J_s_IE.iloc[-1] - J_s_IE.iloc[ind1]) / J_s_IE.iloc[ind1]
-    relative_changes[6,1] =(J_s_EI.iloc[-1] - J_s_EI.iloc[ind1]) / J_s_EI.iloc[ind1]
-    relative_changes[7,1] =(J_s_II.iloc[-1] - J_s_II.iloc[ind1]) / J_s_II.iloc[ind1]
-    relative_changes[8,1] = (df['c_E'].iloc[-1] - df['c_E'].iloc[ind1]) / df['c_E'].iloc[ind1]
-    relative_changes[9,1] = (df['c_I'].iloc[-1] - df['c_I'].iloc[ind1]) / df['c_I'].iloc[ind1]
-    relative_changes[10,1] = (df['f_E'].iloc[-1] - df['f_E'].iloc[ind1]) / df['f_E'].iloc[ind1]
-    relative_changes[11,1] = (df['f_I'].iloc[-1] - df['f_I'].iloc[ind1]) / df['f_I'].iloc[ind1]
+    train_start_ind = df.index[df['stage'] == 1][0]
+    relative_changes[0,1] =(J_m_EE.iloc[-1] - J_m_EE.iloc[train_start_ind]) / J_m_EE.iloc[train_start_ind]
+    relative_changes[1,1] =(J_m_IE.iloc[-1] - J_m_IE.iloc[train_start_ind]) / J_m_IE.iloc[train_start_ind]
+    relative_changes[2,1] =(J_m_EI.iloc[-1] - J_m_EI.iloc[train_start_ind]) / J_m_EI.iloc[train_start_ind]
+    relative_changes[3,1] =(J_m_II.iloc[-1] - J_m_II.iloc[train_start_ind]) / J_m_II.iloc[train_start_ind]
+    relative_changes[4,1] =(J_s_EE.iloc[-1] - J_s_EE.iloc[train_start_ind]) / J_s_EE.iloc[train_start_ind]
+    relative_changes[5,1] =(J_s_IE.iloc[-1] - J_s_IE.iloc[train_start_ind]) / J_s_IE.iloc[train_start_ind]
+    relative_changes[6,1] =(J_s_EI.iloc[-1] - J_s_EI.iloc[train_start_ind]) / J_s_EI.iloc[train_start_ind]
+    relative_changes[7,1] =(J_s_II.iloc[-1] - J_s_II.iloc[train_start_ind]) / J_s_II.iloc[train_start_ind]
+    relative_changes[8,1] = (df['c_E'].iloc[-1] - df['c_E'].iloc[train_start_ind]) / df['c_E'].iloc[train_start_ind]
+    relative_changes[9,1] = (df['c_I'].iloc[-1] - df['c_I'].iloc[train_start_ind]) / df['c_I'].iloc[train_start_ind]
+    relative_changes[10,1] = (df['f_E'].iloc[-1] - df['f_E'].iloc[train_start_ind]) / df['f_E'].iloc[train_start_ind]
+    relative_changes[11,1] = (df['f_I'].iloc[-1] - df['f_I'].iloc[train_start_ind]) / df['f_I'].iloc[train_start_ind]
 
     # Calculate relative changes in parameters before and after pretraining
     pretraining_on = float(np.sum(df['stage'].ravel() == 0))>0
     if pretraining_on:
-        ind0 = df.index[df['stage'] == 0][0]
-        relative_changes[0,0] =(J_m_EE.iloc[ind1] - J_m_EE.iloc[ind0]) / J_m_EE.iloc[ind0]
-        relative_changes[1,0] =(J_m_IE.iloc[ind1] - J_m_IE.iloc[ind0]) / J_m_IE.iloc[ind0]
-        relative_changes[2,0] =(J_m_EI.iloc[ind1] - J_m_EI.iloc[ind0]) / J_m_EI.iloc[ind0]
-        relative_changes[3,0] =(J_m_II.iloc[ind1] - J_m_II.iloc[ind0]) / J_m_II.iloc[ind0]
-        relative_changes[4,0] =(J_s_EE.iloc[ind1] - J_s_EE.iloc[ind0]) / J_s_EE.iloc[ind0]
-        relative_changes[5,0] =(J_s_IE.iloc[ind1] - J_s_IE.iloc[ind0]) / J_s_IE.iloc[ind0]
-        relative_changes[6,0] =(J_s_EI.iloc[ind1] - J_s_EI.iloc[ind0]) / J_s_EI.iloc[ind0]
-        relative_changes[7,0] =(J_s_II.iloc[ind1] - J_s_II.iloc[ind0]) / J_s_II.iloc[ind0]
-        relative_changes[8,0] = (df['c_E'].iloc[ind1] - df['c_E'].iloc[ind0]) / df['c_E'].iloc[ind0]
-        relative_changes[9,0] = (df['c_I'].iloc[ind1] - df['c_I'].iloc[ind0]) / df['c_I'].iloc[ind0]
-        relative_changes[10,0] = (df['f_E'].iloc[ind1] - df['f_E'].iloc[ind0]) / df['f_E'].iloc[ind0]
-        relative_changes[11,0] = (df['f_I'].iloc[ind1] - df['f_I'].iloc[ind0]) / df['f_I'].iloc[ind0]
+        pretrain_start_ind = df.index[df['stage'] == 0][0]
+        relative_changes[0,0] =(J_m_EE.iloc[train_start_ind] - J_m_EE.iloc[pretrain_start_ind]) / J_m_EE.iloc[pretrain_start_ind]
+        relative_changes[1,0] =(J_m_IE.iloc[train_start_ind] - J_m_IE.iloc[pretrain_start_ind]) / J_m_IE.iloc[pretrain_start_ind]
+        relative_changes[2,0] =(J_m_EI.iloc[train_start_ind] - J_m_EI.iloc[pretrain_start_ind]) / J_m_EI.iloc[pretrain_start_ind]
+        relative_changes[3,0] =(J_m_II.iloc[train_start_ind] - J_m_II.iloc[pretrain_start_ind]) / J_m_II.iloc[pretrain_start_ind]
+        relative_changes[4,0] =(J_s_EE.iloc[train_start_ind] - J_s_EE.iloc[pretrain_start_ind]) / J_s_EE.iloc[pretrain_start_ind]
+        relative_changes[5,0] =(J_s_IE.iloc[train_start_ind] - J_s_IE.iloc[pretrain_start_ind]) / J_s_IE.iloc[pretrain_start_ind]
+        relative_changes[6,0] =(J_s_EI.iloc[train_start_ind] - J_s_EI.iloc[pretrain_start_ind]) / J_s_EI.iloc[pretrain_start_ind]
+        relative_changes[7,0] =(J_s_II.iloc[train_start_ind] - J_s_II.iloc[pretrain_start_ind]) / J_s_II.iloc[pretrain_start_ind]
+        relative_changes[8,0] = (df['c_E'].iloc[train_start_ind] - df['c_E'].iloc[pretrain_start_ind]) / df['c_E'].iloc[pretrain_start_ind]
+        relative_changes[9,0] = (df['c_I'].iloc[train_start_ind] - df['c_I'].iloc[pretrain_start_ind]) / df['c_I'].iloc[pretrain_start_ind]
+        relative_changes[10,0] = (df['f_E'].iloc[train_start_ind] - df['f_E'].iloc[pretrain_start_ind]) / df['f_E'].iloc[pretrain_start_ind]
+        relative_changes[11,0] = (df['f_I'].iloc[train_start_ind] - df['f_I'].iloc[pretrain_start_ind]) / df['f_I'].iloc[pretrain_start_ind]
     
     return relative_changes
 
@@ -61,22 +61,25 @@ def barplots_from_csvs(directory, plot_filename = None):
     relative_changes_train = []
 
     # Iterate through each file in the directory
+    numFiles = 0
     for filename in os.listdir(directory):
         if filename.endswith('.csv') and filename.startswith('result'):
+            numFiles = numFiles + 1
             filepath = os.path.join(directory, filename)
             # Read CSV file
             df = pd.read_csv(filepath)
             # Calculate relative change
-            relative_changes = calculate_relative_change(df)
+            relative_changes = 100 * calculate_relative_change(df)
             relative_changes_pretrain.append(relative_changes[:,0])
             relative_changes_train.append(relative_changes[:,1])
     
     # Plotting bar plots
     # Define groups of parameters and plot each parameter group
     groups = [
-        ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II'],
-        ['J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II'],
-        ['c_E', 'c_I'], ['f_E', 'f_I']
+        ['J_m_EE', 'J_m_IE', 'J_m_EI', 'J_m_II'],
+        ['J_s_EE', 'J_s_IE', 'J_s_EI', 'J_s_II'],
+        ['c_E', 'c_I'], 
+        ['f_E', 'f_I']
     ]
     num_groups = len(groups)
     fig, axs = plt.subplots(2, num_groups, figsize=(5*num_groups, 10))  # Create subplots for each group
@@ -84,17 +87,35 @@ def barplots_from_csvs(directory, plot_filename = None):
     relative_changes_train = numpy.array(relative_changes_train)
     relative_changes_pretrain = numpy.array(relative_changes_pretrain)
     group_indices = [0,4,8,10,12]
-    titles_pretrain=['Jm changes in pretraining', 'Js changes in pretraining', 'c changes in pretraining', 'f changes in pretraining']
-    titles_train=['Jm changes in training', 'Js changes in training', 'c changes in training', 'f changes in training']
+    titles_pretrain= ['Jm changes in pretraining, {} runs'.format(numFiles),'Js changes in pretraining, {} runs'.format(numFiles),'c changes in pretraining, {} runs'.format(numFiles), 'f changes in pretraining, {} runs'.format(numFiles)]
+    titles_train=['Jm changes in training, {} runs'.format(numFiles), 'Js changes in training, {} runs'.format(numFiles), 'c changes in training, {} runs'.format(numFiles), 'f changes in training, {} runs'.format(numFiles)]
+    J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
+    c_f_box_colors = ['tab:red','tab:blue']
     if np.sum(np.abs(relative_changes[:,0])) >0:
         for i, group in enumerate(groups):
             group_data = relative_changes_pretrain[:, group_indices[i]:group_indices[i+1]]  # Extract data for the current group
-            axs[0,i].boxplot(group_data, labels=group)
+            bp = axs[0,i].boxplot(group_data, labels=group, patch_artist=True)
+            if i<2:
+                for box, color in zip(bp['boxes'], J_box_colors):
+                    box.set_facecolor(color)
+            else:
+                for box, color in zip(bp['boxes'], c_f_box_colors):
+                    box.set_facecolor(color)
+            axs[0,i].axhline(y=0, color='black', linestyle='--')
             axs[0,i].set_title(titles_pretrain[i])
+            axs[0,i].set_ylabel('rel change in %')
     for i, group in enumerate(groups):
         group_data = relative_changes_train[:, group_indices[i]:group_indices[i+1]]  # Extract data for the current group
-        axs[1,i].boxplot(group_data, labels=group)
+        bp = axs[1,i].boxplot(group_data, labels=group)
+        if i<2:
+            for box, color in zip(bp['boxes'], J_box_colors):
+                box.set_facecolor(color)
+        else:
+            for box, color in zip(bp['boxes'], c_f_box_colors):
+                box.set_facecolor(color)
+        axs[1,i].axhline(y=0, color='black', linestyle='--')
         axs[1,i].set_title(titles_train[i])
+        axs[1,i].set_ylabel('rel change in %')
         
     plt.tight_layout()
     
@@ -122,6 +143,7 @@ def plot_results_from_csv(
             axes[0, 0].scatter(range(N), df[column], label=column, marker='o', s=50, c='green')
     axes[0, 0].legend(loc='lower right')
     axes[0, 0].set_title('Accuracy')
+    axes[0,0].axhline(y=0.5, color='black', linestyle='--')
     axes[0, 0].set_ylim(0, 1) 
 
     for column in df.columns:
@@ -141,21 +163,25 @@ def plot_results_from_csv(
 
     for column in df.columns:
         if 'offset' in column:
-            axes[0,4].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*5, label='offsets at bl acc', alpha=0.2)
+            axes[0,4].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*5, label='offsets at bl acc', alpha=0.6)
             axes[0,4].scatter(range(num_pretraining_steps), df[column][0:num_pretraining_steps], label='offsets at bl acc', marker='o', s=50)
             axes[0,4].grid(color='gray', linestyle='-', linewidth=0.5)
             axes[0,4].set_title('Offset with accuracy 0.749')
+            axes[0,4].set_ylabel('degrees')
+            axes[0,4].set_xlabel('SGD steps')
+            axes[1,4].set_ylim(0, 100)
             if num_pretraining_steps==0:#if there was no pretraining
                 axes[1,4].plot(range(N), df[column], label='offset')
                 axes[1,4].grid(color='gray', linestyle='-', linewidth=0.5)
-                axes[1,4].set_ylim(0, 20)
+                axes[1,4].set_ylim(0, max(df[column])+1)
                 axes[1,4].set_title('Offset during staircase training')
             else:
                 axes[1,4].plot(range(num_pretraining_steps,N), df[column][num_pretraining_steps:N], label='offset')
                 axes[1,4].grid(color='gray', linestyle='-', linewidth=0.5)
                 axes[1,4].set_ylim(0, max(df[column][num_pretraining_steps:N])+1)
                 axes[1,4].set_title('Offset during staircase training')
-                
+            axes[1,4].set_ylabel('degrees')
+            axes[1,4].set_xlabel('SGD steps')            
     i=0
     for column in df.columns:
         if 'w_sig_' in column and i<10:
@@ -167,32 +193,30 @@ def plot_results_from_csv(
     for column in df.columns:
         if 'J_m_' in column:
             if 'EE' in column:
-                axes[0, 2].plot(range(N), numpy.exp(df[column]), label=column, c='tab:red')
-            if 'IE' in column:
                 axes[0, 2].plot(range(N), numpy.exp(df[column]), label=column, linestyle='--', c='tab:red')
+            if 'IE' in column:
+                axes[0, 2].plot(range(N), numpy.exp(df[column]), label=column, linestyle='--', c='tab:orange')
     for column in df.columns:
         if 'J_m_' in column:
             if 'II' in column:
-                axes[0, 2].plot(range(N), -numpy.exp(df[column]), label=column, c='tab:blue')
-            if 'EI' in column:
                 axes[0, 2].plot(range(N), -numpy.exp(df[column]), label=column, linestyle='--', c='tab:blue')
-    axes[0,2].legend(loc="upper left")
-    axes[0,2].set_title('J in middle layer')
+            if 'EI' in column:
+                axes[0, 2].plot(range(N), -numpy.exp(df[column]), label=column, linestyle='--', c='tab:green')
     
     for column in df.columns:
         if 'J_s_' in column:
             if 'EE' in column:
-                axes[1, 2].plot(range(N), numpy.exp(df[column]), label=column, c='tab:red')
+                axes[0, 2].plot(range(N), numpy.exp(df[column]), label=column, c='tab:red')
             if 'IE' in column:
-                axes[1, 2].plot(range(N), numpy.exp(df[column]), label=column, linestyle='--', c='tab:red')
+                axes[0, 2].plot(range(N), numpy.exp(df[column]), label=column, c='tab:orange')
     for column in df.columns:
         if 'J_s_' in column:
             if 'II' in column:
-                axes[1, 2].plot(range(N), -numpy.exp(df[column]), label=column, c='tab:blue')
+                axes[0, 2].plot(range(N), -numpy.exp(df[column]), label=column, c='tab:blue')
             if 'EI' in column:
-                axes[1, 2].plot(range(N), -numpy.exp(df[column]), label=column, linestyle='--', c='tab:blue')
-    axes[1,2].legend(loc="upper left")
-    axes[1,2].set_title('J in superficial layer')
+                axes[0, 2].plot(range(N), -numpy.exp(df[column]), label=column, c='tab:green')
+    axes[0,2].legend(loc="upper left")
+    axes[0,2].set_title('J in middle and superficial layers')
 
     # Plot maximum rates
     i=0
@@ -205,27 +229,25 @@ def plot_results_from_csv(
     axes[0,1].set_title('Maximum rates')
 
     #Plot changes in baseline inhibition and excitation and feedforward weights (second stage of the training)
-    axes[0,3].plot(range(N), df['c_E'], label='c_E')
-    axes[0,3].plot(range(N), df['c_I'], label='c_I')
-    axes[0,3].legend(["c_E","c_I"])
-    axes[0,3].set_title('Baseline inh and exc inputs')
+    axes[1,2].plot(range(N), df['c_E'], label='c_E')
+    axes[1,2].plot(range(N), df['c_I'], label='c_I')
 
     #Plot feedforward weights from middle to superficial layer (second stage of the training)
-    axes[1,3].plot(range(N), numpy.exp(df['f_E']), label='f_E')
-    axes[1,3].plot(range(N), numpy.exp(df['f_I']), label='f_I')
-    axes[1,3].legend(["f_E","f_I"])
-    axes[1,3].set_title('Weights between mid and sup layers')
+    axes[1,2].plot(range(N), numpy.exp(df['f_E']), label='f_E', linestyle='--')
+    axes[1,2].plot(range(N), numpy.exp(df['f_I']), label='f_I', linestyle='--')
+    axes[1,2].legend(["c_E","c_I","f_E","f_I"])
+    axes[1,2].set_title('c: constant inputs, f: weights between mid and sup layers')
 
     for i in range(1, len(df['stage'])):
         if df['stage'][i] != df['stage'][i-1]:
-            axes[0,0].axvline(x=i, color='red', linestyle='--')
-            axes[0,1].axvline(x=i, color='red', linestyle='--')
-            axes[0,2].axvline(x=i, color='red', linestyle='--')
-            axes[0,3].axvline(x=i, color='red', linestyle='--')
-            axes[1,0].axvline(x=i, color='red', linestyle='--')
-            axes[1,1].axvline(x=i, color='red', linestyle='--')
-            axes[1,2].axvline(x=i, color='red', linestyle='--')
-            axes[1,3].axvline(x=i, color='red', linestyle='--')
+            axes[0,0].axvline(x=i, color='black', linestyle='--')
+            axes[0,1].axvline(x=i, color='black', linestyle='--')
+            axes[0,2].axvline(x=i, color='black', linestyle='--')
+            axes[0,3].axvline(x=i, color='black', linestyle='--')
+            axes[1,0].axvline(x=i, color='black', linestyle='--')
+            axes[1,1].axvline(x=i, color='black', linestyle='--')
+            axes[1,2].axvline(x=i, color='black', linestyle='--')
+            axes[1,3].axvline(x=i, color='black', linestyle='--')
 
     if fig_filename:
         fig.savefig(fig_filename + ".png")

@@ -236,7 +236,7 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, roi,
     # Set pixels outside the grating size to _GRAY
     gabor_sti = np.where(mask, _GRAY, gabor_sti)
 
-    # Add Gaussian white noise to the grating
+    # Add Gaussian white noise to the grating - not in use!!!
     rng_key=random.PRNGKey(seed)
     noisy_gabor_sti = gabor_sti + random.normal(rng_key, gabor_sti.shape) * std
     
@@ -246,7 +246,7 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, roi,
     # Place the masked image into the ROI of the background
     combined_image = lax.dynamic_update_slice(background, result_roi, start_indices)
     
-    return 3*combined_image.ravel()
+    return 3*combined_image.ravel() # 3* is just historical because BW_image used 3 colors unnecessarily
 
 jit_BW_image_jax = jit(BW_image_jax, static_argnums = [0])
 

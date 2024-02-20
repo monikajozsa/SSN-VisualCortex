@@ -7,8 +7,6 @@ import numpy
 import os
 import shutil
 from datetime import datetime
-import time
-import copy
 
 from util_gabor import BW_Grating, jit_BW_image_jax
 
@@ -286,15 +284,25 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
         max_distance = max_value - min_value
 
     # Generate the first numbers
-    rnd_numbers = numpy.random.uniform(min_value, max_value, numRnd_ori1)
+    rnd_numbers = numpy.random.randint(low=min_value, high=max_value, size=numRnd_ori1, dtype=int) #numpy.random.uniform(min_value, max_value, numRnd_ori1)
     num1 = numpy.repeat(rnd_numbers, int(batch_size/numRnd_ori1))
 
     # Generate a random distance within specified range
-    random_distance = numpy.random.choice([-1, 1], batch_size) * numpy.random.uniform(min_distance,max_distance ,batch_size)
+    random_distance = numpy.random.choice([-1, 1], batch_size) * numpy.random.randint(low=min_distance,high=max_distance, size=batch_size, dtype=int)#numpy.random.uniform(min_distance,max_distance ,batch_size)
 
     # Generate the second numbers with correction if they are out of the specified range
     num2 = num1 - random_distance #order and sign are important!
+    # Create a mask where flip_numbers equals 1
+    #swap_numbers = numpy.random.choice([0, 1], batch_size) 
+    #mask = swap_numbers == 1
 
+    # Swap values where mask is True
+    # We'll use a temporary array to hold the values of num1 where the mask is True
+    #temp_num1 = np.copy(num1[mask])
+    #num1[mask] = num2[mask]
+    #num2[mask] = temp_num1
+    #random_distance[mask] = -random_distance[mask]
+    
     # Apply wrap-around logic
     #num2[num2 > tot_angle] = num2[num2 > tot_angle] - tot_angle
     #num2[num2 < 0] = num2[num2 < 0] + tot_angle
@@ -312,11 +320,11 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all, numRnd_or
     # Initialise empty data dictionary - names are not describing the purpose of the variables but this allows for reusing code
     data_dict = {'ref': [], 'target': [], 'label':[]}
 
-    # Randomize orientations for stimulus1 and stimulus 2
+    # Randomize orientations for stimulus 1 and stimulus 2
     L_ring = 180
     min_ori_dist = pretrain_pars.min_ori_dist
     max_ori_dist = pretrain_pars.max_ori_dist
-    ori1, ori2, ori_diff = generate_random_pairs(min_value=10, max_value=170, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
+    ori1, ori2, ori_diff = generate_random_pairs(min_value=30, max_value=150, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
 
     x = jit_inp_all[5]
     y = jit_inp_all[6]
@@ -325,9 +333,9 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all, numRnd_or
     background = jit_inp_all[9]
     roi =jit_inp_all[10]
     for i in range(batch_size):
-        # Generate stimulus1 and stimulus2 with no jitter 
-        stim1 = jit_BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ori1[i],0, 1)
-        stim2 = jit_BW_image_jax(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2[i],0, 1)
+        # Generate stimulus1 and stimulus2 with no jitter and no noise (seed needs to be randomized if we add noise!)
+        stim1 = jit_BW_image_jax(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori1[i], jitter=0, seed=1)
+        stim2 = jit_BW_image_jax(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2[i], jitter=0, seed=1)
 
         data_dict['ref'].append(stim1)
         data_dict['target'].append(stim2)

@@ -56,6 +56,7 @@ def train_ori_discr(
         opt_state_ssn = optimizer.init(ssn_layer_pars_dict)
         opt_state_readout = optimizer.init(readout_pars_dict)
         training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=[0,1], has_aux=True)
+        training_loss_val_and_grad_0 = jax.value_and_grad(batch_loss_ori_discr, argnums=0, has_aux=True)
     else:
         opt_state_readout = optimizer.init(readout_pars_dict)
         training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True)
@@ -65,7 +66,7 @@ def train_ori_discr(
         numSGD_steps = training_pars.SGD_steps[0]
         min_acc_check_ind = constant_pars.pretrain_pars.min_acc_check_ind
         acc_check_ind = np.arange(1, numSGD_steps + 1, constant_pars.pretrain_pars.acc_check_freq)
-        acc_check_ind = acc_check_ind[acc_check_ind > min_acc_check_ind]
+        acc_check_ind = acc_check_ind[(acc_check_ind > min_acc_check_ind) | (acc_check_ind <2)] # by leaving in 1, we make sure that it is not empty as we refer to it later
         test_offset_vec = numpy.array([2, 4, 6, 9, 12, 15, 20, 30]) # offsets that help us define accuracy for binary task during pretraining
         numStages = constant_pars.pretrain_pars.numStages
     else:
@@ -101,8 +102,8 @@ def train_ori_discr(
         # STOCHASTIC GRADIENT DESCENT LOOP
         for SGD_step in range(1, numSGD_steps + 1):
             # i) Evaluate model loss and accuracy and calculate gradient + store the result
-            train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(stimuli_pars, training_pars,ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, training_loss_val_and_grad)
-
+            train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, training_loss_val_and_grad)
+            
             if jax.numpy.isnan(train_loss):
                 return None, None
             
@@ -168,7 +169,7 @@ def train_ori_discr(
             # iv) Parameter update: pretraining is one-stage, training is two-stage
             if numStages==1:
                 updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
-                if updates_ssn['c_E'] is None:
+                if np.isnan(updates_ssn['c_E']).item():
                     return None, None
                 ssn_layer_pars_dict = optax.apply_updates(ssn_layer_pars_dict, updates_ssn)
                 if SGD_step==1 and stage==1:
@@ -286,19 +287,25 @@ def train_ori_discr(
 
 def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, training_loss_val_and_grad):
 
-    # Generate noise that is added to the output of the model
-    noise_ref = generate_noise(
-        training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
-    )
-    noise_target = generate_noise(
-        training_pars.sig_noise, training_pars.batch_size, readout_pars_dict["w_sig"].shape[0]
-    )
-    
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
     if constant_pars.pretrain_pars.is_on:
-        train_data = create_grating_pretraining(constant_pars.pretrain_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp, numRnd_ori1=training_pars.batch_size)
+        # Generate noise that is added to the output of the model
+        noise_ref = generate_noise(
+            training_pars.sig_noise, training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0]
+        )
+        noise_target = generate_noise(
+            training_pars.sig_noise, training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0]
+        )        
+        train_data = create_grating_pretraining(constant_pars.pretrain_pars, training_pars.batch_size[0], constant_pars.BW_image_jax_inp, numRnd_ori1=training_pars.batch_size[0])
     else:
-        train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp)
+        # Generate noise that is added to the output of the model
+        noise_ref = generate_noise(
+            training_pars.sig_noise, training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0]
+        )
+        noise_target = generate_noise(
+            training_pars.sig_noise, training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0]
+        )
+        train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size[1], constant_pars.BW_image_jax_inp)
 
     # Calculate gradient, loss and accuracy
     [loss, [all_losses, accuracy, sig_input, sig_output, max_rates]], grad = training_loss_val_and_grad(
@@ -375,8 +382,8 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_
     loss_readout = binary_loss(train_data['label'], sig_output)
     pred_label = np.round(sig_output)
     # ii) Calculate other loss terms
-    loss_dx_max = loss_pars.lambda_dx*np.max(np.array([avg_dx_ref_mid, avg_dx_target_mid, avg_dx_ref_sup, avg_dx_target_sup]))
-    loss_r_max =  loss_pars.lambda_r_max*np.max(np.array([r_max_ref_mid, r_max_target_mid, r_max_ref_sup, r_max_target_sup]))
+    loss_dx_max = loss_pars.lambda_dx*np.mean(np.array([avg_dx_ref_mid, avg_dx_target_mid, avg_dx_ref_sup, avg_dx_target_sup])**2)
+    loss_r_max =  loss_pars.lambda_r_max*np.mean(np.array([r_max_ref_mid, r_max_target_mid, r_max_ref_sup, r_max_target_sup]))
     loss_w = loss_pars.lambda_w*(np.linalg.norm(w_sig)**2)
     loss_b = loss_pars.lambda_b*(b_sig**2)   
     loss = loss_readout + loss_w + loss_b +  loss_dx_max + loss_r_max
@@ -454,23 +461,25 @@ def binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, 
     if pretrain_is_on_saved:
         readout_pars_dict_copy = copy.deepcopy(readout_pars_dict)
         readout_pars_dict_copy['w_sig'] = readout_pars_dict_copy['w_sig'][constant_pars.middle_grid_ind]
+        batch_size = training_pars.batch_size[0]
     else:
         readout_pars_dict_copy = copy.deepcopy(readout_pars_dict)
+        batch_size = training_pars.batch_size[1]
     
     # Iterate over each offset by using vmap outside of the function
     offset_saved = constant_pars.stimuli_pars.offset
     constant_pars.stimuli_pars.offset = offset_vmap
     
     # Generate noise that is added to the output of the model
-    noise_ref = generate_noise(#sig_noise*numpy.random.randn(batch_size, length)
-        training_pars.sig_noise, training_pars.batch_size, readout_pars_dict_copy["w_sig"].shape[0]
+    noise_ref = generate_noise(
+        training_pars.sig_noise, batch_size, readout_pars_dict_copy["w_sig"].shape[0]
     )
     noise_target = generate_noise(
-        training_pars.sig_noise, training_pars.batch_size, readout_pars_dict_copy["w_sig"].shape[0]
+        training_pars.sig_noise, batch_size, readout_pars_dict_copy["w_sig"].shape[0]
     )
     
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
-    train_data = create_grating_pairs(constant_pars.stimuli_pars, training_pars.batch_size, constant_pars.BW_image_jax_inp)
+    train_data = create_grating_pairs(constant_pars.stimuli_pars, batch_size, constant_pars.BW_image_jax_inp)
 
     # Calculate loss and accuracy
     loss, [_, acc, _, _, _] = batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict_copy, constant_pars, train_data, noise_ref, noise_target, jit_on)
@@ -501,7 +510,7 @@ def mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_d
     return accuracy_mean, accuracy, loss
 
 
-def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=numpy.linspace(1, 60, 200), baseline_acc=0.794):
+def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=numpy.linspace(1, 100, 500), baseline_acc=0.794):
     '''
     This function fits a log-linear curve to x=offset_vec, y=acc_vec data and returns the x value, where the curve crosses baseline_acc.
     '''

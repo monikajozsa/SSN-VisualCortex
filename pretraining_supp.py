@@ -62,6 +62,7 @@ def randomize_params(readout_pars, ssn_layer_pars, constant_pars, percent=0.1):
     )
 
     pars_stage1 = readout_pars_from_regr(readout_pars, pars_stage2, constant_pars)
+    pars_stage1['w_sig'] = (pars_stage1['w_sig'] / np.std(pars_stage1['w_sig']) ) * 0.25 / int(np.sqrt(len(pars_stage1['w_sig']))) # get the same std as before
 
     return pars_stage1, pars_stage2
 
