@@ -8,7 +8,70 @@ import os
 import shutil
 from datetime import datetime
 
-from util_gabor import BW_Grating, jit_BW_image_jax
+from util_gabor import BW_Grating, BW_image_jit
+
+
+def test_uniformity(numbers, num_bins=18, alpha=0.25):
+    '''
+    This function assesses the uniformity of 'numbers' within the range [0, 180] by dividing the range into 'num_bins' 
+    equally sized bins and comparing the observed frequencies in these bins against the expected frequencies for a uniform 
+    distribution. The test is performed at a significance level 'alpha'.
+
+    Parameters:
+    - numbers (list or array-like): The set of numbers to test for uniformity.
+    - num_bins (int): The number of bins to use for dividing the range [0, 180]. Default is 10.
+    - alpha (float): The significance level for the chi-squared test. Default is 0.1.
+
+    Returns:
+    - bool: False if the null hypothesis (that the distribution is uniform) is rejected, True otherwise.
+    '''
+
+    n = len(numbers)
+    expected_freq = n / num_bins
+    observed_freq = [0] * num_bins
+    
+    for number in numbers:
+        if 0 <= number <= 180:  # Ensure the number is within the desired range
+            bin_index = int((number / 180) * num_bins)
+            observed_freq[bin_index] += 1
+    
+    chi_squared_stat = sum(((obs - expected_freq) ** 2) / expected_freq for obs in observed_freq)
+    
+    # Chi-square table for degrees of freedom 1-20 and significance level 0.1, 0.05, 0.025 and 0.01
+    sig_levels = numpy.array([0.25, 0.1, 0.05, 0.025, 0.01])
+    row_ind = num_bins-1 -1 # degree of freedom is bins -1 and index starts from 0
+    col_ind = numpy.argmin(numpy.abs(numpy.ones_like(sig_levels)*alpha-sig_levels))
+    
+    ChiSquareTable = numpy.array([[1.323,2.706, 3.841, 5.024, 6.635],
+                                [2.773,4.605, 5.991, 7.378, 9.210],
+                                [4.108, 6.251, 7.815, 9.348, 11.345],
+                                [5.385, 7.779, 9.488, 11.143, 13.277],
+                                [6.626, 9.236, 11.070, 12.833, 15.086],
+                                [7.841, 10.645, 12.592, 14.449, 16.812],
+                                [9.037, 12.017, 14.067, 16.013, 18.475],
+                                [10.219, 13.362, 15.507, 17.535, 20.090],
+                                [11.389, 14.684, 16.919, 19.023, 21.666],
+                                [12.549, 15.987, 18.307, 20.483, 23.209],
+                                [13.701, 17.275, 19.675, 21.920, 24.725],
+                                [14.845, 18.549, 21.026, 23.337, 26.217],
+                                [15.984, 19.812, 22.362, 24.736, 27.688],
+                                [17.117, 21.064, 23.685, 26.119, 29.141],
+                                [18.245, 22.307, 24.996, 27.488, 30.578],
+                                [19.369, 23.542, 26.296, 28.845, 32.000],
+                                [20.489, 24.769, 27.587, 30.191, 33.409],
+                                [21.605, 25.989, 28.869, 31.526, 34.805],
+                                [22.718, 27.204, 30.144, 32.852, 36.191],
+                                [23.828, 28.412, 31.410, 34.170, 37.566]])
+    
+    chi_squared_critical = ChiSquareTable[row_ind,col_ind]
+
+    if chi_squared_stat <= chi_squared_critical and all(numpy.array(observed_freq) > expected_freq/3) and all(numpy.array(observed_freq) < expected_freq*3):
+        #Fail to reject the null hypothesis: The distribution may be uniform.
+        return True
+    else:
+        #Reject the null hypothesis: The distribution is not uniform.        
+        return False
+
 
 def cosdiff_ring(d_x, L):
     '''
@@ -261,8 +324,8 @@ def create_grating_pairs(stimuli_pars, batch_size, jit_inp_all= None):
             mask_jax = jit_inp_all[8]
             background = jit_inp_all[9]
             roi =jit_inp_all[10]
-            ref = jit_BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori, jitter, 1)
-            target = jit_BW_image_jax(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori, jitter, 1)
+            ref = BW_image_jit(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori, jitter, 1)
+            target = BW_image_jit(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori, jitter, 1)
         
         data_dict['ref'].append(ref)
         data_dict['target'].append(target)
@@ -284,11 +347,11 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
         max_distance = max_value - min_value
 
     # Generate the first numbers
-    rnd_numbers = numpy.random.randint(low=min_value, high=max_value, size=numRnd_ori1, dtype=int) #numpy.random.uniform(min_value, max_value, numRnd_ori1)
+    rnd_numbers = numpy.random.uniform(min_value, max_value, numRnd_ori1) #numpy.random.randint(low=min_value, high=max_value, size=numRnd_ori1, dtype=int)
     num1 = numpy.repeat(rnd_numbers, int(batch_size/numRnd_ori1))
 
     # Generate a random distance within specified range
-    random_distance = numpy.random.choice([-1, 1], batch_size) * numpy.random.randint(low=min_distance,high=max_distance, size=batch_size, dtype=int)#numpy.random.uniform(min_distance,max_distance ,batch_size)
+    random_distance = numpy.random.choice([-1, 1], batch_size) * numpy.random.uniform(min_distance,max_distance ,batch_size) #numpy.random.randint(low=min_distance,high=max_distance, size=batch_size, dtype=int)
 
     # Generate the second numbers with correction if they are out of the specified range
     num2 = num1 - random_distance #order and sign are important!
@@ -334,8 +397,8 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all, numRnd_or
     roi =jit_inp_all[10]
     for i in range(batch_size):
         # Generate stimulus1 and stimulus2 with no jitter and no noise (seed needs to be randomized if we add noise!)
-        stim1 = jit_BW_image_jax(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori1[i], jitter=0, seed=1)
-        stim2 = jit_BW_image_jax(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2[i], jitter=0, seed=1)
+        stim1 = BW_image_jit(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori1[i], jitter=0, seed=1)
+        stim2 = BW_image_jit(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2[i], jitter=0, seed=1)
 
         data_dict['ref'].append(stim1)
         data_dict['target'].append(stim2)

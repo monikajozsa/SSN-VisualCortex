@@ -126,7 +126,7 @@ def readout_pars_from_regr(readout_pars, ssn_layer_pars_dict, constant_pars, N=5
     return readout_pars_opt
 
 
-def load_pretrained_parameters(file_path, readout_grid_size=5, iloc_ind=-1):
+def load_parameters(file_path, readout_grid_size=5, iloc_ind=-1):
 
     # Get the last row of the given csv file
     df = pd.read_csv(file_path)

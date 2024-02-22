@@ -6,12 +6,13 @@ import jax.numpy as np
 @dataclass
 class PreTrainPars:
     is_on = True
-    min_ori_dist = 15
-    max_ori_dist = 45
+    min_ori_dist = 10
+    max_ori_dist = 40
     numStages = 1
     acc_th = 0.749
     acc_check_freq = 20
-    min_acc_check_ind = 100
+    min_acc_check_ind = 50
+    offset_threshold = 5
 
 pretrain_pars = PreTrainPars()
 
@@ -20,10 +21,10 @@ pretrain_pars = PreTrainPars()
 @dataclass
 class TrainingPars:
     eta = 10e-3  # learning rate
-    batch_size = [50, 50]
+    batch_size = [100, 50]
     noise_type = "poisson"
     sig_noise = 1.0 if noise_type != "no_noise" else 0.0
-    SGD_steps = [100, 50] # number of SGD steps
+    SGD_steps = [500, 500] # number of SGD steps
     validation_freq = 20  # calculate validation loss and accuracy every validation_freq SGD step
     first_stage_acc_th = 0.65
 

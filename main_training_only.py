@@ -7,7 +7,7 @@ numpy.random.seed(0)
 from util_gabor import create_gabor_filters_util, BW_image_jax_supp
 from util import cosdiff_ring, save_code
 from training import train_ori_discr
-from pretraining_supp import randomize_params, load_pretrained_parameters
+from pretraining_supp import randomize_params, load_parameters
 from parameters import (
     grid_pars,
     filter_pars,

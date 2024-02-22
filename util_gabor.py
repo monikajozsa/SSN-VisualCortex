@@ -248,7 +248,7 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, roi,
     
     return 3*combined_image.ravel() # 3* is just historical because BW_image used 3 colors unnecessarily
 
-jit_BW_image_jax = jit(BW_image_jax, static_argnums = [0])
+BW_image_jit = jit(BW_image_jax, static_argnums = [0])
 
 
 #### CREATE GABOR FILTERS ####
