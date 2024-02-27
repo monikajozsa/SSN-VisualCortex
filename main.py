@@ -21,7 +21,7 @@ from parameters import (
     loss_pars,
     pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
-
+'''
 # Checking that pretrain_pars.is_on is on
 if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
@@ -31,7 +31,8 @@ if not pretrain_pars.is_on:
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 
-class ConstantPars:
+# class definition to collect parameters that are not trained
+class UntrainedPars:
     def __init__(self, grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
                  readout_pars):
@@ -52,9 +53,9 @@ class ConstantPars:
         self.pretrain_pars = pretrain_pars
         self.BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
 
-def def_constant_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+def def_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, readout_pars):
-    """Define constant_pars with a randomly generated orientation map."""
+    """Define untrained_pars with a randomly generated orientation map."""
     X = grid_pars.x_map
     Y = grid_pars.y_map
     is_uniform = False
@@ -73,11 +74,11 @@ def def_constant_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_
     ori_dist = cosdiff_ring(oris - oris.T, 180)
 
     # Collect parameters that are not trained into a single class
-    constant_pars = ConstantPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+    untrained_pars = UntrainedPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
                  readout_pars)
 
-    return constant_pars
+    return untrained_pars
 
 # Defining the number of random initializations for pretraining + training
 N_training = 5
@@ -89,16 +90,16 @@ starting_time_in_main= time.time()
 numFailedRuns = 0
 i=0
 while i < N_training and numFailedRuns < 20:
-    constant_pars = def_constant_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+    stimuli_pars.offset=offset_saved
+    stimuli_pars.ref_ori=ref_ori_saved # this changes during training because of the staircase
+    pretrain_pars.is_on=True
+    untrained_pars = def_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, readout_pars)
-    constant_pars.stimuli_pars.offset=offset_saved
-    constant_pars.stimuli_pars.ref_ori=ref_ori_saved # this changes during training because of the staircase
-    constant_pars.pretrain_pars.is_on=True
 
     results_filename = f"{final_folder_path}/results_{i}.csv"
     results_filename_train_only = f"{final_folder_path}/results_train_only{i}.csv"
     tuning_curves_prepre = f"{final_folder_path}/tc_prepre_{i}.csv"
-    tuning_curves_prepost = f"{final_folder_path}/tc_prepost_{i}.csv"
+    tuning_curves_postpre = f"{final_folder_path}/tc_postpre_{i}.csv"
     tuning_curves_post = f"{final_folder_path}/tc_post_{i}.csv"
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
@@ -107,13 +108,13 @@ while i < N_training and numFailedRuns < 20:
     readout_pars_pretrain = copy.deepcopy(readout_pars)
 
     # Perturb them by percent % and collect them into two dictionaries for the two stages of the pretraining
-    trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, constant_pars, percent=0.1)
+    trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, untrained_pars, percent=0.1)
 
     # Pretrain parameters
     training_output_df, first_stage_final_step = train_ori_discr(
             trained_pars_stage1,
             trained_pars_stage2,
-            constant_pars,
+            untrained_pars,
             results_filename=results_filename,
             jit_on=True
         )
@@ -122,21 +123,22 @@ while i < N_training and numFailedRuns < 20:
         numFailedRuns = numFailedRuns + 1
         continue
 
-    constant_pars.pretrain_pars.is_on=False
-    constant_pars.first_stage_final_step = first_stage_final_step
+    untrained_pars.pretrain_pars.is_on=False
+    untrained_pars.first_stage_final_step = first_stage_final_step
     
-    trained_pars_stage1, trained_pars_stage2 = load_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps[0]]))
-    responses_sup_prepre, responses_mid_prepre = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepre)#pretty slow
+    trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps[0]]))
+    responses_sup_prepre, responses_mid_prepre = tuning_curves(untrained_pars, trained_pars_stage2, tuning_curves_prepre)#pretty slow
 
     ##### FINE DISCRIMINATION #####
     
-    trained_pars_stage1, trained_pars_stage2 = load_parameters(results_filename, iloc_ind = first_stage_final_step-1)
-    responses_sup_prepost, responses_mid_prepost = tuning_curves(constant_pars, trained_pars_stage2, tuning_curves_prepost)
+    trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = first_stage_final_step-1)
+    responses_sup_postpre, responses_mid_postpre = tuning_curves(untrained_pars, trained_pars_stage2, tuning_curves_postpre)
+    untrained_pars.stimuli_pars.offset = min(offset_last,10)
 
     training_output_df, _ = train_ori_discr(
             trained_pars_stage1,
             trained_pars_stage2,
-            constant_pars,
+            untrained_pars,
             results_filename=results_filename,
             jit_on=True
         )
@@ -155,28 +157,32 @@ while i < N_training and numFailedRuns < 20:
         f_E=last_row['f_E'],
         f_I=last_row['f_I'],
     )
-    responses_sup_post, responses_mid_post = tuning_curves(constant_pars, pars_stage2, tuning_curves_post)
-    i = i + 1
-    print('runtime of {} pretraining + training run(s)'.format(i), time.time()-starting_time_in_main)
-    print('number of failed runs = ', numFailedRuns)
-
+    responses_sup_post, responses_mid_post = tuning_curves(untrained_pars, pars_stage2, tuning_curves_post)
+    
     # Running training only with the same initialization and orimap
+    untrained_pars.stimuli_pars.offset=offset_saved
+    untrained_pars.stimuli_pars.ref_ori=ref_ori_saved # this changes during training because of the staircase
     trained_pars_stage1, trained_pars_stage2 = load_parameters(results_filename, iloc_ind = 0)
     training_output_df, _ = train_ori_discr(
             trained_pars_stage1,
             trained_pars_stage2,
-            constant_pars,
+            untrained_pars,
             results_filename=results_filename_train_only,
             jit_on=True
         )
 
+    i = i + 1
+    print('runtime of {} pretraining + training run(s)'.format(i), time.time()-starting_time_in_main)
+    print('number of failed runs = ', numFailedRuns)
+
+
 ######### PLOT RESULTS ############
-
-from visualization import plot_results_from_csvs, barplots_from_csvs
-
-#final_folder_path='results/Feb22_v9'
-#N_training=1
+'''
+from visualization import plot_results_from_csvs, barplots_from_csvs, plot_results_from_csv#
+plot_results_from_csv('results/Feb23_v1/results_train_only0.csv','results/Feb23_v1/results_train_only0')
+final_folder_path='results/Feb27_v5'
+N_training=1
 plot_results_from_csvs(final_folder_path, N_training)
 
-boxplot_file_name = 'boxplot_pretraining'
-barplots_from_csvs(final_folder_path, boxplot_file_name)
+#boxplot_file_name = 'boxplot_pretraining'
+#barplots_from_csvs(final_folder_path, boxplot_file_name)

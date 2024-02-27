@@ -151,4 +151,7 @@ def load_parameters(file_path, readout_grid_size=5, iloc_ind=-1):
         f_E=selected_row['f_E'],
         f_I=selected_row['f_I'],
     )
-    return pars_stage1, pars_stage2
+    offsets  = df['offset'].dropna().reset_index(drop=True)
+    offset_last = offsets[len(offsets)-1]
+
+    return pars_stage1, pars_stage2, offset_last

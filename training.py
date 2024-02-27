@@ -61,13 +61,13 @@ def train_ori_discr(
         opt_state_readout = optimizer.init(readout_pars_dict)
         training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True)
 
-    # Define SGD_steps indices and offsets where binary task accuracy is calculated
+    # Define SGD_steps indices and offsets where training task accuracy is calculated
     if pretrain_on:
         numSGD_steps = training_pars.SGD_steps[0]
         min_acc_check_ind = constant_pars.pretrain_pars.min_acc_check_ind
         acc_check_ind = np.arange(0, numSGD_steps, constant_pars.pretrain_pars.acc_check_freq)
         acc_check_ind = acc_check_ind[(acc_check_ind > min_acc_check_ind) | (acc_check_ind <2)] # by leaving in 0, we make sure that it is not empty as we refer to it later
-        test_offset_vec = numpy.array([2, 4, 6, 9, 12, 15, 20, 30]) # offsets that help us define accuracy for binary task during pretraining
+        test_offset_vec = numpy.array([2, 4, 6, 9, 12, 15, 20]) # offsets that help us define accuracy for training task during pretraining
         numStages = constant_pars.pretrain_pars.numStages
     else:
         numSGD_steps = training_pars.SGD_steps[1]
@@ -92,117 +92,45 @@ def train_ori_discr(
     start_time = time.time()
     
     ######## Pretraining: One-stage, Training: Two-stage, where 1) parameters of sigmoid layer 2) parameters of SSN layers #############
-    
-    for stage in range(1,numStages+1):
-        if stage == 2:
-            # Reinitialise optimizer and reset the argnum to take gradient of
-            opt_state_ssn = optimizer.init(ssn_layer_pars_dict)
-            training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=0, has_aux=True)
+    pretrain_stop_flag = False
+    if not pretrain_stop_flag:
+        for stage in range(1,numStages+1):
+            if stage == 2:
+                # Reinitialise optimizer and reset the argnum to take gradient of
+                opt_state_ssn = optimizer.init(ssn_layer_pars_dict)
+                training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=0, has_aux=True)
 
-        # STOCHASTIC GRADIENT DESCENT LOOP
-        for SGD_step in range(numSGD_steps):
-            # i) Calculate model loss, accuracy, gradient
-            train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, training_loss_val_and_grad)
-            if jax.numpy.isnan(train_loss):
-                return None, None
-            
-            # ii) Early stopping during pre-training and training
-            # Check for early stopping during pre-training
-            if pretrain_on and SGD_step in acc_check_ind:
-                acc_mean, _, _ = mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, test_offset_vec)
-                # fit log-linear curve to acc_mean and test_offset_vec and find where it crosses baseline_acc=0.794
-                offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec)
-                if SGD_step==acc_check_ind[0] and stage==1:
-                    offsets_at_bl_acc=[offset_at_bl_acc]
-                else:
-                    offsets_at_bl_acc.append(offset_at_bl_acc)
-                print('Baseline acc is achieved at offset:', offset_at_bl_acc, ' for step ', SGD_step)
-                stop_flag = True if offset_at_bl_acc < pretrain_offset_threshold else False
-                if stop_flag:
-                    print('Desired accuracy achieved during pretraining.')
-                    first_stage_final_step = SGD_step
-                    break
-            # Check for early stopping during training
-            if not pretrain_on and stage==1:
-                if SGD_step == 0:
-                    avg_acc = train_acc
-                else:
-                    avg_acc = np.mean(np.asarray(train_accs[-min(SGD_step,10):]))
-                if avg_acc > first_stage_acc_th:
-                    print("Early stop: accuracy {} reached target {} for stage 1 training".format(
-                            avg_acc, first_stage_acc_th)
-                    )
-                    # Store final step index and exit first training loop
-                    first_stage_final_step = SGD_step
-                    break
-
-            # ii) Store model loss, accuracy, gradient            
-            if 'stages' in locals():
-                train_losses_all.append(train_loss_all.ravel())
-                train_accs.append(train_acc)
-                train_max_rates.append(train_max_rate)
-                if pretrain_on:
-                    stages.append(stage-1)
-                else:
-                    stages.append(stage)
-            else:
-                train_losses_all=[train_loss_all.ravel()]
-                train_accs=[train_acc]
-                train_max_rates=[train_max_rate]
-                if pretrain_on:
-                    stages=[stage-1]
-                else:
-                    stages=[stage]
-
-            # iii) Staircase algorithm during training: 3-down 1-up adjustment rule for the offset
-            if not pretrain_on:
-                if train_acc < threshold:
-                    temp_threshold=0
-                    if not pretrain_on and SGD_step > 2:
-                        stimuli_pars.offset =  stimuli_pars.offset + offset_step
-                else:
-                    temp_threshold=1
-                    if not pretrain_on and SGD_step > 2 and np.sum(np.asarray(threshold_variables[-3:])) ==3:
-                        stimuli_pars.offset =  stimuli_pars.offset - offset_step
-                if 'offsets' in locals():
-                    offsets.append(stimuli_pars.offset)
-                    threshold_variables.append(temp_threshold)
-                else:
-                    offsets=[stimuli_pars.offset]
-                    threshold_variables=[temp_threshold]
-
-            # iv) Loss and accuracy validation + printing results    
-            if SGD_step in val_steps:
-                #### Calculate loss and accuracy - *** could be switched to mean loss and acc easily
-                val_loss_vec, val_acc_vec = binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, stimuli_pars.offset)
-               
-                val_loss = np.mean(val_loss_vec)
-                val_acc = np.mean(val_acc_vec)
-                if 'val_accs' in locals():
-                    val_accs.append(val_acc)
-                    val_losses.append(val_loss)
-                else:
-                    val_accs=[val_acc]
-                    val_losses=[val_loss]
-                    
-                SGD_step_time = time.time() - start_time
-                print("Stage: {}¦ Readout loss: {:.3f}  ¦ Tot training loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ SGD step: {} ¦ Runtime: {:.4f} ".format(
-                    stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, SGD_step_time
-                ))
-            
-            # v) Parameter update. Note that pre-training is one-stage, training is two-stage
-            if numStages==1:
-                updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
-                if np.isnan(updates_ssn['c_E']).item():
+            # STOCHASTIC GRADIENT DESCENT LOOP
+            for SGD_step in range(numSGD_steps):
+                # i) Calculate model loss, accuracy, gradient
+                train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, training_loss_val_and_grad)
+                if jax.numpy.isnan(train_loss):
                     return None, None
-                ssn_layer_pars_dict = optax.apply_updates(ssn_layer_pars_dict, updates_ssn)
+
+                # ii) Store parameters and metrics 
+                if 'stages' in locals():
+                    train_losses_all.append(train_loss_all.ravel())
+                    train_accs.append(train_acc)
+                    train_max_rates.append(train_max_rate)
+                    if pretrain_on:
+                        stages.append(stage-1)
+                    else:
+                        stages.append(stage)
+                else:
+                    train_losses_all=[train_loss_all.ravel()]
+                    train_accs=[train_acc]
+                    train_max_rates=[train_max_rate]
+                    if pretrain_on:
+                        stages=[stage-1]
+                    else:
+                        stages=[stage]
                 if 'log_J_2x2_m' in locals():
-                    log_J_2x2_m.append(ssn_layer_pars_dict['log_J_2x2_m'].ravel())
-                    log_J_2x2_s.append(ssn_layer_pars_dict['log_J_2x2_s'].ravel())
-                    c_E.append(ssn_layer_pars_dict['c_E'])
-                    c_I.append(ssn_layer_pars_dict['c_I'])
-                    f_E.append(ssn_layer_pars_dict['f_E'])
-                    f_I.append(ssn_layer_pars_dict['f_I'])
+                        log_J_2x2_m.append(ssn_layer_pars_dict['log_J_2x2_m'].ravel())
+                        log_J_2x2_s.append(ssn_layer_pars_dict['log_J_2x2_s'].ravel())
+                        c_E.append(ssn_layer_pars_dict['c_E'])
+                        c_I.append(ssn_layer_pars_dict['c_I'])
+                        f_E.append(ssn_layer_pars_dict['f_E'])
+                        f_I.append(ssn_layer_pars_dict['f_I'])
                 else:
                     log_J_2x2_m = [ssn_layer_pars_dict['log_J_2x2_m'].ravel()]
                     log_J_2x2_s = [ssn_layer_pars_dict['log_J_2x2_s'].ravel()]
@@ -210,9 +138,6 @@ def train_ori_discr(
                     c_I = [ssn_layer_pars_dict['c_I']]
                     f_E = [ssn_layer_pars_dict['f_E']]
                     f_I = [ssn_layer_pars_dict['f_I']]
-
-                updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
-                readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
                 w_sig_temp=readout_pars_dict['w_sig']
                 if 'w_sigs' in locals():
                     w_sigs.append(w_sig_temp[w_indices_to_save])
@@ -220,58 +145,119 @@ def train_ori_discr(
                 else:
                     w_sigs = [w_sig_temp[w_indices_to_save]]
                     b_sigs = [readout_pars_dict['b_sig']]
-            else:
-                if stage == 1:
-                    # Update readout parameters
-                    updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout)
-                    readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
-                    w_sig_temp=readout_pars_dict['w_sig']
-                    if 'w_sigs' in locals():
-                        w_sigs.append(w_sig_temp[w_indices_to_save])
-                        b_sigs.append(readout_pars_dict['b_sig'])
-                    else:
-                        w_sigs = [w_sig_temp[w_indices_to_save]]
-                        b_sigs = [readout_pars_dict['b_sig']]
-                else:                    
-                    # Update ssn layer parameters
-                    updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
-                    ssn_layer_pars_dict = optax.apply_updates(ssn_layer_pars_dict, updates_ssn)
-                    if SGD_step==0:
-                        log_J_2x2_m = [ssn_layer_pars_dict['log_J_2x2_m'].ravel()]
-                        log_J_2x2_s = [ssn_layer_pars_dict['log_J_2x2_s'].ravel()]
-                        c_E = [ssn_layer_pars_dict['c_E']]
-                        c_I = [ssn_layer_pars_dict['c_I']]
-                        f_E = [ssn_layer_pars_dict['f_E']]
-                        f_I = [ssn_layer_pars_dict['f_I']]
-                    else:
-                        log_J_2x2_m.append(ssn_layer_pars_dict['log_J_2x2_m'].ravel())
-                        log_J_2x2_s.append(ssn_layer_pars_dict['log_J_2x2_s'].ravel())
-                        c_E.append(ssn_layer_pars_dict['c_E'])
-                        c_I.append(ssn_layer_pars_dict['c_I'])
-                        f_E.append(ssn_layer_pars_dict['f_E'])
-                        f_I.append(ssn_layer_pars_dict['f_I'])
-    if 'b_sigs' not in locals(): # when stage 1 is skipped, give default value to save to dataframe
-        w_sig_temp = readout_pars_dict['w_sig']
-        w_sigs = [w_sig_temp[w_indices_to_save]]
-        b_sigs = [readout_pars_dict['b_sig']]
-    ############# SAVING and RETURN OUTPUT #############
+                if 'offsets' in locals():
+                    offsets.append(stimuli_pars.offset)
+                else:
+                    offsets=[stimuli_pars.offset]
 
+                # ii) Early stopping during pre-training and training
+                # Check for early stopping during pre-training
+                if pretrain_on and SGD_step in acc_check_ind:
+                    acc_mean, _, _ = mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, test_offset_vec)
+                    # fit log-linear curve to acc_mean and test_offset_vec and find where it crosses baseline_acc=0.794
+                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= constant_pars.pretrain_pars.acc_th)
+                    if SGD_step==acc_check_ind[0] and stage==1:
+                        offsets_at_bl_acc=[float(offset_at_bl_acc)]
+                    else:
+                        offsets_at_bl_acc.append(float(offset_at_bl_acc))
+                    print('Baseline acc is achieved at offset:', offset_at_bl_acc, ' for step ', SGD_step)
+
+                    # Stop pretraining: nreak out from STG_step loop and stages loop (using a flag)
+                    if len(offsets_at_bl_acc)>3:
+                        pretrain_stop_flag = all(np.array(offsets_at_bl_acc[-3:]) < pretrain_offset_threshold)
+                    else:
+                        pretrain_stop_flag = True if offset_at_bl_acc < pretrain_offset_threshold else False
+                    if pretrain_stop_flag:
+                        print('Desired accuracy achieved during pretraining.')
+                        first_stage_final_step = SGD_step
+                        break
+
+                # Check for early stopping during training
+                if not pretrain_on and stage==1:
+                    if SGD_step == 0:
+                        avg_acc = train_acc
+                    else:
+                        avg_acc = np.mean(np.asarray(train_accs[-min(SGD_step,10):]))
+                    if avg_acc > first_stage_acc_th:
+                        print("Early stop: accuracy {} reached target {} for stage 1 training".format(
+                                avg_acc, first_stage_acc_th)
+                        )
+                        # Store final step index and exit first training loop
+                        first_stage_final_step = SGD_step
+                        break
+
+                # iii) Staircase algorithm during training: 3-down 1-up adjustment rule for the offset
+                if stage==2 and not pretrain_on:
+                    if train_acc < threshold:
+                        temp_threshold=0
+                        stimuli_pars.offset =  stimuli_pars.offset + offset_step
+                    else:
+                        temp_threshold=1
+                        if SGD_step > 2 and np.sum(np.asarray(threshold_variables[-3:])) == 3:
+                            stimuli_pars.offset =  stimuli_pars.offset - offset_step
+                    if 'threshold_variables' in locals():
+                        threshold_variables.append(temp_threshold)
+                    else:
+                        threshold_variables=[temp_threshold]
+
+                # iv) Loss and accuracy validation + printing results    
+                if SGD_step in val_steps:
+                    #### Calculate loss and accuracy - *** could be switched to mean loss and acc easily
+                    val_loss_vec, val_acc_vec = training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, stimuli_pars.offset)
+                
+                    val_loss = np.mean(val_loss_vec)
+                    val_acc = np.mean(val_acc_vec)
+                    if 'val_accs' in locals():
+                        val_accs.append(val_acc)
+                        val_losses.append(val_loss)
+                    else:
+                        val_accs=[val_acc]
+                        val_losses=[val_loss]
+                        
+                    SGD_step_time = time.time() - start_time
+                    print("Stage: {}¦ Readout loss: {:.3f}  ¦ Tot training loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ SGD step: {} ¦ Runtime: {:.4f} ".format(
+                        stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, SGD_step_time
+                    ))
+                
+                # v) Parameter update. Note that pre-training is one-stage, training is two-stage
+                if numStages==1:
+                    # Update readout parameters
+                    updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
+                    ssn_layer_pars_dict = optax.apply_updates(ssn_layer_pars_dict, updates_ssn)
+                    # Update ssn layer parameters       
+                    updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
+                    readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
+                else:
+                    if stage == 1:
+                        # Update readout parameters
+                        updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout)
+                        readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
+                    else:                    
+                        # Update ssn layer parameters
+                        updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
+                        ssn_layer_pars_dict = optax.apply_updates(ssn_layer_pars_dict, updates_ssn)
+                        
+    ############# SAVING and RETURN OUTPUT #############
+    
     # Define SGD_steps indices for training and validation
     if pretrain_on:
-        SGD_steps = np.arange(0, first_stage_final_step )
-        val_SGD_steps = val_steps[val_steps < first_stage_final_step]
+        SGD_steps = np.arange(0, len(stages))
+        val_SGD_steps = val_steps[0:len(val_accs)]
         offsets = None
-        acc_check_ind = acc_check_ind[acc_check_ind < first_stage_final_step]
+        acc_check_ind = acc_check_ind[0:len(offsets_at_bl_acc)]
+        step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps, acc_check_ind=acc_check_ind)
     else:
-        SGD_steps = np.arange(0, first_stage_final_step + numSGD_steps )
-        val_SGD_steps_stage1 = val_steps[val_steps < first_stage_final_step]
+        SGD_steps = np.arange(0, len(stages))
+        val_SGD_steps_stage1 = val_steps[val_steps < first_stage_final_step + 1]
         val_SGD_steps_stage2 = np.arange(first_stage_final_step, first_stage_final_step + numSGD_steps, training_pars.validation_freq)
         val_SGD_steps = np.hstack([val_SGD_steps_stage1, val_SGD_steps_stage2])
+        val_SGD_steps = val_SGD_steps[0:len(val_accs)]
         offsets_at_bl_acc = None
-        acc_check_ind = None
+        step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps)
         
     # Create DataFrame and save the DataFrame to a CSV file
-    df = make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I, offsets, acc_check_ind, offsets_at_bl_acc)
+        
+    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I, offsets, offsets_at_bl_acc)
 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
@@ -280,9 +266,10 @@ def train_ori_discr(
     return df, first_stage_final_step
 
 
-def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, training_loss_val_and_grad):
+def loss_and_grad_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, training_loss_val_and_grad):
 
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
+    training_pars=constant_pars.training_pars
     if constant_pars.pretrain_pars.is_on:
         # Generate noise that is added to the output of the model
         noise_ref = generate_noise(
@@ -300,7 +287,7 @@ def loss_and_grad_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, re
         noise_target = generate_noise(
             training_pars.sig_noise, training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0]
         )
-        train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size[1], constant_pars.BW_image_jax_inp)
+        train_data = create_grating_pairs(constant_pars.stimuli_pars, training_pars.batch_size[1], constant_pars.BW_image_jax_inp)
 
     # Calculate gradient, loss and accuracy
     [loss, [all_losses, accuracy, sig_input, sig_output, max_rates]], grad = training_loss_val_and_grad(
@@ -386,9 +373,10 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_
     
     return loss, all_losses, pred_label, sig_input, sig_output,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup]
 
-#Parallelize orientation discrimination task
+#Parallelize orientation discrimination task and jit the parallelized function
 vmap_ori_discrimination = vmap(loss_ori_discr, in_axes = (None, None, None, {'ref':0, 'target':0, 'label':0}, 0, 0) )
 jit_ori_discrimination = jax.jit(vmap_ori_discrimination, static_argnums = [2])
+
 
 def batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_data, noise_ref, noise_target, jit_on=True):
     '''
@@ -431,13 +419,12 @@ def generate_noise(sig_noise,  batch_size, length):
     return sig_noise*numpy.random.randn(batch_size, length)
 
 
-####### Functions for testing binary task accuracy for different offsets and finding the offset value where it crosses baseline accuracy 
-def binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, offset_vmap):
+####### Functions for testing training task accuracy for different offsets and finding the offset value where it crosses baseline accuracy 
+def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, test_offset):
     '''
-    This function tests the accuracy of the binary orientation discrimination task given a set of parameters across different stimulus offsets.
+    This function tests the accuracy of the training orientation discrimination task given a set of parameters across different stimulus offsets.
     
     Parameters:
-    - training_pars: Parameters related to the training process.
     - ssn_layer_pars_dict: Dictionary of parameters for the SSN layers.
     - readout_pars_dict: Dictionary of parameters for the readout layer.
     - constant_pars: Constant parameters used across the model.
@@ -451,30 +438,30 @@ def binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, 
     '''
     # Create copies of stimuli and readout_pars_dict because their 
     pretrain_is_on_saved = constant_pars.pretrain_pars.is_on
-    constant_pars.pretrain_pars.is_on=False # this is to get the accuracy metric that corresponds to the binary task and not the regression task
+    constant_pars.pretrain_pars.is_on=False # this is to get the accuracy metric that corresponds to the training task and not the regression task
       
     if pretrain_is_on_saved:
         readout_pars_dict_copy = copy.deepcopy(readout_pars_dict)
         readout_pars_dict_copy['w_sig'] = readout_pars_dict_copy['w_sig'][constant_pars.middle_grid_ind]
-        batch_size = training_pars.batch_size[0]
+        #batch_size = constant_pars.training_pars.batch_size[0]
     else:
         readout_pars_dict_copy = copy.deepcopy(readout_pars_dict)
-        batch_size = training_pars.batch_size[1]
+        #batch_size = constant_pars.training_pars.batch_size[1]
     
     # Iterate over each offset by using vmap outside of the function
     offset_saved = constant_pars.stimuli_pars.offset
-    constant_pars.stimuli_pars.offset = offset_vmap
+    constant_pars.stimuli_pars.offset = test_offset
     
     # Generate noise that is added to the output of the model
     noise_ref = generate_noise(
-        training_pars.sig_noise, batch_size, readout_pars_dict_copy["w_sig"].shape[0]
+        constant_pars.training_pars.sig_noise, 200, readout_pars_dict_copy["w_sig"].shape[0]
     )
     noise_target = generate_noise(
-        training_pars.sig_noise, batch_size, readout_pars_dict_copy["w_sig"].shape[0]
+        constant_pars.training_pars.sig_noise, 200, readout_pars_dict_copy["w_sig"].shape[0]
     )
     
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
-    train_data = create_grating_pairs(constant_pars.stimuli_pars, batch_size, constant_pars.BW_image_jax_inp)
+    train_data = create_grating_pairs(constant_pars.stimuli_pars, 200, constant_pars.BW_image_jax_inp)
 
     # Calculate loss and accuracy
     loss, [_, acc, _, _, _] = batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict_copy, constant_pars, train_data, noise_ref, noise_target, jit_on)
@@ -484,7 +471,7 @@ def binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, 
     
     return loss, acc
 
-def mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, offset_vec,sample_size = 5):
+def mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, offset_vec, sample_size = 3):
     # Initialize arrays to store loss, accuracy, and max rates
     N = len(offset_vec)
     accuracy = numpy.zeros((N,sample_size))
@@ -495,7 +482,7 @@ def mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_d
     # For the all the offsets, calculate fine discrimination accuracy sample_size times
     for i in range(N):
         for j in range(sample_size):
-            temp_loss, temp_acc = binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, offset_vec[i])
+            temp_loss, temp_acc = training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, constant_pars, jit_on, offset_vec[i])
             accuracy[i,j] = temp_acc
             loss[i,j] = temp_loss
         
@@ -505,7 +492,7 @@ def mean_binary_task_acc_test(training_pars, ssn_layer_pars_dict, readout_pars_d
     return accuracy_mean, accuracy, loss
 
 
-def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=numpy.linspace(1, 100, 500), baseline_acc=0.794):
+def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=numpy.linspace(1, 90, 300), baseline_acc=0.794):
     '''
     This function fits a log-linear curve to x=offset_vec, y=acc_vec data and returns the x value, where the curve crosses baseline_acc.
     '''
@@ -518,6 +505,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
     # y_vals = sum(c * x_vals ** i for i, c in enumerate(reversed(coefficients)))
     
     # Fit a log-linear learning curve
+    offset_vec = numpy.array(offset_vec)
     offset_vec[offset_vec == 0] = np.finfo(float).eps
     log_offset_vec = np.log(offset_vec)
     a, b = np.polyfit(log_offset_vec, acc_vec, 1)
@@ -539,12 +527,12 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
 
 ####### Function for creating DataFrame
-def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I, offsets=None, acc_check_ind=None, offsets_at_bl_acc=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I, offsets=None, offsets_at_bl_acc=None):
     ''' This function collects different variables from training results into a dataframe.'''
     # Create an empty DataFrame and initialize it with stages, SGD steps, and training accuracies
     df = pd.DataFrame({
         'stage': stages,
-        'SGD_steps': SGD_steps,
+        'SGD_steps': step_indices['SGD_steps'],
         'acc': train_accs
     })
 
@@ -556,7 +544,7 @@ def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train
 
     # Add validation accuracies at specified SGD steps
     df['val_acc'] = None
-    df.loc[val_SGD_steps, 'val_acc'] = val_accs
+    df.loc[step_indices['val_SGD_steps'], 'val_acc'] = val_accs
 
     # Add different types of training and validation losses to df
     loss_names = ['loss_binary', 'loss_dx_max', 'loss_r_max', 'loss_w_sig', 'loss_b_sig', 'loss_all']
@@ -564,105 +552,37 @@ def make_dataframe(stages, SGD_steps, val_SGD_steps, train_accs, val_accs, train
         df[loss_names[i]]=train_losses_all[:,i]
     
     df['val_loss']=None
-    df.loc[val_SGD_steps, 'val_loss']=val_losses
+    df.loc[step_indices['val_SGD_steps'], 'val_loss']=val_losses
 
     # Add max rates data to df
     max_rates_names = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup']
     for i in range(len(train_max_rates[0])):
         df[max_rates_names[i]]=train_max_rates[:,i]
     
-    # Add trained parameters to df
-    # Define SGD steps for the different stages
-    SGD_steps_stage1=np.arange(len(b_sigs))
-    if max(stages)==2:
-        SGD_steps_stage2=np.arange(len(b_sigs),len(b_sigs)+len(c_E))
-    
     # Add parameters that are trained in two stages during training and in one stage during pretraining
     max_stages = max(1,max(stages))
-    for stage_i in range(max_stages):
-        if stage_i == 0:
-            for i in range(len(w_sigs[0])):
-                weight_name = f'w_sig_{i+1}'
-                df[weight_name] = None
-                df.loc[SGD_steps_stage1, weight_name] = w_sigs[:,i]
+    J_m_names = ['logJ_m_EE', 'logJ_m_EI', 'logJ_m_IE', 'logJ_m_II']
+    J_s_names = ['logJ_s_EE', 'logJ_s_EI', 'logJ_s_IE', 'logJ_s_II']
+    for i in range(len(w_sigs[0])):
+        weight_name = f'w_sig_{i+1}'
+        df[weight_name] =  w_sigs[:,i]
+    df['b_sig'] = b_sigs
+    for i in range(len(log_J_2x2_m[0])):
+        df[J_m_names[i]] = log_J_2x2_m[:,i]
+    for i in range(len(log_J_2x2_s[0])):
+        df[J_s_names[i]] = log_J_2x2_s[:,i]
+    df['c_E']=c_E
+    df['c_I']=c_I
+    df['f_E']=f_E
+    df['f_I']=f_I
 
-            # Add readout bias parameter to df
-            df['b_sig'] = None
-            df.loc[SGD_steps_stage1,'b_sig'] = b_sigs
-            
-            # Add log-J matrices for different neuron types and layers to df
-            J_m_names = ['logJ_m_EE', 'logJ_m_EI', 'logJ_m_IE', 'logJ_m_II']
-            J_s_names = ['logJ_s_EE', 'logJ_s_EI', 'logJ_s_IE', 'logJ_s_II']
-            for i in range(len(log_J_2x2_m[0])):
-                df[J_m_names[i]] = None
-                if max_stages==1:
-                    df[J_m_names[i]] = log_J_2x2_m[:,i]
-                else:
-                    df.loc[SGD_steps_stage1, J_m_names[i]] = log_J_2x2_m[0,i]
-            for i in range(len(log_J_2x2_s[0])):
-                df[J_s_names[i]] = None
-                if max_stages==1:
-                    df[J_s_names[i]] = log_J_2x2_s[:,i]
-                else:
-                    df.loc[SGD_steps_stage1, J_s_names[i]] = log_J_2x2_s[0,i]
-            
-            # Add excitatory and inhibitory constants to df
-            if max_stages==1:
-                df['c_E']=c_E
-                df['c_I']=c_I
-                df['f_E']=f_E
-                df['f_I']=f_I
-            else:
-                df.loc[SGD_steps_stage1,'c_E']=c_E[0]
-                df.loc[SGD_steps_stage1,'c_I']=c_I[0]
-                df.loc[SGD_steps_stage1,'f_E']=f_E[0]
-                df.loc[SGD_steps_stage1,'f_I']=f_I[0]
-                
-            # Add offset to df if staircase was in place
-            if offsets is not None:
-                df['offset']=None
-                offsets=np.hstack(offsets)
-                df.loc[SGD_steps_stage1,'offset']= offsets[SGD_steps_stage1]
-
-        else: # repeat last values for stage two for training
-            for i in range(len(w_sigs[0])):
-                weight_name = f'w_sig_{i+1}'
-                df.loc[SGD_steps_stage2, weight_name] = w_sigs[-1,i]
-            for i in range(len(log_J_2x2_m[0])):
-                df.loc[SGD_steps_stage2, J_m_names[i]] = log_J_2x2_m[:,i]
-            for i in range(len(log_J_2x2_s[0])):
-                df.loc[SGD_steps_stage2, J_s_names[i]] = log_J_2x2_s[:,i]
-            
-            df.loc[SGD_steps_stage2,'b_sig'] = b_sigs[-1]
-            
-            for i in range(len(log_J_2x2_m[0])):
-                df.loc[SGD_steps_stage2, J_m_names[i]] = log_J_2x2_m[:,i]
-            for i in range(len(log_J_2x2_s[0])):
-                df.loc[SGD_steps_stage2, J_s_names[i]] = log_J_2x2_s[:,i]
-            
-            df.loc[SGD_steps_stage2,'c_E']=c_E
-            df.loc[SGD_steps_stage2,'c_I']=c_I
-            df.loc[SGD_steps_stage2,'f_E']=f_E
-            df.loc[SGD_steps_stage2,'f_I']=f_I
-            
-            if offsets is not None:
-                df.loc[SGD_steps_stage2,'offset'] = offsets[SGD_steps_stage2]
-        
-    # Add offset corresponding to accuracy test during pretraining
-    if offsets_at_bl_acc is not None:
+    if max_stages==1:    
         df['offset']=None
         offsets_at_bl_acc=np.hstack(offsets_at_bl_acc)
-        df.loc[acc_check_ind,'offset']=offsets_at_bl_acc[0:len(acc_check_ind)]
-
+        df.loc[step_indices['acc_check_ind'],'offset']=offsets_at_bl_acc
+    else:    
+        # Add offset to df if staircase was in place
+        if offsets is not None:
+            df['offset']= offsets
+            
     return df
-
-# I might start using the following function in make_dataframe to make the code shorter and nicer
-def add_variables_to_df(df, values, names, indices=None):
-    """
-    Add variables to the DataFrame df (at given indices, if specified).
-    """
-    for name, values in zip(names, values):
-        if indices is not None:
-            df.loc[indices, name] = values
-        else:
-            df[name] = values

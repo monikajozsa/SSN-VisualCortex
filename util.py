@@ -355,16 +355,17 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
 
     # Generate the second numbers with correction if they are out of the specified range
     num2 = num1 - random_distance #order and sign are important!
+
     # Create a mask where flip_numbers equals 1
-    #swap_numbers = numpy.random.choice([0, 1], batch_size) 
-    #mask = swap_numbers == 1
+    swap_numbers = numpy.random.choice([0, 1], batch_size) 
+    mask = swap_numbers == 1
 
     # Swap values where mask is True
     # We'll use a temporary array to hold the values of num1 where the mask is True
-    #temp_num1 = np.copy(num1[mask])
-    #num1[mask] = num2[mask]
-    #num2[mask] = temp_num1
-    #random_distance[mask] = -random_distance[mask]
+    temp_num1 = np.copy(num1[mask])
+    num1[mask] = num2[mask]
+    num2[mask] = temp_num1
+    random_distance[mask] = -random_distance[mask]
     
     # Apply wrap-around logic
     #num2[num2 > tot_angle] = num2[num2 > tot_angle] - tot_angle

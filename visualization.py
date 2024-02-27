@@ -326,12 +326,12 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
     num_mid_cells = 648
     num_sup_cells = 164
     num_runs_plotted = min(5,num_runs)    
-    tc_post_pretrain =os.path.join(folder_path,f'tc_prepost_0.csv')
+    tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_0.csv')
     pretrain_ison = os.path.exists(tc_post_pretrain)
     for j in range(num_runs_plotted):
 
         tc_pre_pretrain = os.path.join(folder_path,f'tc_prepre_{j}.csv')
-        tc_post_pretrain =os.path.join(folder_path,f'tc_prepost_{j}.csv')
+        tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_{j}.csv')
         tc_post_train =os.path.join(folder_path,f'tc_post_{j}.csv')
         df_tc_pre_pretrain = pd.read_csv(tc_pre_pretrain, header=0)
         if pretrain_ison:

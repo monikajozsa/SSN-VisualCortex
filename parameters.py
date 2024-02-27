@@ -9,9 +9,9 @@ class PreTrainPars:
     min_ori_dist = 10
     max_ori_dist = 40
     numStages = 1
-    acc_th = 0.749
-    acc_check_freq = 20
-    min_acc_check_ind = 50
+    acc_th = 0.7
+    acc_check_freq = 10
+    min_acc_check_ind = 100
     offset_threshold = 5
 
 pretrain_pars = PreTrainPars()
@@ -20,12 +20,12 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta = 10e-3  # learning rate
+    eta = 10e-4  # learning rate
     batch_size = [100, 50]
     noise_type = "poisson"
     sig_noise = 1.0 if noise_type != "no_noise" else 0.0
-    SGD_steps = [500, 500] # number of SGD steps
-    validation_freq = 20  # calculate validation loss and accuracy every validation_freq SGD step
+    SGD_steps = [500, 300] # number of SGD steps
+    validation_freq = 30  # calculate validation loss and accuracy every validation_freq SGD step
     first_stage_acc_th = 0.65
 
 training_pars = TrainingPars()
