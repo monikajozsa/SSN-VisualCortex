@@ -5,7 +5,7 @@ import pandas as pd
 
 numpy.random.seed(0)
 
-from util_gabor import create_gabor_filters_util
+from util_gabor import create_gabor_filters_ori_map
 from util import take_log, save_code, cosdiff_ring
 from training import train_ori_discr
 from parameters import (
@@ -30,7 +30,7 @@ training_pars.sig_noise = 2.0
 ########## Initialize orientation map and gabor filters ############
 
 ssn_ori_map_loaded = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
-gabor_filters = create_gabor_filters_util(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
+gabor_filters = create_gabor_filters_ori_map(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
 
 oris = ssn_ori_map_loaded.ravel()[:, None]
 ori_dist = cosdiff_ring(oris - oris.T, 180)

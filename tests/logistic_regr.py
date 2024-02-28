@@ -7,8 +7,8 @@ import numpy
 
 from SSN_classes import SSN_mid, SSN_sup
 from parameters import stimuli_pars, ssn_pars, grid_pars, conn_pars_m, conn_pars_s, filter_pars, ssn_layer_pars, conv_pars
-from util import create_grating_pairs
-from util_gabor import create_gabor_filters_util
+from util import create_grating_training
+from util_gabor import create_gabor_filters_ori_map
 from model import evaluate_model_response
 
 def softplus(x):
@@ -17,7 +17,7 @@ def softplus(x):
 ssn_ori_map = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
 ssn_mid=SSN_mid(ssn_pars=ssn_pars, grid_pars=grid_pars, conn_pars=conn_pars_m, filter_pars=filter_pars, J_2x2=ssn_layer_pars.J_2x2_m, gE = ssn_layer_pars.gE_m, gI=ssn_layer_pars.gI_m, ori_map = ssn_ori_map)
 ssn_sup=SSN_sup(ssn_pars=ssn_pars, grid_pars=grid_pars, conn_pars=conn_pars_s, J_2x2=ssn_layer_pars.J_2x2_s, s_2x2=ssn_layer_pars.s_2x2_s, sigma_oris = ssn_layer_pars.sigma_oris, ori_map = ssn_ori_map, train_ori = 55, kappa_post = [0.0,0.0], kappa_pre = [0.0,0.0])
-gabor_filters = create_gabor_filters_util(ssn_ori_map, ssn_mid, filter_pars, ssn_pars.phases)
+gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_mid, filter_pars, ssn_pars.phases)
 
 # Allocate dictionary to save to file
 data_dict = {
@@ -27,7 +27,7 @@ data_dict = {
 
 # Generate data for logistic regression
 for i in range(200):
-    train_data = create_grating_pairs(stimuli_pars, 1)
+    train_data = create_grating_training(stimuli_pars, 1)
     
     #Run reference and targetthrough two layer model
     r_ref, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'].ravel(), conv_pars, ssn_layer_pars.c_E, ssn_layer_pars.c_I, ssn_layer_pars.f_E, ssn_layer_pars.f_I, gabor_filters)

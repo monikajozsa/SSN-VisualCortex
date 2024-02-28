@@ -10,7 +10,7 @@ from pdb import set_trace
 import time
 from torch.utils.data import DataLoader
 import numpy
-from util  import constant_to_vec, create_grating_pairs
+from util  import constant_to_vec, create_grating_training
 from model import generate_noise
 from matplotlib.colors import hsv_to_rgb
 import matplotlib.patches as mpatches

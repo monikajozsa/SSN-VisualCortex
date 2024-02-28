@@ -10,7 +10,7 @@ import csv
 from IPython.core.debugger import set_trace
 from SSN_classes_middle import SSN2DTopoV1_ONOFF_local
 from SSN_classes_superficial import SSN2DTopoV1
-from util import create_grating_pairs, create_grating_single, take_log, save_params_dict_two_stage
+from util import create_grating_training, create_grating_single, take_log, save_params_dict_two_stage
 
 from model import vmap_ori_discrimination, generate_noise
 from analysis import plot_max_rates, plot_w_sig
@@ -106,7 +106,7 @@ def train_model(ssn_layer_pars, readout_pars, constant_pars, training_pars, stim
         start_time = time.time()
            
         #Load next batch of data and convert
-        train_data = create_grating_pairs(stimuli_pars = stimuli_pars, n_trials = batch_size)
+        train_data = create_grating_training(stimuli_pars = stimuli_pars, n_trials = batch_size)
             
         #Generate noise
         noise_ref = generate_noise(training_pars.sig_noise, batch_size, readout_pars['w_sig'].shape[0])
@@ -137,7 +137,7 @@ def train_model(ssn_layer_pars, readout_pars, constant_pars, training_pars, stim
         if epoch in epochs_to_save:
             
             #Evaluate model 
-            test_data = create_grating_pairs(stimuli_pars = stimuli_pars, n_trials = test_size)
+            test_data = create_grating_training(stimuli_pars = stimuli_pars, n_trials = test_size)
             
             #Generate noise
             noise_ref = generate_noise(training_pars.sig_noise, batch_size, readout_pars['w_sig'].shape[0])
@@ -203,7 +203,7 @@ def train_model(ssn_layer_pars, readout_pars, constant_pars, training_pars, stim
     for epoch in range(1, training_pars.epochs +1):
                 
         #Generate next batch of data
-        train_data = create_grating_pairs(stimuli_pars = stimuli_pars, n_trials = batch_size)
+        train_data = create_grating_training(stimuli_pars = stimuli_pars, n_trials = batch_size)
         
         #Generate noise
         noise_ref = generate_noise(training_pars.sig_noise, batch_size, readout_pars['w_sig'].shape[0])
@@ -224,7 +224,7 @@ def train_model(ssn_layer_pars, readout_pars, constant_pars, training_pars, stim
         if epoch in epochs_to_save:
 
             #Evaluate model 
-            test_data = create_grating_pairs(stimuli_pars = stimuli_pars, n_trials = test_size)
+            test_data = create_grating_training(stimuli_pars = stimuli_pars, n_trials = test_size)
             #Generate noise
             noise_ref = generate_noise(training_pars.sig_noise, batch_size, readout_pars['w_sig'].shape[0])
             noise_target = generate_noise(training_pars.sig_noise, batch_size, readout_pars['w_sig'].shape[0])

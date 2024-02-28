@@ -1,9 +1,112 @@
 import numpy
 from PIL import Image
 import jax.numpy as np
-from jax import random, jit, lax
+from jax import jit, lax, vmap
+import matplotlib.pyplot as plt
 
 from parameters import StimuliPars
+
+######### Orimap and initialization of untrained parameters #########
+# class definition to collect parameters that are not trained
+class UntrainedPars:
+    def __init__(self, grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+                 loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
+                 readout_pars):
+        self.grid_pars = grid_pars
+        self.stimuli_pars = stimuli_pars
+        self.filter_pars = filter_pars
+        self.ssn_ori_map = ssn_ori_map
+        self.oris = oris
+        self.ori_dist = ori_dist
+        self.ssn_pars = ssn_pars
+        self.ssn_layer_pars = ssn_layer_pars
+        self.conv_pars = conv_pars
+        self.loss_pars = loss_pars
+        self.training_pars = training_pars
+        self.gabor_filters = gabor_filters
+        self.readout_grid_size = readout_pars.readout_grid_size
+        self.middle_grid_ind = readout_pars.middle_grid_ind
+        self.pretrain_pars = pretrain_pars
+        self.BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
+
+
+def cosdiff_ring(d_x, L):
+    '''
+    Calculate the cosine-based distance.
+    Parameters:
+    d_x: The difference in the angular position.
+    L: The total angle.
+    '''
+    # Calculate the cosine of the scaled angular difference
+    cos_angle = np.cos(d_x * 2 * np.pi / L)
+
+    # Calculate scaled distance
+    distance = np.sqrt( (1 - cos_angle) * 2) * L / (2 * np.pi)
+
+    return distance
+
+
+def test_uniformity(numbers, num_bins=18, alpha=0.25):
+    '''
+    This function assesses the uniformity of 'numbers' within the range [0, 180] by dividing the range into 'num_bins' 
+    equally sized bins and comparing the observed frequencies in these bins against the expected frequencies for a uniform 
+    distribution. The test is performed at a significance level 'alpha'.
+
+    Parameters:
+    - numbers (list or array-like): The set of numbers to test for uniformity.
+    - num_bins (int): The number of bins to use for dividing the range [0, 180]. Default is 10.
+    - alpha (float): The significance level for the chi-squared test. Default is 0.1.
+
+    Returns:
+    - bool: False if the null hypothesis (that the distribution is uniform) is rejected, True otherwise.
+    '''
+
+    n = len(numbers)
+    expected_freq = n / num_bins
+    observed_freq = [0] * num_bins
+    
+    for number in numbers:
+        if 0 <= number <= 180:  # Ensure the number is within the desired range
+            bin_index = int((number / 180) * num_bins)
+            observed_freq[bin_index] += 1
+    
+    chi_squared_stat = sum(((obs - expected_freq) ** 2) / expected_freq for obs in observed_freq)
+    
+    # Chi-square table for degrees of freedom 1-20 and significance level 0.1, 0.05, 0.025 and 0.01
+    sig_levels = numpy.array([0.25, 0.1, 0.05, 0.025, 0.01])
+    row_ind = num_bins-1 -1 # degree of freedom is bins -1 and index starts from 0
+    col_ind = numpy.argmin(numpy.abs(numpy.ones_like(sig_levels)*alpha-sig_levels))
+    
+    ChiSquareTable = numpy.array([[1.323,2.706, 3.841, 5.024, 6.635],
+                                [2.773,4.605, 5.991, 7.378, 9.210],
+                                [4.108, 6.251, 7.815, 9.348, 11.345],
+                                [5.385, 7.779, 9.488, 11.143, 13.277],
+                                [6.626, 9.236, 11.070, 12.833, 15.086],
+                                [7.841, 10.645, 12.592, 14.449, 16.812],
+                                [9.037, 12.017, 14.067, 16.013, 18.475],
+                                [10.219, 13.362, 15.507, 17.535, 20.090],
+                                [11.389, 14.684, 16.919, 19.023, 21.666],
+                                [12.549, 15.987, 18.307, 20.483, 23.209],
+                                [13.701, 17.275, 19.675, 21.920, 24.725],
+                                [14.845, 18.549, 21.026, 23.337, 26.217],
+                                [15.984, 19.812, 22.362, 24.736, 27.688],
+                                [17.117, 21.064, 23.685, 26.119, 29.141],
+                                [18.245, 22.307, 24.996, 27.488, 30.578],
+                                [19.369, 23.542, 26.296, 28.845, 32.000],
+                                [20.489, 24.769, 27.587, 30.191, 33.409],
+                                [21.605, 25.989, 28.869, 31.526, 34.805],
+                                [22.718, 27.204, 30.144, 32.852, 36.191],
+                                [23.828, 28.412, 31.410, 34.170, 37.566]])
+    
+    chi_squared_critical = ChiSquareTable[row_ind,col_ind]
+
+    if chi_squared_stat <= chi_squared_critical and all(numpy.array(observed_freq) > expected_freq/3) and all(numpy.array(observed_freq) < expected_freq*3):
+        #Fail to reject the null hypothesis: The distribution may be uniform.
+        return True
+    else:
+        #Reject the null hypothesis: The distribution is not uniform.        
+        return False
+
 
 def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 	"""
@@ -55,6 +158,42 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 	return ori_map
 
 
+def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+                 loss_pars, training_pars, pretrain_pars, readout_pars, file_name = None, orimap_loaded=None):
+    """Define untrained_pars with a randomly generated orientation map."""
+
+    if orimap_loaded is not None:
+         ssn_ori_map=orimap_loaded
+    else:
+        is_uniform = False
+        map_gen_ind = 0
+        X = grid_pars.x_map
+        Y = grid_pars.y_map
+        while not is_uniform:
+            ssn_ori_map = make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False)
+            ssn_ori_map_flat = ssn_ori_map.ravel()
+            is_uniform = test_uniformity(ssn_ori_map_flat[readout_pars.middle_grid_ind], num_bins=10, alpha=0.25)
+            map_gen_ind = map_gen_ind+1
+            if map_gen_ind>20:
+                print('############## After 20 attemptsm the randomly generated maps did not pass the uniformity test ##############')
+                break
+    
+    gabor_filters, _, _ = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
+    oris = ssn_ori_map.ravel()[:, None]
+    ori_dist = cosdiff_ring(oris - oris.T, 180)
+
+    # Collect parameters that are not trained into a single class
+    untrained_pars = UntrainedPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+                 loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
+                 readout_pars)
+    
+    # Save orimap if file_name is specified
+    if file_name is not None:
+            numpy.save(file_name, ssn_ori_map)
+
+    return untrained_pars
+
+######### Generating stimulus #########
 class BW_Grating:
     """ """
 
@@ -132,7 +271,7 @@ class BW_Grating:
             noisy_gabor_sti = gabor_sti + numpy.random.normal(loc=0, scale=self.std, size=gabor_sti.shape)
         else:
             noisy_gabor_sti = gabor_sti 
-
+        
         # Expand the grating to have three colors and concatenate it with alpha_channel
         gabor_sti_final = numpy.repeat(noisy_gabor_sti[:, :, numpy.newaxis], 3, axis=-1)
         gabor_sti_final_with_alpha = numpy.concatenate(
@@ -162,11 +301,10 @@ class BW_Grating:
         return image
 
 
-############# BW_image with jax/jit - note that there is a minor difference due to numerical errors compared to BW_image ##############
-
+# BW_image with jax/jit compatible version - note that there is a minor difference due to numerical errors compared to BW_Grating.BW_image
 def BW_image_jax_supp(stimuli_pars):
     '''
-    This function calculates all 
+    This function supports BW_image_jax by taking out all calculations that do not need to be in the training loop. 
     '''     
     _BLACK = 0
     _WHITE = 255
@@ -220,35 +358,104 @@ def BW_image_jax_supp(stimuli_pars):
     return BW_image_const_inp
 
 
-def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, roi, ref_ori, jitter, seed):
+def BW_image_part1(BW_image_const_inp, x, y, mask, ref_ori, jitter):
+    """
+    Generates a Gabor stimulus image with optional orientation jitter.
+    
+    Parameters:
+    - BW_image_const_inp: A tuple or list containing the spatial frequency,
+                          contrast, and phase of the grating.
+    - x, y: Meshgrid arrays for spatial coordinates.
+    - mask: A binary mask to define the region of the grating.
+    - ref_ori: Reference orientation of the grating.
+    - jitter: Orientation jitter to be added to the ref_ori.
+    
+    Returns:
+    - gabor_sti: The generated Gabor stimulus image.
+    """
     _GRAY = 128.0
     spatial_freq = BW_image_const_inp[0]
     grating_contrast = BW_image_const_inp[1]
     phases = BW_image_const_inp[2]
-    std = BW_image_const_inp[3]
-    start_indices = BW_image_const_inp[4]
-   
-    # Generate the grating pattern, which is a centered and tilted sinusoidal matrix
+      
+    # Calculate the angle in radians, incorporating the orientation and jitter
     angle = ((ref_ori + jitter) - 90) / 180 * np.pi
+    # Compute the spatial component of the grating
     spatial_component = 2 * np.pi * spatial_freq * (y * np.sin(angle) + x * np.cos(angle))
+    # Generate the Gabor stimulus
     gabor_sti = _GRAY * (1 + grating_contrast * np.cos(spatial_component + phases))
 
-    # Set pixels outside the grating size to _GRAY
+    # Apply the mask, setting pixels outside to a neutral gray
     gabor_sti = np.where(mask, _GRAY, gabor_sti)
 
-    # Add Gaussian white noise to the grating - not in use!!!
-    rng_key=random.PRNGKey(seed)
-    noisy_gabor_sti = gabor_sti + random.normal(rng_key, gabor_sti.shape) * std
-    
-    # Mask noisy_gabor_sti with alpha_channel
-    result_roi = np.floor(alpha_channel/255 * noisy_gabor_sti + (1.0 - alpha_channel/255) * roi)
+    return gabor_sti 
 
-    # Place the masked image into the ROI of the background
+def BW_image_part2(noisy_gabor_sti, alpha_channel, roi, background, start_indices):
+    """
+    Integrates the Gabor stimulus with a background image, applying an alpha mask.
+    
+    Parameters:
+    - noisy_gabor_sti: The Gabor stimulus, possibly with added noise.
+    - alpha_channel: Alpha channel for blending the stimulus and the background.
+    - roi: Region of interest where the stimulus will be placed.
+    - background: The background image.
+    - start_indices: The top-left corner indices where the ROI begins in the background.
+    
+    Returns:
+    - image: The final image after combining the stimulus and background.
+    """
+    # Blend the Gabor stimulus with the ROI using the alpha channel
+    result_roi = np.floor(alpha_channel / 255 * noisy_gabor_sti + (1.0 - alpha_channel / 255) * roi)
+
+    # Update the background image with the blended ROI
     combined_image = lax.dynamic_update_slice(background, result_roi, start_indices)
-    
-    return 3*combined_image.ravel() # 3* is just historical because BW_image used 3 colors unnecessarily
+    # Flatten and scale the image; the scaling is historical and may not be necessary
+    image = 3 * combined_image.ravel()
 
-BW_image_jit = jit(BW_image_jax, static_argnums = [0])
+    return image
+
+# Vectorize the BW_image_part1_jax function to process batches
+BW_image_part1_vmap = vmap(BW_image_part1, in_axes=(None, None, None, None, 0, 0))
+# Vectorize the BW_image_part2 function to process batches
+BW_image_part2_vmap = vmap(BW_image_part2, in_axes=(0, None, None, None, None))
+
+# Compile the vectorized functions for performance
+BW_image_part1_jit = jit(BW_image_part1_vmap, static_argnums=[0])
+BW_image_part2_jit = jit(BW_image_part2_vmap)
+
+def BW_image_jit(BW_image_const_inp, x, y, alpha_channel, mask, background, roi, ref_ori, jitter):
+    """
+    Combines the operations of generating a Gabor stimulus and integrating it with a background.
+    
+    Parameters:
+    - BW_image_const_inp: Constants for generating the Gabor stimulus, including noise std and start_indices.
+    - x, y: Meshgrid arrays for spatial coordinates.
+    - alpha_channel: Alpha channel for blending.
+    - mask: Binary mask for the stimulus.
+    - background: Background image.
+    - roi: Region of interest in the background.
+    - ref_ori: Reference orientation for the Gabor stimulus.
+    - jitter: Orientation jitter.
+    
+    Returns:
+    - images: The final combined image after processing.
+    """
+    # Generate the Gabor stimulus with optional orientation jitter
+    gabor_sti = BW_image_part1_jit(BW_image_const_inp, x, y, mask, ref_ori, jitter)
+    std = BW_image_const_inp[3]
+    start_indices = BW_image_const_inp[4]
+    
+    # Add Gaussian white noise to the grating
+    if std>0:
+        noisy_gabor_sti = gabor_sti + np.array(numpy.random.normal(loc=0, scale=std, size=gabor_sti.shape))
+    else:
+        noisy_gabor_sti = gabor_sti
+    
+    # Integrate the noisy Gabor stimulus with the background image
+    images = BW_image_part2_jit(noisy_gabor_sti, alpha_channel, roi, background,start_indices)
+    #plt.imshow(np.reshape(images[0,:],(129,129)))
+    #plt.savefig('check_noise')
+    return images
 
 
 #### CREATE GABOR FILTERS ####
@@ -415,7 +622,7 @@ def find_A(
     return output
 
 
-def create_gabor_filters_util(
+def create_gabor_filters_ori_map(
     ori_map,
     phases,
     filter_pars,
@@ -423,6 +630,7 @@ def create_gabor_filters_util(
     gE,
     gI
 ):
+    """Create Gabor filters for each orientation in orimap."""
     e_filters = []
     if phases == 4:
         e_filters_pi2 = []

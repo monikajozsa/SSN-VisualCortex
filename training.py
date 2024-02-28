@@ -8,7 +8,7 @@ import numpy
 import os
 import copy
 
-from util import create_grating_pairs, sep_exponentiate, sigmoid, create_grating_pretraining
+from util import create_grating_training, sep_exponentiate, sigmoid, create_grating_pretraining
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response
 
@@ -79,8 +79,8 @@ def train_ori_discr(
     first_stage_final_step = numSGD_steps
 
     print(
-        "SGD_step: {} ¦ learning rate: {} ¦ sig_noise: {} ¦ batch size {}".format(
-            numSGD_steps, training_pars.eta, training_pars.sig_noise, training_pars.batch_size,
+        "SGD_step: {} ¦ learning rate: {} ¦ batch size {}".format(
+            numSGD_steps, training_pars.eta, training_pars.batch_size,
         )
     )
 
@@ -165,8 +165,6 @@ def train_ori_discr(
                     # Stop pretraining: nreak out from STG_step loop and stages loop (using a flag)
                     if len(offsets_at_bl_acc)>3:
                         pretrain_stop_flag = all(np.array(offsets_at_bl_acc[-3:]) < pretrain_offset_threshold)
-                    else:
-                        pretrain_stop_flag = True if offset_at_bl_acc < pretrain_offset_threshold else False
                     if pretrain_stop_flag:
                         print('Desired accuracy achieved during pretraining.')
                         first_stage_final_step = SGD_step
@@ -272,22 +270,14 @@ def loss_and_grad_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_par
     training_pars=constant_pars.training_pars
     if constant_pars.pretrain_pars.is_on:
         # Generate noise that is added to the output of the model
-        noise_ref = generate_noise(
-            training_pars.sig_noise, training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0]
-        )
-        noise_target = generate_noise(
-            training_pars.sig_noise, training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0]
-        )        
+        noise_ref = generate_noise(training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0])
+        noise_target = generate_noise(training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0])        
         train_data = create_grating_pretraining(constant_pars.pretrain_pars, training_pars.batch_size[0], constant_pars.BW_image_jax_inp, numRnd_ori1=training_pars.batch_size[0])
     else:
         # Generate noise that is added to the output of the model
-        noise_ref = generate_noise(
-            training_pars.sig_noise, training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0]
-        )
-        noise_target = generate_noise(
-            training_pars.sig_noise, training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0]
-        )
-        train_data = create_grating_pairs(constant_pars.stimuli_pars, training_pars.batch_size[1], constant_pars.BW_image_jax_inp)
+        noise_ref = generate_noise(training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0] )
+        noise_target = generate_noise(training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0])
+        train_data = create_grating_training(constant_pars.stimuli_pars, training_pars.batch_size[1], constant_pars.BW_image_jax_inp)
 
     # Calculate gradient, loss and accuracy
     [loss, [all_losses, accuracy, sig_input, sig_output, max_rates]], grad = training_loss_val_and_grad(
@@ -412,10 +402,11 @@ def binary_loss(n, x):
     return -(n * np.log(x) + (1 - n) * np.log(1 - x))
 
 
-def generate_noise(sig_noise,  batch_size, length):
+def generate_noise(batch_size, length, N_readout=125, dt_readout = 0.2):
     '''
     Creates vectors of neural noise. Function creates N vectors, where N = batch_size, each vector of length = length. 
     '''
+    sig_noise = 1/np.sqrt(N_readout * dt_readout)
     return sig_noise*numpy.random.randn(batch_size, length)
 
 
@@ -453,15 +444,11 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, constant_pars
     constant_pars.stimuli_pars.offset = test_offset
     
     # Generate noise that is added to the output of the model
-    noise_ref = generate_noise(
-        constant_pars.training_pars.sig_noise, 200, readout_pars_dict_copy["w_sig"].shape[0]
-    )
-    noise_target = generate_noise(
-        constant_pars.training_pars.sig_noise, 200, readout_pars_dict_copy["w_sig"].shape[0]
-    )
+    noise_ref = generate_noise(batch_size = 200, length = readout_pars_dict_copy["w_sig"].shape[0])
+    noise_target = generate_noise(batch_size = 200, length = readout_pars_dict_copy["w_sig"].shape[0])
     
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
-    train_data = create_grating_pairs(constant_pars.stimuli_pars, 200, constant_pars.BW_image_jax_inp)
+    train_data = create_grating_training(constant_pars.stimuli_pars, 200, constant_pars.BW_image_jax_inp)
 
     # Calculate loss and accuracy
     loss, [_, acc, _, _, _] = batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict_copy, constant_pars, train_data, noise_ref, noise_target, jit_on)
@@ -477,8 +464,6 @@ def mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, constant
     accuracy = numpy.zeros((N,sample_size))
     loss = numpy.zeros((N,sample_size))
     
-    accuracy_mean = numpy.zeros((N))
-
     # For the all the offsets, calculate fine discrimination accuracy sample_size times
     for i in range(N):
         for j in range(sample_size):
@@ -496,14 +481,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
     '''
     This function fits a log-linear curve to x=offset_vec, y=acc_vec data and returns the x value, where the curve crosses baseline_acc.
     '''
-    
-    # #Fit cubic learning curve and find curve values y_vals at x_vals / this version used std as weights
-    # acc_mean = acc_vec[:,0]
-    # acc_mean[acc_mean < 0.001] = 0.001
-    # acc_weights = 1/acc_vec[:,1]
-    # coefficients = numpy.polyfit(offset_vec, acc_mean, 2, w = acc_weights)
-    # y_vals = sum(c * x_vals ** i for i, c in enumerate(reversed(coefficients)))
-    
+        
     # Fit a log-linear learning curve
     offset_vec = numpy.array(offset_vec)
     offset_vec[offset_vec == 0] = np.finfo(float).eps
@@ -517,11 +495,16 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
     # Find where y_vals cross baseline_acc
     if y_vals[-1] < baseline_acc:
-        offsets_at_bl_acc = 180
+        offsets_at_bl_acc = np.array(180.0)
     else:
         # Calculate the midpoint of the interval where y_vals crosses baseline_acc
         sign_change_ind = np.where(np.diff(np.sign(y_vals - baseline_acc)))[0]
         offsets_at_bl_acc = (x_vals[sign_change_ind] + x_vals[sign_change_ind + 1]) / 2
+    
+    if offsets_at_bl_acc.size ==0:
+        mask = acc_vec < baseline_acc
+        first_index = np.argmax(mask)
+        offsets_at_bl_acc = offset_vec[first_index]
 
     return offsets_at_bl_acc
 

@@ -6,7 +6,7 @@ import numpy
 #from IPython.core.debugger import set_trace
 from SSN_classes_middle import SSN2DTopoV1_ONOFF_local
 from SSN_classes_superficial import SSN2DTopoV1
-from util import create_grating_pairs, create_grating_single
+from util import create_grating_training, create_grating_single
 
 from util import take_log, sep_exponentiate, constant_to_vec, sigmoid, binary_loss, save_params_dict_two_stage, leaky_relu
 

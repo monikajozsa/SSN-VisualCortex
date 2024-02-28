@@ -4,13 +4,13 @@ import jax
 
 from model import evaluate_model_response
 from parameters import stimuli_pars, training_pars,ssn_layer_pars, ssn_pars, grid_pars, stimuli_pars, conv_pars,filter_pars, readout_pars
-from util_gabor import create_gabor_filters_util
-from util import cosdiff_ring, create_grating_pairs
+from util_gabor import create_gabor_filters_ori_map
+from util import cosdiff_ring, create_grating_training
 from SSN_classes import SSN_mid, SSN_sup
 from pretraining_supp import perturb_params
 
 ssn_ori_map_loaded = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
-gabor_filters, A, A2 = create_gabor_filters_util(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
+gabor_filters, A, A2 = create_gabor_filters_ori_map(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
 
 class ConstantPars:
     ori_map = ssn_ori_map_loaded
@@ -99,7 +99,7 @@ for step in range(num_optimization_steps):
     sampled_params = sample_from_surrogate(surrogate_params)
     
     # Generate input to the model
-    input_data = create_grating_pairs(stimuli_pars, training_pars.batch_size)
+    input_data = create_grating_training(stimuli_pars, training_pars.batch_size)
 
     # Simulate data using sampled parameters
     simulated_data = simulate_data(sampled_params, constant_pars, input_data['ref'])

@@ -9,7 +9,7 @@ class PreTrainPars:
     min_ori_dist = 10
     max_ori_dist = 40
     numStages = 1
-    acc_th = 0.7
+    acc_th = 0.749
     acc_check_freq = 10
     min_acc_check_ind = 100
     offset_threshold = 5
@@ -20,11 +20,10 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta = 10e-4  # learning rate
+    eta = 3*10e-4  # learning rate
     batch_size = [100, 50]
     noise_type = "poisson"
-    sig_noise = 1.0 if noise_type != "no_noise" else 0.0
-    SGD_steps = [500, 300] # number of SGD steps
+    SGD_steps = [1000, 500] # number of SGD steps
     validation_freq = 30  # calculate validation loss and accuracy every validation_freq SGD step
     first_stage_acc_th = 0.65
 
@@ -122,7 +121,7 @@ class StimuliPars:  # the attributes are changed within SSN_classes for a local 
     inner_radius: float = 2.5  # inner radius of the stimulus
     outer_radius: float = 3.0  # outer radius of the stimulus: together with inner_radius, they define how the edge of the stimulus fades away to the gray background
     grating_contrast: float = 0.8  # contrast of darkest and lightest point in the grid - see Ke's Current Biology paper from 2020
-    std: float = 0.0  # Gaussian white noise added to the stimulus (not simply at the end!)
+    std: float = 20.0  # Gaussian white noise added to the stimulus (not simply at the end!)
     jitter_val: float = 5.0  # jitter is taken from a uniform distribution [-jitter_val, jitter_val]
     k: float = filter_pars.k
     edge_deg: float = filter_pars.edge_deg  # same as for k

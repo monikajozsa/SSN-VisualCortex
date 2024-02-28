@@ -7,7 +7,7 @@ from jax import vmap
 from pdb import set_trace
 import numpy
 from model import generate_noise, vmap_ori_discrimination
-from util import create_grating_pairs
+from util import create_grating_training
 from analysis import plot_histograms, plot_all_sig
 
 
@@ -63,7 +63,7 @@ def initial_acc(ssn_layer_pars, readout_pars, constant_pars, stimuli_pars, list_
             
     
             #Create data + noise
-            train_data = create_grating_pairs(stimuli_pars = stimuli_pars, n_trials =batch_size)
+            train_data = create_grating_training(stimuli_pars = stimuli_pars, n_trials =batch_size)
             noise_ref = generate_noise(sig_noise = sig_noise, batch_size =batch_size, length= readout_pars['w_sig'].shape[1]) 
             noise_target = generate_noise(sig_noise = sig_noise, batch_size = batch_size, length= readout_pars['w_sig'].shape[1]) 
 

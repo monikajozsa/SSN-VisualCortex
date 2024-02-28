@@ -1,7 +1,7 @@
 from training_supp import training_loss, generate_noise, save_trained_params
 import jax
 import jax.numpy as np
-from util import take_log, create_grating_pairs
+from util import take_log, create_grating_training
 import optax
 import time
 import csv
@@ -74,7 +74,7 @@ def train_model(
         start_time = time.time()
 
         # Create stimulus for middle layer
-        train_data = create_grating_pairs(stimuli_pars, batch_size)
+        train_data = create_grating_training(stimuli_pars, batch_size)
 
         # Generate noise
         noise_ref = generate_noise(
@@ -114,7 +114,7 @@ def train_model(
         # Save the parameters given a number of epochs
         if epoch in epochs_to_save:
             # Evaluate model
-            test_data = create_grating_pairs(
+            test_data = create_grating_training(
                 stimuli_pars=stimuli_pars, batch_size=batch_size
             )
 
@@ -215,7 +215,7 @@ def train_model(
 
     for epoch in range(1, training_pars.epochs + 1):
         # Generate next batch of data
-        train_data = create_grating_pairs(
+        train_data = create_grating_training(
             stimuli_pars=stimuli_pars, batch_size=batch_size
         )
 
@@ -251,7 +251,7 @@ def train_model(
         # Save the parameters given a number of epochs
         if epoch in epochs_to_save:
             # Evaluate model
-            test_data = create_grating_pairs(
+            test_data = create_grating_training(
                 stimuli_pars=stimuli_pars, batch_size=batch_size
             )
             # Generate noise

@@ -4,7 +4,7 @@ import copy
 import time
 numpy.random.seed(0)
 
-from util_gabor import create_gabor_filters_util, BW_image_jax_supp
+from util_gabor import create_gabor_filters_ori_map, BW_image_jax_supp
 from util import cosdiff_ring, save_code
 from training import train_ori_discr
 from pretraining_supp import randomize_params, load_parameters
@@ -30,7 +30,7 @@ if pretrain_pars.is_on:
 ########## Initialize orientation map and gabor filters ############
 
 ssn_ori_map_loaded = numpy.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))
-gabor_filters, A, A2 = create_gabor_filters_util(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
+gabor_filters, A, A2 = create_gabor_filters_ori_map(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
 ssn_pars.A = A
 ssn_pars.A2 = A2
 

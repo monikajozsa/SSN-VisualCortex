@@ -7,7 +7,7 @@ import time
 import csv
 import pandas as pd
 
-from util import create_grating_pairs, create_grating_pretraining
+from util import create_grating_training, create_grating_pretraining
 from training_supp import training_loss, generate_noise
 #from visualization import plot_w_sig, plot_max_rates
 
@@ -82,7 +82,7 @@ def SGD_ori_discr(stimuli_pars, training_pars, ssn_layer_pars_dict, readout_pars
         loss_and_grad_func = jax.value_and_grad(training_loss, argnums=0, has_aux=True)
 
     # Create stimulus for middle layer: train_data has ref, target and label
-    train_data = create_grating_pairs(stimuli_pars, training_pars.batch_size)
+    train_data = create_grating_training(stimuli_pars, training_pars.batch_size)
 
     # Generate noise
     noise_ref = generate_noise(

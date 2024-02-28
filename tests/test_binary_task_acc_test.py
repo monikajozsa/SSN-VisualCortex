@@ -4,7 +4,7 @@ import time
 
 numpy.random.seed(0)
 
-from util_gabor import create_gabor_filters_util, BW_image_jax_supp, make_orimap
+from util_gabor import create_gabor_filters_ori_map, BW_image_jax_supp, make_orimap
 from util import cosdiff_ring, test_uniformity
 from pretraining_supp import  load_parameters
 from parameters import (
@@ -66,7 +66,7 @@ def def_constant_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_
             print('############## After 20 attemptsm the randomly generated maps did not pass the uniformity test ##############')
             break
     
-    gabor_filters, _, _ = create_gabor_filters_util(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
+    gabor_filters, _, _ = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
     oris = ssn_ori_map.ravel()[:, None]
     ori_dist = cosdiff_ring(oris - oris.T, 180)
 

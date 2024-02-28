@@ -1,11 +1,13 @@
 import numpy
 import copy
 import time
+import jax.numpy as np
+import os
 
 numpy.random.seed(0)
 
-from util_gabor import create_gabor_filters_util, BW_image_jax_supp, make_orimap
-from util import save_code, cosdiff_ring, test_uniformity
+from util_gabor import init_untrained_pars
+from util import save_code
 from training import train_ori_discr
 from analysis import tuning_curves
 from pretraining_supp import randomize_params, load_parameters
@@ -21,7 +23,7 @@ from parameters import (
     loss_pars,
     pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
-'''
+
 # Checking that pretrain_pars.is_on is on
 if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
@@ -31,76 +33,31 @@ if not pretrain_pars.is_on:
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 
-# class definition to collect parameters that are not trained
-class UntrainedPars:
-    def __init__(self, grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
-                 readout_pars):
-        self.grid_pars = grid_pars
-        self.stimuli_pars = stimuli_pars
-        self.filter_pars = filter_pars
-        self.ssn_ori_map = ssn_ori_map
-        self.oris = oris
-        self.ori_dist = ori_dist
-        self.ssn_pars = ssn_pars
-        self.ssn_layer_pars = ssn_layer_pars
-        self.conv_pars = conv_pars
-        self.loss_pars = loss_pars
-        self.training_pars = training_pars
-        self.gabor_filters = gabor_filters
-        self.readout_grid_size = readout_pars.readout_grid_size
-        self.middle_grid_ind = readout_pars.middle_grid_ind
-        self.pretrain_pars = pretrain_pars
-        self.BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
-
-def def_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars):
-    """Define untrained_pars with a randomly generated orientation map."""
-    X = grid_pars.x_map
-    Y = grid_pars.y_map
-    is_uniform = False
-    map_gen_ind = 0
-    while not is_uniform:
-        ssn_ori_map = make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False)
-        ssn_ori_map_flat = ssn_ori_map.ravel()
-        is_uniform = test_uniformity(ssn_ori_map_flat[readout_pars.middle_grid_ind], num_bins=10, alpha=0.25)
-        map_gen_ind = map_gen_ind+1
-        if map_gen_ind>20:
-            print('############## After 20 attemptsm the randomly generated maps did not pass the uniformity test ##############')
-            break
-    
-    gabor_filters, _, _ = create_gabor_filters_util(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
-    oris = ssn_ori_map.ravel()[:, None]
-    ori_dist = cosdiff_ring(oris - oris.T, 180)
-
-    # Collect parameters that are not trained into a single class
-    untrained_pars = UntrainedPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
-                 readout_pars)
-
-    return untrained_pars
-
 # Defining the number of random initializations for pretraining + training
 N_training = 5
 
 # Save scripts
-results_filename, final_folder_path = save_code()
+folder_to_save='C:/Users/mj555/Dropbox (Cambridge University)/Postdoc 2023-2024/results'
+results_filename, final_folder_path = save_code(folder_to_save)
 
 starting_time_in_main= time.time()
 numFailedRuns = 0
 i=0
+loaded_orimap =  np.load(os.path.join(os.getcwd(), 'ssn_map_uniform_good.npy'))
 while i < N_training and numFailedRuns < 20:
     stimuli_pars.offset=offset_saved
     stimuli_pars.ref_ori=ref_ori_saved # this changes during training because of the staircase
     pretrain_pars.is_on=True
-    untrained_pars = def_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars)
 
     results_filename = f"{final_folder_path}/results_{i}.csv"
     results_filename_train_only = f"{final_folder_path}/results_train_only{i}.csv"
     tuning_curves_prepre = f"{final_folder_path}/tc_prepre_{i}.csv"
     tuning_curves_postpre = f"{final_folder_path}/tc_postpre_{i}.csv"
     tuning_curves_post = f"{final_folder_path}/tc_post_{i}.csv"
+    orimap_filename = f"{final_folder_path}/orimap_{i}.npy"
+
+    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_filename, loaded_orimap)
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
     # Get baseline parameters to-be-trained
@@ -108,7 +65,8 @@ while i < N_training and numFailedRuns < 20:
     readout_pars_pretrain = copy.deepcopy(readout_pars)
 
     # Perturb them by percent % and collect them into two dictionaries for the two stages of the pretraining
-    trained_pars_stage1, trained_pars_stage2 = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, untrained_pars, percent=0.1)
+    # Note that orimap is regenerated if conditions do not hold
+    trained_pars_stage1, trained_pars_stage2, untrained_pars = randomize_params(readout_pars_pretrain, ssn_layer_pars_pretrain, untrained_pars, percent=0.1, orimap_filename=orimap_filename)
 
     # Pretrain parameters
     training_output_df, first_stage_final_step = train_ori_discr(
@@ -162,7 +120,7 @@ while i < N_training and numFailedRuns < 20:
     # Running training only with the same initialization and orimap
     untrained_pars.stimuli_pars.offset=offset_saved
     untrained_pars.stimuli_pars.ref_ori=ref_ori_saved # this changes during training because of the staircase
-    trained_pars_stage1, trained_pars_stage2 = load_parameters(results_filename, iloc_ind = 0)
+    trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
     training_output_df, _ = train_ori_discr(
             trained_pars_stage1,
             trained_pars_stage2,
@@ -177,12 +135,11 @@ while i < N_training and numFailedRuns < 20:
 
 
 ######### PLOT RESULTS ############
-'''
+
 from visualization import plot_results_from_csvs, barplots_from_csvs, plot_results_from_csv#
-plot_results_from_csv('results/Feb23_v1/results_train_only0.csv','results/Feb23_v1/results_train_only0')
-final_folder_path='results/Feb27_v5'
-N_training=1
+#final_folder_path= 'results/Feb28_v10'
+#N_training=1
 plot_results_from_csvs(final_folder_path, N_training)
 
-#boxplot_file_name = 'boxplot_pretraining'
-#barplots_from_csvs(final_folder_path, boxplot_file_name)
+boxplot_file_name = 'boxplot_pretraining'
+barplots_from_csvs(final_folder_path, boxplot_file_name)

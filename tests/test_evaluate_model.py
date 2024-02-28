@@ -52,8 +52,8 @@ ssn_sup=SSN_sup(ssn_pars=ssn_pars, grid_pars=grid_pars, conn_pars=conn_pars_s, J
 #import jax.numpy as np
 from model import evaluate_model_response
 #stimuli = np.load('traindata_fortest.npz')
-from util import create_grating_pairs
-train_data = create_grating_pairs(stimuli_pars, 1)
+from util import create_grating_training
+train_data = create_grating_training(stimuli_pars, 1)
 stimuli = train_data['target']
 stimuli = numpy.reshape(stimuli,numpy.shape(stimuli)[1])
 

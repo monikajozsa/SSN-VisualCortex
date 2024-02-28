@@ -13,7 +13,7 @@ sys.path.append(parent_dir)
 
 #numpy.random.seed(0)
 
-from util import create_grating_pairs, BW_Grating, create_grating_pretraining
+from util import create_grating_training, BW_Grating, create_grating_pretraining
 from parameters import (
     stimuli_pars,
 )
