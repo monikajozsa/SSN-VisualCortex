@@ -10,7 +10,7 @@ from util import BW_Grating, sep_exponentiate
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response
 
-def create_grating(stimuli_pars, batch_size):
+def create_grating(stimuli_pars, batch_size): # *** use Bw_image_jit in tuning curve and then we do not need this function!
     '''
     Create input stimuli gratings.
     Input:

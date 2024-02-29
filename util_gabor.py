@@ -405,7 +405,7 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, roi,
     return image
 
 # Vectorize BW_image function to process batches
-BW_image_vmap = vmap(BW_image_jax, in_axes=())
+BW_image_vmap = vmap(BW_image_jax, in_axes=(None,None,None,None,None,None,None,0,0))
 # Compile the vectorized functions for performance
 BW_image_jit = jit(BW_image_vmap, static_argnums=[0])
 
@@ -415,8 +415,11 @@ def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background
     """
     # Generate the images
     images = BW_image_jit(BW_image_const_inp, x, y, alpha_channel, mask, background, roi, ref_ori, jitter)
-    noisy_images = images + np.array(numpy.random.normal(loc=0, scale=BW_image_const_inp[3], size=images.shape))
-
+    if BW_image_const_inp[3]>0:
+        noisy_images = images + np.array(numpy.random.normal(loc=765/2, scale=BW_image_const_inp[3], size=images.shape))
+        noisy_images = (noisy_images - np.min(noisy_images)) * 765/np.max(noisy_images - np.min(noisy_images))
+    else:
+         noisy_images = images
     return noisy_images
 
 

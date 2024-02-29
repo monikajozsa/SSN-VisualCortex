@@ -77,15 +77,15 @@ def create_grating_training(stimuli_pars, batch_size, jit_inp_all= None):
     target_ori_vec = np.where(mask, ref_ori - offset, ref_ori + offset)
     labels = mask.astype(int)  # Converts True/False to 1/0
     jitter_val = stimuli_pars.jitter_val
-    jitters = numpy.random.uniform(low = -jitter_val, high = jitter_val, size=batch_size)
+    jitter_vec = numpy.random.uniform(low = -jitter_val, high = jitter_val, size=batch_size)
 
     # Create reference and target gratings
     # if jit_inp_all is given then use the jit-compatible version of BW_image. Otherwise, use the original BW_gratings class
     if jit_inp_all is None:
         for i in range(batch_size):                     
             
-            ref = BW_Grating(ori_deg = ref_ori, jitter=jitters[i], stimuli_pars = stimuli_pars).BW_image().ravel()
-            target = BW_Grating(ori_deg = target_ori_vec[i], jitter=jitters[i], stimuli_pars = stimuli_pars).BW_image().ravel()
+            ref = BW_Grating(ori_deg = ref_ori, jitter=jitter_vec[i], stimuli_pars = stimuli_pars).BW_image().ravel()
+            target = BW_Grating(ori_deg = target_ori_vec[i], jitter=jitter_vec[i], stimuli_pars = stimuli_pars).BW_image().ravel()
                 
             data_dict['ref'].append(ref)
             data_dict['target'].append(target)
@@ -99,8 +99,8 @@ def create_grating_training(stimuli_pars, batch_size, jit_inp_all= None):
         background = jit_inp_all[9]
         roi =jit_inp_all[10]
         
-        ref = BW_image_jit_noisy(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori_vec, jitters)
-        target = BW_image_jit_noisy(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori_vec, jitters)
+        ref = BW_image_jit_noisy(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori_vec, jitter_vec)
+        target = BW_image_jit_noisy(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori_vec, jitter_vec)
         data_dict['ref']=ref
         data_dict['target']=target
         data_dict['label']=labels
