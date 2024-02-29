@@ -351,7 +351,7 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, train_
     sig_input = np.dot(w_sig, (r_ref_box - r_target_box)) + b_sig     
     sig_output = sigmoid(sig_input)
     # ii) Calculate readout loss and the predicted label
-    loss_readout = binary_loss(train_data['label'], sig_output)
+    loss_readout = binary_crossentropy_loss(train_data['label'], sig_output)
     pred_label = np.round(sig_output)
     # ii) Calculate other loss terms
     loss_dx_max = loss_pars.lambda_dx*np.mean(np.array([avg_dx_ref_mid, avg_dx_target_mid, avg_dx_ref_sup, avg_dx_target_sup])**2)
@@ -395,7 +395,7 @@ def batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, constant_pars, 
 
 ############### Other supporting functions 
 
-def binary_loss(n, x):
+def binary_crossentropy_loss(n, x):
     '''
     Loss function calculating binary cross entropy
     '''
@@ -530,7 +530,7 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     df.loc[step_indices['val_SGD_steps'], 'val_acc'] = val_accs
 
     # Add different types of training and validation losses to df
-    loss_names = ['loss_binary', 'loss_dx_max', 'loss_r_max', 'loss_w_sig', 'loss_b_sig', 'loss_all']
+    loss_names = ['loss_binary_cross_entr', 'loss_dx_max', 'loss_r_max', 'loss_w_sig', 'loss_b_sig', 'loss_all']
     for i in range(len(train_losses_all[0])):
         df[loss_names[i]]=train_losses_all[:,i]
     

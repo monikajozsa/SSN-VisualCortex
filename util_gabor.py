@@ -358,74 +358,9 @@ def BW_image_jax_supp(stimuli_pars):
     return BW_image_const_inp
 
 
-def BW_image_part1(BW_image_const_inp, x, y, mask, ref_ori, jitter):
+def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, roi, ref_ori, jitter):
     """
-    Generates a Gabor stimulus image with optional orientation jitter.
-    
-    Parameters:
-    - BW_image_const_inp: A tuple or list containing the spatial frequency,
-                          contrast, and phase of the grating.
-    - x, y: Meshgrid arrays for spatial coordinates.
-    - mask: A binary mask to define the region of the grating.
-    - ref_ori: Reference orientation of the grating.
-    - jitter: Orientation jitter to be added to the ref_ori.
-    
-    Returns:
-    - gabor_sti: The generated Gabor stimulus image.
-    """
-    _GRAY = 128.0
-    spatial_freq = BW_image_const_inp[0]
-    grating_contrast = BW_image_const_inp[1]
-    phases = BW_image_const_inp[2]
-      
-    # Calculate the angle in radians, incorporating the orientation and jitter
-    angle = ((ref_ori + jitter) - 90) / 180 * np.pi
-    # Compute the spatial component of the grating
-    spatial_component = 2 * np.pi * spatial_freq * (y * np.sin(angle) + x * np.cos(angle))
-    # Generate the Gabor stimulus
-    gabor_sti = _GRAY * (1 + grating_contrast * np.cos(spatial_component + phases))
-
-    # Apply the mask, setting pixels outside to a neutral gray
-    gabor_sti = np.where(mask, _GRAY, gabor_sti)
-
-    return gabor_sti 
-
-def BW_image_part2(noisy_gabor_sti, alpha_channel, roi, background, start_indices):
-    """
-    Integrates the Gabor stimulus with a background image, applying an alpha mask.
-    
-    Parameters:
-    - noisy_gabor_sti: The Gabor stimulus, possibly with added noise.
-    - alpha_channel: Alpha channel for blending the stimulus and the background.
-    - roi: Region of interest where the stimulus will be placed.
-    - background: The background image.
-    - start_indices: The top-left corner indices where the ROI begins in the background.
-    
-    Returns:
-    - image: The final image after combining the stimulus and background.
-    """
-    # Blend the Gabor stimulus with the ROI using the alpha channel
-    result_roi = np.floor(alpha_channel / 255 * noisy_gabor_sti + (1.0 - alpha_channel / 255) * roi)
-
-    # Update the background image with the blended ROI
-    combined_image = lax.dynamic_update_slice(background, result_roi, start_indices)
-    # Flatten and scale the image; the scaling is historical and may not be necessary
-    image = 3 * combined_image.ravel()
-
-    return image
-
-# Vectorize the BW_image_part1_jax function to process batches
-BW_image_part1_vmap = vmap(BW_image_part1, in_axes=(None, None, None, None, 0, 0))
-# Vectorize the BW_image_part2 function to process batches
-BW_image_part2_vmap = vmap(BW_image_part2, in_axes=(0, None, None, None, None))
-
-# Compile the vectorized functions for performance
-BW_image_part1_jit = jit(BW_image_part1_vmap, static_argnums=[0])
-BW_image_part2_jit = jit(BW_image_part2_vmap)
-
-def BW_image_jit(BW_image_const_inp, x, y, alpha_channel, mask, background, roi, ref_ori, jitter):
-    """
-    Combines the operations of generating a Gabor stimulus and integrating it with a background.
+    Creates grating images.
     
     Parameters:
     - BW_image_const_inp: Constants for generating the Gabor stimulus, including noise std and start_indices.
@@ -438,24 +373,51 @@ def BW_image_jit(BW_image_const_inp, x, y, alpha_channel, mask, background, roi,
     - jitter: Orientation jitter.
     
     Returns:
-    - images: The final combined image after processing.
+    - images: The final images
     """
-    # Generate the Gabor stimulus with optional orientation jitter
-    gabor_sti = BW_image_part1_jit(BW_image_const_inp, x, y, mask, ref_ori, jitter)
-    std = BW_image_const_inp[3]
+    _GRAY = 128.0
+    spatial_freq = BW_image_const_inp[0]
+    grating_contrast = BW_image_const_inp[1]
+    phases = BW_image_const_inp[2]
     start_indices = BW_image_const_inp[4]
-    
-    # Add Gaussian white noise to the grating
-    if std>0:
-        noisy_gabor_sti = gabor_sti + np.array(numpy.random.normal(loc=0, scale=std, size=gabor_sti.shape))
-    else:
-        noisy_gabor_sti = gabor_sti
-    
-    # Integrate the noisy Gabor stimulus with the background image
-    images = BW_image_part2_jit(noisy_gabor_sti, alpha_channel, roi, background,start_indices)
-    #plt.imshow(np.reshape(images[0,:],(129,129)))
-    #plt.savefig('check_noise')
-    return images
+      
+    # Calculate the angle in radians, incorporating the orientation and jitter
+    angle = ((ref_ori + jitter) - 90) / 180 * np.pi
+
+    # Compute the spatial component of the grating
+    spatial_component = 2 * np.pi * spatial_freq * (y * np.sin(angle) + x * np.cos(angle))
+
+    # Generate the Gabor stimulus
+    gabor_sti = _GRAY * (1 + grating_contrast * np.cos(spatial_component + phases))
+
+    # Apply the mask, setting pixels outside to a neutral gray
+    gabor_sti = np.where(mask, _GRAY, gabor_sti)
+
+    # Blend the Gabor stimulus with the ROI using the alpha channel
+    result_roi = np.floor(alpha_channel / 255 * gabor_sti + (1.0 - alpha_channel / 255) * roi)
+
+    # Update the background image with the blended ROI
+    combined_image = lax.dynamic_update_slice(background, result_roi, start_indices)
+
+    # Flatten and scale the image; the scaling is historical and may not be necessary
+    image = 3 * combined_image.ravel()
+
+    return image
+
+# Vectorize BW_image function to process batches
+BW_image_vmap = vmap(BW_image_jax, in_axes=())
+# Compile the vectorized functions for performance
+BW_image_jit = jit(BW_image_vmap, static_argnums=[0])
+
+def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background, roi, ref_ori, jitter):
+    """
+    Calls BW_image_jit function and adds Gaussian noise to its output.
+    """
+    # Generate the images
+    images = BW_image_jit(BW_image_const_inp, x, y, alpha_channel, mask, background, roi, ref_ori, jitter)
+    noisy_images = images + np.array(numpy.random.normal(loc=0, scale=BW_image_const_inp[3], size=images.shape))
+
+    return noisy_images
 
 
 #### CREATE GABOR FILTERS ####

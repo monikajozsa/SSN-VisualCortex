@@ -6,8 +6,24 @@ import numpy
 import os
 import shutil
 from datetime import datetime
+from scipy import ndimage
 
-from util_gabor import BW_Grating, BW_image_jit
+from util_gabor import BW_Grating, BW_image_jit_noisy
+
+def smooth_data(vector, sigma = 1):
+
+    '''
+    Smooth fixed point. Data is reshaped into 9x9 grid
+    '''
+    
+    new_data = []
+    for trial_response in vector:
+
+        trial_response = trial_response.reshape(9,9,-1)
+        smoothed_data = numpy.asarray([ndimage.gaussian_filter(numpy.reshape(trial_response[:, :, i], (9,9)), sigma = sigma) for i in range(0, trial_response.shape[2])]).ravel()
+        new_data.append(smoothed_data)
+    
+    return np.vstack(np.asarray(new_data))  
 
 def sigmoid(x, epsilon=0.01):
     """
@@ -83,8 +99,8 @@ def create_grating_training(stimuli_pars, batch_size, jit_inp_all= None):
         background = jit_inp_all[9]
         roi =jit_inp_all[10]
         
-        ref = BW_image_jit(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori_vec, jitters)
-        target = BW_image_jit(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori_vec, jitters)
+        ref = BW_image_jit_noisy(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori_vec, jitters)
+        target = BW_image_jit_noisy(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori_vec, jitters)
         data_dict['ref']=ref
         data_dict['target']=target
         data_dict['label']=labels
@@ -156,8 +172,8 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all, numRnd_or
     roi =jit_inp_all[10]
     
     # Generate stimulus1 and stimulus2 with no jitter and no noise (seed needs to be randomized if we add noise!)
-    stim1 = BW_image_jit(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori1, jitter=np.zeros_like(ori1))
-    stim2 = BW_image_jit(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2, jitter=np.zeros_like(ori1))
+    stim1 = BW_image_jit_noisy(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori1, jitter=np.zeros_like(ori1))
+    stim2 = BW_image_jit_noisy(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2, jitter=np.zeros_like(ori1))
     data_dict['ref']=stim1
     data_dict['target']=stim2
 

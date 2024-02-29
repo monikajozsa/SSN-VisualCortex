@@ -119,7 +119,7 @@ def superficial_layer_fixed_point(
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
      
     #Define output as sum of E neurons
-    layer_output = fp[: ssn.Ne]# ***this ravels and does not let me apply map_vec = jax.lax.dynamic_slice(map_vec, (start, start), (size, size))
+    layer_output = fp[: ssn.Ne]
     
     #Find maximum rates
     max_E =  np.max(fp[: ssn.Ne])
