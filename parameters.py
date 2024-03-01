@@ -121,7 +121,7 @@ class StimuliPars:  # the attributes are changed within SSN_classes for a local 
     inner_radius: float = 2.5  # inner radius of the stimulus
     outer_radius: float = 3.0  # outer radius of the stimulus: together with inner_radius, they define how the edge of the stimulus fades away to the gray background
     grating_contrast: float = 0.8  # contrast of darkest and lightest point in the grid - see Ke's Current Biology paper from 2020
-    std: float = 0.0  # Gaussian white noise added to the stimulus (not simply at the end!)
+    std: float = 200.0  # Gaussian white noise added to the stimulus (not simply at the end!)
     jitter_val: float = 5.0  # jitter is taken from a uniform distribution [-jitter_val, jitter_val]
     k: float = filter_pars.k
     edge_deg: float = filter_pars.edge_deg  # same as for k

@@ -3,7 +3,7 @@ import jax.numpy as np
 import pandas as pd
 
 from pretraining_supp import load_parameters
-from model import evaluate_model_response
+from model import vmap_evaluate_model_response
 from util import smooth_data, sep_exponentiate
 from util_gabor import BW_image_jit_noisy
 from SSN_classes import SSN_mid, SSN_sup
@@ -62,8 +62,6 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
             # Create middle and superficial SSN layers *** this is something that would be great to call from outside the SGD loop and only refresh the params that change (and what rely on them such as W)
             kappa_pre = untrained_pars.ssn_layer_pars.kappa_pre
             kappa_post = untrained_pars.ssn_layer_pars.kappa_post
-            #w_sig = trained_pars_stage1['w_sig']
-            #b_sig = trained_pars_stage1['b_sig']
             p_local_s = untrained_pars.ssn_layer_pars.p_local_s
             s_2x2 = untrained_pars.ssn_layer_pars.s_2x2_s
             sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris
@@ -71,7 +69,7 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
             ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
             #Calculate fixed point for data    
-            r_sup, r_mid, [r_max_mid, r_max_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [r_mid, r_sup] = evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+            r_sup, r_mid, [r_max_mid, r_max_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [r_mid, r_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
 
             #Smooth data with Gaussian filter
             filtered_r_mid_oris= smooth_data(r_mid, sigma = 1)      
@@ -92,6 +90,7 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
     # Save as DataFrame (helper columns: ori (3), SGD_ind (2), layer (2), type (2), grid_ind (25)) 24 x 29 csv file
     # *** this is incorrect and just sketches the idea of how to save filtered_r_mid_all 
     # I might do this in the double for loop like labels
+    '''
     ori_df = []
     step_df = []
     layer_df = []
@@ -114,7 +113,8 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
         'type': type_df,
         'grid_ind': grid_ind_df,
     })
+    '''
 
-    return df
+    return filtered_r_mid_all, filtered_r_sup_all
     
 

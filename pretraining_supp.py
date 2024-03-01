@@ -132,7 +132,7 @@ def load_parameters(file_path, readout_grid_size=5, iloc_ind=-1):
 
     # Get the last row of the given csv file
     df = pd.read_csv(file_path)
-    selected_row = df.iloc[iloc_ind]
+    selected_row = df.iloc[int(iloc_ind)]
 
     # Extract stage 1 parameters from df
     w_sig_keys = [f'w_sig_{i}' for i in range(1, readout_grid_size*readout_grid_size+1)] 

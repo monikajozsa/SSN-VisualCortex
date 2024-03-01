@@ -201,7 +201,7 @@ def train_ori_discr(
                 # iv) Loss and accuracy validation + printing results    
                 if SGD_step in val_steps:
                     #### Calculate loss and accuracy - *** could be switched to mean loss and acc easily
-                    val_loss_vec, val_acc_vec = training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset)
+                    val_acc_vec, val_loss_vec = training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset)
                 
                     val_loss = np.mean(val_loss_vec)
                     val_acc = np.mean(val_acc_vec)
@@ -454,7 +454,7 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     untrained_pars.pretrain_pars.is_on = pretrain_is_on_saved
     untrained_pars.stimuli_pars.offset = offset_saved
     
-    return loss, acc
+    return acc, loss
 
 def mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec, sample_size = 3):
     # Initialize arrays to store loss, accuracy, and max rates
@@ -465,7 +465,7 @@ def mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untraine
     # For the all the offsets, calculate fine discrimination accuracy sample_size times
     for i in range(N):
         for j in range(sample_size):
-            temp_loss, temp_acc = training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec[i])
+            temp_acc, temp_loss = training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec[i])
             accuracy[i,j] = temp_acc
             loss[i,j] = temp_loss
         

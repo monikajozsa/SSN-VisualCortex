@@ -5,7 +5,6 @@ import jax.numpy as np
 import numpy
 import sys
 
-from analysis import obtain_min_max_indices, label_neuron
 
 def calculate_relative_change(df):
     # Calculate relative changes in Jm and Js
@@ -576,33 +575,6 @@ def plot_vec2map(ssn, fp, save_fig=False):
         fig.savefig(save_fig + ".png")
 
     plt.close()
-
-
-def plot_mutiple_gabor_filters(ssn, fp, save_fig=None, indices=None):
-    if indices == None:
-        indices = obtain_min_max_indices(ssn=ssn, fp=fp)
-
-    fig, axes = plt.subplots(2, 3, figsize=(8, 8))
-    count = 0
-    for row in range(0, 2):
-        for col in range(0, 3):
-            ax = axes[row, col]
-            im = plot_individual_gabor(ax, fp, ssn, index=indices[count])
-            count += 1
-    if save_fig:
-        fig.savefig(os.path.join(save_fig + ".png"))
-    plt.show()
-    plt.close()
-
-
-def plot_individual_gabor(ax, fp, ssn, index):
-    if ax == None:
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-    labels = ["E_ON", "I_ON", "E_OFF", "I_OFF"]
-    ax.imshow(ssn.gabor_filters[index].reshape(129, 129), cmap="Greys")
-    ax.set_xlabel("Response " + str(fp[index]))
-    ax.set_title("ori " + str(ssn.ori_vec[index]) + " " + str(label_neuron(index)))
-    return ax
 
 
 def plot_close_far(

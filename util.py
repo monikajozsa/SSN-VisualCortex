@@ -55,7 +55,7 @@ def sep_exponentiate(J_s):
     return new_J
 
 
-def create_grating_training(stimuli_pars, batch_size, jit_inp_all= None):
+def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all= None):
     '''
     Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
     Input:
@@ -77,38 +77,39 @@ def create_grating_training(stimuli_pars, batch_size, jit_inp_all= None):
     target_ori_vec = np.where(mask, ref_ori - offset, ref_ori + offset)
     labels = mask.astype(int)  # Converts True/False to 1/0
     jitter_val = stimuli_pars.jitter_val
-    jitter_vec = numpy.random.uniform(low = -jitter_val, high = jitter_val, size=batch_size)
+    jitter_vec = np.array(numpy.random.uniform(low = -jitter_val, high = jitter_val, size=batch_size))
 
     # Create reference and target gratings
-    # if jit_inp_all is given then use the jit-compatible version of BW_image. Otherwise, use the original BW_gratings class
-    if jit_inp_all is None:
+    # if BW_image_jit_inp_all is given then use the jit-compatible version of BW_image. Otherwise, use the original BW_gratings class
+    if BW_image_jit_inp_all is None:
+        data_dict2 = {'ref':[], 'target': [], 'label':[]}
         for i in range(batch_size):                     
             
             ref = BW_Grating(ori_deg = ref_ori, jitter=jitter_vec[i], stimuli_pars = stimuli_pars).BW_image().ravel()
             target = BW_Grating(ori_deg = target_ori_vec[i], jitter=jitter_vec[i], stimuli_pars = stimuli_pars).BW_image().ravel()
                 
-            data_dict['ref'].append(ref)
-            data_dict['target'].append(target)
-            data_dict['label'].append(labels)
+            data_dict2['ref'].append(ref)
+            data_dict2['target'].append(target)
+            data_dict2['label'].append(labels)
+        
+        data_dict2['ref'] = np.asarray(data_dict2['ref'])
+        data_dict2['target'] = np.asarray(data_dict2['target'])
+        data_dict2['label'] = np.asarray(data_dict2['label'])
+        data_dict = data_dict2 # data_dict2 is introduced for testing
     else:
         ref_ori_vec = np.ones(batch_size)*ref_ori
-        x = jit_inp_all[5]
-        y = jit_inp_all[6]
-        alpha_channel = jit_inp_all[7]
-        mask_jax = jit_inp_all[8]
-        background = jit_inp_all[9]
-        roi =jit_inp_all[10]
+        x = BW_image_jit_inp_all[5]
+        y = BW_image_jit_inp_all[6]
+        alpha_channel = BW_image_jit_inp_all[7]
+        mask = BW_image_jit_inp_all[8]
+        background = BW_image_jit_inp_all[9]
         
-        ref = BW_image_jit_noisy(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, ref_ori_vec, jitter_vec)
-        target = BW_image_jit_noisy(jit_inp_all[0:5],x,y,alpha_channel,mask_jax, background, roi, target_ori_vec, jitter_vec)
+        ref = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ref_ori_vec, jitter_vec)
+        target = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, target_ori_vec, jitter_vec)
         data_dict['ref']=ref
         data_dict['target']=target
         data_dict['label']=labels
             
-    data_dict['ref'] = np.asarray(data_dict['ref'])
-    data_dict['target'] = np.asarray(data_dict['target'])
-    data_dict['label'] = np.asarray(data_dict['label'])
-
     return data_dict
 
 
@@ -148,7 +149,7 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     return np.array(num1), np.array(num2), random_distance
 
 
-def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all, numRnd_ori1=1):
+def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, numRnd_ori1=1):
     '''
     Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
     Output:
@@ -162,24 +163,28 @@ def create_grating_pretraining(pretrain_pars, batch_size, jit_inp_all, numRnd_or
     L_ring = 180
     min_ori_dist = pretrain_pars.min_ori_dist
     max_ori_dist = pretrain_pars.max_ori_dist
-    ori1, ori2, ori_diff = generate_random_pairs(min_value=30, max_value=150, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
+    ori1, ori2, ori1_minus_ori2 = generate_random_pairs(min_value=30, max_value=150, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
 
-    x = jit_inp_all[5]
-    y = jit_inp_all[6]
-    alpha_channel = jit_inp_all[7]
-    mask_jax = jit_inp_all[8]
-    background = jit_inp_all[9]
-    roi =jit_inp_all[10]
+    x = BW_image_jit_inp_all[5]
+    y = BW_image_jit_inp_all[6]
+    alpha_channel = BW_image_jit_inp_all[7]
+    mask = BW_image_jit_inp_all[8]
+    background = BW_image_jit_inp_all[9]
     
     # Generate stimulus1 and stimulus2 with no jitter and no noise (seed needs to be randomized if we add noise!)
-    stim1 = BW_image_jit_noisy(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori1, jitter=np.zeros_like(ori1))
-    stim2 = BW_image_jit_noisy(jit_inp_all[0:5], x, y, alpha_channel, mask_jax, background, roi, ori2, jitter=np.zeros_like(ori1))
+    stim1 = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori1, jitter=np.zeros_like(ori1))
+    stim2 = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori2, jitter=np.zeros_like(ori1))
     data_dict['ref']=stim1
     data_dict['target']=stim2
 
     # Define label as the normalized signed difference in angle
-    label = np.zeros_like(ori_diff)
-    data_dict['label'] = label.at[ori_diff > 0].set(1)
+    label = np.zeros_like(ori1_minus_ori2)
+    data_dict['label'] = label.at[ori1_minus_ori2 > 0].set(1) # 1 when ref> target and 0 when ref/,target
+    
+    #mask = uniform_dist_value < 0.5
+    #target_ori_vec = np.where(mask, ref_ori - offset, ref_ori + offset) # 1 when ref> target
+    #labels = mask.astype(int)  # Converts True/False to 1/0
+    
 
     return data_dict
 

@@ -4,8 +4,9 @@ import time
 import jax.numpy as np
 import os
 
-numpy.random.seed(0)
-
+numpy.random.seed(1)
+#0 flipped
+#10, 12, 100 normal
 from util_gabor import init_untrained_pars
 from util import save_code
 from training import train_ori_discr
@@ -34,11 +35,13 @@ ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 
 # Defining the number of random initializations for pretraining + training
-N_training = 3
+N_training = 5
 
 # Save scripts
 #folder_to_save='C:/Users/mj555/Dropbox (Cambridge University)/Postdoc 2023-2024/results'
 results_filename, final_folder_path = save_code()
+#final_folder_path='results'
+#results_filename='result'
 
 starting_time_in_main= time.time()
 numFailedRuns = 0
@@ -137,7 +140,7 @@ while i < N_training and numFailedRuns < 20:
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, barplots_from_csvs, plot_results_from_csv#
-#final_folder_path= 'results/Feb28_v10'
+#final_folder_path= 'results/Mar01_v0'
 #N_training=1
 plot_results_from_csvs(final_folder_path, N_training)
 
