@@ -231,4 +231,4 @@ for run_ind in range(N_trainings):
             axs[2+layer,1].text(untrain_SNR_mean, axs[2+layer,1].get_ylim()[1]*0.90, f'{untrain_SNR_mean:.2f}', color=colors[i], ha='center')
             axs[2+layer,1].legend(loc='lower left')
             print(time.time()-start_time)
-    fig.savefig(f"{folder}/SNR_{run_ind}")
+    fig.savefig(f"{folder}/Mahal_dist_{run_ind}")

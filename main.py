@@ -34,7 +34,7 @@ ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 
 # Defining the number of random initializations for pretraining + training
-N_training = 20
+N_training = 5
 
 # Save scripts
 #folder_to_save='C:/Users/mj555/Dropbox (Cambridge University)/Postdoc 2023-2024/results'
