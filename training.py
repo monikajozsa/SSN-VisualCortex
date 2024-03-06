@@ -154,9 +154,10 @@ def train_ori_discr(
                 # Check for early stopping during pre-training
                 if pretrain_on and SGD_step in acc_check_ind:
                     acc_mean, _, _ = mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
-                    acc_mean_max = np.maximum(acc_mean, 1-acc_mean)
+                    if np.sum(acc_mean<0.5)>0.5*len(acc_mean):
+                        acc_mean = 1-acc_mean
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
-                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean_max, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     if SGD_step==acc_check_ind[0] and stage==1:
                         offsets_at_bl_acc=[float(offset_at_bl_acc)]
                     else:
