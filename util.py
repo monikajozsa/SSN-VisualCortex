@@ -8,7 +8,7 @@ import shutil
 from datetime import datetime
 from scipy import ndimage
 
-from util_gabor import BW_Grating, BW_image_jit_noisy
+from util_gabor import BW_Grating, BW_image_jit_noisy, BW_image_jax
 
 def smooth_data(vector, sigma = 1):
 
@@ -24,6 +24,7 @@ def smooth_data(vector, sigma = 1):
         new_data.append(smoothed_data)
     
     return np.vstack(np.asarray(new_data))  
+
 
 def sigmoid(x, epsilon=0.01):
     """
@@ -163,7 +164,7 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
     L_ring = 180
     min_ori_dist = pretrain_pars.min_ori_dist
     max_ori_dist = pretrain_pars.max_ori_dist
-    ori1, ori2, ori1_minus_ori2 = generate_random_pairs(min_value=30, max_value=150, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
+    ori1, ori2, ori1_minus_ori2 = generate_random_pairs(min_value=15, max_value=165, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
 
     x = BW_image_jit_inp_all[5]
     y = BW_image_jit_inp_all[6]
@@ -185,7 +186,6 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
     #target_ori_vec = np.where(mask, ref_ori - offset, ref_ori + offset) # 1 when ref> target
     #labels = mask.astype(int)  # Converts True/False to 1/0
     
-
     return data_dict
 
 

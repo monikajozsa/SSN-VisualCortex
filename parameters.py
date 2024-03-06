@@ -7,7 +7,7 @@ import jax.numpy as np
 class PreTrainPars:
     is_on = True
     min_ori_dist = 10
-    max_ori_dist = 40
+    max_ori_dist = 20
     numStages = 1
     acc_th = 0.749
     acc_check_freq = 10
@@ -151,6 +151,7 @@ class ReadoutPars:
         w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / readout_grid_size[1] # weights between the superficial and the sigmoid layer
         w_sig = np.array(w_sig)
     b_sig: float = 0.0 # bias added to the sigmoid layer
+    N_readout_noise = 125
 
 readout_pars = ReadoutPars()
 

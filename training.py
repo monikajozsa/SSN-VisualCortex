@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import jax
 import jax.numpy as np
 from jax import vmap
@@ -272,13 +273,13 @@ def loss_and_grad_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pa
     training_pars=untrained_pars.training_pars
     if untrained_pars.pretrain_pars.is_on:
         # Generate noise that is added to the output of the model
-        noise_ref = generate_noise(training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0])
-        noise_target = generate_noise(training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0])        
+        noise_ref = generate_noise(training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+        noise_target = generate_noise(training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
         train_data = create_grating_pretraining(untrained_pars.pretrain_pars, training_pars.batch_size[0], untrained_pars.BW_image_jax_inp, numRnd_ori1=training_pars.batch_size[0])
     else:
         # Generate noise that is added to the output of the model
-        noise_ref = generate_noise(training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0] )
-        noise_target = generate_noise(training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0])
+        noise_ref = generate_noise(training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+        noise_target = generate_noise(training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
         train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size[1], untrained_pars.BW_image_jax_inp)
 
     # Calculate gradient, loss and accuracy
@@ -406,7 +407,7 @@ def binary_crossentropy_loss(n, x):
 
 def generate_noise(batch_size, length, N_readout=125, dt_readout = 0.2):
     '''
-    Creates vectors of neural noise. Function creates N vectors, where N = batch_size, each vector of length = length. 
+    Creates vectors of neural noise. Function creates batch_size number of vectors, each vector of length = length. 
     '''
     sig_noise = 1/np.sqrt(N_readout * dt_readout)
     return sig_noise*numpy.random.randn(batch_size, length)
@@ -444,12 +445,22 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     untrained_pars.stimuli_pars.offset = test_offset
     
     # Generate noise that is added to the output of the model
-    noise_ref = generate_noise(batch_size = 200, length = readout_pars_dict_copy["w_sig"].shape[0])
-    noise_target = generate_noise(batch_size = 200, length = readout_pars_dict_copy["w_sig"].shape[0])
+    noise_ref = generate_noise(batch_size = 200, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+    noise_target = generate_noise(batch_size = 200, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
     
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
-    train_data = create_grating_training(untrained_pars.stimuli_pars, 200, untrained_pars.BW_image_jax_inp)
-
+    untrained_pars.stimuli_pars.jitter_val=0
+    untrained_pars.stimuli_pars.std=0
+    #train_data2 = create_grating_training(untrained_pars.stimuli_pars, 2)
+    train_data = create_grating_training(untrained_pars.stimuli_pars, 2, untrained_pars.BW_image_jax_inp)
+    ## testing
+    #train_data2 = create_grating_training(untrained_pars.stimuli_pars, 2)
+    #test_data=np.reshape(train_data['ref'][0],(129,129))
+    #test_data2=np.reshape(train_data2['ref'][0],(129,129))
+    #cax=plt.imshow(test_data-test_data2)
+    #plt.colorbar(cax, orientation='vertical')
+    #plt.savefig('grating_diff_training_task_acc_test')
+    
     # Calculate loss and accuracy
     loss, [_, acc, _, _, _] = batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
 

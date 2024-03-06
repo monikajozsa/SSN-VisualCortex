@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy
 from PIL import Image
 import jax.numpy as np
@@ -25,6 +26,7 @@ class UntrainedPars:
         self.gabor_filters = gabor_filters
         self.readout_grid_size = readout_pars.readout_grid_size
         self.middle_grid_ind = readout_pars.middle_grid_ind
+        self.N_readout_noise = readout_pars.N_readout_noise
         self.pretrain_pars = pretrain_pars
         self.BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
 
@@ -182,7 +184,7 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_laye
     
     oris = ssn_ori_map.ravel()[:, None]
     ori_dist = cosdiff_ring(oris - oris.T, 180)
-
+    
     # Collect parameters that are not trained into a single class
     untrained_pars = UntrainedPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
@@ -302,7 +304,7 @@ class BW_Grating:
         if self.std>0:
             noisy_image = image + numpy.random.normal(loc=0, scale=self.std, size=image.shape)
         else:
-             noisy_image = image
+            noisy_image = image
        
         return noisy_image
 
@@ -351,7 +353,7 @@ def BW_image_jax_supp(stimuli_pars, phase=0.0):
     center_x, center_y = size // 2, size // 2
     bbox_height = np.abs(center_x - grating_size)
     bbox_width = np.abs(center_y - grating_size)
-    alpha_height, alpha_width = alpha_channel.shape
+    alpha_height, alpha_width = alpha_channel.shape#**** alpha_height
     start_indices = (int(bbox_height), int(bbox_width))
 
     # Create gray background
@@ -397,10 +399,13 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
     gabor_sti = np.where(mask, _GRAY, gabor_sti)
 
     # Blend the Gabor stimulus with the alpha channel in ROI
-    alpha_channel_resized = alpha_channel[start_indices[0]:-start_indices[0],start_indices[1]:-start_indices[1]] 
-    gabor_sti_resized = gabor_sti[start_indices[0]:-start_indices[0],start_indices[1]:-start_indices[1]] 
-    result_roi = np.floor(alpha_channel_resized / 255 * gabor_sti_resized + (1.0 - alpha_channel_resized / 255) * _GRAY)
-
+    if gabor_sti.shape[0]+2*start_indices[0]==background.shape[0]: # this is true for regular call of the function but not true for find_gabor_A, when gabor_sti is 257x257 and not 121x121
+        result_roi = np.floor(alpha_channel / 256 * gabor_sti + (1.0 - alpha_channel / 256) * _GRAY)
+    else:
+        alpha_channel_resized = alpha_channel[start_indices[0]:-start_indices[0],start_indices[1]:-start_indices[1]] 
+        gabor_sti_resized = gabor_sti[start_indices[0]:-start_indices[0],start_indices[1]:-start_indices[1]] 
+        result_roi = np.floor(alpha_channel_resized / 256 * gabor_sti_resized + (1.0 - alpha_channel_resized / 256) * _GRAY)
+    
     # Update the background image with result_roi
     combined_image = lax.dynamic_update_slice(background, result_roi, start_indices)
 
@@ -509,6 +514,8 @@ def find_gabor_A(
         local_stimuli_pars.degree_per_pixel = degree_per_pixel
         local_stimuli_pars.grating_contrast = 0.99
         local_stimuli_pars.jitter_val = 0
+        local_stimuli_pars.std = 0
+        local_stimuli_pars.ref_ori = ori
 
         # generate test stimuli at ori orientation
         BW_image_jit_inp_all = BW_image_jax_supp(local_stimuli_pars, phase = phase)
@@ -519,8 +526,15 @@ def find_gabor_A(
         background = BW_image_jit_inp_all[9]
         
         test_stimuli = BW_image_jax(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori, 0)
+        ## testing
+        #test_stimuli2 = BW_Grating(ori_deg = local_stimuli_pars.ref_ori, jitter=0, stimuli_pars = local_stimuli_pars).BW_image().ravel()
+        #test_stimuli=np.reshape(test_stimuli,(129,129))
+        #test_stimuli2=np.reshape(test_stimuli2,(129,129))
+        #cax = plt.imshow(test_stimuli-test_stimuli2)
+        #plt.colorbar(cax, orientation='vertical')
+        #plt.savefig('test_stim_diff_findA')
         
-        # generate Gabor filter at orientation
+        # Generate Gabor filter at orientation
         gabor = gabor_filter(0, 0,k,sigma_g,ori,edge_deg,degree_per_pixel,phase=phase)
         mean_removed_filter = gabor - gabor.mean()
         
