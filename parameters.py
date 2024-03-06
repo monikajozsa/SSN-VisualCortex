@@ -11,7 +11,7 @@ class PreTrainPars:
     numStages = 1
     acc_th = 0.749
     acc_check_freq = 10
-    min_acc_check_ind = 100
+    min_acc_check_ind = 50
     offset_threshold = 5
 
 pretrain_pars = PreTrainPars()
@@ -20,7 +20,7 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta = 3*10e-4  # learning rate
+    eta = 2*10e-4  # learning rate
     batch_size = [100, 50]
     noise_type = "poisson"
     SGD_steps = [1000, 500] # number of SGD steps

@@ -154,8 +154,9 @@ def train_ori_discr(
                 # Check for early stopping during pre-training
                 if pretrain_on and SGD_step in acc_check_ind:
                     acc_mean, _, _ = mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
-                    # fit log-linear curve to acc_mean and test_offset_vec and find where it crosses baseline_acc=0.794
-                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+                    acc_mean_max = np.maximum(acc_mean, 1-acc_mean)
+                    # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
+                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean_max, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     if SGD_step==acc_check_ind[0] and stage==1:
                         offsets_at_bl_acc=[float(offset_at_bl_acc)]
                     else:
@@ -164,8 +165,7 @@ def train_ori_discr(
 
                     # Stop pretraining: nreak out from STG_step loop and stages loop (using a flag)
                     if len(offsets_at_bl_acc)>3: # we stop pretraining even if the training task is solved for the pretraining
-                        offsets_at_bl_acc_end = np.maximum(np.array(offsets_at_bl_acc[-3:]), 1-np.array(offsets_at_bl_acc[-3:]))
-                        pretrain_stop_flag = all(offsets_at_bl_acc_end) < pretrain_offset_threshold
+                        pretrain_stop_flag = all(offsets_at_bl_acc[-3:] < pretrain_offset_threshold)
                     if pretrain_stop_flag:
                         print('Desired accuracy achieved during pretraining.')
                         first_stage_final_step = SGD_step

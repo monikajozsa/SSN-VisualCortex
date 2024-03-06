@@ -105,7 +105,7 @@ def barplots_from_csvs(directory, plot_filename = None):
     
     relative_changes_train = numpy.array(relative_changes_train)
     relative_changes_pretrain = numpy.array(relative_changes_pretrain)
-    group_start_ind = [0,4,8,10,12]
+    group_start_ind = [0,4,8,10,12] # putting together Jm, Js, c, f
     titles_pretrain= ['Jm changes in pretraining, {} runs'.format(numFiles),'Js changes in pretraining, {} runs'.format(numFiles),'c changes in pretraining, {} runs'.format(numFiles), 'f changes in pretraining, {} runs'.format(numFiles)]
     titles_train=['Jm changes in training, {} runs'.format(numFiles), 'Js changes in training, {} runs'.format(numFiles), 'c changes in training, {} runs'.format(numFiles), 'f changes in training, {} runs'.format(numFiles)]
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']

@@ -43,7 +43,7 @@ results_filename, final_folder_path = save_code()
 starting_time_in_main= time.time()
 numFailedRuns = 0
 i=0
-loaded_orimap =  np.load(os.path.join(os.getcwd(), 'ssn_map_uniform_good.npy'))
+#loaded_orimap =  np.load(os.path.join(os.getcwd(), 'ssn_map_uniform_good.npy'))
 while i < N_training and numFailedRuns < 20:
     stimuli_pars.offset=offset_saved
     stimuli_pars.ref_ori=ref_ori_saved # this changes during training because of the staircase
@@ -57,7 +57,7 @@ while i < N_training and numFailedRuns < 20:
     orimap_filename = f"{final_folder_path}/orimap_{i}.npy"
 
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_filename, loaded_orimap)
+                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_filename)
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
     # Get baseline parameters to-be-trained
@@ -136,9 +136,12 @@ while i < N_training and numFailedRuns < 20:
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, barplots_from_csvs, plot_results_from_csv#
-#final_folder_path= 'results/Mar01_v20'
-#N_training=2
+#final_folder_path= 'results/Mar05_v1'
+#N_training=3
 plot_results_from_csvs(final_folder_path, N_training)
 
 boxplot_file_name = 'boxplot_pretraining'
+barplots_from_csvs(final_folder_path, boxplot_file_name)
+boxplot_file_name = 'boxplot_training_only'
+final_folder_path = final_folder_path + '/train_only'
 barplots_from_csvs(final_folder_path, boxplot_file_name)
