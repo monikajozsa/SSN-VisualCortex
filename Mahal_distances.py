@@ -123,7 +123,7 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
     return output, SGD_step_inds
 
 ######### Calculate Mahalanobis distance for before pretraining, after pretraining and after training - distance between trained and control should increase more than distance between untrained and control after training #########
-ori_list = numpy.asarray([55, 125, 0])
+ori_list = numpy.asarray([55, 125, 90])
 num_oris = len(ori_list)
 num_PC_used=15
 num_layers=2

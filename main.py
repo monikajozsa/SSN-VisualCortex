@@ -1,8 +1,6 @@
 import numpy
 import copy
 import time
-import jax.numpy as np
-import os
 
 numpy.random.seed(1)
 
@@ -34,12 +32,12 @@ ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 
 # Defining the number of random initializations for pretraining + training
-N_training = 1
+N_training = 10
 
 # Save scripts
 #folder_to_save='C:/Users/mj555/Dropbox (Cambridge University)/Postdoc 2023-2024/results'
-#results_filename, final_folder_path = save_code()
-final_folder_path='results'
+results_filename, final_folder_path = save_code()
+#final_folder_path='results'
 
 starting_time_in_main= time.time()
 numFailedRuns = 0
@@ -141,8 +139,9 @@ from visualization import plot_results_from_csvs, barplots_from_csvs, plot_resul
 #N_training=3
 plot_results_from_csvs(final_folder_path, N_training)
 
-boxplot_file_name = 'boxplot_pretraining'
-barplots_from_csvs(final_folder_path, boxplot_file_name)
-boxplot_file_name = 'boxplot_training_only'
-final_folder_path = final_folder_path + '/train_only'
-barplots_from_csvs(final_folder_path, boxplot_file_name)
+## first move the train_only files  into a new folder called train_only
+#boxplot_file_name = 'boxplot_pretraining'
+#barplots_from_csvs(final_folder_path, boxplot_file_name)
+#boxplot_file_name = 'boxplot_training_only'
+#final_folder_path = final_folder_path + '/train_only'
+#barplots_from_csvs(final_folder_path, boxplot_file_name)

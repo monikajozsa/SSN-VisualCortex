@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import jax
 import jax.numpy as np
 from jax import vmap
@@ -445,14 +445,15 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     untrained_pars.stimuli_pars.offset = test_offset
     
     # Generate noise that is added to the output of the model
-    noise_ref = generate_noise(batch_size = 200, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
-    noise_target = generate_noise(batch_size = 200, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+    batch_size=200
+    noise_ref = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+    noise_target = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
     
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
     untrained_pars.stimuli_pars.jitter_val=0
     untrained_pars.stimuli_pars.std=0
     #train_data2 = create_grating_training(untrained_pars.stimuli_pars, 2)
-    train_data = create_grating_training(untrained_pars.stimuli_pars, 2, untrained_pars.BW_image_jax_inp)
+    train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size, untrained_pars.BW_image_jax_inp)
     ## testing
     #train_data2 = create_grating_training(untrained_pars.stimuli_pars, 2)
     #test_data=np.reshape(train_data['ref'][0],(129,129))
