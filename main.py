@@ -135,13 +135,13 @@ while i < N_training and numFailedRuns < 20:
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, barplots_from_csvs, plot_results_from_csv#
-#final_folder_path= 'results/Mar05_v1'
-#N_training=3
+#final_folder_path= 'results/Mar06_v6'
+#N_training=7
 plot_results_from_csvs(final_folder_path, N_training)
 
 ## first move the train_only files  into a new folder called train_only
-#boxplot_file_name = 'boxplot_pretraining'
-#barplots_from_csvs(final_folder_path, boxplot_file_name)
-#boxplot_file_name = 'boxplot_training_only'
-#final_folder_path = final_folder_path + '/train_only'
-#barplots_from_csvs(final_folder_path, boxplot_file_name)
+boxplot_file_name = 'boxplot_pretraining'
+barplots_from_csvs(final_folder_path, boxplot_file_name)
+boxplot_file_name = 'boxplot_training_only'
+final_folder_path = final_folder_path + '/train_only'
+barplots_from_csvs(final_folder_path, boxplot_file_name)

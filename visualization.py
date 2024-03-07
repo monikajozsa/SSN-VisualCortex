@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import pandas as pd
 import os
 import jax.numpy as np
@@ -692,3 +693,43 @@ def plot_w_sig(w_sig, epochs_plot=None, save=None):
     if save:
         plt.savefig(save + ".png")
     plt.close()
+
+
+def plot_pre_post_scatter(x_axis, y_axis, orientations, indices_to_plot, title, save_dir = None):
+    
+    '''
+    Create scatter plot for pre and post training responses. Colour represents preferred orientation according to Schoups et al bins
+    '''
+    
+    #Create legend
+    patches = []
+    cmap = plt.get_cmap('rainbow')
+    colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
+    bins = ['0-4', '4-12', '12-20', '20-28', '28-36', '36-44', '44-50', '+50']
+    for j in range(0,len(colors)):
+        patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
+    
+    #Iterate through required neurons
+    for idx in indices_to_plot:
+        #Select bin and colour
+        if np.abs(orientations[idx]) <4:
+            colour = colors[0]
+            label = bins[0]
+        elif np.abs(orientations[idx]) >50:
+            colour = colors[-1]
+            label = bins[-1]
+        else:
+            colour = colors[int(1+np.floor((np.abs(orientations[idx]) -4)/8) )]
+            label = bins[int(1+np.floor((np.abs(orientations[idx]) -4)/8) )]
+        plt.scatter(x = x_axis[idx], y =y_axis[idx], color =colour, label = label )
+    
+    #Plot x = y line
+    xpoints = ypoints = plt.xlim()
+    plt.plot(xpoints, ypoints, linestyle='--', color='gold')
+    plt.xlabel('Pre training')
+    plt.ylabel('Post training')
+    plt.title(title)
+    plt.legend(handles = patches, loc = 'upper right', bbox_to_anchor=(1.3, 1.0), title = 'Pref ori - train ori')
+    if save_dir:
+        plt.savefig(os.path.join(save_dir, str(title)+'.png'), bbox_inches='tight')
+    plt.show()

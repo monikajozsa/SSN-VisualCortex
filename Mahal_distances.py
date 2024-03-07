@@ -123,25 +123,28 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
     return output, SGD_step_inds
 
 ######### Calculate Mahalanobis distance for before pretraining, after pretraining and after training - distance between trained and control should increase more than distance between untrained and control after training #########
-ori_list = numpy.asarray([55, 125, 90])
+ori_list = numpy.asarray([55, 125, 0])
 num_oris = len(ori_list)
 num_PC_used=15
 num_layers=2
 n_noisy_trials=300
-N_trainings=3
-folder = 'results/Mar05_v1'
+N_trainings=7
+folder = 'results/Mar06_v6'
 colors = ['black','blue', 'red']
 labels = ['pre-pretrained', 'post-pretrained','post-trained']
 start_time=time.time()
+mahal_train_control_mean=numpy.zeros((num_layers,3,N_trainings))
+mahal_untrain_control_mean=numpy.zeros((num_layers,3,N_trainings))
 for run_ind in range(N_trainings):
     file_name = f"{folder}/results_{run_ind}.csv"
     orimap_filename = f"{folder}/orimap_{run_ind}.npy"
     loaded_orimap =  numpy.load(orimap_filename)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                     loss_pars, training_pars, pretrain_pars, readout_pars, None, loaded_orimap)
-    r_mid_sup, SGD_inds = filtered_model_response(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = n_noisy_trials, SGD_step_inds=[1, -1])
+    r_mid_sup, SGD_inds = filtered_model_response(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = n_noisy_trials)
     
-    fig, axs = plt.subplots(2*num_layers, num_oris-1, figsize=(20, 40))  # Plot for Mahalanobis distances and SNR
+    fig, axs = plt.subplots(2*num_layers, num_oris-1, figsize=(20, 30))  # Plot for Mahalanobis distances and SNR
+    layer_labels = ['Sup', 'Mid']
     for layer in range(num_layers):
         for i in range(len(SGD_inds)):
             mesh_step = r_mid_sup['SGD_step'] == SGD_inds[i]
@@ -174,8 +177,8 @@ for run_ind in range(N_trainings):
             mahal_untrain_control = mahal(control_data, untrain_data)
 
             # Mean over the trials 
-            mahal_train_control_mean = numpy.mean(mahal_train_control)
-            mahal_untrain_control_mean = numpy.mean(mahal_untrain_control)
+            mahal_train_control_mean[layer,i,run_ind] = numpy.mean(mahal_train_control)
+            mahal_untrain_control_mean[layer,i,run_ind] = numpy.mean(mahal_untrain_control)
 
             # Calculate the standard deviation
             train_data_size = train_data.shape[0]
@@ -205,30 +208,48 @@ for run_ind in range(N_trainings):
             untrain_SNR = mahal_untrain_control / mahal_within_untrain_mean
 
             # Plotting Mahal distances for trained ori
-            axs[layer,0].set_title(f'Mahalanobis dist: layer {layer+1}, trained ori')
+            axs[layer,0].set_title(f'Mahalanobis dist: {layer_labels[layer]} layer, ori {ori_list[0]}')
             axs[layer,0].hist(mahal_train_control, label=labels[i], color=colors[i], alpha=0.4)  
-            axs[layer,0].axvline(mahal_train_control_mean, color=colors[i], linestyle='dashed', linewidth=1)
-            axs[layer,0].text(mahal_train_control_mean, axs[layer,0].get_ylim()[1]*0.95, f'{mahal_train_control_mean:.2f}', color=colors[i], ha='center')
+            axs[layer,0].axvline(mahal_train_control_mean[layer,i,run_ind], color=colors[i], linestyle='dashed', linewidth=1)
+            axs[layer,0].text(mahal_train_control_mean[layer,i,run_ind], axs[layer,0].get_ylim()[1]*0.95, f'{mahal_train_control_mean[layer,i,run_ind]:.2f}', color=colors[i], ha='center')
             axs[layer,0].legend(loc='lower left')
             # Plotting Mahal distances for untrained ori
-            axs[layer,1].set_title(f'Mahal dist: layer {layer+1}, untrained ori')
+            axs[layer,1].set_title(f'Mahal dist: {layer_labels[layer]} layer, ori {ori_list[1]}')
             axs[layer,1].hist(mahal_untrain_control, label=labels[i], color=colors[i], alpha=0.4)  
-            axs[layer,1].axvline(mahal_untrain_control_mean, color=colors[i], linestyle='dashed', linewidth=1)
-            axs[layer,1].text(mahal_untrain_control_mean, axs[layer,1].get_ylim()[1]*0.90, f'{mahal_untrain_control_mean:.2f}', color=colors[i], ha='center')
+            axs[layer,1].axvline(mahal_untrain_control_mean[layer,i,run_ind], color=colors[i], linestyle='dashed', linewidth=1)
+            axs[layer,1].text(mahal_untrain_control_mean[layer,i,run_ind], axs[layer,1].get_ylim()[1]*0.90, f'{mahal_untrain_control_mean[layer,i,run_ind]:.2f}', color=colors[i], ha='center')
             axs[layer,1].legend(loc='lower left')
             # Plotting SNR for trained ori
             train_SNR_mean=numpy.mean(train_SNR)
-            axs[2+layer,0].set_title(f'SNR: layer {layer+1}, trained ori')
+            axs[2+layer,0].set_title(f'SNR: layer {layer_labels[layer]}, ori {ori_list[0]}')
             axs[2+layer,0].hist(train_SNR, label=labels[i], color=colors[i], alpha=0.4)
             axs[2+layer,0].axvline(train_SNR_mean, color=colors[i], linestyle='dashed', linewidth=1)
             axs[2+layer,0].text(train_SNR_mean, axs[2+layer,0].get_ylim()[1]*0.95, f'{train_SNR_mean:.2f}', color=colors[i], ha='center')
             axs[2+layer,0].legend(loc='lower left')
             # Plotting SNR for trained ori
             untrain_SNR_mean=numpy.mean(untrain_SNR)
-            axs[2+layer,1].set_title(f'SNR: layer {layer+1}, untrained ori')
+            axs[2+layer,1].set_title(f'SNR: {layer_labels[layer]} layer, ori {ori_list[1]}')
             axs[2+layer,1].hist(untrain_SNR, label=labels[i], color=colors[i], alpha=0.4)
             axs[2+layer,1].axvline(untrain_SNR_mean, color=colors[i], linestyle='dashed', linewidth=1)
             axs[2+layer,1].text(untrain_SNR_mean, axs[2+layer,1].get_ylim()[1]*0.90, f'{untrain_SNR_mean:.2f}', color=colors[i], ha='center')
             axs[2+layer,1].legend(loc='lower left')
             print(time.time()-start_time)
-    fig.savefig(f"{folder}/Mahal_dist_{run_ind}")
+    fig.savefig(f"{folder}/Mahal_dist_{run_ind}_control0")
+fig, axs = plt.subplots(num_layers, num_oris-1, figsize=(10, 10))  # Plot for Mahalanobis distances and SNR
+bp = axs[0,0].boxplot(mahal_train_control_mean[0,:,:].T, labels=labels, patch_artist=True)
+axs[0,0].set_title(f'Mean Mahal dist: {layer_labels[0]} layer and {ori_list[0]} ori', fontsize=20)
+for box, color in zip(bp['boxes'], colors):
+    box.set_facecolor(color)
+bp = axs[0,1].boxplot(mahal_untrain_control_mean[0,:,:].T, labels=labels, patch_artist=True)
+axs[0,1].set_title(f'Mean Mahal dist: {layer_labels[0]} layer and {ori_list[1]} ori', fontsize=20)
+for box, color in zip(bp['boxes'], colors):
+    box.set_facecolor(color)
+bp = axs[1,0].boxplot(mahal_train_control_mean[1,:,:].T, labels=labels, patch_artist=True)
+axs[1,0].set_title(f'Mean Mahal dist: {layer_labels[1]} layer and {ori_list[0]} ori', fontsize=20)
+for box, color in zip(bp['boxes'], colors):
+    box.set_facecolor(color)
+bp = axs[1,1].boxplot(mahal_untrain_control_mean[1,:,:].T, labels=labels, patch_artist=True)
+axs[1,1].set_title(f'Mean Mahal dist: {layer_labels[1]}  layer and {ori_list[1]} ori', fontsize=20)
+for box, color in zip(bp['boxes'], colors):
+    box.set_facecolor(color)
+fig.savefig(f"{folder}/Mahal_dist_mean_control0")
