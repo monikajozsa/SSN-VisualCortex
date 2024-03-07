@@ -695,7 +695,7 @@ def plot_w_sig(w_sig, epochs_plot=None, save=None):
     plt.close()
 
 
-def plot_pre_post_scatter(x_axis, y_axis, orientations, indices_to_plot, title, save_dir = None):
+def plot_pre_post_scatter(x_axis, y_axis, orientations, indices_to_plot, title, save_file = None):
     
     '''
     Create scatter plot for pre and post training responses. Colour represents preferred orientation according to Schoups et al bins
@@ -730,6 +730,6 @@ def plot_pre_post_scatter(x_axis, y_axis, orientations, indices_to_plot, title, 
     plt.ylabel('Post training')
     plt.title(title)
     plt.legend(handles = patches, loc = 'upper right', bbox_to_anchor=(1.3, 1.0), title = 'Pref ori - train ori')
-    if save_dir:
-        plt.savefig(os.path.join(save_dir, str(title)+'.png'), bbox_inches='tight')
+    if save_file:
+        plt.savefig(save_file, bbox_inches='tight')
     plt.show()
