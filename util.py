@@ -222,6 +222,9 @@ def save_code(folder_to_save=None):
         folder_name = f"results/{current_date}_v"
     else:
         folder_name = folder_to_save + f"/{current_date}_v"
+    
+    # Add train_only folder
+    os.makedirs(folder_name+'/train_only')
 
     # Find the next available script version
     version = 0

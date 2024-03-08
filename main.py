@@ -49,7 +49,7 @@ while i < N_training and numFailedRuns < 20:
     pretrain_pars.is_on=True
 
     results_filename = f"{final_folder_path}/results_{i}.csv"
-    results_filename_train_only = f"{final_folder_path}/results_train_only{i}.csv"
+    results_filename_train_only = f"{final_folder_path}/train_only/results_train_only{i}.csv"
     tuning_curves_prepre = f"{final_folder_path}/tc_prepre_{i}.csv"
     tuning_curves_postpre = f"{final_folder_path}/tc_postpre_{i}.csv"
     tuning_curves_post = f"{final_folder_path}/tc_post_{i}.csv"
@@ -116,7 +116,7 @@ while i < N_training and numFailedRuns < 20:
     )
     responses_sup_post, responses_mid_post = tuning_curves(untrained_pars, pars_stage2, tuning_curves_post)
     
-    # Running training only with the same initialization and orimap
+    ########## TRAINING ONLY with the same initialization and orimap ##########
     untrained_pars.stimuli_pars.offset=offset_saved
     untrained_pars.stimuli_pars.ref_ori=ref_ori_saved # this changes during training because of the staircase
     trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
@@ -134,7 +134,7 @@ while i < N_training and numFailedRuns < 20:
 
 ######### PLOT RESULTS ############
 
-from visualization import plot_results_from_csvs, barplots_from_csvs, plot_results_from_csv#
+from visualization import plot_results_from_csvs, barplots_from_csvs
 #final_folder_path= 'results/Mar06_v6'
 #N_training=7
 plot_results_from_csvs(final_folder_path, N_training)

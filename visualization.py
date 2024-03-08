@@ -732,4 +732,4 @@ def plot_pre_post_scatter(x_axis, y_axis, orientations, indices_to_plot, title, 
     plt.legend(handles = patches, loc = 'upper right', bbox_to_anchor=(1.3, 1.0), title = 'Pref ori - train ori')
     if save_file:
         plt.savefig(save_file, bbox_inches='tight')
-    plt.show()
+    plt.close(0)
