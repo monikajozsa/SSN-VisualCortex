@@ -2,7 +2,7 @@ import numpy
 import copy
 import time
 
-numpy.random.seed(1)
+numpy.random.seed(10)
 
 from util_gabor import init_untrained_pars
 from util import save_code
@@ -137,11 +137,13 @@ while i < N_training and numFailedRuns < 20:
 from visualization import plot_results_from_csvs, barplots_from_csvs
 #final_folder_path= 'results/Mar06_v6'
 #N_training=7
-plot_results_from_csvs(final_folder_path, N_training)
+
+folder_to_save_path = final_folder_path + '/figures'
+plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save_path)
 
 ## first move the train_only files  into a new folder called train_only
-boxplot_file_name = 'boxplot_pretraining'
-barplots_from_csvs(final_folder_path, boxplot_file_name)
-boxplot_file_name = 'boxplot_training_only'
-final_folder_path = final_folder_path + '/train_only'
-barplots_from_csvs(final_folder_path, boxplot_file_name)
+#boxplot_file_name = 'boxplot_pretraining'
+#barplots_from_csvs(final_folder_path, boxplot_file_name)
+#boxplot_file_name = 'boxplot_training_only'
+#final_folder_path = final_folder_path + '/train_only'
+#barplots_from_csvs(final_folder_path, boxplot_file_name)

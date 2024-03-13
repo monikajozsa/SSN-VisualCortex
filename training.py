@@ -391,8 +391,8 @@ def batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pars,
     max_rates = [item.max() for item in max_rates]
     
     #Calculate accuracy 
-    true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])  
-    
+    true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])
+
     return loss, [all_losses, true_accuracy, sig_input, sig_output, max_rates]
 
 

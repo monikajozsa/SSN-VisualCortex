@@ -179,7 +179,7 @@ def plot_results_from_csv(
     # BARPLOTS about relative changes
     categories_params = ['Jm_EE', 'Jm_IE', 'Jm_EI', 'Jm_II', 'Js_EE', 'Js_IE', 'Js_EI', 'Js_II']
     categories_metrics = [ 'c_E', 'c_I', 'f_E', 'f_I', 'acc', 'offset', 'rm_E', 'rm_I', 'rs_E','rs_I']
-    rel_changes = calculate_relative_change(df)
+    rel_changes = calculate_relative_change(df) # 0 is pretraining and 1 is training in the second dimensions
     for i_train_pretrain in range(2):
         values_params = 100 * rel_changes[0:8,i_train_pretrain]
         values_metrics = 100 * rel_changes[8:18,i_train_pretrain]
@@ -219,8 +219,12 @@ def plot_results_from_csv(
         # Adding labels and titles
         axes[row_i,1].set_ylabel('relative change %', fontsize=20)
         axes[row_i,2].set_ylabel('relative change %', fontsize=20)
-        axes[row_i,1].set_title('Rel changes in J before and after training', fontsize=20)
-        axes[row_i,2].set_title('Other rel changes before and after training', fontsize=20)
+        if i_train_pretrain==0:
+            axes[row_i,1].set_title('Rel changes in J before and after pretraining', fontsize=20)
+            axes[row_i,2].set_title('Other rel changes before and after pretraining', fontsize=20)
+        else:
+            axes[row_i,1].set_title('Rel changes in J before and after training', fontsize=20)
+            axes[row_i,2].set_title('Other rel changes before and after training', fontsize=20)
         axes[row_i,2].axvline(x=3.5, color='black', linestyle='--')
     
     ################
@@ -310,7 +314,7 @@ def plot_results_from_csv(
     plt.close()
 
 
-def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
+def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_save=None):
     # Add folder_path to path
     if folder_path not in sys.path:
         sys.path.append(folder_path)
@@ -318,7 +322,10 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
     # Plot loss, accuracy and trained parameters
     for j in range(num_runs):
         results_filename = os.path.join(folder_path,f'results_{j}.csv')
-        results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}')
+        if folder_to_save is not None:
+            results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}')
+        else:
+            results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}')
     
         plot_results_from_csv(results_filename,results_fig_filename)
     
@@ -329,7 +336,6 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
     tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_0.csv')
     pretrain_ison = os.path.exists(tc_post_pretrain)
     for j in range(num_runs_plotted):
-
         tc_pre_pretrain = os.path.join(folder_path,f'tc_prepre_{j}.csv')
         tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_{j}.csv')
         tc_post_train =os.path.join(folder_path,f'tc_post_{j}.csv')
@@ -340,7 +346,7 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
 
         # Select num_rnd_cells randomly selected cells to plot from both middle and superficial layer cells
         if j==0:
-            fig, axes = plt.subplots(nrows=num_rnd_cells, ncols=2*num_runs_plotted, figsize=(10*num_runs_plotted, 25))
+            fig, axes = plt.subplots(nrows=num_runs_plotted, ncols=2*num_rnd_cells, figsize=(10*num_rnd_cells, 5*num_runs_plotted))
             mid_columns = df_tc_pre_pretrain.columns[0:num_mid_cells]
             sup_columns = df_tc_pre_pretrain.columns[num_mid_cells:num_mid_cells+num_sup_cells]
             selected_mid_columns = numpy.random.choice(mid_columns, size=num_rnd_cells, replace=False)
@@ -348,22 +354,30 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5):
             N = len(df_tc_pre_pretrain[selected_mid_columns[0]])
         
         # Plot tuning curves
-        for i in range(num_rnd_cells):    
-            axes[i,2*j].plot(range(N), df_tc_pre_pretrain[selected_mid_columns[i]], label='pre-pretraining',linewidth=2)
-            axes[i,2*j+1].plot(range(N), df_tc_pre_pretrain[selected_sup_columns[i]], label='pre-pretraining',linewidth=2)
+        for i in range(num_rnd_cells):
+            if num_runs_plotted==1:
+                ax1=axes[i]
+                ax2=axes[num_rnd_cells+i]
+            else:
+                ax1=axes[j,i]
+                ax2=axes[j,num_rnd_cells+i]
+            ax1.plot(range(N), df_tc_pre_pretrain[selected_mid_columns[i]], label='pre-pretraining',linewidth=2)
+            ax2.plot(range(N), df_tc_pre_pretrain[selected_sup_columns[i]], label='pre-pretraining',linewidth=2)
             if pretrain_ison:
-                axes[i,2*j].plot(range(N), df_tc_post_pretrain[selected_mid_columns[i]], label='post-pretraining',linewidth=2)
-                axes[i,2*j+1].plot(range(N), df_tc_post_pretrain[selected_sup_columns[i]], label='post-pretraining',linewidth=2)
-            axes[i,2*j].plot(range(N), df_tc_post_train[selected_mid_columns[i]], label='post-training',linewidth=2)
-            axes[i,2*j+1].plot(range(N), df_tc_post_train[selected_sup_columns[i]], label='post-training',linewidth=2)
-            axes[i,2*j].legend(loc='upper left', fontsize=20)
-            axes[i,2*j+1].legend(loc='upper left', fontsize=20)
+                ax1.plot(range(N), df_tc_post_pretrain[selected_mid_columns[i]], label='post-pretraining',linewidth=2)
+                ax2.plot(range(N), df_tc_post_pretrain[selected_sup_columns[i]], label='post-pretraining',linewidth=2)
+            ax1.plot(range(N), df_tc_post_train[selected_mid_columns[i]], label='post-training',linewidth=2)
+            ax2.plot(range(N), df_tc_post_train[selected_sup_columns[i]], label='post-training',linewidth=2)
 
-        axes[0,2*j].set_title(f'Run{j+1} - Middle layer', fontsize=20)
-        axes[0,2*j+1].set_title(f'Run{j+1} - Superficial layer', fontsize=20)
+            ax1.set_title(f'Middle layer cell {i}', fontsize=20)
+            ax2.set_title(f'Superficial layer, cell {i}', fontsize=20)
+    ax2.legend(loc='upper left', fontsize=20)
        
     # Save plot
-    fig.savefig(os.path.join(folder_path,'tc_fig.png'))
+    if folder_to_save is not None:
+        fig.savefig(os.path.join(folder_to_save,'tc_fig.png'))
+    else:
+        fig.savefig(os.path.join(folder_path,'tc_fig.png'))
     fig.show()
     plt.close()
 
@@ -700,7 +714,10 @@ def plot_pre_post_scatter(x_axis, y_axis, orientations, indices_to_plot, title, 
     '''
     Create scatter plot for pre and post training responses. Colour represents preferred orientation according to Schoups et al bins
     '''
-    
+    if len(x_axis.shape)==2:
+        N_runs=x_axis.shape[0]
+    else:
+        N_runs=1
     #Create legend
     patches = []
     cmap = plt.get_cmap('rainbow')
@@ -709,20 +726,21 @@ def plot_pre_post_scatter(x_axis, y_axis, orientations, indices_to_plot, title, 
     for j in range(0,len(colors)):
         patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
     
-    #Iterate through required neurons
-    for idx in indices_to_plot:
-        #Select bin and colour
-        if np.abs(orientations[idx]) <4:
-            colour = colors[0]
-            label = bins[0]
-        elif np.abs(orientations[idx]) >50:
-            colour = colors[-1]
-            label = bins[-1]
-        else:
-            colour = colors[int(1+np.floor((np.abs(orientations[idx]) -4)/8) )]
-            label = bins[int(1+np.floor((np.abs(orientations[idx]) -4)/8) )]
-        plt.scatter(x = x_axis[idx], y =y_axis[idx], color =colour, label = label )
-    
+    for run_ind in range(N_runs):
+        #Iterate through required neurons
+        for idx in indices_to_plot:
+            #Select bin and colour
+            if np.abs(orientations[run_ind,idx]) <4:
+                colour = colors[0]
+                label = bins[0]
+            elif np.abs(orientations[run_ind,idx]) >50:
+                colour = colors[-1]
+                label = bins[-1]
+            else:
+                colour = colors[int(1+np.floor((np.abs(orientations[run_ind,idx]) -4)/8) )]
+                label = bins[int(1+np.floor((np.abs(orientations[run_ind,idx]) -4)/8) )]
+            plt.scatter(x = x_axis[run_ind,idx], y =y_axis[run_ind,idx], color =colour, label = label )
+        
     #Plot x = y line
     xpoints = ypoints = plt.xlim()
     plt.plot(xpoints, ypoints, linestyle='--', color='gold')

@@ -226,7 +226,7 @@ for run_ind in range(N_trainings):
             axs[2+layer,0].axvline(train_SNR_mean, color=colors[i], linestyle='dashed', linewidth=1)
             axs[2+layer,0].text(train_SNR_mean, axs[2+layer,0].get_ylim()[1]*0.95, f'{train_SNR_mean:.2f}', color=colors[i], ha='center')
             axs[2+layer,0].legend(loc='lower left')
-            # Plotting SNR for trained ori
+            # Plotting SNR for untrained ori
             untrain_SNR_mean=numpy.mean(untrain_SNR)
             axs[2+layer,1].set_title(f'SNR: {layer_labels[layer]} layer, ori {ori_list[1]}')
             axs[2+layer,1].hist(untrain_SNR, label=labels[i], color=colors[i], alpha=0.4)

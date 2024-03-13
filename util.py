@@ -223,9 +223,6 @@ def save_code(folder_to_save=None):
     else:
         folder_name = folder_to_save + f"/{current_date}_v"
     
-    # Add train_only folder
-    os.makedirs(folder_name+'/train_only')
-
     # Find the next available script version
     version = 0
     while os.path.exists(f"{folder_name}{version}"):
@@ -239,6 +236,10 @@ def save_code(folder_to_save=None):
     subfolder_script_path = f"{folder_name}{version}/scripts"
     os.makedirs(subfolder_script_path)
 
+    # Create train_only and figures folders
+    os.makedirs(final_folder_path+'/train_only')
+    os.makedirs(final_folder_path+'/figures')
+    
     # Get the path to the script's directory
     script_directory = os.path.dirname(os.path.realpath(__file__))
 

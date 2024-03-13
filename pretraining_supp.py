@@ -22,7 +22,7 @@ def perturb_params(param_dict, percent = 0.1):
         param_perturbed[key] = param_array + percent * param_array * random_mtx
     return param_perturbed
 
-def randomize_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename=None):
+def randomize_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename=None, logistic_regr=True):
     #define the parameters that get perturbed
     pars_stage2_nolog = dict(J_m_temp=ssn_layer_pars.J_2x2_m, J_s_temp=ssn_layer_pars.J_2x2_s, c_E_temp=ssn_layer_pars.c_E, c_I_temp=ssn_layer_pars.c_I, f_E_temp=ssn_layer_pars.f_E, f_I_temp=ssn_layer_pars.f_I)
     
@@ -64,8 +64,10 @@ def randomize_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, 
         f_E=params_perturbed['f_E_temp'],
         f_I=params_perturbed['f_I_temp'],
     )
-
-    pars_stage1 = readout_pars_from_regr(readout_pars, pars_stage2, untrained_pars)
+    if logistic_regr:
+        pars_stage1 = readout_pars_from_regr(readout_pars, pars_stage2, untrained_pars)
+    else:
+        pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
     pars_stage1['w_sig'] = (pars_stage1['w_sig'] / np.std(pars_stage1['w_sig']) ) * 0.25 / int(np.sqrt(len(pars_stage1['w_sig']))) # get the same std as before - see param
 
     return pars_stage1, pars_stage2, untrained_pars
