@@ -1,7 +1,7 @@
 import numpy
 import copy
 import time
-
+'''
 numpy.random.seed(10)
 
 from util_gabor import init_untrained_pars
@@ -135,11 +135,13 @@ while i < N_training and numFailedRuns < 20:
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, barplots_from_csvs
-#final_folder_path= 'results/Mar06_v6'
-#N_training=7
+#final_folder_path= 'results/Mar13_v2'
+#N_training=10
 
 folder_to_save_path = final_folder_path + '/figures'
-plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save_path)
+#plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save_path)
+
+plot_results_from_csvs(final_folder_path+'/train_only', N_training, folder_to_save=folder_to_save_path)
 
 ## first move the train_only files  into a new folder called train_only
 #boxplot_file_name = 'boxplot_pretraining'
@@ -147,3 +149,13 @@ plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_s
 #boxplot_file_name = 'boxplot_training_only'
 #final_folder_path = final_folder_path + '/train_only'
 #barplots_from_csvs(final_folder_path, boxplot_file_name)
+'''
+from Mahal_distances import Mahalanobis_dist
+from visualization import plot_results_from_csvs, barplots_from_csvs
+
+N_trainings = 7
+folder = 'C:/Users/jozsa/Dropbox (Cambridge University)/Postdoc 2023-2024/Clara-Monika/results_Mar06_v6'
+folder_to_save_path = 'C:/Users/jozsa/Dropbox (Cambridge University)/Postdoc 2023-2024/Clara-Monika/results_Mar06_v6/figures'
+plot_results_from_csvs(folder+'/train_only', N_trainings, folder_to_save=folder_to_save_path)
+
+#Mahalanobis_dist(N_trainings, folder)

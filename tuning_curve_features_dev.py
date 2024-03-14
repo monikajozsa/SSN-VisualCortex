@@ -102,11 +102,10 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot,N_ru
 start_time = time.time()
 
 #Load response matrices - use tuning_curves
-results_dir='results/Mar06_v6/'
-
+results_dir= 'C:/Users/jozsa/Dropbox (Cambridge University)/Postdoc 2023-2024/Clara-Monika/results_Mar06_v6'
+N_runs = 7
 d_theta=6
 ori_list=np.arange(0,180,d_theta)
-N_runs = 7
 
 # Initialize dictionaries to store the data arrays
 data = {
@@ -163,7 +162,6 @@ indices = [E_sup, I_sup, E_mid, I_mid]
 
 #Create saving directory
 save_dir='results/Mar06_v6'
-fig, axs = plt.subplots(4, 3, figsize=(15, 20))  # 2 rows, 3 columns
 # Create legend
 patches = []
 cmap = plt.get_cmap('rainbow')
@@ -171,7 +169,9 @@ colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
 bins = ['0-4', '4-12', '12-20', '20-28', '28-36', '36-44', '44-50', '+50']
 for j in range(0,len(colors)):
     patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
-'''
+
+# Plot slope
+fig, axs = plt.subplots(4, 3, figsize=(15, 20))  # 2 rows, 3 columns
 for j in range(len(indices)):
     title = 'Pretraining ' + labels[j]
     plot_pre_post_scatter(axs[j,0], data['norm_slope_prepre'] , data['norm_slope_postpre'] ,  data['orientations_prepre'],  indices[j],N_runs, title = title,colors=colors)
@@ -186,7 +186,8 @@ for j in range(len(indices)):
 axs[j,2].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
 plt.tight_layout()
 fig.savefig("results/Mar06_v6/figures/tc_slope.png")
-'''
+
+# Plot full-width-half-maximum
 fig, axs = plt.subplots(4, 3, figsize=(15, 20))  # 2 rows, 3 columns
 for j in range(len(indices)):
     title = 'Pretraining ' + labels[j]

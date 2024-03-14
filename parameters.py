@@ -151,7 +151,7 @@ class ReadoutPars:
         w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / readout_grid_size[1] # weights between the superficial and the sigmoid layer
         w_sig = np.array(w_sig)
     b_sig: float = 0.0 # bias added to the sigmoid layer
-    N_readout_noise = 5
+    N_readout_noise = 50
 
 readout_pars = ReadoutPars()
 

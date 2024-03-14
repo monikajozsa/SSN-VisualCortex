@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import pandas as pd
 import os
 import jax.numpy as np
@@ -140,9 +139,62 @@ def barplots_from_csvs(directory, plot_filename = None):
     plt.tight_layout()
     
     if plot_filename is not None:
-        full_path = os.path.join(directory, plot_filename + ".png")
+        full_path = os.path.join(directory, "figures/"+ plot_filename + ".png")
         fig.savefig(full_path)
 
+    plt.close()
+
+
+def plot_tuning_curves(folder_path,num_rnd_cells,num_runs,folder_to_save):
+    num_mid_cells = 648
+    num_sup_cells = 164
+    num_runs_plotted = min(5,num_runs)    
+    tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_0.csv')
+    pretrain_ison = os.path.exists(tc_post_pretrain)
+    for j in range(num_runs_plotted):
+        tc_pre_pretrain = os.path.join(folder_path,f'tc_prepre_{j}.csv')
+        tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_{j}.csv')
+        tc_post_train =os.path.join(folder_path,f'tc_post_{j}.csv')
+        df_tc_pre_pretrain = pd.read_csv(tc_pre_pretrain, header=0)
+        if pretrain_ison:
+            df_tc_post_pretrain = pd.read_csv(tc_post_pretrain, header=0)
+        df_tc_post_train = pd.read_csv(tc_post_train, header=0)
+
+        # Select num_rnd_cells randomly selected cells to plot from both middle and superficial layer cells
+        if j==0:
+            fig, axes = plt.subplots(nrows=num_runs_plotted, ncols=2*num_rnd_cells, figsize=(10*num_rnd_cells, 5*num_runs_plotted))
+            mid_columns = df_tc_pre_pretrain.columns[0:num_mid_cells]
+            sup_columns = df_tc_pre_pretrain.columns[num_mid_cells:num_mid_cells+num_sup_cells]
+            selected_mid_columns = numpy.random.choice(mid_columns, size=num_rnd_cells, replace=False)
+            selected_sup_columns = numpy.random.choice(sup_columns, size=num_rnd_cells, replace=False)
+            N = len(df_tc_pre_pretrain[selected_mid_columns[0]])
+        
+        # Plot tuning curves
+        for i in range(num_rnd_cells):
+            if num_runs_plotted==1:
+                ax1=axes[i]
+                ax2=axes[num_rnd_cells+i]
+            else:
+                ax1=axes[j,i]
+                ax2=axes[j,num_rnd_cells+i]
+            ax1.plot(range(N), df_tc_pre_pretrain[selected_mid_columns[i]], label='pre-pretraining',linewidth=2)
+            ax2.plot(range(N), df_tc_pre_pretrain[selected_sup_columns[i]], label='pre-pretraining',linewidth=2)
+            if pretrain_ison:
+                ax1.plot(range(N), df_tc_post_pretrain[selected_mid_columns[i]], label='post-pretraining',linewidth=2)
+                ax2.plot(range(N), df_tc_post_pretrain[selected_sup_columns[i]], label='post-pretraining',linewidth=2)
+            ax1.plot(range(N), df_tc_post_train[selected_mid_columns[i]], label='post-training',linewidth=2)
+            ax2.plot(range(N), df_tc_post_train[selected_sup_columns[i]], label='post-training',linewidth=2)
+
+            ax1.set_title(f'Middle layer cell {i}', fontsize=20)
+            ax2.set_title(f'Superficial layer, cell {i}', fontsize=20)
+    ax2.legend(loc='upper left', fontsize=20)
+    
+    # Save plot
+    if folder_to_save is not None:
+        fig.savefig(os.path.join(folder_to_save,'tc_fig.png'))
+    else:
+        fig.savefig(os.path.join(folder_path,'tc_fig.png'))
+    fig.show()
     plt.close()
 
 
@@ -326,62 +378,21 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_s
             results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}')
         else:
             results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}')
-    
+        if ~os.path.exists(results_filename):
+            results_filename = os.path.join(folder_path,f'results_train_only{j}.csv')
+            if folder_to_save is not None:
+                results_fig_filename = os.path.join(folder_to_save,f'resultsfig_train_only{j}')
+            else:
+                results_fig_filename = os.path.join(folder_path,f'resultsfig_train_only{j}')
+        
         plot_results_from_csv(results_filename,results_fig_filename)
     
-    # Plot tuning curves before pretraining, after pretraining and after training  
-    num_mid_cells = 648
-    num_sup_cells = 164
-    num_runs_plotted = min(5,num_runs)    
-    tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_0.csv')
-    pretrain_ison = os.path.exists(tc_post_pretrain)
-    for j in range(num_runs_plotted):
-        tc_pre_pretrain = os.path.join(folder_path,f'tc_prepre_{j}.csv')
-        tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_{j}.csv')
-        tc_post_train =os.path.join(folder_path,f'tc_post_{j}.csv')
-        df_tc_pre_pretrain = pd.read_csv(tc_pre_pretrain, header=0)
-        if pretrain_ison:
-            df_tc_post_pretrain = pd.read_csv(tc_post_pretrain, header=0)
-        df_tc_post_train = pd.read_csv(tc_post_train, header=0)
-
-        # Select num_rnd_cells randomly selected cells to plot from both middle and superficial layer cells
-        if j==0:
-            fig, axes = plt.subplots(nrows=num_runs_plotted, ncols=2*num_rnd_cells, figsize=(10*num_rnd_cells, 5*num_runs_plotted))
-            mid_columns = df_tc_pre_pretrain.columns[0:num_mid_cells]
-            sup_columns = df_tc_pre_pretrain.columns[num_mid_cells:num_mid_cells+num_sup_cells]
-            selected_mid_columns = numpy.random.choice(mid_columns, size=num_rnd_cells, replace=False)
-            selected_sup_columns = numpy.random.choice(sup_columns, size=num_rnd_cells, replace=False)
-            N = len(df_tc_pre_pretrain[selected_mid_columns[0]])
-        
-        # Plot tuning curves
-        for i in range(num_rnd_cells):
-            if num_runs_plotted==1:
-                ax1=axes[i]
-                ax2=axes[num_rnd_cells+i]
-            else:
-                ax1=axes[j,i]
-                ax2=axes[j,num_rnd_cells+i]
-            ax1.plot(range(N), df_tc_pre_pretrain[selected_mid_columns[i]], label='pre-pretraining',linewidth=2)
-            ax2.plot(range(N), df_tc_pre_pretrain[selected_sup_columns[i]], label='pre-pretraining',linewidth=2)
-            if pretrain_ison:
-                ax1.plot(range(N), df_tc_post_pretrain[selected_mid_columns[i]], label='post-pretraining',linewidth=2)
-                ax2.plot(range(N), df_tc_post_pretrain[selected_sup_columns[i]], label='post-pretraining',linewidth=2)
-            ax1.plot(range(N), df_tc_post_train[selected_mid_columns[i]], label='post-training',linewidth=2)
-            ax2.plot(range(N), df_tc_post_train[selected_sup_columns[i]], label='post-training',linewidth=2)
-
-            ax1.set_title(f'Middle layer cell {i}', fontsize=20)
-            ax2.set_title(f'Superficial layer, cell {i}', fontsize=20)
-    ax2.legend(loc='upper left', fontsize=20)
-       
-    # Save plot
-    if folder_to_save is not None:
-        fig.savefig(os.path.join(folder_to_save,'tc_fig.png'))
-    else:
-        fig.savefig(os.path.join(folder_path,'tc_fig.png'))
-    fig.show()
-    plt.close()
+    # Plot tuning curves before pretraining, after pretraining and after training for
+    if os.path.exists(folder_path +'/tc_post_0.csv'):
+        plot_tuning_curves(folder_path,num_rnd_cells,num_runs,folder_to_save)
 
 
+"""
 def plot_losses_two_stage(
     training_losses, val_loss_per_epoch, epochs_plot=None, save=None, inset=None
 ):
@@ -422,13 +433,13 @@ def plot_losses_two_stage(
 
 
 def plot_acc_vs_param(to_plot, lambdas, type_param=None, param=None):
-    """
+    '''
     Input:
         Matrix with shape (N+1, length of lambda) - each row corresponds to a different value of lambda, params at that value and
         the accuracy obtained
     Output:
         Plot of the desired param against the accuracy
-    """
+    '''
 
     plt.scatter(np.abs(to_plot[:, param]).T, to_plot[:, 0].T, c=lambdas)
     plt.colorbar()
@@ -521,7 +532,7 @@ def plot_histograms(all_accuracies, save_fig=None):
     plt.close()
 
 
-def plot_tuning_curves(
+def plot_tuning_curves_clara(
     pre_response_matrix,
     neuron_indices,
     radius_idx,
@@ -751,3 +762,4 @@ def plot_pre_post_scatter(x_axis, y_axis, orientations, indices_to_plot, title, 
     if save_file:
         plt.savefig(save_file, bbox_inches='tight')
     plt.close(0)
+"""
