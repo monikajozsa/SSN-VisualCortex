@@ -5,14 +5,15 @@ import jax.numpy as np
 # Pretraining parameters
 @dataclass
 class PreTrainPars:
-    is_on = True
-    min_ori_dist = 10
-    max_ori_dist = 20
-    numStages = 1
+    is_on = False
+    ref_ori_int = [15, 165]
+    ori_dist_int = [10, 20]
     acc_th = 0.749
     acc_check_freq = 10
     min_acc_check_ind = 50
     offset_threshold = 5
+    batch_size = 100
+    SGD_steps = 1000
 
 pretrain_pars = PreTrainPars()
 
@@ -20,12 +21,18 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta = 2*10e-4  # learning rate
-    batch_size = [100, 50]
+    eta = 2*10e-4 
+    '''learning rate - the maximum rate of parameter change in one SGD step'''
+    batch_size = 50
+    '''number of trials per SGD step'''
     noise_type = "poisson"
-    SGD_steps = [1000, 500] # number of SGD steps
-    validation_freq = 30  # calculate validation loss and accuracy every validation_freq SGD step
+    '''there is an additive Gaussian noise to the model output (rates) that is related to parameters N_readout and dt'''
+    SGD_steps = 500 
+    '''number of SGD step'''
+    validation_freq = 30  
+    '''frequency of validation loss and accuracy calculation'''
     first_stage_acc_th = 0.65
+    '''accuracy threshold for early stopping criterium for the first stage of training'''
 
 training_pars = TrainingPars()
 
@@ -33,11 +40,11 @@ training_pars = TrainingPars()
 @dataclass
 class ConvPars:
     dt: float = 1.0
-    '''Step size during convergence '''
+    '''Step size during convergence of SSN'''
     xtol: float = 1e-04
-    '''Convergence tolerance  '''
+    '''Convergence tolerance of SSN'''
     Tmax: float = 250.0
-    '''Maximum number of steps to be taken during convergence'''
+    '''Maximum number of steps to be taken during convergence of SSN'''
     Rmax_E = 40
     '''Maximum firing rate for E neurons - rates above this are penalised'''
     Rmax_I = 80
@@ -100,6 +107,7 @@ class GridPars:
     hyper_col: float = 0.4
     """ parameter to generate orientation map """
     xy_dist, x_map, y_map = xy_distance(gridsize_Nx,gridsize_deg)
+    """ distances between grid points """
 
 grid_pars = GridPars()
 
@@ -151,7 +159,7 @@ class ReadoutPars:
         w_sig = numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / readout_grid_size[1] # weights between the superficial and the sigmoid layer
         w_sig = np.array(w_sig)
     b_sig: float = 0.0 # bias added to the sigmoid layer
-    N_readout_noise = 50
+    N_readout_noise = 125
 
 readout_pars = ReadoutPars()
 

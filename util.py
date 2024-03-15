@@ -8,54 +8,10 @@ import shutil
 from datetime import datetime
 from scipy import ndimage
 
-from util_gabor import BW_Grating, BW_image_jit_noisy, BW_image_jax
-
-def smooth_data(vector, sigma = 1):
-
-    '''
-    Smooth fixed point. Data is reshaped into 9x9 grid
-    '''
-    
-    new_data = []
-    for trial_response in vector:
-
-        trial_response = trial_response.reshape(9,9,-1)
-        smoothed_data = numpy.asarray([ndimage.gaussian_filter(numpy.reshape(trial_response[:, :, i], (9,9)), sigma = sigma) for i in range(0, trial_response.shape[2])]).ravel()
-        new_data.append(smoothed_data)
-    
-    return np.vstack(np.asarray(new_data))  
+from util_gabor import BW_image_jit_noisy
 
 
-def sigmoid(x, epsilon=0.01):
-    """
-    Introduction of epsilon stops asymptote from reaching 1 (avoids NaN)
-    """
-    sig_x = 1 / (1 + np.exp(-x))
-    return (1 - 2 * epsilon) * sig_x + epsilon
-
-
-def take_log(J_2x2):
-    signs = np.array([[1, -1], [1, -1]])
-    logJ_2x2 = np.log(J_2x2 * signs)
-
-    return logJ_2x2
-
-
-def exponentiate(opt_pars):
-    signs = np.array([[1, -1], [1, -1]])
-    J_2x2 = np.exp(opt_pars["logJ_2x2"]) * signs
-    s_2x2 = np.exp(opt_pars["logs_2x2"])
-
-    return J_2x2, s_2x2
-
-
-def sep_exponentiate(J_s):
-    signs = np.array([[1, -1], [1, -1]])
-    new_J = np.exp(np.array(J_s, dtype = float)) * signs
-
-    return new_J
-
-
+##### Functions to create training data #####
 def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all= None):
     '''
     Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
@@ -81,35 +37,18 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all= None
     jitter_vec = np.array(numpy.random.uniform(low = -jitter_val, high = jitter_val, size=batch_size))
 
     # Create reference and target gratings
-    # if BW_image_jit_inp_all is given then use the jit-compatible version of BW_image. Otherwise, use the original BW_gratings class
-    if BW_image_jit_inp_all is None:
-        data_dict2 = {'ref':[], 'target': [], 'label':[]}
-        for i in range(batch_size):                     
-            
-            ref = BW_Grating(ori_deg = ref_ori, jitter=jitter_vec[i], stimuli_pars = stimuli_pars).BW_image().ravel()
-            target = BW_Grating(ori_deg = target_ori_vec[i], jitter=jitter_vec[i], stimuli_pars = stimuli_pars).BW_image().ravel()
-                
-            data_dict2['ref'].append(ref)
-            data_dict2['target'].append(target)
-            data_dict2['label'].append(labels)
-        
-        data_dict2['ref'] = np.asarray(data_dict2['ref'])
-        data_dict2['target'] = np.asarray(data_dict2['target'])
-        data_dict2['label'] = np.asarray(data_dict2['label'])
-        data_dict = data_dict2 # data_dict2 is introduced for testing
-    else:
-        ref_ori_vec = np.ones(batch_size)*ref_ori
-        x = BW_image_jit_inp_all[5]
-        y = BW_image_jit_inp_all[6]
-        alpha_channel = BW_image_jit_inp_all[7]
-        mask = BW_image_jit_inp_all[8]
-        background = BW_image_jit_inp_all[9]
-        
-        ref = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ref_ori_vec, jitter_vec)
-        target = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, target_ori_vec, jitter_vec)
-        data_dict['ref']=ref
-        data_dict['target']=target
-        data_dict['label']=labels
+    ref_ori_vec = np.ones(batch_size)*ref_ori
+    x = BW_image_jit_inp_all[5]
+    y = BW_image_jit_inp_all[6]
+    alpha_channel = BW_image_jit_inp_all[7]
+    mask = BW_image_jit_inp_all[8]
+    background = BW_image_jit_inp_all[9]
+    
+    ref = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ref_ori_vec, jitter_vec)
+    target = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, target_ori_vec, jitter_vec)
+    data_dict['ref']=ref
+    data_dict['target']=target
+    data_dict['label']=labels
             
     return data_dict
 
@@ -161,10 +100,7 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
     data_dict = {'ref': [], 'target': [], 'label':[]}
 
     # Randomize orientations for stimulus 1 and stimulus 2
-    L_ring = 180
-    min_ori_dist = pretrain_pars.min_ori_dist
-    max_ori_dist = pretrain_pars.max_ori_dist
-    ori1, ori2, ori1_minus_ori2 = generate_random_pairs(min_value=15, max_value=165, min_distance=min_ori_dist, max_distance=max_ori_dist, batch_size=batch_size, tot_angle=L_ring, numRnd_ori1=numRnd_ori1)
+    ori1, ori2, ori1_minus_ori2 = generate_random_pairs(min_value=pretrain_pars.ref_ori_int[0], max_value=pretrain_pars.ref_ori_int[1], min_distance=pretrain_pars.ori_dist_int[0], max_distance=pretrain_pars.ori_dist_int[1], batch_size=batch_size, numRnd_ori1=numRnd_ori1)
 
     x = BW_image_jit_inp_all[5]
     y = BW_image_jit_inp_all[6]
@@ -187,6 +123,28 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
     #labels = mask.astype(int)  # Converts True/False to 1/0
     
     return data_dict
+
+##### Other helper functions #####
+def sigmoid(x, epsilon=0.01):
+    """
+    Introduction of epsilon stops asymptote from reaching 1 (avoids NaN)
+    """
+    sig_x = 1 / (1 + np.exp(-x))
+    return (1 - 2 * epsilon) * sig_x + epsilon
+
+
+def take_log(J_2x2):
+    signs = np.array([[1, -1], [1, -1]])
+    logJ_2x2 = np.log(J_2x2 * signs)
+
+    return logJ_2x2
+
+
+def sep_exponentiate(J_s):
+    signs = np.array([[1, -1], [1, -1]])
+    new_J = np.exp(np.array(J_s, dtype = float)) * signs
+
+    return new_J
 
 
 def x_greater_than(x, constant, slope, height):
@@ -244,7 +202,7 @@ def save_code(folder_to_save=None):
     script_directory = os.path.dirname(os.path.realpath(__file__))
 
     # Copy files into the folder
-    file_names = ['main.py', 'util_gabor.py', 'pretraining_supp.py', 'parameters.py', 'training.py', 'model.py', 'util.py', 'SSN_classes.py', 'analysis.py', 'visualization.py']
+    file_names = ['main.py', 'util_gabor.py', 'pretraining_supp.py', 'parameters.py', 'training.py', 'model.py', 'util.py', 'SSN_classes.py', 'visualization.py', 'Mahal_distances.py']
     for file_name in file_names:
         source_path = os.path.join(script_directory, file_name)
         destination_path = os.path.join(subfolder_script_path, file_name)

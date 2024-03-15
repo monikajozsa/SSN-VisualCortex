@@ -1,80 +1,18 @@
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import pandas as pd
 import os
 import jax.numpy as np
 import numpy
 import sys
 
+from model import evaluate_model_response
+from util import sep_exponentiate
+from SSN_classes import SSN_mid, SSN_sup
+from util_gabor import BW_image_jit
 
-def calculate_relative_change(df):
-    # Calculate relative changes in Jm and Js
-    J_m_EE = numpy.exp(df['logJ_m_EE'])
-    J_m_IE = numpy.exp(df['logJ_m_IE'])
-    J_m_EI = -1 * numpy.exp(df['logJ_m_EI'])
-    J_m_II = -1 * numpy.exp(df['logJ_m_II'])
-    J_s_EE = numpy.exp(df['logJ_s_EE'])
-    J_s_IE = numpy.exp(df['logJ_s_IE'])
-    J_s_EI = -1 * numpy.exp(df['logJ_s_EI'])
-    J_s_II = -1 * numpy.exp(df['logJ_s_II'])
-    f_E = numpy.exp(df['f_E'])
-    f_I = -1 * numpy.exp(df['f_I'])
-
-    relative_changes = numpy.zeros((18,2))
-
-    # Calculate relative changes in parameters and other metrics before and after training
-    train_start_ind = df.index[df['stage'] == 1][0]
-    relative_changes[0,1] =(J_m_EE.iloc[-1] - J_m_EE.iloc[train_start_ind]) / J_m_EE.iloc[train_start_ind]
-    relative_changes[1,1] =(J_m_IE.iloc[-1] - J_m_IE.iloc[train_start_ind]) / J_m_IE.iloc[train_start_ind]
-    relative_changes[2,1] =(J_m_EI.iloc[-1] - J_m_EI.iloc[train_start_ind]) / J_m_EI.iloc[train_start_ind]
-    relative_changes[3,1] =(J_m_II.iloc[-1] - J_m_II.iloc[train_start_ind]) / J_m_II.iloc[train_start_ind]
-    relative_changes[4,1] =(J_s_EE.iloc[-1] - J_s_EE.iloc[train_start_ind]) / J_s_EE.iloc[train_start_ind]
-    relative_changes[5,1] =(J_s_IE.iloc[-1] - J_s_IE.iloc[train_start_ind]) / J_s_IE.iloc[train_start_ind]
-    relative_changes[6,1] =(J_s_EI.iloc[-1] - J_s_EI.iloc[train_start_ind]) / J_s_EI.iloc[train_start_ind]
-    relative_changes[7,1] =(J_s_II.iloc[-1] - J_s_II.iloc[train_start_ind]) / J_s_II.iloc[train_start_ind]
-    relative_changes[8,1] = (df['c_E'].iloc[-1] - df['c_E'].iloc[train_start_ind]) / df['c_E'].iloc[train_start_ind]
-    relative_changes[9,1] = (df['c_I'].iloc[-1] - df['c_I'].iloc[train_start_ind]) / df['c_I'].iloc[train_start_ind]
-    relative_changes[10,1] = (f_E.iloc[-1] - f_E.iloc[train_start_ind]) / f_E.iloc[train_start_ind]
-    relative_changes[11,1] = (f_I.iloc[-1] - f_I.iloc[train_start_ind]) / f_I.iloc[train_start_ind]
-
-    relative_changes[12,1] = (df['acc'].iloc[-1] - df['acc'].iloc[train_start_ind]) / df['acc'].iloc[train_start_ind] # accuracy
-    for column in df.columns:
-        if 'offset' in column:
-            relative_changes[13,1] = (df[column].iloc[-1] - df[column].iloc[train_start_ind]) / df[column].iloc[train_start_ind] # offset threshold
-    relative_changes[14,1] = (df['maxr_E_mid'].iloc[-1] - df['maxr_E_mid'].iloc[train_start_ind]) / df['maxr_E_mid'].iloc[train_start_ind] # r_mid
-    relative_changes[15,1] = (df['maxr_I_mid'].iloc[-1] - df['maxr_I_mid'].iloc[train_start_ind]) / df['maxr_I_mid'].iloc[train_start_ind] # r_mid
-    relative_changes[16,1] = (df['maxr_E_sup'].iloc[-1] - df['maxr_E_sup'].iloc[train_start_ind]) / df['maxr_E_sup'].iloc[train_start_ind] # r_mid
-    relative_changes[17,1] = (df['maxr_I_sup'].iloc[-1] - df['maxr_I_sup'].iloc[train_start_ind]) / df['maxr_I_sup'].iloc[train_start_ind] # r_sup
-
-    # Calculate relative changes in parameters and other metrics before and after pretraining
-    pretraining_on = float(np.sum(df['stage'].ravel() == 0))>0
-    if pretraining_on:
-        pretrain_start_ind = df.index[df['stage'] == 0][0]
-        relative_changes[0,0] =(J_m_EE.iloc[train_start_ind] - J_m_EE.iloc[pretrain_start_ind]) / J_m_EE.iloc[pretrain_start_ind]
-        relative_changes[1,0] =(J_m_IE.iloc[train_start_ind] - J_m_IE.iloc[pretrain_start_ind]) / J_m_IE.iloc[pretrain_start_ind]
-        relative_changes[2,0] =(J_m_EI.iloc[train_start_ind] - J_m_EI.iloc[pretrain_start_ind]) / J_m_EI.iloc[pretrain_start_ind]
-        relative_changes[3,0] =(J_m_II.iloc[train_start_ind] - J_m_II.iloc[pretrain_start_ind]) / J_m_II.iloc[pretrain_start_ind]
-        relative_changes[4,0] =(J_s_EE.iloc[train_start_ind] - J_s_EE.iloc[pretrain_start_ind]) / J_s_EE.iloc[pretrain_start_ind]
-        relative_changes[5,0] =(J_s_IE.iloc[train_start_ind] - J_s_IE.iloc[pretrain_start_ind]) / J_s_IE.iloc[pretrain_start_ind]
-        relative_changes[6,0] =(J_s_EI.iloc[train_start_ind] - J_s_EI.iloc[pretrain_start_ind]) / J_s_EI.iloc[pretrain_start_ind]
-        relative_changes[7,0] =(J_s_II.iloc[train_start_ind] - J_s_II.iloc[pretrain_start_ind]) / J_s_II.iloc[pretrain_start_ind]
-        relative_changes[8,0] = (df['c_E'].iloc[train_start_ind] - df['c_E'].iloc[pretrain_start_ind]) / df['c_E'].iloc[pretrain_start_ind]
-        relative_changes[9,0] = (df['c_I'].iloc[train_start_ind] - df['c_I'].iloc[pretrain_start_ind]) / df['c_I'].iloc[pretrain_start_ind]
-        relative_changes[10,0] = (df['f_E'].iloc[train_start_ind] - df['f_E'].iloc[pretrain_start_ind]) / df['f_E'].iloc[pretrain_start_ind]
-        relative_changes[11,0] = (df['f_I'].iloc[train_start_ind] - df['f_I'].iloc[pretrain_start_ind]) / df['f_I'].iloc[pretrain_start_ind]
-        
-        relative_changes[12,0] = (df['acc'].iloc[-1] - df['acc'].iloc[train_start_ind]) / df['acc'].iloc[train_start_ind] # accuracy
-        for column in df.columns:
-            if 'offset' in column:
-                relative_changes[13,1] = (df[column].iloc[train_start_ind] - df[column].iloc[pretrain_start_ind]) / df[column].iloc[pretrain_start_ind] # offset threshold
-        relative_changes[14,0] = (df['maxr_E_mid'].iloc[train_start_ind] - df['maxr_E_mid'].iloc[pretrain_start_ind]) / df['maxr_E_mid'].iloc[pretrain_start_ind] # r_mid
-        relative_changes[15,0] = (df['maxr_I_mid'].iloc[train_start_ind] - df['maxr_I_mid'].iloc[pretrain_start_ind]) / df['maxr_I_mid'].iloc[pretrain_start_ind] # r_mid
-        relative_changes[16,0] = (df['maxr_E_sup'].iloc[train_start_ind] - df['maxr_E_sup'].iloc[pretrain_start_ind]) / df['maxr_E_sup'].iloc[pretrain_start_ind] # r_mid
-        relative_changes[17,0] = (df['maxr_I_sup'].iloc[train_start_ind] - df['maxr_I_sup'].iloc[pretrain_start_ind]) / df['maxr_I_sup'].iloc[pretrain_start_ind] # r_sup
-    
-    return relative_changes
-
-
-def barplots_from_csvs(directory, plot_filename = None):
+########### Plotting functions ##############
+def boxplots_from_csvs(directory, save_directory, plot_filename = None):
     # List to store relative changes from each file
     relative_changes_pretrain = []
     relative_changes_train = []
@@ -139,34 +77,45 @@ def barplots_from_csvs(directory, plot_filename = None):
     plt.tight_layout()
     
     if plot_filename is not None:
-        full_path = os.path.join(directory, "figures/"+ plot_filename + ".png")
+        full_path = save_directory + '/' + plot_filename + ".png"
         fig.savefig(full_path)
 
     plt.close()
 
 
-def plot_tuning_curves(folder_path,num_rnd_cells,num_runs,folder_to_save):
+def plot_tuning_curves(folder_path,tc_cells,num_runs,folder_to_save,train_only_str='', seed=0):
+    numpy.random.seed(seed)
     num_mid_cells = 648
     num_sup_cells = 164
     num_runs_plotted = min(5,num_runs)    
     tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_0.csv')
     pretrain_ison = os.path.exists(tc_post_pretrain)
     for j in range(num_runs_plotted):
-        tc_pre_pretrain = os.path.join(folder_path,f'tc_prepre_{j}.csv')
-        tc_post_pretrain =os.path.join(folder_path,f'tc_postpre_{j}.csv')
-        tc_post_train =os.path.join(folder_path,f'tc_post_{j}.csv')
-        df_tc_pre_pretrain = pd.read_csv(tc_pre_pretrain, header=0)
         if pretrain_ison:
+            tc_pre_pretrain = os.path.join(folder_path,f'tc_' + train_only_str + f'prepre_{j}.csv')
+            df_tc_pre_pretrain = pd.read_csv(tc_pre_pretrain, header=0)
+            tc_post_pretrain =os.path.join(folder_path,f'tc_' + train_only_str + f'postpre_{j}.csv')
             df_tc_post_pretrain = pd.read_csv(tc_post_pretrain, header=0)
+        else:
+            tc_pre_train = folder_path + f'/tc_train_only_pre_{j}.csv'
+            df_tc_pre_pretrain = pd.read_csv(tc_pre_train, header=0)
+        tc_post_train =os.path.join(folder_path,f'tc_' + train_only_str + f'post_{j}.csv')
         df_tc_post_train = pd.read_csv(tc_post_train, header=0)
 
         # Select num_rnd_cells randomly selected cells to plot from both middle and superficial layer cells
         if j==0:
+            if isinstance(tc_cells,int):
+                num_rnd_cells=tc_cells
+                selected_mid_columns = numpy.random.choice(mid_columns, size=num_rnd_cells, replace=False)
+                selected_sup_columns = numpy.random.choice(sup_columns, size=num_rnd_cells, replace=False)
+            else:
+                num_rnd_cells=len(tc_cells)
+                selected_mid_columns = tc_cells[:int(len(tc_cells)/2)]
+                selected_sup_columns = tc_cells[int(len(tc_cells)/2):]
             fig, axes = plt.subplots(nrows=num_runs_plotted, ncols=2*num_rnd_cells, figsize=(10*num_rnd_cells, 5*num_runs_plotted))
             mid_columns = df_tc_pre_pretrain.columns[0:num_mid_cells]
             sup_columns = df_tc_pre_pretrain.columns[num_mid_cells:num_mid_cells+num_sup_cells]
-            selected_mid_columns = numpy.random.choice(mid_columns, size=num_rnd_cells, replace=False)
-            selected_sup_columns = numpy.random.choice(sup_columns, size=num_rnd_cells, replace=False)
+            
             N = len(df_tc_pre_pretrain[selected_mid_columns[0]])
         
         # Plot tuning curves
@@ -191,11 +140,142 @@ def plot_tuning_curves(folder_path,num_rnd_cells,num_runs,folder_to_save):
     
     # Save plot
     if folder_to_save is not None:
-        fig.savefig(os.path.join(folder_to_save,'tc_fig.png'))
+        fig.savefig(os.path.join(folder_to_save,'tc_' + train_only_str + 'fig.png'))
     else:
-        fig.savefig(os.path.join(folder_path,'tc_fig.png'))
-    fig.show()
+        fig.savefig(os.path.join(folder_path,'tc_' + train_only_str + 'fig.png'))
     plt.close()
+
+
+def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, N_runs, title, colors):
+    '''
+    
+    '''
+    
+    for run_ind in range(N_runs):
+        bin_indices = numpy.digitize(numpy.abs(orientations[run_ind,:]), [4, 12, 20, 28, 36, 44, 50, 180])
+    
+        # Iterate over bins rather than individual points
+        for bin_idx, color in enumerate(colors, start=1):  # Adjust as needed
+            # Find indices within this bin
+            in_bin = numpy.where(bin_indices == bin_idx)[0]
+            # Find intersection with indices_to_plot
+            plot_indices = numpy.intersect1d(in_bin, indices_to_plot)
+            
+            if len(plot_indices) > 0:
+                ax.scatter(x_axis[run_ind,plot_indices], y_axis[run_ind,plot_indices], color=color, s=20, alpha=0.7)
+    
+    # Plot x = y line
+    xpoints = ypoints = ax.get_xlim()
+    ax.plot(xpoints, ypoints, linestyle='--', color='gold', linewidth=1)
+    ax.set_xlabel('Pre training')
+    ax.set_ylabel('Post training')
+    ax.set_title(title)
+  
+
+def plot_tc_features(results_dir, N_runs, ori_list, train_only_str=''):
+
+    # Initialize dictionaries to store the data arrays
+    if train_only_str=='':
+        data = {
+            'norm_slope_prepre': [],
+            'norm_slope_postpre': [],
+            'norm_slope_post': [],
+            'fwhm_prepre': [],
+            'fwhm_postpre': [],
+            'fwhm_post': [],
+            'orientations_prepre': [],
+            'orientations_postpre': [],
+            'orientations_post': [],
+        }
+    else:
+            data = {
+            'norm_slope_train_only_pre': [],
+            'norm_slope_train_only_post': [],
+            'fwhm_train_only_pre': [],
+            'fwhm_train_only_post': [],
+            'orientations_train_only_pre': [],
+            'orientations_train_only_post': []
+        }
+
+    for i in range(N_runs):
+        # File names associated with each data type
+        if train_only_str=='':
+            file_names = {
+                'prepre': results_dir + f'/tc_prepre_{i}.csv',
+                'postpre':  results_dir + f'/tc_postpre_{i}.csv',
+                'post': results_dir + f'/tc_post_{i}.csv'
+            }
+        else:
+            file_names = {
+                'train_only_pre': results_dir + f'/tc_train_only_pre_{i}.csv',
+                'train_only_post': results_dir + f'/tc_train_only_post_{i}.csv'
+            }
+
+        # Loop through each file name to process and store data
+        for key, file_name in file_names.items():
+            # Load data from file
+            slope, fwhm, orientations = tc_features(file_name, ori_list=ori_list, expand_dims=True)
+            
+            # If first iteration, initialize; else, concatenate
+            if  i==0:
+                data[f'norm_slope_{key}'] = slope
+                data[f'fwhm_{key}'] = fwhm
+                data[f'orientations_{key}'] = orientations
+            else:
+                data[f'norm_slope_{key}'] = numpy.concatenate((data[f'norm_slope_{key}'], slope), axis=0)
+                data[f'fwhm_{key}'] = numpy.concatenate((data[f'fwhm_{key}'], fwhm), axis=0)
+                data[f'orientations_{key}'] = numpy.concatenate((data[f'orientations_{key}'], orientations), axis=0)
+
+
+    # Plots about changes before vs after training and pretraining and training only (per layer and per centered or all)
+    E_sup = 648+numpy.linspace(0, 80, 81).astype(int) 
+    I_sup = 648+numpy.linspace(81, 161, 81).astype(int) 
+    E_mid = numpy.linspace(0, 647, 648).round().reshape(8, 81, -1)[0:9:2].ravel().astype(int) 
+    I_mid = numpy.linspace(0, 647, 648).round().reshape(8, 81, -1)[1:9:2].ravel().astype(int) 
+    labels = ['E_sup','I_sup','E_mid','I_mid']
+    indices = [E_sup, I_sup, E_mid, I_mid]
+
+    #E_sup_centre = 648+numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
+    #I_sup_centre = (E_sup_centre+81).astype(int)
+    #E_mid_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
+    #I_mid_centre = (E_mid_centre+81).astype(int)
+    
+    # Create legend
+    patches = []
+    cmap = plt.get_cmap('rainbow')
+    colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
+    bins = ['0-4', '4-12', '12-20', '20-28', '28-36', '36-44', '44-50', '+50']
+    for j in range(0,len(colors)):
+        patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
+
+    # Plot slope
+    if train_only_str=='':
+        fig, axs = plt.subplots(4, 4, figsize=(15, 20)) 
+        for j in range(len(indices)):
+            title = 'Slope pretraining ' + labels[j]
+            plot_pre_post_scatter(axs[j,0], data['norm_slope_prepre'] , data['norm_slope_postpre'] ,  data['orientations_prepre'],  indices[j],N_runs, title = title,colors=colors)
+
+            title = 'Slope training, ' + labels[j]
+            plot_pre_post_scatter(axs[j,1], data['norm_slope_postpre'] , data['norm_slope_post'] ,  data['orientations_postpre'], indices[j],N_runs, title = title,colors=colors)
+
+            title = 'Fwhm pretraining ' + labels[j]
+            plot_pre_post_scatter(axs[j,2],  data['fwhm_prepre'] ,  data['fwhm_postpre'] ,  data['orientations_prepre'], indices[j], N_runs, title = title,colors=colors)
+
+            title = 'Fwhm training, ' + labels[j] 
+            plot_pre_post_scatter(axs[j,3], data['fwhm_postpre'] , data['fwhm_post'] ,data['orientations_postpre'], indices[j], N_runs,title = title,colors=colors)
+        axs[j,3].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
+    else:
+        fig, axs = plt.subplots(4, 2, figsize=(10, 20)) 
+        for j in range(len(indices)):    
+            title = 'Slope training_only ' + labels[j]
+            plot_pre_post_scatter(axs[j,0],  data['norm_slope_train_only_pre'] , data['norm_slope_train_only_post'] , data['orientations_train_only_pre'], indices[j], N_runs, title = title,colors=colors)
+
+            title = 'Fwhm training_only ' + labels[j] 
+            plot_pre_post_scatter(axs[j,1],  data['fwhm_train_only_pre'] , data['fwhm_train_only_post'] ,data['orientations_train_only_pre'], indices[j], N_runs, title = title,colors=colors)
+        axs[j,1].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
+    
+    plt.tight_layout()
+    fig.savefig(os.path.dirname(results_dir) + "/figures/tc_features" + train_only_str +".png")
 
 
 def plot_results_from_csv(
@@ -362,7 +442,6 @@ def plot_results_from_csv(
 
     if fig_filename:
         fig.savefig(fig_filename + ".png")
-    #fig.show()
     plt.close()
 
 
@@ -375,391 +454,199 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_s
     for j in range(num_runs):
         results_filename = os.path.join(folder_path,f'results_{j}.csv')
         if folder_to_save is not None:
-            results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}')
+            results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}.png')
         else:
-            results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}')
-        if ~os.path.exists(results_filename):
+            results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}.png')
+        if not os.path.exists(results_filename):
             results_filename = os.path.join(folder_path,f'results_train_only{j}.csv')
             if folder_to_save is not None:
-                results_fig_filename = os.path.join(folder_to_save,f'resultsfig_train_only{j}')
+                results_fig_filename = os.path.join(folder_to_save,f'resultsfig_train_only{j}.png')
             else:
-                results_fig_filename = os.path.join(folder_path,f'resultsfig_train_only{j}')
+                results_fig_filename = os.path.join(folder_path,f'resultsfig_train_only{j}.png')
+        if not os.path.exists(results_fig_filename):
+            plot_results_from_csv(results_filename,results_fig_filename)
+
+############## Analysis functions ##########
+            
+            
+def calculate_relative_change(df):
+    # Calculate relative changes in Jm and Js
+    J_m_EE = numpy.exp(df['logJ_m_EE'])
+    J_m_IE = numpy.exp(df['logJ_m_IE'])
+    J_m_EI = -1 * numpy.exp(df['logJ_m_EI'])
+    J_m_II = -1 * numpy.exp(df['logJ_m_II'])
+    J_s_EE = numpy.exp(df['logJ_s_EE'])
+    J_s_IE = numpy.exp(df['logJ_s_IE'])
+    J_s_EI = -1 * numpy.exp(df['logJ_s_EI'])
+    J_s_II = -1 * numpy.exp(df['logJ_s_II'])
+    f_E = numpy.exp(df['f_E'])
+    f_I = -1 * numpy.exp(df['f_I'])
+
+    relative_changes = numpy.zeros((18,2))
+
+    # Calculate relative changes in parameters and other metrics before and after training
+    train_start_ind = df.index[df['stage'] == 1][0]
+    relative_changes[0,1] =(J_m_EE.iloc[-1] - J_m_EE.iloc[train_start_ind]) / J_m_EE.iloc[train_start_ind]
+    relative_changes[1,1] =(J_m_IE.iloc[-1] - J_m_IE.iloc[train_start_ind]) / J_m_IE.iloc[train_start_ind]
+    relative_changes[2,1] =(J_m_EI.iloc[-1] - J_m_EI.iloc[train_start_ind]) / J_m_EI.iloc[train_start_ind]
+    relative_changes[3,1] =(J_m_II.iloc[-1] - J_m_II.iloc[train_start_ind]) / J_m_II.iloc[train_start_ind]
+    relative_changes[4,1] =(J_s_EE.iloc[-1] - J_s_EE.iloc[train_start_ind]) / J_s_EE.iloc[train_start_ind]
+    relative_changes[5,1] =(J_s_IE.iloc[-1] - J_s_IE.iloc[train_start_ind]) / J_s_IE.iloc[train_start_ind]
+    relative_changes[6,1] =(J_s_EI.iloc[-1] - J_s_EI.iloc[train_start_ind]) / J_s_EI.iloc[train_start_ind]
+    relative_changes[7,1] =(J_s_II.iloc[-1] - J_s_II.iloc[train_start_ind]) / J_s_II.iloc[train_start_ind]
+    relative_changes[8,1] = (df['c_E'].iloc[-1] - df['c_E'].iloc[train_start_ind]) / df['c_E'].iloc[train_start_ind]
+    relative_changes[9,1] = (df['c_I'].iloc[-1] - df['c_I'].iloc[train_start_ind]) / df['c_I'].iloc[train_start_ind]
+    relative_changes[10,1] = (f_E.iloc[-1] - f_E.iloc[train_start_ind]) / f_E.iloc[train_start_ind]
+    relative_changes[11,1] = (f_I.iloc[-1] - f_I.iloc[train_start_ind]) / f_I.iloc[train_start_ind]
+
+    relative_changes[12,1] = (df['acc'].iloc[-1] - df['acc'].iloc[train_start_ind]) / df['acc'].iloc[train_start_ind] # accuracy
+    for column in df.columns:
+        if 'offset' in column:
+            relative_changes[13,1] = (df[column].iloc[-1] - df[column].iloc[train_start_ind]) / df[column].iloc[train_start_ind] # offset threshold
+    relative_changes[14,1] = (df['maxr_E_mid'].iloc[-1] - df['maxr_E_mid'].iloc[train_start_ind]) / df['maxr_E_mid'].iloc[train_start_ind] # r_mid
+    relative_changes[15,1] = (df['maxr_I_mid'].iloc[-1] - df['maxr_I_mid'].iloc[train_start_ind]) / df['maxr_I_mid'].iloc[train_start_ind] # r_mid
+    relative_changes[16,1] = (df['maxr_E_sup'].iloc[-1] - df['maxr_E_sup'].iloc[train_start_ind]) / df['maxr_E_sup'].iloc[train_start_ind] # r_mid
+    relative_changes[17,1] = (df['maxr_I_sup'].iloc[-1] - df['maxr_I_sup'].iloc[train_start_ind]) / df['maxr_I_sup'].iloc[train_start_ind] # r_sup
+
+    # Calculate relative changes in parameters and other metrics before and after pretraining
+    pretraining_on = float(np.sum(df['stage'].ravel() == 0))>0
+    if pretraining_on:
+        pretrain_start_ind = df.index[df['stage'] == 0][0]
+        relative_changes[0,0] =(J_m_EE.iloc[train_start_ind] - J_m_EE.iloc[pretrain_start_ind]) / J_m_EE.iloc[pretrain_start_ind]
+        relative_changes[1,0] =(J_m_IE.iloc[train_start_ind] - J_m_IE.iloc[pretrain_start_ind]) / J_m_IE.iloc[pretrain_start_ind]
+        relative_changes[2,0] =(J_m_EI.iloc[train_start_ind] - J_m_EI.iloc[pretrain_start_ind]) / J_m_EI.iloc[pretrain_start_ind]
+        relative_changes[3,0] =(J_m_II.iloc[train_start_ind] - J_m_II.iloc[pretrain_start_ind]) / J_m_II.iloc[pretrain_start_ind]
+        relative_changes[4,0] =(J_s_EE.iloc[train_start_ind] - J_s_EE.iloc[pretrain_start_ind]) / J_s_EE.iloc[pretrain_start_ind]
+        relative_changes[5,0] =(J_s_IE.iloc[train_start_ind] - J_s_IE.iloc[pretrain_start_ind]) / J_s_IE.iloc[pretrain_start_ind]
+        relative_changes[6,0] =(J_s_EI.iloc[train_start_ind] - J_s_EI.iloc[pretrain_start_ind]) / J_s_EI.iloc[pretrain_start_ind]
+        relative_changes[7,0] =(J_s_II.iloc[train_start_ind] - J_s_II.iloc[pretrain_start_ind]) / J_s_II.iloc[pretrain_start_ind]
+        relative_changes[8,0] = (df['c_E'].iloc[train_start_ind] - df['c_E'].iloc[pretrain_start_ind]) / df['c_E'].iloc[pretrain_start_ind]
+        relative_changes[9,0] = (df['c_I'].iloc[train_start_ind] - df['c_I'].iloc[pretrain_start_ind]) / df['c_I'].iloc[pretrain_start_ind]
+        relative_changes[10,0] = (df['f_E'].iloc[train_start_ind] - df['f_E'].iloc[pretrain_start_ind]) / df['f_E'].iloc[pretrain_start_ind]
+        relative_changes[11,0] = (df['f_I'].iloc[train_start_ind] - df['f_I'].iloc[pretrain_start_ind]) / df['f_I'].iloc[pretrain_start_ind]
         
-        plot_results_from_csv(results_filename,results_fig_filename)
+        relative_changes[12,0] = (df['acc'].iloc[-1] - df['acc'].iloc[train_start_ind]) / df['acc'].iloc[train_start_ind] # accuracy
+        for column in df.columns:
+            if 'offset' in column:
+                relative_changes[13,1] = (df[column].iloc[train_start_ind] - df[column].iloc[pretrain_start_ind]) / df[column].iloc[pretrain_start_ind] # offset threshold
+        relative_changes[14,0] = (df['maxr_E_mid'].iloc[train_start_ind] - df['maxr_E_mid'].iloc[pretrain_start_ind]) / df['maxr_E_mid'].iloc[pretrain_start_ind] # r_mid
+        relative_changes[15,0] = (df['maxr_I_mid'].iloc[train_start_ind] - df['maxr_I_mid'].iloc[pretrain_start_ind]) / df['maxr_I_mid'].iloc[pretrain_start_ind] # r_mid
+        relative_changes[16,0] = (df['maxr_E_sup'].iloc[train_start_ind] - df['maxr_E_sup'].iloc[pretrain_start_ind]) / df['maxr_E_sup'].iloc[pretrain_start_ind] # r_mid
+        relative_changes[17,0] = (df['maxr_I_sup'].iloc[train_start_ind] - df['maxr_I_sup'].iloc[pretrain_start_ind]) / df['maxr_I_sup'].iloc[pretrain_start_ind] # r_sup
     
-    # Plot tuning curves before pretraining, after pretraining and after training for
-    if os.path.exists(folder_path +'/tc_post_0.csv'):
-        plot_tuning_curves(folder_path,num_rnd_cells,num_runs,folder_to_save)
+    return relative_changes
 
-
-"""
-def plot_losses_two_stage(
-    training_losses, val_loss_per_epoch, epochs_plot=None, save=None, inset=None
-):
-    fig, axs1 = plt.subplots()
-    axs1.plot(
-        training_losses.T,
-        label=["Binary cross entropy", "Avg_dx", "R_max", "w", "b", "Training total"],
-    )
-    axs1.plot(val_loss_per_epoch[:, 1], val_loss_per_epoch[:, 0], label="Validation")
-    axs1.legend()
-    axs1.set_title("Training losses")
-
-    if inset:
-        left, bottom, width, height = [0.2, 0.22, 0.35, 0.25]
-        axs2 = fig.add_axes([left, bottom, width, height])
-
-        axs2.plot(training_losses[0, :], label="Binary loss")
-        axs2.legend()
-
-    if epochs_plot == None:
-        pass
-    else:
-        if np.isscalar(epochs_plot):
-            axs1.axvline(x=epochs_plot, c="r")
-            if inset:
-                axs2.axvline(x=epochs_plot, c="r")
-        else:
-            axs1.axvline(x=epochs_plot[0], c="r")
-            axs1.axvline(x=epochs_plot[0] + epochs_plot[1], c="r")
-            axs1.axvline(x=epochs_plot[2], c="r")
-            if inset:
-                axs2.axvline(x=epochs_plot[0], c="r")
-                axs2.axvline(x=epochs_plot[0] + epochs_plot[1], c="r")
-                axs1.axvline(x=epochs_plot[2], c="r")
-    if save:
-        fig.savefig(save + ".png")
-    plt.close()
-
-
-def plot_acc_vs_param(to_plot, lambdas, type_param=None, param=None):
+def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6)):
     '''
-    Input:
-        Matrix with shape (N+1, length of lambda) - each row corresponds to a different value of lambda, params at that value and
-        the accuracy obtained
-    Output:
-        Plot of the desired param against the accuracy
+    Calculate responses of middle and superficial layers to different orientations.
     '''
-
-    plt.scatter(np.abs(to_plot[:, param]).T, to_plot[:, 0].T, c=lambdas)
-    plt.colorbar()
-
-    plt.ylabel("Accuracy")
-
-    if type_param == "J":
-        if param == 1:
-            plt.xlabel("J_EE")
-        if param == 2:
-            plt.xlabel("J_EI")
-        if param == 3:
-            plt.xlabel("J_IE")
-        if param == 4:
-            plt.xlabel("J_II")
-
-    if type_param == "s":
-        if param == 1:
-            plt.xlabel("s_EE")
-        if param == 2:
-            plt.xlabel("s_EI")
-        if param == 3:
-            plt.xlabel("s_IE")
-        if param == 4:
-            plt.xlabel("s_II")
-
-    if type_param == "c":
-        if param == 1:
-            plt.xlabel("c_E")
-        if param == 2:
-            plt.xlabel("c_I")
-
-    plt.show()
-
-
-def plot_all_sig(all_sig_inputs, axis_title=None, save_fig=None):
-    n_rows = int(np.sqrt(len(all_sig_inputs)))
-    n_cols = int(np.ceil(len(all_sig_inputs) / n_rows))
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(15, 20))
-    fig.subplots_adjust(wspace=0.5, hspace=0.5)
-
-    count = 0
-
-    # plot histograms
-    for k in range(n_rows):
-        for j in range(n_cols):
-            axs[k, j].hist(all_sig_inputs[count])
-            axs[k, j].set_xlabel(axis_title)
-            axs[k, j].set_ylabel("Frequency")
-            count += 1
-            if count == len(all_sig_inputs):
-                break
-
-    if save_fig:
-        fig.savefig(save_fig + "_" + axis_title + ".png")
-
-    fig.show()
-    plt.close()
-
-
-def plot_histograms(all_accuracies, save_fig=None):
-    n_rows = int(np.sqrt(len(all_accuracies)))
-    n_cols = int(np.ceil(len(all_accuracies) / n_rows))
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(15, 20))
-    fig.subplots_adjust(wspace=0.5, hspace=0.5)
-
-    count = 0
-
-    # plot histograms
-    for k in range(n_rows):
-        for j in range(n_cols):
-            axs[k, j].hist(all_accuracies[count][2])
-            axs[k, j].set_xlabel("Initial accuracy")
-            axs[k, j].set_ylabel("Frequency")
-            axs[k, j].set_title(
-                "noise = "
-                + str(np.round(all_accuracies[count][1], 2))
-                + " jitter = "
-                + str(np.round(all_accuracies[count][0], 2)),
-                fontsize=10,
-            )
-            count += 1
-            if count == len(all_accuracies):
-                break
-
-    if save_fig:
-        fig.savefig(save_fig + ".png")
-
-    fig.show()
-    plt.close()
-
-
-def plot_tuning_curves_clara(
-    pre_response_matrix,
-    neuron_indices,
-    radius_idx,
-    ori_list,
-    post_response_matrix=None,
-    save=None,
-):
-    colors = plt.cm.rainbow(np.linspace(0, 1, len(neuron_indices)))
-    i = 0
-
-    for idx in neuron_indices:
-        plt.plot(
-            ori_list, pre_response_matrix[radius_idx, idx, :], "--", color=colors[i]
-        )
-
-        if post_response_matrix.all():
-            plt.plot(
-                ori_list, post_response_matrix[radius_idx, idx, :], color=colors[i]
-            )
-        i += 1
-    plt.xlabel("Orientation (degrees)")
-    plt.ylabel("Response")
-
-    if save:
-        plt.savefig(save + ".png")
-    plt.show()
-
-
-def plot_vec2map(ssn, fp, save_fig=False):
-    if ssn.Ne == 162:
-        fp_E = ssn.select_type(fp, map_number=1).ravel()
-        fp_I = ssn.select_type(fp, map_number=2).ravel()
-        titles = ["E", "I"]
-        all_responses = [fp_E, fp_I]
-
-    if ssn.Ne > 162:
-        fp_E_on = ssn.select_type(fp, map_number=1).ravel()
-        fp_E_off = ssn.select_type(fp, map_number=3).ravel()
-        fp_I_on = ssn.select_type(fp, map_number=2).ravel()
-        fp_I_off = ssn.select_type(fp, map_number=4).ravel()
-        titles = ["E_on", "I_on", "E_off", "I_off"]
-        all_responses = [fp_E_on, fp_I_on, fp_E_off, fp_I_off]
-
-    rows = int(len(titles) / 2)
-    cols = int(len(titles) / rows)
-    fig, axes = plt.subplots(2, 2, figsize=(8, 8))
-    count = 0
-    for row in range(0, rows):
-        for col in range(0, cols):
-            ax = axes[row, col]
-            im = ax.imshow(
-                all_responses[count].reshape(9, 9), vmin=fp.min(), vmax=fp.max()
-            )
-            ax.set_title(titles[count])
-            ax.set_xlabel(
-                "max "
-                + str(all_responses[count].max())
-                + " at index "
-                + str(np.argmax(all_responses[count]))
-            )
-            count += 1
-
-    fig.colorbar(im, ax=axes.ravel().tolist())
-
-    if save_fig:
-        fig.savefig(save_fig + ".png")
-
-    plt.close()
-
-
-def plot_close_far(
-    E_pre, E_post, I_pre, I_post, e_close, e_far, i_close, i_far, save=None, title=None
-):
-    # EE
-    E_E_pre_close = [E_pre[e_close].mean(), E_pre[e_close].std()]
-    E_E_post_close = [E_post[e_close].mean(), E_post[e_close].std()]
-    E_E_pre_far = [E_pre[e_far].mean(), E_pre[e_far].std()]
-    E_E_post_far = [E_post[e_far].mean(), E_post[e_far].std()]
-
-    # IE
-    I_E_pre_close = [E_pre[i_close].mean(), E_pre[i_close].std()]
-    I_E_post_close = [E_post[i_close].mean(), E_post[i_close].std()]
-    I_E_pre_far = [E_pre[i_far].mean(), E_pre[i_far].std()]
-    I_E_post_far = [E_post[i_far].mean(), E_post[i_far].std()]
-
-    # EI
-    E_I_pre_close = [np.abs(I_pre[e_close].mean()), np.abs(I_pre[e_close].std())]
-    E_I_post_close = [np.abs(I_post[e_close].mean()), np.abs(I_post[e_close].std())]
-    E_I_pre_far = [np.abs(I_pre[e_far].mean()), np.abs(I_pre[e_far].std())]
-    E_I_post_far = [np.abs(I_post[e_far].mean()), np.abs(I_post[e_far].std())]
-
-    # II
-    I_I_pre_close = [np.abs(I_pre[i_close].mean()), np.abs(I_pre[i_close].std())]
-    I_I_post_close = [np.abs(I_post[i_close].mean()), np.abs(I_post[i_close].std())]
-    I_I_pre_far = [np.abs(I_pre[i_far].mean()), np.abs(I_pre[i_far].std())]
-    I_I_post_far = [np.abs(I_post[i_far].mean()), np.abs(I_post[i_far].std())]
-
-    pre_close_mean = [
-        E_E_pre_close[0],
-        I_E_pre_close[0],
-        E_I_pre_close[0],
-        I_I_pre_close[0],
-    ]
-    post_close_mean = [
-        E_E_post_close[0],
-        I_E_post_close[0],
-        E_I_post_close[0],
-        I_I_post_close[0],
-    ]
-
-    pre_far_mean = [E_E_pre_far[0], I_E_pre_far[0], E_I_pre_far[0], I_I_pre_far[0]]
-    post_far_mean = [E_E_post_far[0], I_E_post_far[0], E_I_post_far[0], I_I_post_far[0]]
-
-    X = np.arange(4)
-    labels = ["EE", "IE", "EI", "II"]
-    fig = plt.figure()
-    ax = fig.add_axes([0, 0, 1, 1])
-    ax.bar(
-        X + 0.00, pre_close_mean, color="c", width=0.15, hatch="/", label="pre_close"
-    )
-    ax.bar(X + 0.15, post_close_mean, color="c", width=0.15, label="post_close")
-    ax.bar(X + 0.30, pre_far_mean, color="r", width=0.15, hatch="/", label="pre_far")
-    ax.bar(X + 0.45, post_far_mean, color="r", width=0.15, label="post_far")
-    if title:
-        plt.title(title)
-    plt.xticks(X + 0.225, labels)
-    plt.ylabel("Average input")
-    plt.legend()
-    plt.axis("on")
-    if save:
-        plt.savefig(os.path.join(save, title + ".png"))
-    fig.show()
-
-
-def plot_r_ref(r_ref, epochs_plot=None, save=None):
-    plt.plot(r_ref)
-    plt.xlabel("Epoch")
-    plt.ylabel("noise")
-
-    if epochs_plot == None:
-        pass
-    else:
-        if np.isscalar(epochs_plot):
-            plt.axvline(x=epochs_plot, c="r")
-        else:
-            plt.axvline(x=epochs_plot[0], c="r")
-            plt.axvline(x=epochs_plot[0] + epochs_plot[1], c="r")
-            plt.axvline(x=epochs_plot[2], c="r")
-
-    if save:
-        plt.savefig(save + ".png")
-    plt.show()
-    plt.close()
-
-
-def plot_max_rates(max_rates, epochs_plot=None, save=None):
-    plt.plot(max_rates, label=["E_mid", "I_mid", "E_sup", "I_sup"])
-    plt.xlabel("Epoch")
-    plt.ylabel("Maximum rates")
-    plt.legend()
-
-    if epochs_plot == None:
-        pass
-    else:
-        if np.isscalar(epochs_plot):
-            plt.axvline(x=epochs_plot, c="r")
-        else:
-            plt.axvline(x=epochs_plot[0], c="r")
-            plt.axvline(x=epochs_plot[0] + epochs_plot[1], c="r")
-            plt.axvline(x=epochs_plot[2], c="r")
-
-    if save:
-        plt.savefig(save + ".png")
-    plt.close()
-
-
-def plot_w_sig(w_sig, epochs_plot=None, save=None):
-    plt.plot(w_sig)
-    plt.xlabel("Epoch")
-    plt.ylabel("Values of w")
-    if epochs_plot:
-        plt.axvline(x=epochs_plot, c="r", label="criterion")
-    if save:
-        plt.savefig(save + ".png")
-    plt.close()
-
-
-def plot_pre_post_scatter(x_axis, y_axis, orientations, indices_to_plot, title, save_file = None):
+    ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
+    for key in list(trained_pars.keys()):  # Use list to make a copy of keys to avoid RuntimeError
+        # Check if key starts with 'log'
+        if key.startswith('log'):
+            # Create a new key by removing 'log' prefix
+            new_key = key[4:]
+            # Exponentiate the values and assign to the new key
+            trained_pars[new_key] = sep_exponentiate(trained_pars[key])
     
-    '''
-    Create scatter plot for pre and post training responses. Colour represents preferred orientation according to Schoups et al bins
-    '''
-    if len(x_axis.shape)==2:
-        N_runs=x_axis.shape[0]
-    else:
-        N_runs=1
-    #Create legend
-    patches = []
-    cmap = plt.get_cmap('rainbow')
-    colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
-    bins = ['0-4', '4-12', '12-20', '20-28', '28-36', '36-44', '44-50', '+50']
-    for j in range(0,len(colors)):
-        patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
+    ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_m'])
     
-    for run_ind in range(N_runs):
-        #Iterate through required neurons
-        for idx in indices_to_plot:
-            #Select bin and colour
-            if np.abs(orientations[run_ind,idx]) <4:
-                colour = colors[0]
-                label = bins[0]
-            elif np.abs(orientations[run_ind,idx]) >50:
-                colour = colors[-1]
-                label = bins[-1]
-            else:
-                colour = colors[int(1+np.floor((np.abs(orientations[run_ind,idx]) -4)/8) )]
-                label = bins[int(1+np.floor((np.abs(orientations[run_ind,idx]) -4)/8) )]
-            plt.scatter(x = x_axis[run_ind,idx], y =y_axis[run_ind,idx], color =colour, label = label )
-        
-    #Plot x = y line
-    xpoints = ypoints = plt.xlim()
-    plt.plot(xpoints, ypoints, linestyle='--', color='gold')
-    plt.xlabel('Pre training')
-    plt.ylabel('Post training')
-    plt.title(title)
-    plt.legend(handles = patches, loc = 'upper right', bbox_to_anchor=(1.3, 1.0), title = 'Pref ori - train ori')
-    if save_file:
-        plt.savefig(save_file, bbox_inches='tight')
-    plt.close(0)
-"""
+    N_ori = len(ori_vec)
+    new_rows = []
+    x = untrained_pars.BW_image_jax_inp[5]
+    y = untrained_pars.BW_image_jax_inp[6]
+    alpha_channel = untrained_pars.BW_image_jax_inp[7]
+    mask = untrained_pars.BW_image_jax_inp[8]
+    background = untrained_pars.BW_image_jax_inp[9]
+    
+    train_data = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(N_ori))
+    for i in range(N_ori):
+        ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_s'], p_local=untrained_pars.ssn_layer_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_layer_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
+        _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, trained_pars['c_E'], trained_pars['c_I'], trained_pars['f_E'], trained_pars['f_I'], untrained_pars.gabor_filters)
+        if i==0:
+            responses_mid = numpy.zeros((N_ori,len(r_mid_i)))
+            responses_sup = numpy.zeros((N_ori,len(r_sup_i)))
+        responses_mid[i,:] = r_mid_i
+        responses_sup[i,:] = r_sup_i
+    
+        # Save responses into csv file
+        if tuning_curves_filename is not None:
+ 
+            # Concatenate the new data as additional rows
+            new_row = numpy.concatenate((r_mid_i, r_sup_i), axis=0)
+            new_rows.append(new_row)
+
+    if tuning_curves_filename is not None:
+        new_rows_df = pd.DataFrame(new_rows)
+        if os.path.exists(tuning_curves_filename):
+            # Read existing data and concatenate new data
+            existing_df = pd.read_csv(tuning_curves_filename)
+            df = pd.concat([existing_df, new_rows_df], axis=0)
+        else:
+            # If CSV does not exist, use new data as the DataFrame
+            df = new_rows_df
+
+        # Write the DataFrame to CSV file
+        df.to_csv(tuning_curves_filename, index=False)
+
+    untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
+
+    return responses_sup, responses_mid
+
+
+def tc_slope(tuning_curve, x_axis, x1, x2, normalised=False):
+    """
+    Calculates slope of normalized tuning_curve between points x1 and x2. tuning_curve is given at x_axis points.
+    """
+    #Remove baseline if normalising
+    if normalised == True:
+        tuning_curve = (tuning_curve - tuning_curve.min())/tuning_curve.max()
+    
+    #Find indices corresponding to desired x values
+    idx_1 = (np.abs(x_axis - x1)).argmin()
+    idx_2 = (np.abs(x_axis - x2)).argmin()
+    
+    grad =(np.abs(tuning_curve[idx_2] - tuning_curve[idx_1]))/(x2-x1)
+    
+    return grad
+
+
+def full_width_half_max(vector, d_theta):
+    
+    #Remove baseline
+    vector = vector-vector.min()
+    half_height = vector.max()/2
+    points_above = len(vector[vector>half_height])
+
+    distance = d_theta * points_above
+    
+    return distance
+
+
+def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
+    
+    # Tuning curve of given cell indices
+    tuning_curve = numpy.array(pd.read_csv(file_name))
+    num_cells = tuning_curve.shape[1]
+    
+    # Find preferred orientation and center it at 55
+    pref_ori = ori_list[np.argmax(tuning_curve, axis = 0)]
+    norm_pref_ori = pref_ori -55
+
+    # Full width half height
+    full_width_half_max_vec = numpy.zeros(num_cells) 
+    d_theta = ori_list[1]-ori_list[0]
+    for i in range(0, num_cells):
+        full_width_half_max_vec[i] = full_width_half_max(tuning_curve[:,i], d_theta = d_theta)
+
+    # Norm slope
+    avg_slope_vec =numpy.zeros(num_cells) 
+    for i in range(num_cells):
+        avg_slope_vec[i] = tc_slope(tuning_curve[:, i], x_axis = ori_list, x1 = 52, x2 = 58, normalised =True)
+    if expand_dims:
+        avg_slope_vec = numpy.expand_dims(avg_slope_vec, axis=0)
+        full_width_half_max_vec = numpy.expand_dims(full_width_half_max_vec, axis=0)
+        norm_pref_ori = numpy.expand_dims(norm_pref_ori, axis=0)
+
+    return avg_slope_vec, full_width_half_max_vec, norm_pref_ori
+

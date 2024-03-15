@@ -64,14 +64,14 @@ def train_ori_discr(
 
     # Define SGD_steps indices and offsets where training task accuracy is calculated
     if pretrain_on:
-        numSGD_steps = training_pars.SGD_steps[0]
+        numSGD_steps = untrained_pars.pretrain_pars.SGD_steps
         min_acc_check_ind = untrained_pars.pretrain_pars.min_acc_check_ind
         acc_check_ind = np.arange(0, numSGD_steps, untrained_pars.pretrain_pars.acc_check_freq)
         acc_check_ind = acc_check_ind[(acc_check_ind > min_acc_check_ind) | (acc_check_ind <2)] # by leaving in 0, we make sure that it is not empty as we refer to it later
         test_offset_vec = numpy.array([2, 4, 6, 9, 12, 15, 20]) # offsets that help us define accuracy for training task during pretraining
-        numStages = untrained_pars.pretrain_pars.numStages
+        numStages = 1
     else:
-        numSGD_steps = training_pars.SGD_steps[1]
+        numSGD_steps = training_pars.SGD_steps
         first_stage_acc_th = training_pars.first_stage_acc_th
         numStages = 2
     
@@ -268,19 +268,33 @@ def train_ori_discr(
 
 
 def loss_and_grad_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad):
+    """
+    Top level function to calculate losses, accuracies and other relevant metrics. It generates noises and training data and then applies the function training_loss_val_and_grad.
+
+    Args:
+        ssn_layer_pars_dict (dict): Dictionary containing parameters for the SSN layer.
+        readout_pars_dict (dict): Dictionary containing parameters for the readout layer.
+        untrained_pars (object): Object containing various parameters that are untrained.
+        jit_on (bool): Flag indicating whether just-in-time (JIT) compilation is enabled.
+        training_loss_val_and_grad (function): Function for calculating losses and gradients.
+
+    Returns:
+        tuple: Tuple containing loss, all_losses, accuracy, sig_input, sig_output, max_rates, and gradients.
+    """
 
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
-    training_pars=untrained_pars.training_pars
     if untrained_pars.pretrain_pars.is_on:
-        # Generate noise that is added to the output of the model
-        noise_ref = generate_noise(training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
-        noise_target = generate_noise(training_pars.batch_size[0], readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
-        train_data = create_grating_pretraining(untrained_pars.pretrain_pars, training_pars.batch_size[0], untrained_pars.BW_image_jax_inp, numRnd_ori1=training_pars.batch_size[0])
+        pretrain_pars=untrained_pars.pretrain_pars
+        # Generate training data and noise that is added to the output of the model
+        noise_ref = generate_noise(pretrain_pars.batch_size, readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+        noise_target = generate_noise(pretrain_pars.batch_size, readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+        train_data = create_grating_pretraining(untrained_pars.pretrain_pars, pretrain_pars.batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=pretrain_pars.batch_size)
     else:
+        training_pars=untrained_pars.training_pars
         # Generate noise that is added to the output of the model
-        noise_ref = generate_noise(training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
-        noise_target = generate_noise(training_pars.batch_size[1], readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
-        train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size[1], untrained_pars.BW_image_jax_inp)
+        noise_ref = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+        noise_target = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+        train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp)
 
     # Calculate gradient, loss and accuracy
     [loss, [all_losses, accuracy, sig_input, sig_output, max_rates]], grad = training_loss_val_and_grad(
@@ -296,16 +310,21 @@ def loss_and_grad_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pa
 
 
 def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target): 
+    """
+    Bottom level function to calculate losses, accuracies and other relevant metrics. It applies evaluate_model_response to training data, adds noise to the model output and calculates the relevant metrics.
+
+    Args:
+        ssn_layer_pars_dict (dict): Dictionary containing parameters for the SSN layer.
+        readout_pars_dict (dict): Dictionary containing parameters for the readout layer.
+        untrained_pars (object): Object containing various parameters that are untrained.
+        train_data: Dictionary containing reference and target training data and corresponding labels
+        noise_ref: additive noise for the model output reference training data
+        noise_target: additive noise for the model output from target training data
+
+    Returns:
+        tuple: Tuple containing loss, all_losses, accuracy, sig_input, sig_output, max_rates
+    """
     
-    '''
-    Orientation discrimanation task ran using SSN two-layer model.The reference and target are run through the two layer model individually. 
-    Inputs:
-        individual parameters - having taken logs of differentiable parameters
-        noise_type: select different noise models
-    Outputs:
-        losses to take gradient with respect to
-        sig_input, x: I/O values for sigmoid layer
-    '''
     pretraining = untrained_pars.pretrain_pars.is_on
     log_J_2x2_m = ssn_layer_pars_dict['log_J_2x2_m']
     log_J_2x2_s = ssn_layer_pars_dict['log_J_2x2_s']
@@ -366,37 +385,49 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, train
     
     return loss, all_losses, pred_label, sig_input, sig_output,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup]
 
-#Parallelize orientation discrimination task and jit the parallelized function
+# Parallelize orientation discrimination task and jit the parallelized function
 vmap_ori_discrimination = vmap(loss_ori_discr, in_axes = (None, None, None, {'ref':0, 'target':0, 'label':0}, 0, 0) )
 jit_ori_discrimination = jax.jit(vmap_ori_discrimination, static_argnums = [2])
 
 
 def batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target, jit_on=True):
-    '''
-    Run orientation discrimination task on given batch of data. Returns losses averaged over the trials within the batch. Function over which the gradient is taken.
-    '''    
+    """
+    Middle level function to calculate losses, accuracies and other relevant metrics to a batch of training data and output noise. It uses either the vmap-ed or vmap-ed and jit-ed version of loss_ori_discr depending on jit_on.
+
+    Args:
+        ssn_layer_pars_dict (dict): Dictionary containing parameters for the SSN layer.
+        readout_pars_dict (dict): Dictionary containing parameters for the readout layer.
+        untrained_pars (object): Object containing various parameters that are untrained.
+        train_data: Dictionary containing reference and target training data and corresponding labels
+        noise_ref: additive noise for the model output reference training data
+        noise_target: additive noise for the model output from target training data
+        jit_on (bool): Flag indicating whether just-in-time (JIT) compilation is enabled.
+
+    Returns:
+        tuple: Tuple containing loss, all_losses, accuracy, sig_input, sig_output, max_rates
+    """
     #Run orientation discrimination task
     if jit_on:
         total_loss, all_losses, pred_label, sig_input, sig_output, max_rates = jit_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target)
     else:
         total_loss, all_losses, pred_label, sig_input, sig_output, max_rates = vmap_ori_discrimination(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target)
     
-    #Total loss to take gradient with respect to 
+    # Average total loss within a batch (across trials)
     loss= np.mean(total_loss)
     
-    #Find mean of different losses
+    # Average individual losses within a batch (accross trials)
     all_losses = np.mean(all_losses, axis = 0)
     
-    #Find maximum rates across trials
+    #Find maximum rates  within a batch (across trials)
     max_rates = [item.max() for item in max_rates]
     
-    #Calculate accuracy 
+    # Calculate the proportion of labels that are predicted well (within a batch) 
     true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])
 
     return loss, [all_losses, true_accuracy, sig_input, sig_output, max_rates]
 
 
-############### Other supporting functions 
+############### Other supporting functions ###############
 
 def binary_crossentropy_loss(n, x):
     '''
@@ -452,15 +483,7 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
     untrained_pars.stimuli_pars.jitter_val=0
     untrained_pars.stimuli_pars.std=0
-    #train_data2 = create_grating_training(untrained_pars.stimuli_pars, 2)
     train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size, untrained_pars.BW_image_jax_inp)
-    ## testing
-    #train_data2 = create_grating_training(untrained_pars.stimuli_pars, 2)
-    #test_data=np.reshape(train_data['ref'][0],(129,129))
-    #test_data2=np.reshape(train_data2['ref'][0],(129,129))
-    #cax=plt.imshow(test_data-test_data2)
-    #plt.colorbar(cax, orientation='vertical')
-    #plt.savefig('grating_diff_training_task_acc_test')
     
     # Calculate loss and accuracy
     loss, [_, acc, _, _, _] = batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
@@ -471,6 +494,9 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     return acc, loss
 
 def mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec, sample_size = 3):
+    """
+    This function runs training_task_acc_test sample_size times to get accuracies and losses for the training task for a given parameter set. It averages the accuracies accross independent samples of accuracies.
+    """
     # Initialize arrays to store loss, accuracy, and max rates
     N = len(offset_vec)
     accuracy = numpy.zeros((N,sample_size))

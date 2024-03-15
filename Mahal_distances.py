@@ -5,10 +5,12 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import pandas as pd
 import time
+from scipy import ndimage
+import os
 
 from pretraining_supp import load_parameters
 from model import vmap_evaluate_model_response
-from util import smooth_data, sep_exponentiate
+from util import sep_exponentiate
 from util_gabor import BW_image_jit_noisy, init_untrained_pars
 from SSN_classes import SSN_mid, SSN_sup
 from parameters import (
@@ -23,6 +25,20 @@ from parameters import (
     loss_pars,
     pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
+
+def smooth_data(vector, sigma = 1):
+    '''
+    Smooth fixed point. Data is reshaped into 9x9 grid
+    '''
+    
+    new_data = []
+    for trial_response in vector:
+
+        trial_response = trial_response.reshape(9,9,-1)
+        smoothed_data = numpy.asarray([ndimage.gaussian_filter(numpy.reshape(trial_response[:, :, i], (9,9)), sigma = sigma) for i in range(0, trial_response.shape[2])]).ravel()
+        new_data.append(smoothed_data)
+    
+    return np.vstack(np.asarray(new_data)) 
 
 def mahal(X,Y):
     # Assuming X and Y are NumPy arrays provided earlier in your code
@@ -49,7 +65,7 @@ def mahal(X,Y):
     return np.sqrt(d)
 
 
-def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55, 125, 0]), n_noisy_trials = 300, SGD_step_inds = None, sigma_filter = 1):
+def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55, 125, 0]), n_noisy_trials = 100, SGD_step_inds = None, sigma_filter = 1):
 
     if SGD_step_inds==None:
         df = pd.read_csv(file_name)
@@ -126,20 +142,24 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
     return output, SGD_step_inds
 
 ######### Calculate Mahalanobis distance for before pretraining, after pretraining and after training - distance between trained and control should increase more than distance between untrained and control after training #########
-def Mahalanobis_dist(N_trainings, folder):
+def Mahalanobis_dist(N_trainings, folder, folder_to_save, file_name_to_save):
     ori_list = numpy.asarray([55, 125, 0])
     num_oris = len(ori_list)
     num_PC_used=15
     num_layers=2
-    n_noisy_trials=300
+    n_noisy_trials=100
     colors = ['black','blue', 'red']
     labels = ['pre-pretrained', 'post-pretrained','post-trained']
     start_time=time.time()
     mahal_train_control_mean=numpy.zeros((num_layers,3,N_trainings))
     mahal_untrain_control_mean=numpy.zeros((num_layers,3,N_trainings))
     for run_ind in range(N_trainings):
-        file_name = f"{folder}/results_train_only{run_ind}.csv"
+        file_name = f"{folder}/results_{run_ind}.csv"
         orimap_filename = f"{folder}/orimap_{run_ind}.npy"
+        if not os.path.exists(file_name):
+            file_name = f"{folder}/results_train_only{run_ind}.csv"
+            orimap_filename = os.path.dirname(folder)+f'/orimap_{run_ind}.npy'
+        
         loaded_orimap =  numpy.load(orimap_filename)
         untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                         loss_pars, training_pars, pretrain_pars, readout_pars, None, loaded_orimap)
@@ -236,7 +256,7 @@ def Mahalanobis_dist(N_trainings, folder):
                 axs[2+layer,1].text(untrain_SNR_mean, axs[2+layer,1].get_ylim()[1]*0.90, f'{untrain_SNR_mean:.2f}', color=colors[i], ha='center')
                 axs[2+layer,1].legend(loc='lower left')
                 print(time.time()-start_time)
-        fig.savefig(f"{folder}/Mahal_dist_{run_ind}_control_{ori_list[2]}")
+        fig.savefig(folder_to_save + '/' + file_name_to_save + f"_{run_ind}_control_{ori_list[2]}")
     fig, axs = plt.subplots(num_layers, num_oris-1, figsize=(10, 10))  # Plot for Mahalanobis distances and SNR
     bp = axs[0,0].boxplot(mahal_train_control_mean[0,:,:].T, labels=labels, patch_artist=True)
     axs[0,0].set_title(f'Mean Mahal dist: {layer_labels[0]} layer and {ori_list[0]} ori', fontsize=20)
@@ -254,4 +274,4 @@ def Mahalanobis_dist(N_trainings, folder):
     axs[1,1].set_title(f'Mean Mahal dist: {layer_labels[1]}  layer and {ori_list[1]} ori', fontsize=20)
     for box, color in zip(bp['boxes'], colors):
         box.set_facecolor(color)
-    fig.savefig(f"{folder}/Mahal_dist_mean_control_{ori_list[2]}")
+    fig.savefig(f"{folder_to_save}/Mahal_dist_mean_control_{ori_list[2]}")
