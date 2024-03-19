@@ -4,8 +4,10 @@ from scipy.stats import zscore
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import pandas as pd
+import pingouin as pg
 import time
 from scipy import ndimage
+from scipy.stats import ttest_1samp
 import os
 
 from pretraining_supp import load_parameters
@@ -142,18 +144,18 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
     return output, SGD_step_inds
 
 ######### Calculate Mahalanobis distance for before pretraining, after pretraining and after training - distance between trained and control should increase more than distance between untrained and control after training #########
-def Mahalanobis_dist(N_trainings, folder, folder_to_save, file_name_to_save):
+def Mahalanobis_dist(num_trainings, folder, folder_to_save, file_name_to_save):
     ori_list = numpy.asarray([55, 125, 0])
     num_oris = len(ori_list)
     num_PC_used=15
     num_layers=2
-    n_noisy_trials=100
+    num_noisy_trials=100
     colors = ['black','blue', 'red']
     labels = ['pre-pretrained', 'post-pretrained','post-trained']
     start_time=time.time()
-    mahal_train_control_mean=numpy.zeros((num_layers,3,N_trainings))
-    mahal_untrain_control_mean=numpy.zeros((num_layers,3,N_trainings))
-    for run_ind in range(N_trainings):
+    mahal_train_control_mean=numpy.zeros((num_layers,3,num_trainings))
+    mahal_untrain_control_mean=numpy.zeros((num_layers,3,num_trainings))
+    for run_ind in range(num_trainings):
         file_name = f"{folder}/results_{run_ind}.csv"
         orimap_filename = f"{folder}/orimap_{run_ind}.npy"
         if not os.path.exists(file_name):
@@ -163,10 +165,22 @@ def Mahalanobis_dist(N_trainings, folder, folder_to_save, file_name_to_save):
         loaded_orimap =  numpy.load(orimap_filename)
         untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                         loss_pars, training_pars, pretrain_pars, readout_pars, None, loaded_orimap)
-        r_mid_sup, SGD_inds = filtered_model_response(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = n_noisy_trials)
+        r_mid_sup, SGD_inds = filtered_model_response(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = num_noisy_trials)
         
         fig, axs = plt.subplots(2*num_layers, num_oris-1, figsize=(20, 30))  # Plot for Mahalanobis distances and SNR
         layer_labels = ['Sup', 'Mid']
+
+        train_within_all = numpy.zeros(num_layers,len(SGD_inds), num_noisy_trials)
+        untrain_within_all = numpy.zeros(num_layers,len(SGD_inds), num_noisy_trials)
+        train_control_all = numpy.zeros(num_layers,len(SGD_inds), num_noisy_trials)
+        untrain_control_all = numpy.zeros(num_layers,len(SGD_inds), num_noisy_trials)
+        train_SNR_all=numpy.zeros(num_layers,len(SGD_inds), num_noisy_trials)
+        untrain_SNR_all=numpy.zeros(num_layers,len(SGD_inds), num_noisy_trials)
+        LMI_across = numpy.zeros(num_layers, num_noisy_trials)
+        LMI_within = numpy.zeros(num_layers, num_noisy_trials)
+        LMI_ratio = numpy.zeros(num_layers, num_noisy_trials)
+        LMI_ttests = numpy.zeros(num_layers,3)
+        LMI_p_vals = numpy.zeros(num_layers,3)
         for layer in range(num_layers):
             for i in range(len(SGD_inds)):
                 mesh_step = r_mid_sup['SGD_step'] == SGD_inds[i]
@@ -181,6 +195,11 @@ def Mahalanobis_dist(N_trainings, folder, folder_to_save, file_name_to_save):
                 pca = PCA(n_components=num_PC_used)
                 score = pca.fit_transform(r_z)
                 r_pca = score[:, :num_PC_used]
+                
+                ## TO BE TESTED Get explained variance
+                #variance_explained = pca.explained_variance_ratio_
+                #for i, var in enumerate(variance_explained):
+                #    print(f"Variance explained by PC{i+1}: {var:.2%}")
 
                 # Separate data into orientation conditions
                 mesh_train = r_mid_sup['ori'] == ori_list[0]
@@ -203,9 +222,9 @@ def Mahalanobis_dist(N_trainings, folder, folder_to_save, file_name_to_save):
                 mahal_untrain_control_mean[layer,i,run_ind] = numpy.mean(mahal_untrain_control)
 
                 # Calculate the standard deviation
-                train_data_size = train_data.shape[0]
-                mahal_within_train = numpy.zeros((n_noisy_trials-1,train_data_size))
-                mahal_within_untrain = numpy.zeros((n_noisy_trials-1,train_data_size))
+                train_data_size = train_data.shape[0] # is it N_cells?
+                mahal_within_train = numpy.zeros((num_noisy_trials-1,train_data_size))
+                mahal_within_untrain = numpy.zeros((num_noisy_trials-1,train_data_size))
                 
                 # std of within group mahal distance
                 for trial in range(train_data_size):
@@ -218,17 +237,23 @@ def Mahalanobis_dist(N_trainings, folder, folder_to_save, file_name_to_save):
                     # Calculate distances
                     train_data_trial_2d = numpy.expand_dims(train_data[trial], axis=0)
                     untrain_data_trial_2d = numpy.expand_dims(untrain_data[trial], axis=0)
-                    mahal_within_train[:,trial] = mahal(train_data_temp, numpy.repeat(train_data_trial_2d,n_noisy_trials-1, axis=0))
-                    mahal_within_untrain[:,trial] = mahal(untrain_data_temp, numpy.repeat(untrain_data_trial_2d,n_noisy_trials-1, axis=0))
+                    mahal_within_train[:,trial] = mahal(train_data_temp, numpy.repeat(train_data_trial_2d,num_noisy_trials-1, axis=0))
+                    mahal_within_untrain[:,trial] = mahal(untrain_data_temp, numpy.repeat(untrain_data_trial_2d,num_noisy_trials-1, axis=0))
                     
-                # Calculate mean for each condition
-                mahal_within_train_mean = numpy.mean(mahal_within_train)
-                mahal_within_untrain_mean = numpy.mean(mahal_within_untrain)
+                # Save distances and ratios
+                train_within_all[layer,i,:] = mahal_within_train
+                untrain_within_all[layer,i,:] = mahal_within_untrain
+                train_control_all[layer,i,:] =mahal_train_control
+                untrain_control_all[layer,i,:] =mahal_untrain_control
+                train_SNR_all[layer,i,:] = mahal_train_control / mahal_within_train
+                untrain_SNR_all[layer,i,:] = mahal_untrain_control / mahal_within_untrain
                 
+                '''
                 # Calculate SNR
-                train_SNR = mahal_train_control / mahal_within_train_mean
-                untrain_SNR = mahal_untrain_control / mahal_within_untrain_mean
+                train_SNR = numpy.mean(mahal_train_control / mahal_within_train)
+                untrain_SNR = numpy.mean(mahal_untrain_control / mahal_within_untrain)
 
+                
                 # Plotting Mahal distances for trained ori
                 axs[layer,0].set_title(f'Mahalanobis dist: {layer_labels[layer]} layer, ori {ori_list[0]}')
                 axs[layer,0].hist(mahal_train_control, label=labels[i], color=colors[i], alpha=0.4)  
@@ -256,7 +281,39 @@ def Mahalanobis_dist(N_trainings, folder, folder_to_save, file_name_to_save):
                 axs[2+layer,1].text(untrain_SNR_mean, axs[2+layer,1].get_ylim()[1]*0.90, f'{untrain_SNR_mean:.2f}', color=colors[i], ha='center')
                 axs[2+layer,1].legend(loc='lower left')
                 print(time.time()-start_time)
+                
         fig.savefig(folder_to_save + '/' + file_name_to_save + f"_{run_ind}_control_{ori_list[2]}")
+        '''
+        # t-test on learning modulation index (LMI = [post-test ratio for trained orientation - pre-test ratio for trained orientation - post-test ratio for untrained orientation + pre-test ratio for untrained orientation]), 
+        LMI_across[layer,:] = (train_control_all[layer,len(SGD_inds),:] - train_control_all[layer,0,:]) - (untrain_control_all[layer,len(SGD_inds),:] - untrain_control_all[layer,0,:])
+        LMI_within[layer,:] = (train_within_all[layer,len(SGD_inds),:] - train_within_all[layer,0,:]) - (untrain_within_all[layer,len(SGD_inds),:] - untrain_within_all[layer,0,:])
+        LMI_ratio[layer,:] = (train_SNR_all[layer,len(SGD_inds),:] - train_SNR_all[layer,0,:]) - (untrain_SNR_all[layer,len(SGD_inds),:] - untrain_SNR_all[layer,0,:])
+        LMI_ttests[layer,0], LMI_p_vals[layer,0] = ttest_1samp(LMI_across[layer,:],0)
+        LMI_ttests[layer,1], LMI_p_vals[layer,1] = ttest_1samp(LMI_within[layer,:],0)
+        LMI_ttests[layer,2], LMI_p_vals[layer,2] = ttest_1samp(LMI_ratio[layer,:],0)
+        
+        ## TO BE TESTED For the ANOVA, we need to arrange the orientations (train_SNR_all and untrain_SNR_all) into a 2d numpy array, called data and then 
+        # factor1_levels = np.repeat(['pre', 'post'], repeats=num_noisy_trials)
+        # factor2_levels = np.tile(np.arange(1, 2), reps=num_noisy_trials)
+        # indices = np.column_stack((factor1_levels, factor2_levels))
+        # df = pd.DataFrame(data, index=indices)
+        # df.index.names = ['pre_or_post', 'orientations']
+        # df.reset_index(inplace=True)
+
+        ## Perform repeated measures ANOVA
+        ## Assuming 'subject' is the column containing the subject IDs
+        ## 'dv' is the dependent variable
+        ## 'within' specifies the repeated measures factors
+        ## 'subject' specifies the subject ID column
+        ## 'correction' specifies the correction method for violation of sphericity assumption
+        ## 'effsize' specifies the effect size calculation method
+        ## 'detailed' provides detailed ANOVA results
+        # rm_anova = pg.rm_anova(dv='dependent_variable_column', within=['Factor1', 'Factor2'], subject='subject', data=df, correction=True, effsize="np2", detailed=True)
+
+        ## Extract F-statistic and p-value
+        #F_statistic = rm_anova['F'][0]  # Extract F-statistic (index 0 because it's the first factor)
+        #p_value = rm_anova['p-unc'][0]  # Extract p-value (index 0 because it's the first factor)
+    '''
     fig, axs = plt.subplots(num_layers, num_oris-1, figsize=(10, 10))  # Plot for Mahalanobis distances and SNR
     bp = axs[0,0].boxplot(mahal_train_control_mean[0,:,:].T, labels=labels, patch_artist=True)
     axs[0,0].set_title(f'Mean Mahal dist: {layer_labels[0]} layer and {ori_list[0]} ori', fontsize=20)
@@ -275,3 +332,7 @@ def Mahalanobis_dist(N_trainings, folder, folder_to_save, file_name_to_save):
     for box, color in zip(bp['boxes'], colors):
         box.set_facecolor(color)
     fig.savefig(f"{folder_to_save}/Mahal_dist_mean_control_{ori_list[2]}")
+    '''
+    return LMI_ttests 
+
+    
