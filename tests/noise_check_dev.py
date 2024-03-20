@@ -4,7 +4,7 @@ import numpy
 import matplotlib.pyplot as plt
 import time
 
-from pretraining_supp import load_parameters, randomize_params
+from perturb_params import perturb_params
 from util import create_grating_pretraining
 from util_gabor import init_untrained_pars
 from parameters import (
@@ -33,7 +33,7 @@ batch_size=100
 true_accuracy_all = numpy.zeros((len(stimuli_pars_std_list), len(N_readout_noise_list), batch_size))
 for run_ind in range(N_trainings):
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, loss_pars, training_pars, pretrain_pars, readout_pars, None)
-    trained_pars_stage1, trained_pars_stage2, untrained_pars = randomize_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename='noise_test_orimap')
+    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename='noise_test_orimap')
     for i in range(len(stimuli_pars_std_list)):        
         untrained_pars.stimuli_pars.std=stimuli_pars_std_list[i]
         

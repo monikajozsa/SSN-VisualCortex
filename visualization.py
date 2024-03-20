@@ -547,7 +547,10 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
             # Create a new key by removing 'log' prefix
             new_key = key[4:]
             # Exponentiate the values and assign to the new key
-            trained_pars[new_key] = sep_exponentiate(trained_pars[key])
+            if numpy.isscalar(trained_pars[key]):
+                trained_pars[new_key] = numpy.exp(trained_pars[key])
+            else:
+                trained_pars[new_key] = sep_exponentiate(trained_pars[key])
     
     ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_m'])
     

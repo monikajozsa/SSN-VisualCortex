@@ -1,6 +1,5 @@
 #import matplotlib.pyplot as plt
 import numpy
-from PIL import Image
 import jax.numpy as np
 from jax import jit, lax, vmap
 
@@ -179,8 +178,7 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_laye
                 print('############## After 20 attemptsm the randomly generated maps did not pass the uniformity test ##############')
                 break
     
-    #gabor_filters, A, A2 = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
-    gabor_filters, A, A2 = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, ssn_layer_pars.gE_m, ssn_layer_pars.gI_m)
+    gabor_filters, A, A2 = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars)
     
     oris = ssn_ori_map.ravel()[:, None]
     ori_dist = cosdiff_ring(oris - oris.T, 180)
@@ -305,7 +303,6 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
 BW_image_vmap = vmap(BW_image_jax, in_axes=(None,None,None,None,None,None,0,0))
 # Compile the vectorized functions for performance
 BW_image_jit = jit(BW_image_vmap, static_argnums=[0])
-
 
 def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter):
     """
@@ -438,9 +435,7 @@ def create_gabor_filters_ori_map(
     ori_map,
     phases,
     filter_pars,
-    grid_pars,
-    gE,
-    gI
+    grid_pars
 ):
     """Create Gabor filters for each orientation in orimap."""
     e_filters = []
@@ -458,8 +453,8 @@ def create_gabor_filters_ori_map(
                 e_filters_pi2.append(gabor_2.ravel())
 
     e_filters_o = np.array(e_filters)
-    e_filters = gE * e_filters_o
-    i_filters = gI * e_filters_o
+    e_filters = filter_pars.gE_m * e_filters_o
+    i_filters = filter_pars.gI_m * e_filters_o
 
     # create filters with phase equal to pi
     e_off_filters = -e_filters
@@ -467,8 +462,8 @@ def create_gabor_filters_ori_map(
 
     if phases == 4:
         e_filters_o_pi2 = np.array(e_filters_pi2)
-        e_filters_pi2 = gE * e_filters_o_pi2
-        i_filters_pi2 = gI * e_filters_o_pi2
+        e_filters_pi2 = filter_pars.gE_m * e_filters_o_pi2
+        i_filters_pi2 = filter_pars.gI_m * e_filters_o_pi2
 
         # create filters with phase equal to -pi/2
         e_off_filters_pi2 = -e_filters_pi2
@@ -512,7 +507,7 @@ def create_gabor_filters_ori_map(
             phase=np.pi / 2
         )
 
-        SSN_filters = np.vstack( #*** Do sg with it, I got out of memory for 500 epochs...
+        SSN_filters = np.vstack(
             [
                 e_filters * A,
                 i_filters * A,

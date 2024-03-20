@@ -10,9 +10,8 @@ from scipy import ndimage
 from scipy.stats import ttest_1samp
 import os
 
-from pretraining_supp import load_parameters
 from model import vmap_evaluate_model_response
-from util import sep_exponentiate
+from util import sep_exponentiate, load_parameters
 from util_gabor import BW_image_jit_noisy, init_untrained_pars
 from SSN_classes import SSN_mid, SSN_sup
 from parameters import (
@@ -195,7 +194,7 @@ def Mahalanobis_dist(num_trainings, folder, folder_to_save, file_name_to_save):
                 pca = PCA(n_components=num_PC_used)
                 score = pca.fit_transform(r_z)
                 r_pca = score[:, :num_PC_used]
-                
+
                 ## TO BE TESTED Get explained variance
                 #variance_explained = pca.explained_variance_ratio_
                 #for i, var in enumerate(variance_explained):

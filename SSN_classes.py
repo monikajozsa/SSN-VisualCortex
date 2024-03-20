@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as np
-from jax import random
 from jax import lax
 
 
@@ -135,7 +134,6 @@ class SSN_sup(_SSN_Base):
 
         self.s_2x2 = s_2x2
         self.sigma_oris = sigma_oris
-        self.A=ssn_pars.A
      
         if kappa_pre==None:
             kappa_pre = np.asarray([ 0.0, 0.0])
@@ -153,8 +151,7 @@ class SSN_sup(_SSN_Base):
                     tauE=self.tau_vec[0], tauI=self.tau_vec[self.Ne])
     
         
-    def make_W(self, J_2x2, xy_dist, ori_dist, kappa_pre, kappa_post, Jnoise=0,
-                Jnoise_GAUSSIAN=True, MinSyn=1e-4, CellWiseNormalized=False): #, prngKey=0):
+    def make_W(self, J_2x2, xy_dist, ori_dist, kappa_pre, kappa_post, MinSyn=1e-4, CellWiseNormalized=False): #, prngKey=0):
             """
             make the full recurrent connectivity matrix W
             Input:
@@ -170,19 +167,11 @@ class SSN_sup(_SSN_Base):
             p_local = self.p_local
             trained_ori_dist = self.trained_ori_dist
             
-            #Reshape sigma_oris
-            if np.shape(sigma_oris) == (1,): sigma_oris = sigma_oris * np.ones((2,2))
-            elif np.shape(sigma_oris) == (2,): sigma_oris = np.ones((2,1)) * np.array(sigma_oris)
+            #Reshape sigma_oris, kappa pre and kappa post
+            sigma_oris = sigma_oris * np.ones((2,2))
+            kappa_pre = kappa_pre * np.ones((2,2))
+            kappa_post = kappa_post * np.ones((2,2))
             
-            #Reshape kappa pre
-            if np.shape(kappa_pre) == (1,): kappa_pre = kappa_pre * np.ones((2,2))
-            elif np.shape(kappa_pre) == (2,): kappa_pre = np.ones((2,1)) * np.array(kappa_pre) 
-            
-            #Reshape kappa post
-            if np.shape(kappa_post) == (1,): kappa_post = kappa_post * np.ones((2,2))
-            elif np.shape(kappa_post) == (2,): kappa_post = np.ones((2,1)) * np.array(kappa_post) 
-            
-
             if np.isscalar(s_2x2):
                 s_2x2 = s_2x2 * np.ones((2,2))
             else:
@@ -196,30 +185,14 @@ class SSN_sup(_SSN_Base):
             
             # loop over post- (a) and pre-synaptic (b) cell-types
             for a in range(2):
-                for b in range(2):
-                    
+                for b in range(2):                    
                     if b == 0: # E projections
-                        W = np.exp(-xy_dist/s_2x2[a,b] -ori_dist**2/(2*sigma_oris[a,b]**2) - kappa_post[a,b]*trained_ori_dist[:, None]**2/2 /45**2  -kappa_pre[a,b]*trained_ori_dist[None,:]**2/2/45**2 )
-                        
+                        W = np.exp(-xy_dist/s_2x2[a,b] -ori_dist**2/(2*sigma_oris[a,b]**2) - kappa_post[a,b]*trained_ori_dist[:, None]**2/2 /45**2  -kappa_pre[a,b]*trained_ori_dist[None,:]**2/2/45**2 )                        
                     elif b == 1: # I projections 
                         W = np.exp(-xy_dist**2/(2*s_2x2[a,b]**2) -ori_dist**2/(2*sigma_oris[a,b]**2) -kappa_post[a,b] * trained_ori_dist[:, None]**2/2/45**2  -kappa_pre[a,b]*trained_ori_dist[None,:]**2/2/45**2)
 
-
-                    if Jnoise > 0: # multiply W with 1+ Jnoise*jitter, where Jnoise is a given magnitude and jitter is a random matrix with elements from Gaussian or uniform distribution
-                        if Jnoise_GAUSSIAN:
-                            ##JAX CHANGES##
-                            key = random.PRNGKey(87)
-                            key, _ = random.split(key)
-                            jitter = random.normal(key, W.shape)
-                        else:
-                            ##JAX CHANGES##
-                            key = random.PRNGKey(87)
-                            key, _ = random.split(key)
-                            jitter = 2* random.uniform(key, W.shape) - 1
-                        W = (1 + Jnoise * jitter) * W
-
                     # sparsify (set small weights to zero)
-                    W = np.where(W < MinSyn, 0, W) # what's the point of this if not using sparse matrices
+                    W = np.where(W < MinSyn, 0, W)
 
                     # row-wise normalize
                     tW = np.sum(W, axis=1)
@@ -230,12 +203,11 @@ class SSN_sup(_SSN_Base):
                         W = W / tW[:, None]
 
                     # for E projections, add the local part
-                    # NOTE: alterntaively could do this before adding noise & normalizing
+                    # NOTE: alterntaively could do this before normalizing
                     if b == 0:
                         W = p_local[a] * np.eye(*W.shape) + (1-p_local[a]) * W
 
-                    Wblks[a][b] = J_2x2[a, b] * W
-            
+                    Wblks[a][b] = J_2x2[a, b] * W            
             
             W = np.block(Wblks)
             return W
@@ -286,10 +258,6 @@ class SSN_mid(_SSN_Base):
         super(SSN_mid, self).__init__(
             n=n, k=self.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs
         )
-
-        self.A = ssn_pars.A
-        if ssn_pars.phases == 4:
-            self.A2 = ssn_pars.A2
 
         self.make_W(J_2x2)
 

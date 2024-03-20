@@ -19,8 +19,8 @@ from parameters import (
     training_pars,
     loss_pars,
 )
-from save_code import save_code
-from pretraining_supp import randomize_params
+from util import save_code
+from perturb_params import perturb_params
 import visualization
 
 ssn_ori_map_loaded = np.load(os.path.join(os.getcwd(), "ssn_map_uniform_good.npy"))

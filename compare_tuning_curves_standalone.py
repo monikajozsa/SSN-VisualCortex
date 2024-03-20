@@ -1,3 +1,5 @@
+# MAIN SCRIPT STARTS AT ABOUT LINE 1700
+
 import os
 import math
 from PIL import Image
@@ -6,8 +8,12 @@ import numpy
 import jax.numpy as np
 from jax import random, vmap
 import pandas as pd
+import matplotlib.pyplot as plt
 
-from parameters import StimuliPars, ssn_pars, grid_pars, filter_pars, stimuli_pars, conv_pars
+from parameters import StimuliPars, ssn_pars, grid_pars, filter_pars, stimuli_pars, conv_pars, ssn_layer_pars, loss_pars, training_pars, pretrain_pars, readout_pars
+from visualization import tuning_curve
+from util_gabor import init_untrained_pars
+from util import load_parameters
 
 make_J2x2_o = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie,  -Jii]])
 
@@ -417,7 +423,7 @@ class BW_Grating:
             image = image[self.crop_f : -self.crop_f, self.crop_f : -self.crop_f]
     
         noise = numpy.random.normal(loc=0, scale=self.std, size=image.shape)
-        #print('noise std ', np.std(noise))
+
         image = image + noise
         
         return image
@@ -1595,14 +1601,14 @@ def surround_suppression(ssn_mid, ssn_sup, tuning_pars, conv_pars, radius_list, 
         tuning_pars.outer_radius = radii
         tuning_pars.inner_radius = radii*(2.5/3)
         
-        stimuli = create_grating_single(n_trials = 50, stimuli_pars = tuning_pars)
+        stimuli = create_grating_single(n_trials = 1, stimuli_pars = tuning_pars)#n_trials = 50
     
         _, _, _, _, [fp_mid, fp_sup] = vmap_two_layer_model(ssn_mid, ssn_sup, stimuli, conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
          
         #Take average over noisy trials
         all_responses_sup.append(fp_sup.mean(axis = 0))
         all_responses_mid.append(fp_mid.mean(axis = 0))
-        print('Mean population response {} (max in population {}), centre neurons {}'.format(fp_sup.mean(), fp_sup.max(), fp_sup.mean()))
+        #print('Mean population response {} (max in population {}), centre neurons {}'.format(fp_sup.mean(), fp_sup.max(), fp_sup.mean()))
     
     
     return np.vstack(all_responses_sup), np.vstack(all_responses_mid)
@@ -1614,7 +1620,6 @@ def response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I,
     #Initialize ssn
     ssn_mid=SSN2DTopoV1_ONOFF_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = constant_pars.gE[0], gI=constant_pars.gI[0], ori_map = constant_pars.ssn_ori_map)
     ssn_sup=SSN2DTopoV1(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_s, J_2x2=J_2x2_s, s_2x2=constant_pars.s_2x2, sigma_oris = constant_pars.sigma_oris, ori_map = constant_pars.ssn_ori_map, train_ori = trained_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
-
 
     responses_sup = []
     responses_mid = []
@@ -1633,99 +1638,7 @@ def response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I,
         
     return np.stack(responses_sup, axis = 2), np.stack(responses_mid, axis = 2)
 
-def init_set_func(init_set, conn_pars, ssn_pars, middle=False):
-    
-    
-    #ORIGINAL TRAINING!!
-    if init_set ==0:
-        Js0 = [1.82650658, 0.68194475, 2.06815311, 0.5106321]
-        gE, gI = 0.57328625, 0.26144141
-        sigEE, sigIE = 0.2, 0.40
-        sigEI, sigII = .09, .09
-        conn_pars.p_local = [0.4, 0.7]
-
-    if init_set ==1:
-        Js0 = [1.82650658, 0.68194475, 2.06815311, 0.5106321]
-        gE, gI = 0.37328625*1.5, 0.26144141*1.5
-        sigEE, sigIE = 0.2, 0.40
-        sigEI, sigII = .09, .09
-        conn_pars.p_local = [0.4, 0.7]
-
-    if init_set==2:
-        Js0 = [1.72881688, 1.29887564, 1.48514091, 0.76417991]
-        gE, gI = 0.5821754, 0.22660373
-        sigEE, sigIE = 0.225, 0.242
-        sigEI, sigII = .09, .09
-        conn_pars.p_local = [0.0, 0.0]
-    
-    if init_set ==3:
-        Js0 = [1.82650658, 0.68194475, 2.06815311, 0.5106321]
-        gE, gI = 1,1
-        sigEE, sigIE = 0.2, 0.40
-        sigEI, sigII = .09, .09
-        conn_pars.p_local = [0.4, 0.7]
-        
-    if init_set=='A':
-        Js0 = [2.5, 1.3, 2.4, 1.0]
-        gE, gI =  0.4, 0.4
-        print(gE, gI)
-        sigEE, sigIE = 0.2, 0.40
-        sigEI, sigII = .09, .09
-        conn_pars.p_local = [0.4, 0.7]
-        
-    if init_set=='C':
-        Js0 = [2.5, 1.3, 4.7, 2.2]
-        gE, gI =0.3, 0.25
-        sigEE, sigIE = 0.2, 0.40
-        sigEI, sigII = .09, .09
-        conn_pars.p_local = [0.4, 0.7]
-        
-    if middle:
-        conn_pars.p_local = [1, 1]
-        
-    if init_set =='C':
-        make_J2x2 = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie,  -Jii]])  * ssn_pars.psi
-    else:
-        make_J2x2 = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie,  -Jii]]) * np.pi * ssn_pars.psi
-        
-    J_2x2 = make_J2x2(*Js0)
-    s_2x2 = np.array([[sigEE, sigEI],[sigIE, sigII]])
-    
-    return J_2x2, s_2x2, gE, gI, conn_pars
-
-########################################
-# STARTING THE SCRIPT #
-#Reference orientation during training
-trained_ori = 55
-
-#Load stimuli parameters
-tuning_pars = StimuliPars()
-tuning_pars.jitter_val = 0
-print(tuning_pars.std)
-
-#Specify parameters not trained
-init_set_m ='C'
-init_set_s=1
-_, s_2x2, gE_s, gI_s, conn_pars_s  = init_set_func(init_set_s, conn_pars_s, ssn_pars)
-_, _, gE_m, gI_m, conn_pars_m  = init_set_func(init_set_m, conn_pars_m, ssn_pars, middle = True)
-gE = [gE_m, gE_s]
-gI = [gI_m, gI_s]
-
-
-#Superficial layer W parameters
-sigma_oris = np.asarray([90.0, 90.0])
-kappa_pre = np.asarray([ 0.0, 0.0])
-kappa_post = np.asarray([ 0.0, 0.0])
-
-
-#Load params from csv
-#Results filename where parameters are stored
-results_dir= os.path.join(os.getcwd(), 'results/11-12/noise200.0gE0.3_5')
-results_filename = os.path.join(results_dir, 'set_C_N_readout_125_results.csv')
-
-#Select epoch to load parameters from
-epoch = 685
-def load_param_from_csv(results_filename, epoch):
+def load_param_from_csv(results_filename, epoch, stage=0):
     
     '''
     Load parameters from csv file given file name and desired epoch.
@@ -1735,10 +1648,20 @@ def load_param_from_csv(results_filename, epoch):
     if epoch == -1:
         epoch_params = all_results.tail(1)
     else:
-        epoch_params = all_results.loc[all_results['epoch'] == epoch]
+        epoch_params = all_results.loc[all_results['SGD_steps'] == epoch]
+        epoch_params = epoch_params.loc[epoch_params['stage'] == stage]
+    
     params = []
-    J_m = [np.abs(epoch_params[i].values[0]) for i in ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m']]
-    J_s = [np.abs(epoch_params[i].values[0]) for i in ['J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']]
+    for key in epoch_params.keys():  # Use list to make a copy of keys to avoid RuntimeError
+        # Check if key starts with 'log'
+        if key.startswith('log_'):
+            # Create a new key by removing 'log_' prefix
+            new_key = key[4:]
+            # Exponentiate the values and assign to the new key
+            epoch_params[new_key] = numpy.exp(epoch_params[key])
+
+    J_m = [np.abs(epoch_params[i].values[0]) for i in ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II']]
+    J_s = [np.abs(epoch_params[i].values[0]) for i in ['J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II']]
 
 
     J_2x2_m = make_J2x2_o(*J_m)
@@ -1747,36 +1670,65 @@ def load_param_from_csv(results_filename, epoch):
     params.append(J_2x2_s)
 
     
-    if 'c_E' in all_results.columns:
+    if 'c_E' in epoch_params.columns:
         c_E = epoch_params['c_E'].values[0]
         c_I = epoch_params['c_I'].values[0]
         params.append(c_E)
         params.append(c_I)
     
-    if 'sigma_orisE' in all_results.columns:
+    if 'sigma_orisE' in epoch_params.columns:
         sigma_oris = np.asarray([epoch_params['sigma_orisE'].values[0], epoch_params['sigma_orisI'].values[0]])
         params.append(sigma_oris)
     
-    if 'f_E' in all_results.columns:
+    if 'f_E' in epoch_params.columns:
         f_E = epoch_params['f_E'].values[0]
         f_I = epoch_params['f_I'].values[0]
         params.append(f_E)
         params.append(f_I)
     
-    if 'kappa_preE' in all_results.columns:
+    if 'kappa_preE' in epoch_params.columns:
         kappa_pre = np.asarray([epoch_params['kappa_preE'].values[0], epoch_params['kappa_preI'].values[0]])
         kappa_post = np.asarray([epoch_params['kappa_postE'].values[0], epoch_params['kappa_postI'].values[0]])
         params.append(kappa_pre)
         params.append(kappa_post)
         
     return params
+
+########################################
+# STARTING THE MAIN SCRIPT #
+#Reference orientation during training
+trained_ori = stimuli_pars.ref_ori
+
+#Load stimuli parameters
+tuning_pars = StimuliPars()
+tuning_pars.jitter_val = 0
+
+#Specify parameters not trained
+gE = [filter_pars.gE_m, 0.0]
+gI = [filter_pars.gI_m, 0.0]
+s_2x2=ssn_layer_pars.s_2x2_s
+conn_pars_m.p_local = ssn_layer_pars.p_local_m
+conn_pars_s.p_local = ssn_layer_pars.p_local_s
+
+#Superficial layer W parameters
+sigma_oris = ssn_layer_pars.sigma_oris #np.asarray([90.0, 90.0])
+kappa_pre = ssn_layer_pars.kappa_pre #np.asarray([ 0.0, 0.0])
+kappa_post = ssn_layer_pars.kappa_post #np.asarray([ 0.0, 0.0])
+
+
+#Results filename where parameters are stored and step where we load the parameters from
+results_dir= os.path.join(os.getcwd(), 'results/Mar20_v0')
+results_filename = os.path.join(results_dir, 'results_0.csv')
+epoch = 0
+
 [J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I] = load_param_from_csv(results_filename = results_filename, epoch = epoch)
 
 
 #List of orientations and stimuli  radii
-ori_list = np.linspace(-35, 145, 61).astype(int)
-radius_list = np.asarray([3.0])
-ssn_ori_map_loaded = np.load(os.path.join(os.getcwd(), 'orientation_maps', 'ssn_map_uniform_good.npy'))
+ori_list = numpy.arange(0,180,200) #np.linspace(-35, 145, 61).astype(int)
+radius_list = np.asarray([stimuli_pars.outer_radius])
+#used for outer_radius = radii and inner_radius = radii*(2.5/3)
+ssn_ori_map_loaded = np.load(os.path.join(results_dir, 'orimap_0.npy'))
 
 #Collect constant parameters into single class
 class constant_pars:
@@ -1810,5 +1762,14 @@ run_dir = os.path.join(saving_dir, 'response_epoch'+str(epoch))
 ##################################################################
 
 response_matrix_contrast_sup, response_matrix_contrast_mid = response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I, constant_pars, tuning_pars, radius_list, ori_list, trained_ori = trained_ori)
+# Note that trained_ori = trained_ori does not matter because it only enters as a multiplicative of kappas that are zeros
+untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+                 loss_pars, training_pars, pretrain_pars, readout_pars, results_dir+ '/orimap_0.npy')
+_, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
+response_sup, response_mid = tuning_curve(untrained_pars, trained_pars_stage2, 'test_tc_Monika', ori_vec=ori_list)
+print(response_matrix_contrast_sup)
+print(response_sup)
+
+
 np.save(os.path.join(run_dir+'_sup.npy'), response_matrix_contrast_sup) 
 np.save(os.path.join(run_dir+'_mid.npy'), response_matrix_contrast_mid) 

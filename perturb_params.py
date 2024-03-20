@@ -12,7 +12,7 @@ from util_gabor import init_untrained_pars
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response, vmap_evaluate_model_response
 
-def perturb_params(param_dict, percent = 0.1):
+def perturb_params_supp(param_dict, percent = 0.1):
     param_perturbed = copy.deepcopy(param_dict)
     for key, param_array in param_dict.items():
         if type(param_array) == float:
@@ -22,7 +22,8 @@ def perturb_params(param_dict, percent = 0.1):
         param_perturbed[key] = param_array + percent * param_array * random_mtx
     return param_perturbed
 
-def randomize_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename=None, logistic_regr=True):
+
+def perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename=None, logistic_regr=True):
     #define the parameters that get perturbed
     pars_stage2_nolog = dict(J_m_temp=ssn_layer_pars.J_2x2_m, J_s_temp=ssn_layer_pars.J_2x2_s, c_E_temp=ssn_layer_pars.c_E, c_I_temp=ssn_layer_pars.c_I, f_E_temp=ssn_layer_pars.f_E, f_I_temp=ssn_layer_pars.f_I)
     
@@ -35,9 +36,9 @@ def randomize_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, 
     cond5 = False
 
     while not (cond1 and cond2 and cond3 and cond4 and cond5):
-        params_perturbed = perturb_params(pars_stage2_nolog, percent)
+        params_perturbed = perturb_params_supp(pars_stage2_nolog, percent)
         cond1 = np.abs(params_perturbed['J_m_temp'][0,0]*params_perturbed['J_m_temp'][1,1])*1.1 < np.abs(params_perturbed['J_m_temp'][1,0]*params_perturbed['J_m_temp'][0,1])
-        cond2 = np.abs(params_perturbed['J_m_temp'][0,1]*ssn_layer_pars.gI_m)*1.1 < np.abs(params_perturbed['J_m_temp'][1,1]*ssn_layer_pars.gE_m)
+        cond2 = np.abs(params_perturbed['J_m_temp'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < np.abs(params_perturbed['J_m_temp'][1,1]*untrained_pars.filter_pars.gE_m)
         # checking the convergence of the differential equations of the model
         ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=params_perturbed['J_m_temp'])
         ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=params_perturbed['J_s_temp'], p_local=untrained_pars.ssn_layer_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_layer_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
@@ -61,8 +62,8 @@ def randomize_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, 
         log_J_2x2_s= take_log(params_perturbed['J_s_temp']),
         c_E=params_perturbed['c_E_temp'],
         c_I=params_perturbed['c_I_temp'],
-        f_E=params_perturbed['f_E_temp'],
-        f_I=params_perturbed['f_I_temp'],
+        log_f_E=np.log(params_perturbed['f_E_temp']),
+        log_f_I=np.log(params_perturbed['f_I_temp']),
     )
     if logistic_regr:
         pars_stage1 = readout_pars_from_regr(readout_pars, pars_stage2, untrained_pars)
@@ -81,24 +82,23 @@ def readout_pars_from_regr(readout_pars, ssn_layer_pars_dict, untrained_pars, N=
     data = create_grating_pretraining(untrained_pars.pretrain_pars, N, untrained_pars.BW_image_jax_inp, numRnd_ori1=N)
     
     # Get model response for stimuli data['ref'] and data['target']
-    log_J_2x2_m = ssn_layer_pars_dict['log_J_2x2_m']
-    log_J_2x2_s = ssn_layer_pars_dict['log_J_2x2_s']
+    # 1. extract trained and untrained parameters
     c_E = ssn_layer_pars_dict['c_E']
     c_I = ssn_layer_pars_dict['c_I']
-    f_E = np.exp(ssn_layer_pars_dict['f_E'])
-    f_I = np.exp(ssn_layer_pars_dict['f_I'])
+    f_E = np.exp(ssn_layer_pars_dict['log_f_E'])
+    f_I = np.exp(ssn_layer_pars_dict['log_f_I'])
+    J_2x2_m = sep_exponentiate(ssn_layer_pars_dict['log_J_2x2_m'])
+    J_2x2_s = sep_exponentiate(ssn_layer_pars_dict['log_J_2x2_s'])
+
     kappa_pre = untrained_pars.ssn_layer_pars.kappa_pre
     kappa_post = untrained_pars.ssn_layer_pars.kappa_post
-    
     p_local_s = untrained_pars.ssn_layer_pars.p_local_s
     s_2x2 = untrained_pars.ssn_layer_pars.s_2x2_s
     sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris
     ref_ori = untrained_pars.stimuli_pars.ref_ori
-    
-    J_2x2_m = sep_exponentiate(log_J_2x2_m)
-    J_2x2_s = sep_exponentiate(log_J_2x2_s)
-
     conv_pars = untrained_pars.conv_pars
+
+    # 2. define middle layer and superficial layer SSN
     ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
     ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
@@ -128,34 +128,3 @@ def readout_pars_from_regr(readout_pars, ssn_layer_pars_dict, untrained_pars, N=
         readout_pars_opt['w_sig'] = w_sig[untrained_pars.middle_grid_ind]
     
     return readout_pars_opt
-
-
-def load_parameters(file_path, readout_grid_size=5, iloc_ind=-1):
-
-    # Get the last row of the given csv file
-    df = pd.read_csv(file_path)
-    selected_row = df.iloc[int(iloc_ind)]
-
-    # Extract stage 1 parameters from df
-    w_sig_keys = [f'w_sig_{i}' for i in range(1, readout_grid_size*readout_grid_size+1)] 
-    w_sig_values = selected_row[w_sig_keys].values
-    pars_stage1 = dict(w_sig=w_sig_values, b_sig=selected_row['b_sig'])
-
-    # Extract stage 2 parameters from df
-    J_m_keys = ['logJ_m_EE','logJ_m_EI','logJ_m_IE','logJ_m_II'] 
-    J_s_keys = ['logJ_s_EE','logJ_s_EI','logJ_s_IE','logJ_s_II']
-    J_m_values = selected_row[J_m_keys].values.reshape(2, 2)
-    J_s_values = selected_row[J_s_keys].values.reshape(2, 2)
-    
-    pars_stage2 = dict(
-        log_J_2x2_m = J_m_values,
-        log_J_2x2_s = J_s_values,
-        c_E=selected_row['c_E'],
-        c_I=selected_row['c_I'],
-        f_E=selected_row['f_E'],
-        f_I=selected_row['f_I'],
-    )
-    offsets  = df['offset'].dropna().reset_index(drop=True)
-    offset_last = offsets[len(offsets)-1]
-
-    return pars_stage1, pars_stage2, offset_last

@@ -1,13 +1,13 @@
 import numpy
 import time
-'''
+
 numpy.random.seed(10)
 
 from util_gabor import init_untrained_pars
-from util import save_code
+from util import save_code, load_parameters
 from training import train_ori_discr
 from visualization import tuning_curve
-from pretraining_supp import randomize_params, load_parameters
+from perturb_params import perturb_params
 from parameters import (
     grid_pars,
     filter_pars,
@@ -37,12 +37,12 @@ results_filename, final_folder_path = save_code()
 
 # Run N_training number of pretraining + training
 tc_ori_list = numpy.arange(0,180,2)
-N_training = 3
+N_training = 2
 starting_time_in_main= time.time()
 numFailedRuns = 0
 i=0
 while i < N_training and numFailedRuns < 20:
-
+    
     # Set pretraining flag to False
     pretrain_pars.is_on=True
     # Set offset and reference orientation to their initial values
@@ -67,7 +67,7 @@ while i < N_training and numFailedRuns < 20:
 
     # Perturb readout_pars and ssn_layer_pars by percent % and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
-    trained_pars_stage1, trained_pars_stage2, untrained_pars = randomize_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename=orimap_filename)
+    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename=orimap_filename)
 
     # Run pre-training
     training_output_df, pretraining_final_step = train_ori_discr(
@@ -100,9 +100,9 @@ while i < N_training and numFailedRuns < 20:
             results_filename=results_filename,
             jit_on=True
         )
-    
+
     # Calculate and save tuning curves
-    _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps[0]]))
+    _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps]))
     _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_prepre_filename, ori_vec=tc_ori_list)
     _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = pretraining_final_step)
     _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_postpre_filename, ori_vec=tc_ori_list)
@@ -129,7 +129,7 @@ while i < N_training and numFailedRuns < 20:
     
     # Calculate and save tuning curves
     trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
-    _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_pre_train_only_filename, ori_vec=tc_ori_list)
+    response_sup, response_mid = tuning_curve(untrained_pars, trained_pars_stage2, tc_pre_train_only_filename, ori_vec=tc_ori_list)
     trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename_train_only, iloc_ind = -1)
     _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_train_only_filename, ori_vec=tc_ori_list)
     
@@ -138,9 +138,9 @@ while i < N_training and numFailedRuns < 20:
     print('number of failed runs = ', numFailedRuns)
 
 ######### PLOT RESULTS ############
-'''
-final_folder_path='results/Mar14_v3'
-N_training=3
+
+#final_folder_path='results/Mar20_v6/results_0.csv'
+#N_training=3
 tc_ori_list = numpy.arange(0,180,2)
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features
 from Mahal_distances import Mahalanobis_dist

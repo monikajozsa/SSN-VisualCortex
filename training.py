@@ -130,15 +130,15 @@ def train_ori_discr(
                         log_J_2x2_s.append(ssn_layer_pars_dict['log_J_2x2_s'].ravel())
                         c_E.append(ssn_layer_pars_dict['c_E'])
                         c_I.append(ssn_layer_pars_dict['c_I'])
-                        f_E.append(ssn_layer_pars_dict['f_E'])
-                        f_I.append(ssn_layer_pars_dict['f_I'])
+                        log_f_E.append(ssn_layer_pars_dict['log_f_E'])
+                        log_f_I.append(ssn_layer_pars_dict['log_f_I'])
                 else:
                     log_J_2x2_m = [ssn_layer_pars_dict['log_J_2x2_m'].ravel()]
                     log_J_2x2_s = [ssn_layer_pars_dict['log_J_2x2_s'].ravel()]
                     c_E = [ssn_layer_pars_dict['c_E']]
                     c_I = [ssn_layer_pars_dict['c_I']]
-                    f_E = [ssn_layer_pars_dict['f_E']]
-                    f_I = [ssn_layer_pars_dict['f_I']]
+                    log_f_E = [ssn_layer_pars_dict['log_f_E']]
+                    log_f_I = [ssn_layer_pars_dict['log_f_I']]
                 w_sig_temp=readout_pars_dict['w_sig']
                 if 'w_sigs' in locals():
                     w_sigs.append(w_sig_temp[w_indices_to_save])
@@ -258,7 +258,7 @@ def train_ori_discr(
         
     # Create DataFrame and save the DataFrame to a CSV file
         
-    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I, offsets, offsets_at_bl_acc)
+    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets, offsets_at_bl_acc)
 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
@@ -323,27 +323,27 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, train
 
     Returns:
         tuple: Tuple containing loss, all_losses, accuracy, sig_input, sig_output, max_rates
+    Note that this is the only function where f_E and f_I are exponentiated.
     """
     
     pretraining = untrained_pars.pretrain_pars.is_on
-    log_J_2x2_m = ssn_layer_pars_dict['log_J_2x2_m']
-    log_J_2x2_s = ssn_layer_pars_dict['log_J_2x2_s']
-    c_E = ssn_layer_pars_dict['c_E']
-    c_I = ssn_layer_pars_dict['c_I']
-    f_E = np.exp(ssn_layer_pars_dict['f_E'])
-    f_I = np.exp(ssn_layer_pars_dict['f_I'])
-    kappa_pre = untrained_pars.ssn_layer_pars.kappa_pre
-    kappa_post = untrained_pars.ssn_layer_pars.kappa_post
     w_sig = readout_pars_dict['w_sig']
     b_sig = readout_pars_dict['b_sig']
+    c_E = ssn_layer_pars_dict['c_E']
+    c_I = ssn_layer_pars_dict['c_I']
+    f_E = np.exp(ssn_layer_pars_dict['log_f_E'])
+    f_I = np.exp(ssn_layer_pars_dict['log_f_I'])
+    log_J_2x2_m = ssn_layer_pars_dict['log_J_2x2_m']
+    log_J_2x2_s = ssn_layer_pars_dict['log_J_2x2_s']
+    J_2x2_m = sep_exponentiate(log_J_2x2_m)
+    J_2x2_s = sep_exponentiate(log_J_2x2_s) 
+
+    kappa_pre = untrained_pars.ssn_layer_pars.kappa_pre
+    kappa_post = untrained_pars.ssn_layer_pars.kappa_post    
     p_local_s = untrained_pars.ssn_layer_pars.p_local_s
     s_2x2 = untrained_pars.ssn_layer_pars.s_2x2_s
     sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris
     ref_ori = untrained_pars.stimuli_pars.ref_ori
-    
-    J_2x2_m = sep_exponentiate(log_J_2x2_m)
-    J_2x2_s = sep_exponentiate(log_J_2x2_s)   
-
     loss_pars = untrained_pars.loss_pars
     conv_pars = untrained_pars.conv_pars
 
@@ -548,7 +548,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
 
 ####### Function for creating DataFrame
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, f_E, f_I, offsets=None, offsets_at_bl_acc=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets=None, offsets_at_bl_acc=None):
     ''' This function collects different variables from training results into a dataframe.'''
     # Create an empty DataFrame and initialize it with stages, SGD steps, and training accuracies
     df = pd.DataFrame({
@@ -582,8 +582,8 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     
     # Add parameters that are trained in two stages during training and in one stage during pretraining
     max_stages = max(1,max(stages))
-    J_m_names = ['logJ_m_EE', 'logJ_m_EI', 'logJ_m_IE', 'logJ_m_II']
-    J_s_names = ['logJ_s_EE', 'logJ_s_EI', 'logJ_s_IE', 'logJ_s_II']
+    J_m_names = ['log_J_m_EE', 'log_J_m_EI', 'log_J_m_IE', 'log_J_m_II']
+    J_s_names = ['log_J_s_EE', 'log_J_s_EI', 'log_J_s_IE', 'log_J_s_II']
     for i in range(len(w_sigs[0])):
         weight_name = f'w_sig_{i+1}'
         df[weight_name] =  w_sigs[:,i]
@@ -594,8 +594,8 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         df[J_s_names[i]] = log_J_2x2_s[:,i]
     df['c_E']=c_E
     df['c_I']=c_I
-    df['f_E']=f_E
-    df['f_I']=f_I
+    df['log_f_E']=log_f_E
+    df['log_f_I']=log_f_I
 
     if max_stages==1:    
         df['offset']=None
