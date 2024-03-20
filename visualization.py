@@ -10,6 +10,7 @@ from model import evaluate_model_response
 from util import sep_exponentiate
 from SSN_classes import SSN_mid, SSN_sup
 from util_gabor import BW_image_jit
+#from compare_tuning_curves_standalone import two_layer_model, constant_to_vec
 
 ########### Plotting functions ##############
 def boxplots_from_csvs(directory, save_directory, plot_filename = None):
@@ -536,6 +537,7 @@ def calculate_relative_change(df):
     
     return relative_changes
 
+
 def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6)):
     '''
     Calculate responses of middle and superficial layers to different orientations.
@@ -566,6 +568,10 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
     for i in range(N_ori):
         ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_s'], p_local=untrained_pars.ssn_layer_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_layer_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
         _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, trained_pars['c_E'], trained_pars['c_I'], trained_pars['f_E'], trained_pars['f_I'], untrained_pars.gabor_filters)
+        # testing tuning curve differece ***
+        #constant_vector_mid = constant_to_vec(c_E = trained_pars['c_E'], c_I = trained_pars['c_I'], ssn= ssn_mid)
+        #constant_vector_sup = constant_to_vec(c_E = trained_pars['c_E'], c_I = trained_pars['c_I'], ssn = ssn_sup, sup=True)
+        #_, _, _, _, [fp_mid, fp_sup] = two_layer_model(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, constant_vector_mid, constant_vector_sup,trained_pars['f_E'], trained_pars['f_I'])
         if i==0:
             responses_mid = numpy.zeros((N_ori,len(r_mid_i)))
             responses_sup = numpy.zeros((N_ori,len(r_sup_i)))

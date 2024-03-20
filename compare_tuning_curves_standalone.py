@@ -12,8 +12,10 @@ import matplotlib.pyplot as plt
 
 from parameters import StimuliPars, ssn_pars, grid_pars, filter_pars, stimuli_pars, conv_pars, ssn_layer_pars, loss_pars, training_pars, pretrain_pars, readout_pars
 from visualization import tuning_curve
-from util_gabor import init_untrained_pars
+from util_gabor import init_untrained_pars, create_gabor_filters_ori_map
 from util import load_parameters
+from model import middle_layer_fixed_point as mlfp_mj
+from SSN_classes import SSN_mid
 
 make_J2x2_o = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie,  -Jii]])
 
@@ -178,21 +180,33 @@ class _SSN_Base(object):
         drdt = lambda r : self.drdt(r, inp_vec)
         if inp_vec.ndim > 1:
             drdt = lambda r : self.drdt_multi(r, inp_vec)
+
         r_fp, avg_dx = self.Euler2fixedpt_fullTmax(drdt, r_init, Tmax, dt, xtol=xtol, PLOT=PLOT, save=save)
 
         return r_fp, avg_dx
 
-############################################################    
-    def fixed_point_r_plot(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5, PLOT=True, save = None, inds=None, print_dt = False):
+    def fixed_point_r_mj(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5, xmin=1e-0):
+        
         if r_init is None:
             r_init = np.zeros(inp_vec.shape) # np.zeros((self.N,))
         drdt = lambda r : self.drdt(r, inp_vec)
-        print('Inp vec shape ', inp_vec.shape)
-        if inp_vec.ndim > 1:
-            drdt = lambda r : self.drdt_multi(r, inp_vec)
-        xvec, CONVG = Euler2fixedpt(dxdt=drdt, x_initial=r_init, Tmax=Tmax, dt=dt, xtol=xtol, PLOT=PLOT, save=save, inds=inds)
 
-        return xvec, CONVG
+        Nmax = int(Tmax/dt)
+        r_fp = r_init 
+        y = np.zeros(((Nmax)))  
+		
+        def loop(n, carry):
+            r_fp, y = carry
+            dr = drdt(r_fp) * dt
+            r_fp = r_fp + dr
+            y = y.at[n].set(np.abs( dr /np.maximum(xmin, np.abs(r_fp)) ).max())
+            return (r_fp, y)
+
+        r_fp, y = jax.lax.fori_loop(0, Nmax, loop, (r_fp, y))
+        
+        avg_dx = y[int(Nmax/2):int(Nmax)].mean()/xtol
+    
+        return r_fp, avg_dx
 
     
     #@partial(jax.jit, static_argnums=(0, 1, 3, 4, 5, 6, 7, 8), device = jax.devices()[1])
@@ -424,9 +438,9 @@ class BW_Grating:
     
         noise = numpy.random.normal(loc=0, scale=self.std, size=image.shape)
 
-        image = image + noise
+        image_noisy = image + noise
         
-        return image
+        return image_noisy
     
 ### FINDING CONSTANT FOR GABOR FILTERS ###
 def find_A(
@@ -807,31 +821,12 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
     def select_type(self, vec, map_number):
         out = vec[(map_number-1)*self.Nc:map_number*self.Nc]
         return out
-    
-    def select_type_old(self, vec, select='E_ON'):
-    
-        assert vec.ndim == 1
-        maps = self.vec2map(vec)
-
-        if select=='E_ON':
-            output = maps[0]
-
-        if select =='I_ON':
-            output=maps[1]
-
-        if select == 'E_OFF':
-            output=maps[2]
-
-        if select == 'I_OFF':
-            output = maps[3]
-    
-        return output
-    
+        
 
     def apply_bounding_box(self, vec, size = 3.2, select=1):
         
         Nx = self.grid_pars.gridsize_Nx
-        #map_vec = self.select_type(vec, select)
+
         map_vec = self.select_type(vec, map_number = select).reshape(Nx,Nx)
 
         size = int(size / (self.grid_pars.dx)) +1
@@ -842,8 +837,6 @@ class SSN2DTopoV1_ONOFF(_SSN_Base):
         #map_vec = map_vec[start:start+size, start:start+size]
 
         return map_vec
-    
-
 
 class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
 
@@ -901,181 +894,6 @@ class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
     def make_local_W(self, J_2x2):
         #self.W = np.kron(np.ones((2,2)), np.asarray(J_2x2))
         self.W = np.kron(np.eye(self.phases), np.asarray(J_2x2))
-
-
-class _SSN_Base(object):
-    def __init__(self, n, k, Ne, Ni, tau_vec=None, W=None):
-        self.n = n
-        self.k = k
-        self.Ne = Ne
-        self.Ni = Ni
-        self.N = self.Ne + self.Ni
-
-        ## JAX CHANGES ##
-        self.EI=[b"E"]*(self.Ne) + [b"I"]*(self.N - self.Ne)
-        self.condition= np.array([bool(self.EI[x]==b"E") for x in range(len(self.EI))])
-        
-        if tau_vec is not None:
-            self.tau_vec = tau_vec # rate time-consants of neurons. shape: (N,)
-        # elif  not hasattr(self, "tau_vec"):
-        #     self.tau_vec = np.random.rand(N) * 20 # in ms
-        if W is not None:
-            self.W = W # connectivity matrix. shape: (N, N)
-
-
-    @property
-    def neuron_params(self):
-        return dict(n=self.n, k=self.k)
-
-    @property
-    def dim(self):
-        return self.N
-
-    @property
-    def tau_x_vec(self):
-        """ time constants for the generalized state-vector, x """
-        return self.tau_vec
-
-
-    def powlaw(self, u):
-        return  self.k * np.maximum(0,u)**self.n
-
-    def drdt(self, r, inp_vec):
-
-        return ( -r + self.powlaw(self.W @ r + inp_vec) ) / self.tau_vec
-
-    def drdt_multi(self, r, inp_vec):
-        """
-        Compared to self.drdt allows for inp_vec and r to be
-        matrices with arbitrary shape[1]
-        """
-        return (( -r + self.powlaw(self.W @ r + inp_vec) ).T / self.tau_vec ).T
-
-    def dxdt(self, x, inp_vec):
-        """
-        allowing for descendent SSN types whose state-vector, x, is different
-        than the rate-vector, r.
-        """
-        return self.drdt(x, inp_vec)
-
-    def gains_from_v(self, v):
-        return self.n * self.k * np.maximum(0,v)**(self.n-1)
-
-    def gains_from_r(self, r):
-        return self.n * self.k**(1/self.n) * r**(1-1/self.n)
-
-    def DCjacobian(self, r):
-        """
-        DC Jacobian (i.e. zero-frequency linear response) for
-        linearization around rate vector r
-        """
-        Phi = self.gains_from_r(r)
-        return -np.eye(self.N) + Phi[:, None] * self.W
-
-    def jacobian(self, DCjacob=None, r=None):
-        """
-        dynamic Jacobian for linearization around rate vector r
-        """
-        if DCjacob is None:
-            assert r is not None
-            DCjacob = self.DCjacobian(r)
-        return DCjacob / self.tau_x_vec[:, None] # equivalent to np.diag(tau_x_vec) * DCjacob
-
-    def jacobian_eigvals(self, DCjacob=None, r=None):
-        Jacob = self.jacobian(DCjacob=DCjacob, r=r)
-        return np.linalg.eigvals(Jacob)
-
-    def inv_G(self, omega, DCjacob, r=None):
-        """
-        inverse Green's function at angular frequency omega,
-        for linearization around rate vector r
-        """
-        if DCjacob is None:
-            assert r is not None
-            DCjacob = self.DCjacobian(r)
-        return -1j*omega * np.diag(self.tau_x_vec) - DCjacob
-
-    def fixed_point_r(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5, PLOT=False, save=None):
-        if r_init is None:
-            r_init = np.zeros(inp_vec.shape) # np.zeros((self.N,))
-        drdt = lambda r : self.drdt(r, inp_vec)
-        if inp_vec.ndim > 1:
-            drdt = lambda r : self.drdt_multi(r, inp_vec)
-        
-        r_fp, avg_dx = self.Euler2fixedpt_fullTmax(dxdt=drdt, x_initial=r_init, Tmax=Tmax, dt=dt, xtol=xtol, PLOT=PLOT, save=save)
-       
-        #else:
-        #    return r_fp
-        return r_fp, avg_dx
-    
-    
-    def fixed_point_r_plot(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5, PLOT=True, save = None, inds=None, print_dt = False):
-        if r_init is None:
-            r_init = np.zeros(inp_vec.shape) # np.zeros((self.N,))
-        drdt = lambda r : self.drdt(r, inp_vec)
-        if inp_vec.ndim > 1:
-            drdt = lambda r : self.drdt_multi(r, inp_vec)
-        xvec, CONVG  = Euler2fixedpt(dxdt=drdt, x_initial=r_init, Tmax=Tmax, dt=dt, xtol=xtol, PLOT=PLOT, save=save, inds=inds, print_dt = print_dt)
-
-        return xvec, CONVG
-    
-    
-    #@partial(jax.jit, static_argnums=(0, 1, 3, 4, 5, 6, 7, 8))
-    def Euler2fixedpt_fullTmax(self, dxdt, x_initial, Tmax, dt, xtol=1e-5, xmin=1e-0, Tmin=200, PLOT= False, save=None):
-        
-        Nmax = int(Tmax/dt)
-        xvec = x_initial 
-        CONVG = False
-        y = np.zeros(((Nmax)))        
-        
-        
-        if PLOT:
-                #if inds is None:
-                #    N = x_initial.shape[0] # x_initial.size
-                #    inds = [int(N/4), int(3*N/4)]
-                #xplot = x_initial[inds][:,None]
-                
-                xplot_all = np.zeros(((Nmax+1)))
-                xplot_all = xplot_all.at[0].set(np.sum(xvec))
-
-                def loop(n, carry):
-                    xvec, y, xplot_all = carry
-                    dx = dxdt(xvec) * dt
-                    xvec = xvec + dx
-                    y = y.at[n].set(np.abs( dx /np.maximum(xmin, np.abs(xvec)) ).max())
-                    xplot_all = xplot_all.at[n+1].set(np.sum(xvec))
-                    return (xvec, y, xplot_all)
-
-                xvec, y, xplot_all = jax.lax.fori_loop(0, Nmax, loop, (xvec, y, xplot_all))
-            
-            
-        else:
-                
-                def loop(n, carry):
-                    xvec, y = carry
-                    dx = dxdt(xvec) * dt
-                    xvec = xvec + dx
-                    y = y.at[n].set(np.abs( dx /np.maximum(xmin, np.abs(xvec)) ).max())
-                    return (xvec, y)
-
-                xvec, y = jax.lax.fori_loop(0, Nmax, loop, (xvec, y))
-        
-        avg_dx = y[int(Nmax/2):int(Nmax)].mean()/xtol
-        
-        #CONVG = np.abs( dx /np.maximum(xmin, np.abs(xvec)) ).max() < xtol
-        
-        if PLOT:
-            import matplotlib.pyplot as plt
-            plt.figure(244459)
-            plt.plot(np.arange(Nmax+1)*dt, xplot_all) #Nmax+2
-            plt.title('Converged to sum of '+str(np.sum(xvec)))
-            
-            if save:
-                    plt.savefig(save+'.png')
-            plt.show()
-            plt.close()
-
-        return xvec, avg_dx
 
 # =========================== 2D topographic models ============================
 class SSN2DTopoV1(_SSN_Base):
@@ -1463,7 +1281,8 @@ def create_grating_single(stimuli_pars, n_trials = 10):
 def middle_layer_fixed_point(ssn, ssn_input, conv_pars, inhibition = False, PLOT=False, save=None, inds=None, return_fp = False, print_dt = False):
     
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars, PLOT = PLOT, save = save, inds = inds, print_dt = print_dt)
-    
+    # tested and are the same fp_mj, avg_dx_mj = ofp_mj(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
+
     #Add responses from E and I neurons
     fp_E_on = ssn.select_type(fp, map_number = 1)
     fp_E_off = ssn.select_type(fp, map_number = (ssn.phases+1))
@@ -1487,7 +1306,7 @@ def middle_layer_fixed_point(ssn, ssn_input, conv_pars, inhibition = False, PLOT
      
    
     #Loss for high rates
-   # r_max = homeo_loss(mean_E, max_E, R_mean_const = 6.1, R_max_const = 50) + homeo_loss(mean_I, max_I, R_mean_const = 10.3, R_max_const = 100)
+    # r_max = homeo_loss(mean_E, max_E, R_mean_const = 6.1, R_max_const = 50) + homeo_loss(mean_I, max_I, R_mean_const = 10.3, R_max_const = 100)
     r_max = np.maximum(0, (max_E/conv_pars.Rmax_E - 1)) + np.maximum(0, (max_I/conv_pars.Rmax_I - 1))
     #r_max = leaky_relu(r = max_E, R_thresh = conv_pars.Rmax_E, slope_2 = 1/conv_pars.Rmax_E) + leaky_relu(r = max_I, R_thresh = conv_pars.Rmax_I, slope_2 = 1/conv_pars.Rmax_I)
     
@@ -1497,6 +1316,7 @@ def middle_layer_fixed_point(ssn, ssn_input, conv_pars, inhibition = False, PLOT
     else:
         return layer_output, r_max, avg_dx
 
+
 def obtain_fixed_point(ssn, ssn_input, conv_pars, PLOT=False, save=None, inds=None, print_dt = False):
     
     r_init = np.zeros(ssn_input.shape[0])
@@ -1505,14 +1325,11 @@ def obtain_fixed_point(ssn, ssn_input, conv_pars, PLOT=False, save=None, inds=No
     Tmax = conv_pars.Tmax
     
     #Find fixed point
-    if PLOT==True:
-        fp, avg_dx = ssn.fixed_point_r_plot(ssn_input, r_init=r_init, dt=dt, xtol=xtol, Tmax=Tmax, PLOT=PLOT, save=save, inds=inds, print_dt = print_dt)
-    else:
-        fp, avg_dx = ssn.fixed_point_r(ssn_input, r_init=r_init, dt=dt, xtol=xtol, Tmax=Tmax, PLOT=PLOT, save=save)
+    fp, avg_dx = ssn.fixed_point_r(ssn_input, r_init=r_init, dt=dt, xtol=xtol, Tmax=Tmax, PLOT=PLOT, save=save)
+    #fp_mj, _ =  ssn.fixed_point_r_mj(ssn_input, r_init=r_init, dt=dt, xtol=xtol, Tmax=Tmax) # *** tested and it is ok
 
     avg_dx = np.maximum(0, (avg_dx -1))
     return fp, avg_dx
-
 
 
 def obtain_fixed_point_centre_E(ssn, ssn_input, conv_pars, inhibition = False, PLOT=False, save=None, inds=None, return_fp = False):
@@ -1572,8 +1389,9 @@ def two_layer_model(ssn_m, ssn_s, stimuli, conv_pars, constant_vector_mid, const
     SSN_mid_input = np.maximum(0, stimuli_gabor) + constant_vector_mid
     
     #Calculate steady state response of middle layer
-    r_mid, r_max_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid = middle_layer_fixed_point(ssn_m, SSN_mid_input, conv_pars, return_fp = True)
-
+    r_mid, r_max_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid = middle_layer_fixed_point(ssn_m, SSN_mid_input, conv_pars, return_fp = True) #***
+    #r_mid_mj, r_max_mid_mj, avg_dx_mid_mj, fp_mid_mj, max_E_mid_mj, max_I_mid_mj = mlfp_mj(ssn_m, SSN_mid_input, conv_pars, return_fp = True) #***
+    
     #Concatenate input to superficial layer
     sup_input_ref = np.hstack([r_mid*f_E, r_mid*f_I]) + constant_vector_sup
     
@@ -1604,6 +1422,7 @@ def surround_suppression(ssn_mid, ssn_sup, tuning_pars, conv_pars, radius_list, 
         stimuli = create_grating_single(n_trials = 1, stimuli_pars = tuning_pars)#n_trials = 50
     
         _, _, _, _, [fp_mid, fp_sup] = vmap_two_layer_model(ssn_mid, ssn_sup, stimuli, conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
+        #_, _, _, _, [fp_mid, fp_sup] = two_layer_model(ssn_mid, ssn_sup, stimuli[0,:], conv_pars, constant_vector_mid, constant_vector_sup, f_E, f_I)
          
         #Take average over noisy trials
         all_responses_sup.append(fp_sup.mean(axis = 0))
@@ -1611,7 +1430,7 @@ def surround_suppression(ssn_mid, ssn_sup, tuning_pars, conv_pars, radius_list, 
         #print('Mean population response {} (max in population {}), centre neurons {}'.format(fp_sup.mean(), fp_sup.max(), fp_sup.mean()))
     
     
-    return np.vstack(all_responses_sup), np.vstack(all_responses_mid)
+    return np.vstack(all_responses_sup), np.vstack(all_responses_mid), stimuli
 
 def response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I, constant_pars, tuning_pars, radius_list, ori_list, trained_ori):
     '''
@@ -1619,6 +1438,7 @@ def response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I,
     '''
     #Initialize ssn
     ssn_mid=SSN2DTopoV1_ONOFF_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = constant_pars.gE[0], gI=constant_pars.gI[0], ori_map = constant_pars.ssn_ori_map)
+    #ssn_mid.gabor_filters
     ssn_sup=SSN2DTopoV1(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_s, J_2x2=J_2x2_s, s_2x2=constant_pars.s_2x2, sigma_oris = constant_pars.sigma_oris, ori_map = constant_pars.ssn_ori_map, train_ori = trained_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
 
     responses_sup = []
@@ -1630,13 +1450,12 @@ def response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I,
     for i in range(len(ori_list)):
         
         #Find responses at different stimuli radii
-        x_response_sup, x_response_mid = surround_suppression(ssn_mid, ssn_sup, tuning_pars, conv_pars, radius_list, constant_vector_mid, constant_vector_sup, f_E, f_I, ref_ori = ori_list[i])
-        print(x_response_sup.shape)
-        #inputs.append(SSN_input)
+        x_response_sup, x_response_mid, stimuli = surround_suppression(ssn_mid, ssn_sup, tuning_pars, conv_pars, radius_list, constant_vector_mid, constant_vector_sup, f_E, f_I, ref_ori = ori_list[i])
+
         responses_sup.append(x_response_sup)
         responses_mid.append(x_response_mid)
         
-    return np.stack(responses_sup, axis = 2), np.stack(responses_mid, axis = 2)
+    return np.stack(responses_sup, axis = 2), np.stack(responses_mid, axis = 2), stimuli
 
 def load_param_from_csv(results_filename, epoch, stage=0):
     
@@ -1760,16 +1579,30 @@ if os.path.exists(saving_dir) == False:
 
 run_dir = os.path.join(saving_dir, 'response_epoch'+str(epoch))
 ##################################################################
-
-response_matrix_contrast_sup, response_matrix_contrast_mid = response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I, constant_pars, tuning_pars, radius_list, ori_list, trained_ori = trained_ori)
+ssn_mid=SSN2DTopoV1_ONOFF_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = constant_pars.gE[0], gI=constant_pars.gI[0], ori_map = constant_pars.ssn_ori_map)
+gabor_filters_cp=ssn_mid.gabor_filters
+A_cp=ssn_mid.A
+A2_cp=ssn_mid.A2
 # Note that trained_ori = trained_ori does not matter because it only enters as a multiplicative of kappas that are zeros
 untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, readout_pars, results_dir+ '/orimap_0.npy')
+gabor_filters_mj,A_mj,A2_mj= create_gabor_filters_ori_map(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars)
+print('Relative error in A and A2', [np.abs((A_cp-A_mj)/A_cp), np.abs((A2_cp-A2_mj)/A2_cp)])
+
+#response_matrix_contrast_sup, response_matrix_contrast_mid, stimuli = response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I, constant_pars, tuning_pars, radius_list, ori_list, trained_ori = trained_ori)
+
+ssn_mid_mj=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
+
+#r_mid_mj, r_max_mid_mj, avg_dx_mid_mj, fp_mid_mj, max_E_mid_mj, max_I_mid_mj = middle_layer_fixed_point_mj(ssn_mid_mj, stimuli[0,:], conv_pars, return_fp = True)
+    
 _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
 response_sup, response_mid = tuning_curve(untrained_pars, trained_pars_stage2, 'test_tc_Monika', ori_vec=ori_list)
-print(response_matrix_contrast_sup)
+#print(response_matrix_contrast_sup)
 print(response_sup)
 
-
-np.save(os.path.join(run_dir+'_sup.npy'), response_matrix_contrast_sup) 
-np.save(os.path.join(run_dir+'_mid.npy'), response_matrix_contrast_mid) 
+#np.save(os.path.join(run_dir+'_sup.npy'), response_matrix_contrast_sup) 
+#np.save(os.path.join(run_dir+'_mid.npy'), response_matrix_contrast_mid) 
+gabor_diff=numpy.zeros(648)
+for i in range(648):
+    gabor_diff[i]=np.mean(np.abs((gabor_filters_mj[i,:]-gabor_filters_cp[i,:])))
+print('Maximum difference in gabor filters=',np.max(gabor_diff))

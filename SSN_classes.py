@@ -281,19 +281,17 @@ class SSN_mid(_SSN_Base):
             n=self.n, k=self.k, tauE=self.tau_vec[0], tauI=self.tau_vec[self.Ne]
         )
     
-    def select_type(self, vec, map_numbers):
+    def select_type(self, vec, map_number):
+        out = vec[(map_number-1)*self.Nc:map_number*self.Nc]
+        return out
+    
+    def select_type_mj(self, vec, map_numbers):
         # Calculate start and end indices for each map_number
         start_indices = (map_numbers - 1) * self.Nc
-        #end_indices = map_numbers * self.Nc
-
-        # Use a list comprehension to extract slices for each map_number
-        #out = np.array([vec[start:end] for start, end in zip(start_indices, end_indices)])
-
-        # the code above does not work when jit is on!
+        
         out = []
         for start in start_indices:
             slice = lax.dynamic_slice(vec, (start,), (self.Nc,))
             out.append(slice)
 
-        out = np.array(out)
-        return out
+        return np.array(out)

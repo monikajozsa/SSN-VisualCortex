@@ -366,7 +366,7 @@ def gabor_filter(x_i, y_i,k,sigma_g,theta,edge_deg,degree_per_pixel,phase=0,conv
         # Calculate the Gaussian component of the Gabor filter
         gaussian = np.exp(-0.5 * (diff_x**2 + diff_y**2) / sigma_g**2)
 
-        return gaussian * spatial[::-1]  # same convention as stimuli
+        return np.array(gaussian * spatial[::-1])  # same convention as stimuli
 
         
 def find_gabor_A(
