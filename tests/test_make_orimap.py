@@ -11,11 +11,6 @@ import numpy
 
 numpy.random.seed(0)
 
-from util_gabor import create_gabor_filters_ori_map
-from util import save_code, cosdiff_ring
-from training import train_ori_discr
-from analysis import tuning_curves
-
 from parameters import pretrain_pars
 # Setting pretraining to be true
 pretrain_pars.is_on=True

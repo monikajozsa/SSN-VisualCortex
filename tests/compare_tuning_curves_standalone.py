@@ -1,5 +1,5 @@
 # MAIN SCRIPT STARTS AT ABOUT LINE 1700
-
+import time
 import os
 import math
 from PIL import Image
@@ -12,9 +12,10 @@ import matplotlib.pyplot as plt
 
 from parameters import StimuliPars, ssn_pars, grid_pars, filter_pars, stimuli_pars, conv_pars, ssn_layer_pars, loss_pars, training_pars, pretrain_pars, readout_pars
 from visualization import tuning_curve
-from util_gabor import init_untrained_pars, create_gabor_filters_ori_map
-from util import load_parameters
+from util_gabor import create_gabor_filters_ori_map, BW_image_jit, UntrainedPars, cosdiff_ring
+from util import sep_exponentiate, load_parameters
 from model import middle_layer_fixed_point as mlfp_mj
+from model import obtain_fixed_point as ofp_mj
 from SSN_classes import SSN_mid
 
 make_J2x2_o = lambda Jee, Jei, Jie, Jii: np.array([[Jee, -Jei], [Jie,  -Jii]])
@@ -877,10 +878,14 @@ class SSN2DTopoV1_ONOFF_local(SSN2DTopoV1_ONOFF):
         self.conv_factor =  filter_pars.conv_factor
         self.degree_per_pixel = filter_pars.degree_per_pixel
         
-        self.A=ssn_pars.A
-        if ssn_pars.phases==4:
-            self.A2 = ssn_pars.A2
-                
+        if hasattr(ssn_pars, 'A'): # mj deleted A and A2 from ssn_pars as there were out of use
+            self.A=ssn_pars.A
+            if ssn_pars.phases==4:
+                self.A2 = ssn_pars.A2
+        else:
+            self.A=None
+            self.A2=None
+                    
         self.gabor_filters, self.A = self.create_gabor_filters()
         
         self.make_local_W(J_2x2)
@@ -933,7 +938,10 @@ class SSN2DTopoV1(_SSN_Base):
         #self.conv_factor =  filter_pars.conv_factor
         #self.degree_per_pixel = filter_pars.degree_per_pixel
         
-        self.A=ssn_pars.A
+        if hasattr(ssn_pars,'A'):
+            self.A=ssn_pars.A
+        else:
+            self.A = None
      
         if kappa_pre==None:
             kappa_pre = np.asarray([ 0.0, 0.0])
@@ -1277,11 +1285,10 @@ def create_grating_single(stimuli_pars, n_trials = 10):
     
     return np.vstack([all_stimuli])
 
-
 def middle_layer_fixed_point(ssn, ssn_input, conv_pars, inhibition = False, PLOT=False, save=None, inds=None, return_fp = False, print_dt = False):
     
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars, PLOT = PLOT, save = save, inds = inds, print_dt = print_dt)
-    # tested and are the same fp_mj, avg_dx_mj = ofp_mj(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
+    fp_mj, avg_dx_mj = ofp_mj(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
 
     #Add responses from E and I neurons
     fp_E_on = ssn.select_type(fp, map_number = 1)
@@ -1316,7 +1323,6 @@ def middle_layer_fixed_point(ssn, ssn_input, conv_pars, inhibition = False, PLOT
     else:
         return layer_output, r_max, avg_dx
 
-
 def obtain_fixed_point(ssn, ssn_input, conv_pars, PLOT=False, save=None, inds=None, print_dt = False):
     
     r_init = np.zeros(ssn_input.shape[0])
@@ -1330,7 +1336,6 @@ def obtain_fixed_point(ssn, ssn_input, conv_pars, PLOT=False, save=None, inds=No
 
     avg_dx = np.maximum(0, (avg_dx -1))
     return fp, avg_dx
-
 
 def obtain_fixed_point_centre_E(ssn, ssn_input, conv_pars, inhibition = False, PLOT=False, save=None, inds=None, return_fp = False):
     
@@ -1390,7 +1395,7 @@ def two_layer_model(ssn_m, ssn_s, stimuli, conv_pars, constant_vector_mid, const
     
     #Calculate steady state response of middle layer
     r_mid, r_max_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid = middle_layer_fixed_point(ssn_m, SSN_mid_input, conv_pars, return_fp = True) #***
-    #r_mid_mj, r_max_mid_mj, avg_dx_mid_mj, fp_mid_mj, max_E_mid_mj, max_I_mid_mj = mlfp_mj(ssn_m, SSN_mid_input, conv_pars, return_fp = True) #***
+    r_mid_mj, r_max_mid_mj, avg_dx_mid_mj, fp_mid_mj, max_E_mid_mj, max_I_mid_mj = mlfp_mj(ssn_m, SSN_mid_input, conv_pars, return_fp = True) #***
     
     #Concatenate input to superficial layer
     sup_input_ref = np.hstack([r_mid*f_E, r_mid*f_I]) + constant_vector_sup
@@ -1471,17 +1476,9 @@ def load_param_from_csv(results_filename, epoch, stage=0):
         epoch_params = epoch_params.loc[epoch_params['stage'] == stage]
     
     params = []
-    for key in epoch_params.keys():  # Use list to make a copy of keys to avoid RuntimeError
-        # Check if key starts with 'log'
-        if key.startswith('log_'):
-            # Create a new key by removing 'log_' prefix
-            new_key = key[4:]
-            # Exponentiate the values and assign to the new key
-            epoch_params[new_key] = numpy.exp(epoch_params[key])
-
+    
     J_m = [np.abs(epoch_params[i].values[0]) for i in ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II']]
     J_s = [np.abs(epoch_params[i].values[0]) for i in ['J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II']]
-
 
     J_2x2_m = make_J2x2_o(*J_m)
     J_2x2_s = make_J2x2_o(*J_s)
@@ -1513,43 +1510,39 @@ def load_param_from_csv(results_filename, epoch, stage=0):
         
     return params
 
-########################################
-# STARTING THE MAIN SCRIPT #
-#Reference orientation during training
-trained_ori = stimuli_pars.ref_ori
+########################################################################################################################
+############################################### STARTING THE MAIN SCRIPT ###############################################
+########################################################################################################################
+start_time = time.time()
+# Define source file location and SGD_step to check the tuning curves on
+results_dir= os.path.join(os.getcwd(), 'results/Mar21_v5')
+results_filename = os.path.join(results_dir, 'results_0.csv')
+epoch = 0
+ori_list = numpy.arange(0,180,6)
+tc_cells=[10,40,100,130,650,690,740,760]
 
-#Load stimuli parameters
+# Setting up parameters for tuning curve calculation
+# stimuli parameters
+trained_ori = stimuli_pars.ref_ori
 tuning_pars = StimuliPars()
 tuning_pars.jitter_val = 0
+tuning_pars.std = 0.0
 
-#Specify parameters not trained
+# parameters not trained
 gE = [filter_pars.gE_m, 0.0]
 gI = [filter_pars.gI_m, 0.0]
 s_2x2=ssn_layer_pars.s_2x2_s
 conn_pars_m.p_local = ssn_layer_pars.p_local_m
 conn_pars_s.p_local = ssn_layer_pars.p_local_s
 
-#Superficial layer W parameters
+# Superficial layer W parameters
 sigma_oris = ssn_layer_pars.sigma_oris #np.asarray([90.0, 90.0])
 kappa_pre = ssn_layer_pars.kappa_pre #np.asarray([ 0.0, 0.0])
 kappa_post = ssn_layer_pars.kappa_post #np.asarray([ 0.0, 0.0])
 
-
-#Results filename where parameters are stored and step where we load the parameters from
-results_dir= os.path.join(os.getcwd(), 'results/Mar20_v0')
-results_filename = os.path.join(results_dir, 'results_0.csv')
-epoch = 0
-
 [J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I] = load_param_from_csv(results_filename = results_filename, epoch = epoch)
 
-
-#List of orientations and stimuli  radii
-ori_list = numpy.arange(0,180,200) #np.linspace(-35, 145, 61).astype(int)
-radius_list = np.asarray([stimuli_pars.outer_radius])
-#used for outer_radius = radii and inner_radius = radii*(2.5/3)
 ssn_ori_map_loaded = np.load(os.path.join(results_dir, 'orimap_0.npy'))
-
-#Collect constant parameters into single class
 class constant_pars:
     ssn_pars =ssn_pars
     s_2x2 = s_2x2
@@ -1565,44 +1558,99 @@ class constant_pars:
     ref_ori = stimuli_pars.ref_ori
     conv_pars = conv_pars
 
+#List of orientations and stimuli  radii
+radius_list = np.asarray([stimuli_pars.outer_radius]) # used for outer_radius = radii and inner_radius = radii*(2.5/3)
 
-#####################SAVE RESULTS ############################### 
-
-#Name of results csv
+# File handling
 home_dir = os.getcwd()
-
-#Specify folder to save results
 saving_dir =os.path.join(results_dir, 'response_matrices')
-
-if os.path.exists(saving_dir) == False:
-        os.makedirs(saving_dir)
-
 run_dir = os.path.join(saving_dir, 'response_epoch'+str(epoch))
-##################################################################
-ssn_mid=SSN2DTopoV1_ONOFF_local(ssn_pars=constant_pars.ssn_pars, grid_pars=constant_pars.grid_pars, conn_pars=constant_pars.conn_pars_m, filter_pars=constant_pars.filter_pars, J_2x2=J_2x2_m, gE = constant_pars.gE[0], gI=constant_pars.gI[0], ori_map = constant_pars.ssn_ori_map)
+
+ssn_mid=SSN2DTopoV1_ONOFF_local(ssn_pars=ssn_pars, grid_pars=grid_pars, conn_pars=conn_pars_m, filter_pars=filter_pars, J_2x2=J_2x2_m, gE = gE[0], gI=gI[0], ori_map = ssn_ori_map_loaded)
 gabor_filters_cp=ssn_mid.gabor_filters
 A_cp=ssn_mid.A
 A2_cp=ssn_mid.A2
+response_sup_clara, response_mid_clara, stimuli = response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I, constant_pars, tuning_pars, radius_list, ori_list, trained_ori = trained_ori)
 # Note that trained_ori = trained_ori does not matter because it only enters as a multiplicative of kappas that are zeros
-untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, results_dir+ '/orimap_0.npy')
-gabor_filters_mj,A_mj,A2_mj= create_gabor_filters_ori_map(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars)
-print('Relative error in A and A2', [np.abs((A_cp-A_mj)/A_cp), np.abs((A2_cp-A2_mj)/A2_cp)])
 
-#response_matrix_contrast_sup, response_matrix_contrast_mid, stimuli = response_matrix(J_2x2_m, J_2x2_s, kappa_pre, kappa_post, c_E, c_I, f_E, f_I, constant_pars, tuning_pars, radius_list, ori_list, trained_ori = trained_ori)
+################################
+########## MJ version ##########
+################################
 
-ssn_mid_mj=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
+gabor_filters_mj, A_mj, A2_mj = create_gabor_filters_ori_map(ssn_ori_map_loaded, ssn_pars.phases, filter_pars, grid_pars)
+oris = ssn_ori_map_loaded.ravel()[:, None]
+ori_dist = cosdiff_ring(oris - oris.T, 180)
+untrained_pars = UntrainedPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+                loss_pars, training_pars, pretrain_pars, ssn_ori_map_loaded, oris, ori_dist, gabor_filters_mj, 
+                readout_pars)
 
-#r_mid_mj, r_max_mid_mj, avg_dx_mid_mj, fp_mid_mj, max_E_mid_mj, max_I_mid_mj = middle_layer_fixed_point_mj(ssn_mid_mj, stimuli[0,:], conv_pars, return_fp = True)
-    
 _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
-response_sup, response_mid = tuning_curve(untrained_pars, trained_pars_stage2, 'test_tc_Monika', ori_vec=ori_list)
-#print(response_matrix_contrast_sup)
-print(response_sup)
 
-#np.save(os.path.join(run_dir+'_sup.npy'), response_matrix_contrast_sup) 
-#np.save(os.path.join(run_dir+'_mid.npy'), response_matrix_contrast_mid) 
+## this should be unnecessary as the trained pars are only used through trained_pars_stage2
+#untrained_pars.ssn_layer_pars.f_E=np.exp(trained_pars_stage2['log_f_E'])
+#untrained_pars.ssn_layer_pars.f_I=np.exp(trained_pars_stage2['log_f_E'])
+#untrained_pars.ssn_layer_pars.c_E=trained_pars_stage2['c_E']
+#untrained_pars.ssn_layer_pars.c_I=trained_pars_stage2['c_I']
+#untrained_pars.ssn_layer_pars.J_2x2_s=sep_exponentiate(trained_pars_stage2['log_J_2x2_s'])
+#untrained_pars.ssn_layer_pars.J_2x2_m=sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
+
+response_sup_monika, response_mid_monika = tuning_curve(untrained_pars, trained_pars_stage2, 'test_tc_Monika', ori_vec=ori_list)
+
 gabor_diff=numpy.zeros(648)
 for i in range(648):
     gabor_diff[i]=np.mean(np.abs((gabor_filters_mj[i,:]-gabor_filters_cp[i,:])))
+
+# Printing metrics on mismatch (1-2% difference is accaptable)
+
+print('Relative error in A and A2', [np.abs((A_cp-A_mj)/A_cp), np.abs((A2_cp-A2_mj)/A2_cp)])
+print('Maximum relative error in mid and sup layer responses=', float(np.max((response_mid_clara[0,:,0]-response_mid_monika[0,:])/response_mid_clara[0,:,0])), float(np.max((response_sup_clara[0,:,0]-response_sup_monika[0,:])/response_sup_clara[0,:,0])))
 print('Maximum difference in gabor filters=',np.max(gabor_diff))
+print(time.time()-start_time)
+# Plotting tuning curves
+num_tc_cells=len(tc_cells)
+num_mid_cells=response_mid_monika.shape[1]
+fig, axes = plt.subplots(nrows=2, ncols=num_tc_cells, figsize=(5*num_tc_cells, 5*2))
+
+for i in range(num_tc_cells):
+    axes[1,i].axis('off')  # Hide axis for the print statements
+    if tc_cells[i]<num_mid_cells:
+        axes[0,i].plot(ori_list,response_mid_monika[:,tc_cells[i]-1], label=f'cell {tc_cells[i]} MJ', lw=4)
+        axes[0,i].plot(ori_list,response_mid_clara[0,tc_cells[i]-1,:], label=f'cell {tc_cells[i]} CP')
+    else:
+        axes[0,i].plot(ori_list,response_sup_monika[:,tc_cells[i]-num_mid_cells-1], label=f'cell {tc_cells[i]} MJ', lw=4)
+        axes[0,i].plot(ori_list,response_sup_clara[0,tc_cells[i]-num_mid_cells-1,:], label=f'cell {tc_cells[i]} CP')
+    axes[0,i].legend(loc='upper left', fontsize=20)
+# Plot print statements
+axes[1,0].text(0, 0.25, f'Relative error in A and A2: {np.abs((A_cp - A_mj) / A_cp)}, {np.abs((A2_cp - A2_mj) / A2_cp)}', fontsize=20)
+axes[1,0].text(0, 0.5, f'Max relative error in mid and sup layer responses: {float(np.max((response_mid_clara[0, :, 0] - response_mid_monika[0, :]) / response_mid_clara[0, :, 0]))}, {float(np.max((response_sup_clara[0, :, 0] - response_sup_monika[0, :]) / response_sup_clara[0, :, 0]))}', fontsize=20)
+axes[1,0].text(0, 0.75, f'Max difference in gabor filters: {np.max(gabor_diff)}', fontsize=20)
+
+plt.savefig('Tuning_curve_comparision')
+
+'''
+## Additional code, comparing middle_layer_fixed_point on the same stimulus
+# Generate stimulus
+x = untrained_pars.BW_image_jax_inp[5]
+y = untrained_pars.BW_image_jax_inp[6]
+alpha_channel = untrained_pars.BW_image_jax_inp[7]
+mask = untrained_pars.BW_image_jax_inp[8]
+background = untrained_pars.BW_image_jax_inp[9]
+
+stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, np.array([0]), np.zeros(1))
+stimuli_gabor=np.transpose(np.matmul(gabor_filters_cp, np.transpose(stimuli)))
+constant_vector_mid = constant_to_vec(c_E = c_E, c_I = c_I, ssn= ssn_mid)
+constant_vector_mid = np.expand_dims(constant_vector_mid, axis=0)
+SSN_mid_input = np.maximum(0, stimuli_gabor) + constant_vector_mid
+    
+_, _, _, fp_mid_clara, _, _ = middle_layer_fixed_point(ssn_mid, SSN_mid_input[0,:], conv_pars, return_fp = True)
+
+# getting the middle layer fixed point from MJ code
+ssn_mid_mj=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
+stimuli_gabor=np.transpose(np.matmul(gabor_filters_mj, np.transpose(stimuli)))
+SSN_mid_input = np.maximum(0, stimuli_gabor) + constant_vector_mid
+constant_vector_mid = constant_to_vec(c_E = c_E, c_I = c_I, ssn= ssn_mid_mj)
+SSN_mid_input = np.maximum(0, stimuli_gabor) + constant_vector_mid
+_, _, _, fp_mid_v2, _, _ = mlfp_mj(ssn_mid_mj, SSN_mid_input[0,:], conv_pars, return_fp = True)
+
+print('Relative error in the output of middle layer fixed point=',np.max((fp_mid_v2-fp_mid_clara)/fp_mid_v2))
+'''

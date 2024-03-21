@@ -20,9 +20,9 @@ class PreTrainPars:
     ''' minimum SGD step where accuracy check happens for the training task '''
     offset_threshold = 5
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
-    batch_size = 10
+    batch_size = 100
     ''' number of trials per SGD step during pretraining '''
-    SGD_steps = 80
+    SGD_steps = 1000
     ''' maximum number of SGD steps during pretraining '''
 
 pretrain_pars = PreTrainPars()
@@ -33,11 +33,11 @@ pretrain_pars = PreTrainPars()
 class TrainingPars:
     eta = 2*10e-4 
     '''learning rate - the maximum rate of parameter change in one SGD step'''
-    batch_size = 5
+    batch_size = 50
     '''number of trials per SGD step'''
     noise_type = "poisson"
     '''there is an additive Gaussian noise to the model output (rates) that is related to parameters N_readout and dt'''
-    SGD_steps = 50 
+    SGD_steps = 500 
     '''number of SGD step'''
     validation_freq = 30  
     '''frequency of validation loss and accuracy calculation'''
@@ -153,7 +153,7 @@ class StimuliPars:
     ''' outer radius of the stimulus, inner_radius and outer_radius define how the edge of the stimulus fades away to the gray background '''
     grating_contrast: float = 0.8 
     ''' contrast of darkest and lightest point in the grid - see Current Biology paper from 2020 '''
-    std: float = 0.0 # 75.0
+    std: float = 200.0
     ''' Gaussian white noise added to the stimulus '''
     jitter_val: float = 5.0
     ''' constant that defines and interval [-jitter_val, jitter_val] from where jitter (same applied for reference an target stimuli orientation) is randomly taken '''
@@ -213,8 +213,6 @@ class SSNPars:
     ''' time constant for inhibitory neurons in ms '''
     phases = 4 
     ''' number of inh. and exc. neurons (with different Gabor filt.) per grid point in middle layer (has to be an even integer) '''
-    A = None  # out of use, only kept for testing with old code
-    A2 = None  # out of use, only kept for testing with old code
 
 ssn_pars = SSNPars()
 

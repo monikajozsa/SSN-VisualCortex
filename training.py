@@ -333,10 +333,8 @@ def loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, train
     c_I = ssn_layer_pars_dict['c_I']
     f_E = np.exp(ssn_layer_pars_dict['log_f_E'])
     f_I = np.exp(ssn_layer_pars_dict['log_f_I'])
-    log_J_2x2_m = ssn_layer_pars_dict['log_J_2x2_m']
-    log_J_2x2_s = ssn_layer_pars_dict['log_J_2x2_s']
-    J_2x2_m = sep_exponentiate(log_J_2x2_m)
-    J_2x2_s = sep_exponentiate(log_J_2x2_s) 
+    J_2x2_m = sep_exponentiate(ssn_layer_pars_dict['log_J_2x2_m'])
+    J_2x2_s = sep_exponentiate(ssn_layer_pars_dict['log_J_2x2_s']) 
 
     kappa_pre = untrained_pars.ssn_layer_pars.kappa_pre
     kappa_post = untrained_pars.ssn_layer_pars.kappa_post    
@@ -582,20 +580,26 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     
     # Add parameters that are trained in two stages during training and in one stage during pretraining
     max_stages = max(1,max(stages))
-    J_m_names = ['log_J_m_EE', 'log_J_m_EI', 'log_J_m_IE', 'log_J_m_II']
-    J_s_names = ['log_J_s_EE', 'log_J_s_EI', 'log_J_s_IE', 'log_J_s_II']
-    for i in range(len(w_sigs[0])):
-        weight_name = f'w_sig_{i+1}'
-        df[weight_name] =  w_sigs[:,i]
-    df['b_sig'] = b_sigs
+    log_J_m_names = ['log_J_m_EE', 'log_J_m_EI', 'log_J_m_IE', 'log_J_m_II']
+    log_J_s_names = ['log_J_s_EE', 'log_J_s_EI', 'log_J_s_IE', 'log_J_s_II']
+    J_m_names = ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II']
+    J_s_names = ['J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II']
+    J_2x2_m=np.transpose(np.array([np.exp(log_J_2x2_m[:,0]),-np.exp(log_J_2x2_m[:,1]),np.exp(log_J_2x2_m[:,2]),-np.exp(log_J_2x2_m[:,3])]))
+    J_2x2_s=np.transpose(np.array([np.exp(log_J_2x2_s[:,0]),-np.exp(log_J_2x2_s[:,1]),np.exp(log_J_2x2_s[:,2]),-np.exp(log_J_2x2_s[:,3])]))
     for i in range(len(log_J_2x2_m[0])):
-        df[J_m_names[i]] = log_J_2x2_m[:,i]
+        df[log_J_m_names[i]] = log_J_2x2_m[:,i]
     for i in range(len(log_J_2x2_s[0])):
-        df[J_s_names[i]] = log_J_2x2_s[:,i]
+        df[log_J_s_names[i]] = log_J_2x2_s[:,i]
+    for i in range(len(log_J_2x2_m[0])):
+        df[J_m_names[i]] = J_2x2_m[:,i]
+    for i in range(len(log_J_2x2_s[0])):
+        df[J_s_names[i]] = J_2x2_s[:,i]
     df['c_E']=c_E
     df['c_I']=c_I
     df['log_f_E']=log_f_E
     df['log_f_I']=log_f_I
+    df['f_E']=[np.exp(log_f_E[i]) for i in range(len(log_f_E))]
+    df['f_I']=[np.exp(log_f_I[i]) for i in range(len(log_f_I))]
 
     if max_stages==1:    
         df['offset']=None
@@ -606,4 +610,8 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         if offsets is not None:
             df['offset']= offsets
             
+    for i in range(len(w_sigs[0])):
+        weight_name = f'w_sig_{i+1}'
+        df[weight_name] =  w_sigs[:,i]
+    df['b_sig'] = b_sigs
     return df

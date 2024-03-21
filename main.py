@@ -37,7 +37,7 @@ results_filename, final_folder_path = save_code()
 
 # Run N_training number of pretraining + training
 tc_ori_list = numpy.arange(0,180,2)
-N_training = 2
+N_training = 1
 starting_time_in_main= time.time()
 numFailedRuns = 0
 i=0
@@ -139,29 +139,29 @@ while i < N_training and numFailedRuns < 20:
 
 ######### PLOT RESULTS ############
 
-#final_folder_path='results/Mar20_v6/results_0.csv'
-#N_training=3
+#final_folder_path='results/Mar21_v3'
+#N_training=1
 tc_ori_list = numpy.arange(0,180,2)
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features
-from Mahal_distances import Mahalanobis_dist
-num_rnd_cells=5
+#from Mahal_distances import Mahalanobis_dist
+tc_cells=[10,40,100,130,650,690,740,760]
 
 ## Pretraining + training
 folder_to_save = final_folder_path + '/figures'
-boxplot_file_name = 'boxplot_pretraining'
-mahal_file_name = 'Mahal_dist'
+#boxplot_file_name = 'boxplot_pretraining'
+#mahal_file_name = 'Mahal_dist'
 plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save)
-boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name)
-Mahalanobis_dist(N_training, final_folder_path, folder_to_save, mahal_file_name)
-plot_tc_features(final_folder_path, N_training, tc_ori_list)
-plot_tuning_curves(final_folder_path,num_rnd_cells,N_training,folder_to_save)
+#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name)
+#Mahalanobis_dist(N_training, final_folder_path, folder_to_save, mahal_file_name)
+#plot_tc_features(final_folder_path, N_training, tc_ori_list)
+plot_tuning_curves(final_folder_path,tc_cells,N_training,folder_to_save)
 
 ## Training only
-boxplot_file_name_train_only = 'boxplot_train_only'
 final_folder_path_train_only = final_folder_path + '/train_only'
-mahal_file_name_train_only = 'Mahal_dist_train_only'
+#boxplot_file_name_train_only = 'boxplot_train_only'
+#mahal_file_name_train_only = 'Mahal_dist_train_only'
 plot_results_from_csvs(final_folder_path_train_only, N_training, folder_to_save=folder_to_save)
-boxplots_from_csvs(final_folder_path_train_only,folder_to_save, boxplot_file_name_train_only)
-Mahalanobis_dist(N_training, final_folder_path_train_only, folder_to_save, mahal_file_name_train_only)
-plot_tc_features(final_folder_path_train_only, N_training, tc_ori_list, train_only_str='train_only_')
-plot_tuning_curves(final_folder_path_train_only,num_rnd_cells,N_training,folder_to_save,train_only_str='train_only_')
+#boxplots_from_csvs(final_folder_path_train_only,folder_to_save, boxplot_file_name_train_only)
+#Mahalanobis_dist(N_training, final_folder_path_train_only, folder_to_save, mahal_file_name_train_only)
+#plot_tc_features(final_folder_path_train_only, N_training, tc_ori_list, train_only_str='train_only_')
+plot_tuning_curves(final_folder_path_train_only,tc_cells,N_training,folder_to_save,train_only_str='train_only_')
