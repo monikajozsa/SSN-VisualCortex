@@ -123,13 +123,13 @@ def plot_tuning_curves(folder_path,tc_cells,num_runs,folder_to_save,train_only_s
             else:
                 ax1=axes[j,i]
                 ax2=axes[j,int(num_rnd_cells/2)+i]
-            ax1.plot(range(num_oris), df_tc_pre_pretrain.iloc[:,selected_mid_col_inds[i]], label='pre-pretraining',linewidth=2)
-            ax2.plot(range(num_oris), df_tc_pre_pretrain.iloc[:,selected_sup_col_inds[i]], label='pre-pretraining',linewidth=2)
-            ax1.plot(range(num_oris), df_tc_post_train.iloc[:,selected_mid_col_inds[i]], label='post-training',linewidth=2)
-            ax2.plot(range(num_oris), df_tc_post_train.iloc[:,selected_sup_col_inds[i]], label='post-training',linewidth=2)
+            ax1.plot(range(num_oris), df_tc_pre_pretrain.iloc[:,selected_mid_col_inds[i]], label='initial',linewidth=2)
+            ax2.plot(range(num_oris), df_tc_pre_pretrain.iloc[:,selected_sup_col_inds[i]], label='initial',linewidth=2)
             if pretrain_ison:
                 ax1.plot(range(num_oris), df_tc_post_pretrain.iloc[:,selected_mid_col_inds[i]], label='post-pretraining',linewidth=2)
                 ax2.plot(range(num_oris), df_tc_post_pretrain.iloc[:,selected_sup_col_inds[i]], label='post-pretraining',linewidth=2)
+            ax1.plot(range(num_oris), df_tc_post_train.iloc[:,selected_mid_col_inds[i]], label='post-training',linewidth=2)
+            ax2.plot(range(num_oris), df_tc_post_train.iloc[:,selected_sup_col_inds[i]], label='post-training',linewidth=2)
             
             ax1.set_title(f'Middle layer cell {i}', fontsize=20)
             ax2.set_title(f'Superficial layer, cell {i}', fontsize=20)

@@ -102,7 +102,7 @@ while i < N_training and numFailedRuns < 20:
         )
 
     # Calculate and save tuning curves
-    _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = numpy.min([10,training_pars.SGD_steps]))
+    _, trained_pars_stage2, _ = load_parameters(results_filename, 0)
     _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_prepre_filename, ori_vec=tc_ori_list)
     _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = pretraining_final_step)
     _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_postpre_filename, ori_vec=tc_ori_list)
@@ -128,8 +128,8 @@ while i < N_training and numFailedRuns < 20:
         )
     
     # Calculate and save tuning curves
-    trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
-    response_sup, response_mid = tuning_curve(untrained_pars, trained_pars_stage2, tc_pre_train_only_filename, ori_vec=tc_ori_list)
+    trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename_train_only, iloc_ind = 0)
+    _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_pre_train_only_filename, ori_vec=tc_ori_list)
     trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename_train_only, iloc_ind = -1)
     _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_train_only_filename, ori_vec=tc_ori_list)
     
@@ -139,7 +139,7 @@ while i < N_training and numFailedRuns < 20:
 
 ######### PLOT RESULTS ############
 
-#final_folder_path='results/Mar21_v3'
+#final_folder_path='results/Mar21_v5'
 #N_training=1
 tc_ori_list = numpy.arange(0,180,2)
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features
