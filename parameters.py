@@ -187,8 +187,8 @@ class ReadoutPars:
     ''' indices of the middle grid when grid is flattened '''
     # Define w_sig - its size depends on whether pretraining is on
     if pretrain_pars.is_on:
-        w_sig = np.array(numpy.random.normal(scale = 0.25, size=(readout_grid_size[0]**2,)) / readout_grid_size[0])
-        ''' readout weights (between the superficial and the sigmoid layer) '''
+        w_sig = np.zeros(readout_grid_size[0]**2)
+        ''' readout weights (between the superficial and the sigmoid layer) - initialized with logistic regression'''
     else:
         w_sig = np.array(numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / readout_grid_size[1])
         ''' readout weights (between the superficial and the sigmoid layer) '''

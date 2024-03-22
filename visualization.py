@@ -479,7 +479,7 @@ def calculate_relative_change(df):
     c_E = df['c_E']
     c_I = df['c_I']
     f_E = df['f_E']
-    f_I = [np.abs(df['f_I'][i]) for i in range(len(df['f_I']))]
+    f_I = df['f_I']
     relative_changes = numpy.zeros((18,2))
 
     # Calculate relative changes in parameters and other metrics before and after training
