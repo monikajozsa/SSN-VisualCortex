@@ -10,7 +10,6 @@ from model import evaluate_model_response
 from util import sep_exponentiate
 from SSN_classes import SSN_mid, SSN_sup
 from util_gabor import BW_image_jit
-#from compare_tuning_curves_standalone import two_layer_model, constant_to_vec
 
 ########### Plotting functions ##############
 def boxplots_from_csvs(directory, save_directory, plot_filename = None):
@@ -464,8 +463,7 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_s
             plot_results_from_csv(results_filename,results_fig_filename)
 
 ############## Analysis functions ##########
-            
-            
+           
 def calculate_relative_change(df):
     # Calculate relative changes in Jm and Js
     J_m_EE = df['J_m_EE']
