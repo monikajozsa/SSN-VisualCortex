@@ -77,6 +77,7 @@ def test_uniformity(numbers, num_bins=18, alpha=0.25):
     row_ind = num_bins-1 -1 # degree of freedom is bins -1 and index starts from 0
     col_ind = numpy.argmin(numpy.abs(numpy.ones_like(sig_levels)*alpha-sig_levels))
     
+    # create chi-square table manually to avoid loading a package
     ChiSquareTable = numpy.array([[1.323,2.706, 3.841, 5.024, 6.635],
                                 [2.773,4.605, 5.991, 7.378, 9.210],
                                 [4.108, 6.251, 7.815, 9.348, 11.345],

@@ -271,7 +271,10 @@ def plot_tc_features(results_dir, N_runs, ori_list, train_only_str=''):
         axs[j,1].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
     
     plt.tight_layout()
-    fig.savefig(os.path.dirname(results_dir) + "/figures/tc_features" + train_only_str +".png")
+    if results_dir[-4:]=='only':
+        fig.savefig(os.path.dirname(results_dir) + "/figures/tc_features" + train_only_str +".png")
+    else:
+        fig.savefig(results_dir + "/figures/tc_features" + train_only_str +".png")
 
 
 def plot_results_from_csv(

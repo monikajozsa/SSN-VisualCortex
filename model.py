@@ -73,7 +73,6 @@ def obtain_fixed_point(
 
     return r_fp, avg_dx
 
-import numpy
 def middle_layer_fixed_point(
     ssn,
     ssn_input,
@@ -83,33 +82,33 @@ def middle_layer_fixed_point(
     return_fp=False,
 ):    
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
-
+    # Clara's select_type function
+    #fp_E_on = ssn.select_type(fp, map_number = 1)
+    #fp_E_off = ssn.select_type(fp, map_number = (ssn.phases+1))
+    #fp_E_on_pi2 = ssn.select_type(fp, map_number = 3)
+    #fp_E_off_pi2 = ssn.select_type(fp, map_number = 7)
+    #layer_output = fp_E_on + fp_E_off + fp_E_on_pi2 + fp_E_off_pi2
+    #max_E =  np.max(fp_E_on)
+    #fp_I_on = ssn.select_type(fp, map_number = 2)
+    #max_I =  np.max(fp_I_on)
+    
     map_numbers_E = np.arange(1, 2 * ssn.phases, 2)
     map_numbers_I = np.arange(2, 2 * ssn.phases + 1, 2)
     
-    fp_E_on = ssn.select_type(fp, map_number = 1)
-    fp_E_off = ssn.select_type(fp, map_number = (ssn.phases+1))
-    fp_E_on_pi2 = ssn.select_type(fp, map_number = 3)
-    fp_E_off_pi2 = ssn.select_type(fp, map_number = 7)
-    layer_output = fp_E_on + fp_E_off + fp_E_on_pi2 + fp_E_off_pi2
-    max_E =  np.max(fp_E_on)
-    fp_I_on = ssn.select_type(fp, map_number = 2)
-    max_I =  np.max(fp_I_on)
-    #fp_E=ssn.select_type_mj(fp, map_numbers_E)
-    #fp_I=ssn.select_type_mj(fp, map_numbers = map_numbers_I)
+    fp_E=ssn.select_type_mj(fp, map_numbers_E)
+    fp_I=ssn.select_type_mj(fp, map_numbers = map_numbers_I)
  
     #Define output as sum of E neurons
-    #layer_output = np.sum(fp_E, axis=0)
+    layer_output = np.sum(fp_E, axis=0)
     
     #Find maximum rates
-    #max_E =  np.max(fp_E)
-    #max_I = np.max(fp_I)
+    max_E =  np.max(fp_E)
+    max_I = np.max(fp_I)
 
     #Loss for high rates
     r_max = np.maximum(0, (max_E/Rmax_E - 1)) + np.maximum(0, (max_I/Rmax_I - 1))
     #r_max = leaky_relu(max_E, R_thresh = Rmax_E, slope = 1/Rmax_E) + leaky_relu(max_I, R_thresh = Rmax_I, slope = 1/Rmax_I)
     
-    #layer_output = layer_output/ssn.phases
     if return_fp ==True:
             return layer_output, r_max, avg_dx, fp, max_E, max_I
     else:

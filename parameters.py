@@ -127,19 +127,19 @@ grid_pars = GridPars()
 # Gabor filter parameters
 @dataclass
 class FilterPars:
-    sigma_g = numpy.array(0.27) 
+    sigma_g: float = 0.27
     ''' std of the Gaussian of the Gabor filters '''
-    conv_factor = numpy.array(2)
+    conv_factor: float = 2.0
     ''' converts deg to mm (mm/deg), same as magnification factor '''
-    k: float = 1 
+    k: float = 1.0
     ''' scaling parameter for the spacial frequency of the Gabor filter '''
     edge_deg: float = grid_pars.gridsize_deg
     ''' edge length in degrees - visual field, same as grid_pars.gridsize_deg '''
-    degree_per_pixel = numpy.array(0.05)
+    degree_per_pixel: float = 0.05
     ''' convert degree to number of pixels (129 x 129), note that this is not an independent parameter and could be calculated from other parameters '''
-    gE_m = 0.3
+    gE_m: float = 0.3
     ''' scaling parameter between stimulus and excitatory units in middle layer '''
-    gI_m = 0.25 
+    gI_m: float = 0.25 
     ''' scaling parameter between stimulus and inhibitory units in middle layer '''
 filter_pars = FilterPars()
 
