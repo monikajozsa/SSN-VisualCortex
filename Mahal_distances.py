@@ -1,14 +1,15 @@
+import time
 import jax.numpy as np
-from jax import vmap
 import numpy
 from scipy.stats import zscore
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import pandas as pd
-import pingouin as pg
+#import pingouin as pg
 from scipy import ndimage
 from scipy.stats import ttest_1samp
 import os
+import matplotlib.pyplot as plt
 
 from model import vmap_evaluate_model_response
 from util import sep_exponentiate, load_parameters
@@ -27,19 +28,34 @@ from parameters import (
     pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
 
-def smooth_data(vector, sigma = 1):
-    '''
-    Smooth fixed point. Data is reshaped into 9x9 grid
-    '''
+def select_type_mid(r_mid, cell_type='E'):
+    '''Selects the excitatory or inhibitory cell responses. This function assumes that r_mid is 3D (trials x grid points x celltype and phase)'''
+    if cell_type=='E':
+        map_numbers = np.arange(1, 2 * ssn_pars.phases, 2)-1 # 0,2,4,6
+    else:
+        map_numbers = np.arange(2, 2 * ssn_pars.phases + 1, 2)-1 # 1,3,5,7
     
-    new_data = []
-    for trial_response in vector:
+    out = numpy.zeros((r_mid.shape[0],r_mid.shape[1], int(r_mid.shape[2]/2)))
+    for i in range(len(map_numbers)):
+        out[:,:,i] = r_mid[:,:,map_numbers[i]]
 
-        trial_response = trial_response.reshape(9,9,-1)
-        smoothed_data = numpy.asarray([ndimage.gaussian_filter(numpy.reshape(trial_response[:, :, i], (9,9)), sigma = sigma) for i in range(0, trial_response.shape[2])]).ravel()
-        new_data.append(smoothed_data)
-    
-    return np.vstack(np.asarray(new_data)) 
+    return np.array(out)
+
+def smooth_data(X, gridsize_Nx =9, sigma = 1):
+    '''
+    Smooth data matrix (trials x cells) over grid points. Data is reshaped into 9x9 grid before smoothing and then flattened again.
+    '''
+    N_grid_points=gridsize_Nx*gridsize_Nx
+    N_phases = int(X.shape[1]/N_grid_points)
+    N_trials = X.shape[0]
+    smoothed_data= numpy.zeros((N_trials,N_grid_points,N_phases))
+    for trial in range(N_trials):
+        for phase in range(N_phases):
+            trial_response = X[trial,phase*N_grid_points:(phase+1)*N_grid_points]
+            trial_response = trial_response.reshape(gridsize_Nx,gridsize_Nx,-1)
+            smoothed_data[trial,:, phase] =numpy.asarray(ndimage.gaussian_filter(trial_response, sigma = sigma)).ravel()
+
+    return smoothed_data
 
 def mahal(X,Y):
     '''
@@ -58,34 +74,40 @@ def mahal(X,Y):
 
     # Create a matrix M by repeating m for ry rows
     M = np.tile(m, (ry, 1))
-    Y_demean=(Y-M).T
 
     # Perform QR decomposition on C
     Q, R = np.linalg.qr(X_demean, mode='reduced')
-
+    
+    #if ry==1:
+    #    cov_X_approx = np.dot(R.T, R) / (X.shape[0] - 1)
+    #    d = (Y-m) @ numpy.linalg.inv(cov_X_approx) @ np.transpose(Y-m)
+    #else:
+    
     # Solve for ri in the equation R' * ri = (Y-M) using least squares or directly if R is square and of full rank
+    Y_demean=(Y-M).T
     ri = np.linalg.lstsq(R.T, Y_demean, rcond=None)[0]
 
     # Calculate d as the sum of squares of ri, scaled by (rx-1)
     d = np.sum(ri**2, axis=0) * (rx-1)
-
+    
     return np.sqrt(d)
 
-#vmap_mahal = vmap(mahal, in_axes=[0,0])
 
-def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55, 125, 0]), n_noisy_trials = 100, SGD_step_inds = None, sigma_filter = 1):
-
-    if SGD_step_inds==None:
-        df = pd.read_csv(file_name)
-        train_start_ind = df.index[df['stage'] == 1][0]
+def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55, 125, 0]), n_noisy_trials = 100, num_SGD_inds = 2, sigma_filter = 1):
+    df = pd.read_csv(file_name)
+    train_start_ind = df.index[df['stage'] == 1][0]
+    if num_SGD_inds==3:        
         if numpy.min(df['stage'])==0:
             pretrain_start_ind = df.index[df['stage'] == 0][0]
             SGD_step_inds=[pretrain_start_ind, train_start_ind, -1]
         else:
+            print('Warning: There is no 0 stage but Mahal dist was asked to be calculated for pretraining!')
             SGD_step_inds=[train_start_ind, -1]
+    else:
+        SGD_step_inds=[train_start_ind, -1]
+
     # Iterate overs SGD_step indices (default is before and after training)
     for step_ind in SGD_step_inds:
-
         # Load parameters from csv for given epoch
         trained_pars_stage1, trained_pars_stage2, _ = load_parameters(file_name, iloc_ind = step_ind)
         J_2x2_m = sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
@@ -123,53 +145,67 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
             ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
             # Calculate fixed point for data    
-            r_sup, r_mid, [r_max_mid, r_max_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [r_mid, r_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+            _, _, [_, _], [_, _], [_, _, _, _], [r_mid, r_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
 
-            # Smooth data with Gaussian filter
-            filtered_r_mid= smooth_data(r_mid, sigma = sigma_filter)  #n_noisy_trials x 648
-            filtered_r_sup= smooth_data(r_sup, sigma = sigma_filter)  #n_noisy_trials x 162
-            
-            # Sum all contributions of E neurons (across phases) and I neurons separately
-            filtered_r_mid = np.sum(np.reshape(filtered_r_mid, (n_noisy_trials, 9, 9, -1)), axis=3)
-            filtered_r_sup = np.sum(np.reshape(filtered_r_sup, (n_noisy_trials, 9, 9, -1)), axis=3)
+            # Smooth data fof each celltype separately with Gaussian filter
+            filtered_r_mid_EI= smooth_data(r_mid)  #n_noisy_trials x 648
+            filtered_r_mid_E=select_type_mid(filtered_r_mid_EI,'E')
+            filtered_r_mid_I=select_type_mid(filtered_r_mid_EI,'I')
+            filtered_r_mid=np.sum(0.8*filtered_r_mid_E + 0.2 *filtered_r_mid_I, axis=2)
+
+            filtered_r_sup_EI= smooth_data(r_sup, sigma = sigma_filter) 
+            filtered_r_sup_E=filtered_r_sup_EI[:,:,0]
+            filtered_r_sup_I=filtered_r_sup_EI[:,:,1]
+            filtered_r_sup=0.8*filtered_r_sup_E + 0.2 *filtered_r_sup_I
             
             # Concatenate all orientation responses
             if ori == ori_list[0] and step_ind==SGD_step_inds[0]:
-                filtered_r_mid_df = np.reshape(filtered_r_mid, (n_noisy_trials, -1)) #n_noisy_trials x 81
-                filtered_r_sup_df = np.reshape(filtered_r_sup, (n_noisy_trials, -1)) #n_noisy_trials x 81
+                filtered_r_mid_df = filtered_r_mid
+                filtered_r_sup_df = filtered_r_sup
                 ori_df = np.repeat(ori, n_noisy_trials)
                 step_df = np.repeat(step_ind, n_noisy_trials)
             else:
-                filtered_r_mid_df = np.concatenate((filtered_r_mid_df, np.reshape(filtered_r_mid, (n_noisy_trials, -1))))
-                filtered_r_sup_df = np.concatenate((filtered_r_sup_df, np.reshape(filtered_r_sup, (n_noisy_trials, -1))))
+                filtered_r_mid_df = np.concatenate((filtered_r_mid_df, filtered_r_mid))
+                filtered_r_sup_df = np.concatenate((filtered_r_sup_df, filtered_r_sup))
                 ori_df = np.concatenate((ori_df, np.repeat(ori, n_noisy_trials)))
                 step_df = np.concatenate((step_df, np.repeat(step_ind, n_noisy_trials)))
         
     output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_df, r_sup = filtered_r_sup_df )
 
-    return output, SGD_step_inds
+    return output, SGD_step_inds, r_mid, r_sup
 
 ######### Calculate Mahalanobis distance for before pretraining, after pretraining and after training - distance between trained and control should increase more than distance between untrained and control after training #########
-def Mahalanobis_dist(num_trainings, folder, folder_to_save, file_to_save, SGD_inds=[0,-1]):
+def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
     ori_list = numpy.asarray([55, 125, 0])
     num_PC_used=15
     num_layers=2
-    num_noisy_trials=100
-    len_SGD_inds=len(SGD_inds)
+    num_noisy_trials=100 # Note: do not run this with small trial number because the estimation error of covariance matrix of the response for the control orientation stimuli will introduce a bias
 
-    LMI_across = numpy.zeros((num_trainings,num_layers,len_SGD_inds-1))
-    LMI_within = numpy.zeros((num_trainings,num_layers,len_SGD_inds-1))
-    LMI_ratio = numpy.zeros((num_trainings,num_layers,len_SGD_inds-1))
-    LMI_ttests = numpy.zeros((num_layers,3,len_SGD_inds-1))
-    LMI_p_vals = numpy.zeros((num_layers,3,len_SGD_inds-1))
+    LMI_across = numpy.zeros((num_training,num_layers,num_SGD_inds-1))
+    LMI_within = numpy.zeros((num_training,num_layers,num_SGD_inds-1))
+    LMI_ratio = numpy.zeros((num_training,num_layers,num_SGD_inds-1))
+    LMI_ttests = numpy.zeros((num_layers,3,num_SGD_inds-1))# 3 is for across, within and ratio
+    LMI_ttest_p = numpy.zeros((num_layers,3,num_SGD_inds-1))
 
-    mahal_within_train_all = numpy.zeros((num_trainings,num_layers,len_SGD_inds, num_noisy_trials))
-    mahal_within_untrain_all = numpy.zeros((num_trainings,num_layers,len_SGD_inds, num_noisy_trials))
-    mahal_train_control_all = numpy.zeros((num_trainings,num_layers,len_SGD_inds, num_noisy_trials))
-    mahal_untrain_control_all = numpy.zeros((num_trainings,num_layers,len_SGD_inds, num_noisy_trials))
-    train_SNR_all=numpy.zeros((num_trainings,num_layers,len_SGD_inds, num_noisy_trials))
-    untrain_SNR_all=numpy.zeros((num_trainings,num_layers,len_SGD_inds, num_noisy_trials))
-    for run_ind in range(num_trainings):
+    mahal_within_train_all = numpy.zeros((num_training,num_layers,num_SGD_inds, num_noisy_trials))
+    mahal_within_untrain_all = numpy.zeros((num_training,num_layers,num_SGD_inds, num_noisy_trials))
+    mahal_train_control_all = numpy.zeros((num_training,num_layers,num_SGD_inds, num_noisy_trials))
+    mahal_untrain_control_all = numpy.zeros((num_training,num_layers,num_SGD_inds, num_noisy_trials))
+    train_SNR_all=numpy.zeros((num_training,num_layers,num_SGD_inds, num_noisy_trials))
+    untrain_SNR_all=numpy.zeros((num_training,num_layers,num_SGD_inds, num_noisy_trials))
+
+    mahal_train_control_mean = numpy.zeros((num_training,num_layers,num_SGD_inds))
+    mahal_untrain_control_mean = numpy.zeros((num_training,num_layers,num_SGD_inds))
+    mahal_within_train_mean = numpy.zeros((num_training,num_layers,num_SGD_inds))
+    mahal_within_untrain_mean = numpy.zeros((num_training,num_layers,num_SGD_inds))
+    train_SNR_mean = numpy.zeros((num_training,num_layers,num_SGD_inds))
+    untrain_SNR_mean = numpy.zeros((num_training,num_layers,num_SGD_inds))
+    
+    # Define pca model
+    pca = PCA(n_components=num_PC_used)
+                
+    for run_ind in range(num_training):
+        start_time=time.time()
         file_name = f"{folder}/results_{run_ind}.csv"
         orimap_filename = f"{folder}/orimap_{run_ind}.npy"
         if not os.path.exists(file_name):
@@ -178,53 +214,63 @@ def Mahalanobis_dist(num_trainings, folder, folder_to_save, file_to_save, SGD_in
         
         loaded_orimap =  numpy.load(orimap_filename)
         untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
-                        loss_pars, training_pars, pretrain_pars, readout_pars, None, loaded_orimap)
-        r_mid_sup, SGD_inds = filtered_model_response(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = num_noisy_trials)
-                
+                        loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
+        
+        # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_SGD_inds rows)
+        r_mid_sup, SGD_steps, _, _ = filtered_model_response(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = num_noisy_trials, num_SGD_inds=num_SGD_inds)
+        # Note: r_mid_sup is a dictionary with the oris and SGD_steps saved in them
+
+        mesh_train = r_mid_sup['ori'] == ori_list[0]
+        mesh_untrain = r_mid_sup['ori'] == ori_list[1]
+        mesh_control = r_mid_sup['ori'] == ori_list[2]
+        
         for layer in range(num_layers):
-            for SGD_ind in range(len_SGD_inds):
-                mesh_step = r_mid_sup['SGD_step'] == SGD_inds[SGD_ind]
-                # Specify layer (superficial/middle)!!!
+            for SGD_ind in range(num_SGD_inds):
+                # Select the responses corresponding to SGD_ind
+                mesh_step = r_mid_sup['SGD_step'] == SGD_steps[SGD_ind]
+                mesh_train_ = mesh_train[mesh_step]
+                mesh_untrain_ = mesh_untrain[mesh_step]
+                mesh_control_ = mesh_control[mesh_step]
+                # Select the layer (superficial=0 or middle=1)
                 if layer==0:
                     r = numpy.array(r_mid_sup['r_sup'][mesh_step])
                 else:
                     r = numpy.array(r_mid_sup['r_mid'][mesh_step])
-                
-                # Normalise data and apply PCA
-                r_z = zscore(r, axis=0)
-                pca = PCA(n_components=num_PC_used)
-                score = pca.fit_transform(r_z)
-                r_pca = score[:, :num_PC_used]
 
-                ## Explained variance is above 99% typically
+                # Save/Load the PCA object to a file
+                #with open(f'pca_model_l{layer}_SGD{SGD_ind}.pkl', 'rb') as f:
+                #    pca = pickle.load(f)                
+                #with open(f'pca_model_l{layer}_SGD{SGD_ind}.pkl', 'wb') as f:
+                #    pickle.dump(pca, f)
+                # r matches up tp 3% but r_z has an average of 100% relative error because the small responsees are very unstable
+                
+                # Normalize data across trials
+                #r_z = zscore(r, axis=0) # trials*n_oris x grid points (only E cells considered and averaged over phases for middle layer)
+                score = pca.fit_transform(r)
+                r_pca = score[:, :num_PC_used]
+                
+                ## Explained variance is above 99% typically (70% for the experiments)
                 #variance_explained = pca.explained_variance_ratio_
                 #for i, var in enumerate(variance_explained):
                 #    print(f"Variance explained by {i+1} PCs: {numpy.sum(variance_explained[0:i+1]):.2%}")
 
-                # Separate data into orientation conditions
-                mesh_train = r_mid_sup['ori'] == ori_list[0]
-                mesh_train = mesh_train[mesh_step]
-                mesh_untrain = r_mid_sup['ori'] == ori_list[1]
-                mesh_untrain = mesh_untrain[mesh_step]
-                mesh_control = r_mid_sup['ori'] == ori_list[2]
-                mesh_control = mesh_control[mesh_step]
-
-                train_data = r_pca[mesh_train,:]
-                untrain_data = r_pca[mesh_untrain,:]    
-                control_data = r_pca[mesh_control,:]
-
+                # Separate data into orientation conditions, mesh for orientation and SGD step
+                train_data = r_pca[mesh_train_,:]
+                untrain_data = r_pca[mesh_untrain_,:]    
+                control_data = r_pca[mesh_control_,:]
+                
                 # Calculate Mahalanobis distance - mean and std of control data is calculated (along axis 0) and compared to the train and untrain data
-                mahal_train_control = mahal(control_data, train_data)    
+                mahal_train_control = mahal(control_data, train_data)
                 mahal_untrain_control = mahal(control_data, untrain_data)
 
                 # Calculate the within group Mahal distances
-                train_data_size = train_data.shape[0] # is it N_noisy_trials x 
-                mahal_within_train = numpy.zeros(train_data_size)
-                mahal_within_untrain = numpy.zeros(train_data_size)
+                num_noisy_trials = train_data.shape[0] 
+                mahal_within_train = numpy.zeros(num_noisy_trials)
+                mahal_within_untrain = numpy.zeros(num_noisy_trials)
                 
-                for trial in range(train_data_size):
+                for trial in range(num_noisy_trials):
                     # Create temporary copies excluding one sample
-                    mask = numpy.ones(train_data_size, dtype=bool)
+                    mask = numpy.ones(num_noisy_trials, dtype=bool)
                     mask[trial] = False
                     train_data_temp = train_data[mask]
                     untrain_data_temp = untrain_data[mask]
@@ -232,42 +278,93 @@ def Mahalanobis_dist(num_trainings, folder, folder_to_save, file_to_save, SGD_in
                     # Calculate distances
                     train_data_trial_2d = numpy.expand_dims(train_data[trial], axis=0)
                     untrain_data_trial_2d = numpy.expand_dims(untrain_data[trial], axis=0)
-                    mahal_within_train[trial] = numpy.mean(mahal(train_data_temp, numpy.repeat(train_data_trial_2d,num_noisy_trials-1, axis=0))) # averaging over the distances between one sample and the other samples ***
-                    mahal_within_untrain[trial] = numpy.mean(mahal(untrain_data_temp, numpy.repeat(untrain_data_trial_2d,num_noisy_trials-1, axis=0))) # averaging over the distances between one sample and the other samples
+                    mahal_within_train[trial] = mahal(train_data_temp,train_data_trial_2d) 
+                    mahal_within_untrain[trial] = mahal(untrain_data_temp, untrain_data_trial_2d)
 
-                # Save distances and ratios
+                # Save Mahal distances and ratios
                 mahal_train_control_all[run_ind,layer,SGD_ind,:] = mahal_train_control
                 mahal_untrain_control_all[run_ind,layer,SGD_ind,:] = mahal_untrain_control
                 mahal_within_train_all[run_ind,layer,SGD_ind,:] = mahal_within_train
                 mahal_within_untrain_all[run_ind,layer,SGD_ind,:] = mahal_within_untrain
                 train_SNR_all[run_ind,layer,SGD_ind,:] = mahal_train_control / mahal_within_train
                 untrain_SNR_all[run_ind,layer,SGD_ind,:] = mahal_untrain_control / mahal_within_untrain
-        
-            # learning modulation indices (LMI)
-            for SGD_ind in range(len_SGD_inds-1):
-                mahal_pre_trained_ori = numpy.mean(mahal_train_control_all[run_ind,layer,SGD_ind,:])
-                mahal_post_trained_ori = numpy.mean(mahal_train_control_all[run_ind,layer,SGD_ind+1,:])
-                mahal_pre_untrained_ori = numpy.mean(mahal_untrain_control_all[run_ind,layer,SGD_ind,:])
-                mahal_post_untrained_ori = numpy.mean(mahal_untrain_control_all[run_ind,layer,SGD_ind+1,:])
-                LMI_across[run_ind,layer] = (mahal_post_trained_ori - mahal_pre_trained_ori) - (mahal_post_untrained_ori - mahal_pre_untrained_ori)
 
-                mahal_within_pre_trained_ori = numpy.mean(mahal_within_train_all[run_ind,layer,SGD_ind,:])
-                mahal_within_post_trained_ori = numpy.mean(mahal_within_train_all[run_ind,layer,SGD_ind+1,:])
-                mahal_within_pre_untrained_ori = numpy.mean(mahal_within_untrain_all[run_ind,layer,SGD_ind,:])
-                mahal_within_post_untrained_ori = numpy.mean(mahal_within_untrain_all[run_ind,layer,SGD_ind+1,:])
-                LMI_within[run_ind,layer] = (mahal_within_post_trained_ori - mahal_within_pre_trained_ori) - (mahal_within_post_untrained_ori - mahal_within_pre_untrained_ori)
+                # Averaging over trials
+                mahal_train_control_mean[run_ind,layer,SGD_ind] = numpy.mean(mahal_train_control)
+                mahal_untrain_control_mean[run_ind,layer,SGD_ind] = numpy.mean(mahal_untrain_control)
+                mahal_within_train_mean[run_ind,layer,SGD_ind] = numpy.mean(mahal_within_train)
+                mahal_within_untrain_mean[run_ind,layer,SGD_ind] = numpy.mean(mahal_within_untrain)
+                train_SNR_mean[run_ind,layer,SGD_ind] = numpy.mean(train_SNR_all[run_ind,layer,SGD_ind,:])
+                untrain_SNR_mean[run_ind,layer,SGD_ind] = numpy.mean(untrain_SNR_all[run_ind,layer,SGD_ind,:])
+                
+            # learning modulation indices (LMI) - same as experimental analysis
+            for SGD_ind in range(num_SGD_inds-1):
+                LMI_across[run_ind,layer,SGD_ind] = (mahal_train_control_mean[run_ind,layer,SGD_ind+1] - mahal_train_control_mean[run_ind,layer,SGD_ind]) - (mahal_untrain_control_mean[run_ind,layer,SGD_ind+1] - mahal_untrain_control_mean[run_ind,layer,SGD_ind] )
+                LMI_within[run_ind,layer,SGD_ind] = (mahal_within_train_mean[run_ind,layer,SGD_ind+1] - mahal_within_train_mean[run_ind,layer,SGD_ind]) - (mahal_within_untrain_mean[run_ind,layer,SGD_ind+1] - mahal_within_untrain_mean[run_ind,layer,SGD_ind] )
+                LMI_ratio[run_ind,layer,SGD_ind] = (train_SNR_mean[run_ind,layer,SGD_ind+1] - train_SNR_mean[run_ind,layer,SGD_ind]) - (untrain_SNR_mean[run_ind,layer,SGD_ind+1] - untrain_SNR_mean[run_ind,layer,SGD_ind] )
+        print(run_ind)
+        print(time.time()-start_time)
 
-                mahal_SNR_pre_trained_ori = numpy.mean(train_SNR_all[run_ind,layer,SGD_ind,:])
-                mahal_SNR_post_trained_ori = numpy.mean(train_SNR_all[run_ind,layer,SGD_ind+1,:])
-                mahal_SNR_pre_untrained_ori = numpy.mean(untrain_SNR_all[run_ind,layer,SGD_ind,:])
-                mahal_SNR_post_untrained_ori = numpy.mean(untrain_SNR_all[run_ind,layer,SGD_ind+1,:])
-                LMI_ratio[run_ind,layer] = (mahal_SNR_post_trained_ori - mahal_SNR_pre_trained_ori) - (mahal_SNR_post_untrained_ori - mahal_SNR_pre_untrained_ori)
-
-    # Apply t-test per layer (samples are the different runs)
+    # Apply t-test per layer and SGD_ind difference (samples are the different runs)
     for layer in range(num_layers):
-        LMI_ttests[layer,0], LMI_p_vals[layer,0] = ttest_1samp(LMI_across[:,layer],0) # compare it to mean 0
-        LMI_ttests[layer,1], LMI_p_vals[layer,1] = ttest_1samp(LMI_within[:,layer],0)
-        LMI_ttests[layer,2], LMI_p_vals[layer,2] = ttest_1samp(LMI_ratio[:,layer],0)
+        for SGD_ind in range(num_SGD_inds-1):
+            LMI_ttests[layer,0,SGD_ind], LMI_ttest_p[layer,0,SGD_ind] = ttest_1samp(LMI_across[:,layer,SGD_ind],0) # compare it to mean 0
+            LMI_ttests[layer,1,SGD_ind], LMI_ttest_p[layer,1,SGD_ind] = ttest_1samp(LMI_within[:,layer,SGD_ind],0)
+            LMI_ttests[layer,2,SGD_ind], LMI_ttest_p[layer,2,SGD_ind] = ttest_1samp(LMI_ratio[:,layer,SGD_ind],0)
+    
+    run_layer_df=np.repeat(np.arange(num_training),num_layers)
+    SGD_ind_df = numpy.zeros(num_training*num_layers)
+    for i in range(1, num_SGD_inds):
+        SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(num_training * num_layers)))
+    # switch dimensions to : layer, run, SGD_ind
+    mahal_train_control_mean = np.transpose(mahal_train_control_mean, (1, 0, 2))
+    mahal_untrain_control_mean = np.transpose(mahal_untrain_control_mean, (1, 0, 2))
+    mahal_within_train_mean = np.transpose(mahal_within_train_mean, (1, 0, 2))
+    mahal_within_untrain_mean = np.transpose(mahal_within_untrain_mean, (1, 0, 2))
+    train_SNR_mean = np.transpose(train_SNR_mean, (1, 0, 2))
+    untrain_SNR_mean = np.transpose(untrain_SNR_mean, (1, 0, 2))
+    df_mahal = pd.DataFrame({
+        'run': np.tile(run_layer_df, num_SGD_inds), # 1,1,2,2,3,3,4,4,... , 1,1,2,2,3,3,4,4,... 
+        'layer': np.tile(np.arange(num_layers),num_training*num_SGD_inds),# 1,2,1,2,1,2,...
+        'SGD_ind': SGD_ind_df, # 0,0,0,... 1,1,1,...
+        'ori55_across': mahal_train_control_mean.ravel(),
+        'ori125_across': mahal_untrain_control_mean.ravel(),
+        'ori55_within': mahal_within_train_mean.ravel(),
+        'ori125_within': mahal_within_untrain_mean.ravel(),
+        'ori55_SNR': train_SNR_mean.ravel(),
+        'ori125_SNR': untrain_SNR_mean.ravel()
+    })
+
+    SGD_ind_df = numpy.zeros(num_training*num_layers)
+    for i in range(1, num_SGD_inds-1):
+        SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(num_training * num_layers)))
+    LMI_across = np.transpose(LMI_across,(1,0,2))
+    LMI_within = np.transpose(LMI_within,(1,0,2))
+    LMI_ratio = np.transpose(LMI_ratio,(1,0,2))
+    df_LMI = pd.DataFrame({
+        'run': np.tile(run_layer_df, num_SGD_inds-1), # 1,1,2,2,3,3,4,4,... , 1,1,2,2,3,3,4,4,... 
+        'layer': np.tile(np.arange(num_layers),num_training*(num_SGD_inds-1)),# 1,2,1,2,1,2,...
+        'SGD_ind': SGD_ind_df,
+        'LMI_across': LMI_across.ravel(),# layer, SGD
+        'LMI_within': LMI_within.ravel(),
+        'LMI_ratio': LMI_ratio.ravel()
+    })
+
+    SGD_ind_df = numpy.zeros(3*num_layers)
+    for i in range(1, num_SGD_inds-1):
+        SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(3 * num_layers)))
+
+    LMI_type=['accross','accross', 'within', 'within', 'ratio', 'ratio']
+    df_stats = pd.DataFrame({
+        'layer': np.tile(np.arange(num_layers),3*(num_SGD_inds-1)),# 1,2,1,2,1,2,...
+        'LMI_type': LMI_type *(num_SGD_inds-1),
+        'SGD_ind': SGD_ind_df,
+        'LMI_ttests': LMI_ttests.ravel(),
+        'LMI_ttest_p': LMI_ttest_p.ravel()
+    })
+
+    # t-test and ANOVA on mahal distances directly
+    # ANOVA on LMI_across, within and ratio
     
     ## Example usage of ANOVA
     ## I need to reorganize the data such that Factor1 (SGD_inds) and Factor2 (control, untrained, trained) are the first dim in the data (6) and samples are the second
@@ -293,10 +390,10 @@ def Mahalanobis_dist(num_trainings, folder, folder_to_save, file_to_save, SGD_in
     ## Extract F-statistic and p-value
     #F_statistic = rm_anova['F'][0]  # Extract F-statistic (index 0 because it's the first factor)
     #p_value = rm_anova['p-unc'][0]  # Extract p-value (index 0 because it's the first factor)
-   
-    return LMI_ttests, mahal_train_control_all, mahal_untrain_control_all, mahal_within_train_all, mahal_within_untrain_all, SGD_inds
     
-def plot_Mahalanobis_dist(num_trainings, SGD_inds, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, folder_to_save, file_to_save):
+    return df_mahal, df_LMI, df_stats, mahal_train_control_all, mahal_untrain_control_all, mahal_within_train_all, mahal_within_untrain_all
+    
+def plot_Mahalanobis_dist(num_trainings, num_SGD_inds, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, folder_to_save, file_to_save):
     ori_list = numpy.asarray([55, 125, 0])
     num_oris = len(ori_list)
     num_layers=2
@@ -304,13 +401,14 @@ def plot_Mahalanobis_dist(num_trainings, SGD_inds, mahal_train_control, mahal_un
     labels = ['pre-pretrained', 'post-pretrained','post-trained']
 
     # Histogram plots (samples are per trial)
-    mahal_SNR_train = mahal_train_control / mahal_within_train
+    mahal_SNR_train = mahal_train_control / mahal_within_train # dimensions are: run x layer x SGDstep x trial
     mahal_SNR_untrain = mahal_untrain_control / mahal_within_untrain
+
     for run_ind in range(num_trainings):
         fig, axs = plt.subplots(2*num_layers, num_oris-1, figsize=(20, 30))  # Plot for Mahalanobis distances and SNR
         layer_labels = ['Sup', 'Mid']
         for layer in range(num_layers):
-            for SGD_ind in range(len(SGD_inds)):
+            for SGD_ind in range(num_SGD_inds):
                 # Plotting Mahal distances for trained ori
                 axs[layer,0].set_title(f'Mahalanobis dist: {layer_labels[layer]} layer, ori {ori_list[0]}')
                 axs[layer,0].hist(mahal_train_control[run_ind,layer,SGD_ind,:], label=labels[SGD_ind], color=colors[SGD_ind], alpha=0.4) 
@@ -341,33 +439,52 @@ def plot_Mahalanobis_dist(num_trainings, SGD_inds, mahal_train_control, mahal_un
                 axs[2+layer,1].legend(loc='lower left')
                 
         fig.savefig(folder_to_save + '/' + file_to_save + f"_{run_ind}_control_{ori_list[2]}")
+    # Boxplots - boxes within a subplot correspond to different orientations over different runs
+    colors = ['black','tab:green']
+    labels = [f'ori:{ori_list[0]}', f'ori:{ori_list[1]}']
+    training_type_text = ['training']
+    mahal_diff_train_l0_0=np.mean(mahal_train_control[:,0,1,:]-mahal_train_control[:,0,0,:], axis=1)/np.mean(mahal_train_control[:,0,1,:], axis=1)
+    mahal_diff_untrain_l0_0=np.mean(mahal_untrain_control[:,0,1,:]-mahal_untrain_control[:,0,0,:], axis=1)/np.mean(mahal_untrain_control[:,0,1,:], axis=1)
+    mahal_diff_l0=np.stack((mahal_diff_train_l0_0,mahal_diff_untrain_l0_0), axis=1)
     
-    # Middle layer mahal boxplots - boxes correspond to different runs
-    fig, axs = plt.subplots(num_layers, num_oris-1, figsize=(10, 10)) 
-    bp = axs[0,0].boxplot(mahal_train_control[0,1,:,:]-mahal_train_control[0,0,:,:], labels=labels, patch_artist=True)
-    axs[0,0].set_title(f'Mahal dist difference post-pre: {layer_labels[0]} layer and {ori_list[0]} ori', fontsize=20)
-    for box, color in zip(bp['boxes'], colors):
-        box.set_facecolor(color)
-    bp = axs[0,1].boxplot(mahal_untrain_control[0,1,:,:]-mahal_untrain_control[0,0,:,:], labels=labels, patch_artist=True)
-    axs[0,1].set_title(f'Mahal dist difference post-pre: {layer_labels[0]} layer and {ori_list[1]} ori', fontsize=20)
-    for box, color in zip(bp['boxes'], colors):
-        box.set_facecolor(color)
-    # Superficial layer mahal boxplots - boxes correspond to different runs
-    bp = axs[1,0].boxplot(mahal_train_control[1,1,:,:]-mahal_train_control[1,0,:,:], labels=labels, patch_artist=True)
-    axs[1,0].set_title(f'Mahal dist difference post-pre: {layer_labels[1]} layer and {ori_list[0]} ori', fontsize=20)
-    for box, color in zip(bp['boxes'], colors):
-        box.set_facecolor(color)
-    bp = axs[1,1].boxplot(mahal_untrain_control[1,1,:,:]-mahal_untrain_control[1,0,:,:], labels=labels, patch_artist=True)
-    axs[1,1].set_title(f'Mahal dist difference post-pre: {layer_labels[1]}  layer and {ori_list[1]} ori', fontsize=20)
-    for box, color in zip(bp['boxes'], colors):
-        box.set_facecolor(color)
-    fig.savefig(f"{folder_to_save}/Mahal_dist_mean_control_{ori_list[2]}")
-    
+    mahal_diff_train_l1_0=np.mean(mahal_train_control[:,1,1,:]-mahal_train_control[:,1,0,:], axis=1)/np.mean(mahal_train_control[:,1,1,:], axis=1)
+    mahal_diff_untrain_l1_0=np.mean(mahal_untrain_control[:,1,1,:]-mahal_untrain_control[:,1,0,:], axis=1)/np.mean(mahal_untrain_control[:,1,1,:], axis=1)
+    mahal_diff_l1=np.stack((mahal_diff_train_l1_0,mahal_diff_untrain_l1_0), axis=1)
+    # define the matrices to plot for trainig when pretraining was present
+    num_training_type=mahal_train_control.shape[2]-1
+    if num_training_type==2:
+        training_type_text = ['pretraining','training']
+        mahal_diff_train_l0_1=np.mean(mahal_train_control[:,0,2,:]-mahal_train_control[:,0,1,:], axis=1)/np.mean(mahal_train_control[:,0,2,:], axis=1)
+        mahal_diff_untrain_l0_1=np.mean(mahal_untrain_control[:,0,2,:]-mahal_untrain_control[:,0,1,:], axis=1)/np.mean(mahal_untrain_control[:,0,2,:], axis=1)
+        mahal_diff_l0_traintype2=np.stack((mahal_diff_train_l0_1,mahal_diff_untrain_l0_1), axis=1)
+        mahal_diff_l0=np.concatenate((mahal_diff_l0,mahal_diff_l0_traintype2),axis=1) 
+        mahal_diff_train_l1_1=np.mean(mahal_train_control[:,1,2,:]-mahal_train_control[:,1,1,:], axis=1)/np.mean(mahal_train_control[:,1,2,:], axis=1)
+        mahal_diff_untrain_l1_1=np.mean(mahal_untrain_control[:,1,2,:]-mahal_untrain_control[:,1,1,:], axis=1)/np.mean(mahal_untrain_control[:,1,2,:], axis=1)
+        mahal_diff_l1_traintype2=np.stack((mahal_diff_train_l1_1,mahal_diff_untrain_l1_1), axis=1) 
+        mahal_diff_l1=np.concatenate((mahal_diff_l1,mahal_diff_l1_traintype2),axis=1) # num_trainings x (55ori-pretrain, 125ori-pretrain, 55ori-train, 125ori-train)
+    fig, axs = plt.subplots(num_training_type, num_layers, figsize=(num_training_type*5, num_layers*5))
+    # within a subplot, the two boxplots are for the trained and untrained orientation
+    for training_type in range(num_training_type):
+        bp = axs[training_type,0].boxplot(np.transpose(mahal_diff_l0[:,training_type*2:training_type*2+2]), labels=labels ,patch_artist=True)
+        axs[training_type,0].set_title(f'{layer_labels[0]} layer, {training_type_text[training_type]}', fontsize=20)
+        for box, color in zip(bp['boxes'], colors):
+            box.set_facecolor(color)
+        bp = axs[training_type,1].boxplot(np.transpose(mahal_diff_l1[:,training_type*2:training_type*2+2]), labels=labels, patch_artist=True)
+        axs[training_type,1].set_title(f'{layer_labels[1]} layer', fontsize=20)
+        for box, color in zip(bp['boxes'], colors):
+            box.set_facecolor(color)
+        
+    fig.savefig(f"{folder_to_save}/Mahal_dist_diff")
     return 
 
-num_training=3
-final_folder_path = 'results/Mar22_v0'
-folder_to_save = final_folder_path + '/figures'
+#num_training=3
+#final_folder_path = 'results/Mar22_v0'
+#folder_to_save = final_folder_path + '/figures'
 
-mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, SGD_inds = Mahalanobis_dist(num_training, final_folder_path,final_folder_path, 'mahal_dist')
-plot_Mahalanobis_dist(num_training, SGD_inds, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, folder_to_save, 'mahal_dist')
+def Mahal_dist_from_csv(num_training, final_folder_path, folder_to_save, file_name='mahal_dist', num_SGD_inds=2):
+    plt.close()
+    df_mahal, df_LMI, df_stats, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain = Mahalanobis_dist(num_training, final_folder_path, num_SGD_inds)
+    df_mahal.to_csv(final_folder_path+'/df_mahal.csv', index=False)
+    df_LMI.to_csv(final_folder_path+'/df_LMI.csv', index=False)
+    df_stats.to_csv(final_folder_path+'/df_stats.csv', index=False)
+    plot_Mahalanobis_dist(num_training, num_SGD_inds, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, folder_to_save, file_name)

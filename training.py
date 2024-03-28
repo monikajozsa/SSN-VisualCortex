@@ -77,7 +77,7 @@ def train_ori_discr(
     
     # Define SGD_steps indices where losses an accuracy are validated
     val_steps = np.arange(0, numSGD_steps, training_pars.validation_freq)
-    first_stage_final_step = numSGD_steps
+    first_stage_final_step = numSGD_steps - 1
 
     print(
         "SGD_step: {} ¦ learning rate: {} ¦ batch size {}".format(
@@ -155,6 +155,7 @@ def train_ori_discr(
                 # Check for early stopping during pre-training
                 if pretrain_on and SGD_step in acc_check_ind:
                     acc_mean, _, _ = mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
+                    # early stopping happens even if the training task is solved for the flipped problem (w_sig flips it back in stage 1 in a few SGD steps)
                     if np.sum(acc_mean<0.5)>0.5*len(acc_mean):
                         acc_mean = 1-acc_mean
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
@@ -250,7 +251,7 @@ def train_ori_discr(
     else:
         SGD_steps = np.arange(0, len(stages))
         val_SGD_steps_stage1 = val_steps[val_steps < first_stage_final_step + 1]
-        val_SGD_steps_stage2 = np.arange(first_stage_final_step, first_stage_final_step + numSGD_steps, training_pars.validation_freq)
+        val_SGD_steps_stage2 = np.arange(first_stage_final_step + 1, first_stage_final_step + 1 + numSGD_steps, training_pars.validation_freq)
         val_SGD_steps = np.hstack([val_SGD_steps_stage1, val_SGD_steps_stage2])
         val_SGD_steps = val_SGD_steps[0:len(val_accs)]
         offsets_at_bl_acc = None

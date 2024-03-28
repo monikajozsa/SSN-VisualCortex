@@ -92,8 +92,8 @@ def middle_layer_fixed_point(
     #fp_I_on = ssn.select_type(fp, map_number = 2)
     #max_I =  np.max(fp_I_on)
     
-    map_numbers_E = np.arange(1, 2 * ssn.phases, 2)
-    map_numbers_I = np.arange(2, 2 * ssn.phases + 1, 2)
+    map_numbers_E = np.arange(1, 2 * ssn.phases, 2) # 1,3,5,7
+    map_numbers_I = np.arange(2, 2 * ssn.phases + 1, 2) # 2,4,6,8
     
     fp_E=ssn.select_type_mj(fp, map_numbers_E)
     fp_I=ssn.select_type_mj(fp, map_numbers = map_numbers_I)

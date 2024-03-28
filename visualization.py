@@ -444,13 +444,13 @@ def plot_results_from_csv(
     plt.close()
 
 
-def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_save=None):
+def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_save=None, starting_run=0):
     # Add folder_path to path
     if folder_path not in sys.path:
         sys.path.append(folder_path)
 
     # Plot loss, accuracy and trained parameters
-    for j in range(num_runs):
+    for j in range(starting_run,num_runs):
         results_filename = os.path.join(folder_path,f'results_{j}.csv')
         if folder_to_save is not None:
             results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}.png')
@@ -548,7 +548,7 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
             # Create a new key by removing 'log' prefix
             new_key = key[4:]
             # Exponentiate the values and assign to the new key
-            if numpy.isscalar(trained_pars[key]):
+            if np.isscalar(trained_pars[key]) or numpy.isscalar(trained_pars[key]):
                 if key.startswith('log_J') and key.endswith('I'):
                     trained_pars[new_key] = -numpy.exp(trained_pars[key])
                 else:

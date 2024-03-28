@@ -191,7 +191,7 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_laye
     
     # Save orimap if file_name is specified
     if file_name is not None:
-            numpy.save(file_name, ssn_ori_map)
+        numpy.save(file_name, ssn_ori_map)
 
     return untrained_pars
 

@@ -227,9 +227,9 @@ class SSN_sup(_SSN_Base):
         assert vec.ndim == 1
         maps = self.vec2map(vec)
 
-        if select=='E':
+        if select=='E': # last 81
             output = maps[0]
-        if select =='I':
+        if select =='I': # first 81
             output = maps[1]
 
         return output
