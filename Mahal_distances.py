@@ -155,7 +155,7 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
             filtered_r_mid_EI= smooth_data(r_mid)  #n_noisy_trials x 648
             filtered_r_mid_E=select_type_mid(filtered_r_mid_EI,'E')
             filtered_r_mid_I=select_type_mid(filtered_r_mid_EI,'I')
-            filtered_r_mid=np.sum(0.8*filtered_r_mid_E + 0.2 *filtered_r_mid_I, axis=2)
+            filtered_r_mid=np.sum(0.8*filtered_r_mid_E + 0.2 *filtered_r_mid_I, axis=2)# order of summing up phases and mixing I-E matters if we change to sum of squares!
 
             filtered_r_sup_EI= smooth_data(r_sup, sigma = sigma_filter) 
             filtered_r_sup_E=filtered_r_sup_EI[:,:,0]

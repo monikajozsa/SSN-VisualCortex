@@ -145,6 +145,7 @@ N_training=30
 #tc_ori_list = numpy.arange(0,180,2)
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features
 from Mahal_distances import Mahal_dist_from_csv
+from MVPA_analysis import MVPA_score_from_csv
 tc_cells=[10,40,100,130,650,690,740,760]
 
 ## Pretraining + training
@@ -152,9 +153,10 @@ folder_to_save = final_folder_path + '/figures'
 boxplot_file_name = 'boxplot_pretraining'
 mahal_file_name = 'Mahal_dist'
 num_SGD_inds=3
-plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save, starting_run=10)
+#plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save, starting_run=10)
 #boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name)
 #Mahal_dist_from_csv(N_training, final_folder_path, folder_to_save, mahal_file_name, num_SGD_inds)
+MVPA_score_from_csv(N_training, final_folder_path, folder_to_save, mahal_file_name, num_SGD_inds)
 #plot_tc_features(final_folder_path, N_training, tc_ori_list)
 #plot_tuning_curves(final_folder_path,tc_cells,N_training,folder_to_save)
 
