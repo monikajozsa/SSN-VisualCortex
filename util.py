@@ -108,7 +108,7 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
     mask = BW_image_jit_inp_all[8]
     background = BW_image_jit_inp_all[9]
     
-    # Generate stimulus1 and stimulus2 with no jitter and no noise (seed needs to be randomized if we add noise!)
+    # Generate noisy stimulus1 and stimulus2 with no jitter
     stim1 = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori1, jitter=np.zeros_like(ori1))
     stim2 = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori2, jitter=np.zeros_like(ori1))
     data_dict['ref']=stim1

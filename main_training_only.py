@@ -1,13 +1,13 @@
 import numpy
 import time
-'''
+
 numpy.random.seed(0)
 
 from visualization import tuning_curve
 from util_gabor import init_untrained_pars
-from util import save_code
+from util import save_code, load_parameters
 from training import train_ori_discr
-from pretraining_supp import randomize_params, load_parameters
+from perturb_params import perturb_params
 from parameters import (
     grid_pars,
     filter_pars,
@@ -59,7 +59,7 @@ while i < N_training and numFailedRuns < 20:
 
     # Perturb readout_pars and ssn_layer_pars by percent % and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
-    trained_pars_stage1, trained_pars_stage2, untrained_pars = randomize_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename=orimap_filename)
+    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename=orimap_filename)
     
     # Run training
     training_output_df, _ = train_ori_discr(
@@ -81,7 +81,7 @@ while i < N_training and numFailedRuns < 20:
     print('number of failed runs = ', numFailedRuns)
 
 ######### PLOT RESULTS ############
-'''
+
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features
 from Mahal_distances import Mahalanobis_dist
 tc_cells=numpy.array([10,40,100,130,650,690,740,760])

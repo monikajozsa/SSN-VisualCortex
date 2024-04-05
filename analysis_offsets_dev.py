@@ -23,14 +23,11 @@ from parameters import (
     pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
 
-num_training=5
-
-def offset_th(num_training, folder, num_SGD_inds):
-    ori_list = numpy.asarray([55, 125, 0])
-    num_layers=2
-    num_noisy_trials=1000 # do not run this with small trial number because the estimation error of covariance matrix of the response for the control orientation stimuli will introduce a bias
-    test_offset_vec = numpy.array([2, 4, 6, 9, 12, 15, 20])
-
+def offset_th(num_training, folder, num_SGD_inds=3, th_accuracy=0.795):
+    '''This function calculates the offset where th_accuracy is achieved from results_{i}.csv files at SGD step 0 (start of pretraining), -1 (end of training) and where pretraining ended if num_SGD_inds is 3'''
+    
+    test_offset_vec = numpy.array([1, 2, 4, 6, 9, 12, 15, 20])
+    offset_at_bl_acc = numpy.zeros(num_training,num_SGD_inds)
     for run_ind in range(num_training):
         file_name = f"{folder}/results_{run_ind}.csv"
         orimap_filename = f"{folder}/orimap_{run_ind}.npy"
@@ -57,10 +54,9 @@ def offset_th(num_training, folder, num_SGD_inds):
         for step_ind in SGD_step_inds:
             # Load parameters from csv for given epoch
             readout_pars_dict, ssn_layer_pars_dict, _ = load_parameters(file_name, iloc_ind = step_ind)
-            acc_mean, _, _ = mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, True, test_offset_vec)
-            offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
-
-# linear classifier analysis - coefficients per layer and separately before and after but for all orientations together, right?
-# r_mid and r_sup for 0,55,125 and before and after training
-# r_mid[:,SGD_step,:]=M_mid * ori_vec_repeated -> R_mid^2 for before and after
-# r_sup[:,SGD_step,:]=M_sup * ori_vec_repeated -> R_sup^2 for before and after
+            # calculate mean accuracy for the given parameter set
+            acc_mean, _, _ = mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, True, test_offset_vec, sample_size =10)
+            # calculate offset by fitting non-linear curve
+            offset_at_bl_acc[run_ind, step_ind] = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= th_accuracy)
+    
+    return offset_at_bl_acc

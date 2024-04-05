@@ -8,8 +8,12 @@ import pandas as pd
 #import pingouin as pg
 from scipy import ndimage
 from scipy.stats import ttest_1samp
+from sklearn.model_selection import train_test_split
 import os
 import matplotlib.pyplot as plt
+from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import SGDClassifier
+from sklearn.preprocessing import StandardScaler
 
 from model import vmap_evaluate_model_response
 from util import sep_exponentiate, load_parameters
@@ -169,7 +173,7 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
                 filtered_r_sup_df = np.concatenate((filtered_r_sup_df, filtered_r_sup))
                 ori_df = np.concatenate((ori_df, np.repeat(ori, n_noisy_trials)))
                 step_df = np.concatenate((step_df, np.repeat(step_ind, n_noisy_trials)))
-        
+
     output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_df, r_sup = filtered_r_sup_df )
 
     return output, SGD_step_inds, r_mid, r_sup
@@ -177,10 +181,11 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
 ######### Calculate Mahalanobis distance for before pretraining, after pretraining and after training - distance between trained and control should increase more than distance between untrained and control after training #########
 def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
     ori_list = numpy.asarray([55, 125, 0])
-    num_PC_used=15
-    num_layers=2
+    num_PC_used=15 # number of principal components used for the analysis
+    num_layers=2 # number of layers
     num_noisy_trials=100 # Note: do not run this with small trial number because the estimation error of covariance matrix of the response for the control orientation stimuli will introduce a bias
 
+    # Initialize arrays to store Mahalanobis distances and related metrics
     LMI_across = numpy.zeros((num_training,num_layers,num_SGD_inds-1))
     LMI_within = numpy.zeros((num_training,num_layers,num_SGD_inds-1))
     LMI_ratio = numpy.zeros((num_training,num_layers,num_SGD_inds-1))
@@ -203,7 +208,8 @@ def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
     
     # Define pca model
     pca = PCA(n_components=num_PC_used)
-                
+      
+    # Iterate over the different parameter initializations (runs)
     for run_ind in range(num_training):
         start_time=time.time()
         file_name = f"{folder}/results_{run_ind}.csv"
@@ -219,28 +225,31 @@ def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_SGD_inds rows)
         r_mid_sup, SGD_steps, _, _ = filtered_model_response(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = num_noisy_trials, num_SGD_inds=num_SGD_inds)
         # Note: r_mid_sup is a dictionary with the oris and SGD_steps saved in them
-
+        
+        # Separate the responses into orientation conditions
         mesh_train = r_mid_sup['ori'] == ori_list[0]
         mesh_untrain = r_mid_sup['ori'] == ori_list[1]
         mesh_control = r_mid_sup['ori'] == ori_list[2]
         
+        # Iterate over the layers and SGD steps
         for layer in range(num_layers):
             for SGD_ind in range(num_SGD_inds):
-                # Select the responses corresponding to SGD_ind
+                # Define filter to select the responses corresponding to SGD_ind
                 mesh_step = r_mid_sup['SGD_step'] == SGD_steps[SGD_ind]
                 mesh_train_ = mesh_train[mesh_step]
                 mesh_untrain_ = mesh_untrain[mesh_step]
                 mesh_control_ = mesh_control[mesh_step]
-                # Select the layer (superficial=0 or middle=1)
+                # Select the layer (superficial=0 or middle=1) and the SGD_step
                 if layer==0:
                     r = numpy.array(r_mid_sup['r_sup'][mesh_step])
                 else:
                     r = numpy.array(r_mid_sup['r_mid'][mesh_step])
-
+                
+                # Attempt to stabilize the Mahalanobis distances (they chage too much from seed to seed) 
                 # Save/Load the PCA object to a file
-                #with open(f'pca_model_l{layer}_SGD{SGD_ind}.pkl', 'rb') as f:
+                # with open(f'pca_model_l{layer}_SGD{SGD_ind}.pkl', 'rb') as f:
                 #    pca = pickle.load(f)                
-                #with open(f'pca_model_l{layer}_SGD{SGD_ind}.pkl', 'wb') as f:
+                # with open(f'pca_model_l{layer}_SGD{SGD_ind}.pkl', 'wb') as f:
                 #    pickle.dump(pca, f)
                 # r matches up tp 3% but r_z has an average of 100% relative error because the small responsees are very unstable
                 
@@ -249,7 +258,7 @@ def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
                 score = pca.fit_transform(r)
                 r_pca = score[:, :num_PC_used]
                 
-                ## Explained variance is above 99% typically (70% for the experiments)
+                ## Explained variance is above 99% for 15 components (70% for the experiments)
                 #variance_explained = pca.explained_variance_ratio_
                 #for i, var in enumerate(variance_explained):
                 #    print(f"Variance explained by {i+1} PCs: {numpy.sum(variance_explained[0:i+1]):.2%}")
@@ -268,6 +277,7 @@ def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
                 mahal_within_train = numpy.zeros(num_noisy_trials)
                 mahal_within_untrain = numpy.zeros(num_noisy_trials)
                 
+                # Iterate over the trials to calculate the Mahal distances
                 for trial in range(num_noisy_trials):
                     # Create temporary copies excluding one sample
                     mask = numpy.ones(num_noisy_trials, dtype=bool)
@@ -289,7 +299,7 @@ def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
                 train_SNR_all[run_ind,layer,SGD_ind,:] = mahal_train_control / mahal_within_train
                 untrain_SNR_all[run_ind,layer,SGD_ind,:] = mahal_untrain_control / mahal_within_untrain
 
-                # Averaging over trials
+                # Average over trials
                 mahal_train_control_mean[run_ind,layer,SGD_ind] = numpy.mean(mahal_train_control)
                 mahal_untrain_control_mean[run_ind,layer,SGD_ind] = numpy.mean(mahal_untrain_control)
                 mahal_within_train_mean[run_ind,layer,SGD_ind] = numpy.mean(mahal_within_train)
@@ -297,7 +307,7 @@ def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
                 train_SNR_mean[run_ind,layer,SGD_ind] = numpy.mean(train_SNR_all[run_ind,layer,SGD_ind,:])
                 untrain_SNR_mean[run_ind,layer,SGD_ind] = numpy.mean(untrain_SNR_all[run_ind,layer,SGD_ind,:])
                 
-            # learning modulation indices (LMI) - same as experimental analysis
+            # Calculate learning modulation indices (LMI)
             for SGD_ind in range(num_SGD_inds-1):
                 LMI_across[run_ind,layer,SGD_ind] = (mahal_train_control_mean[run_ind,layer,SGD_ind+1] - mahal_train_control_mean[run_ind,layer,SGD_ind]) - (mahal_untrain_control_mean[run_ind,layer,SGD_ind+1] - mahal_untrain_control_mean[run_ind,layer,SGD_ind] )
                 LMI_within[run_ind,layer,SGD_ind] = (mahal_within_train_mean[run_ind,layer,SGD_ind+1] - mahal_within_train_mean[run_ind,layer,SGD_ind]) - (mahal_within_untrain_mean[run_ind,layer,SGD_ind+1] - mahal_within_untrain_mean[run_ind,layer,SGD_ind] )
@@ -312,6 +322,7 @@ def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
             LMI_ttests[layer,1,SGD_ind], LMI_ttest_p[layer,1,SGD_ind] = ttest_1samp(LMI_within[:,layer,SGD_ind],0)
             LMI_ttests[layer,2,SGD_ind], LMI_ttest_p[layer,2,SGD_ind] = ttest_1samp(LMI_ratio[:,layer,SGD_ind],0)
     
+    # Create dataframes for the Mahalanobis distances and LMI
     run_layer_df=np.repeat(np.arange(num_training),num_layers)
     SGD_ind_df = numpy.zeros(num_training*num_layers)
     for i in range(1, num_SGD_inds):
