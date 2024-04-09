@@ -484,7 +484,10 @@ def calculate_relative_change(df):
     relative_changes = numpy.zeros((18,2))
 
     # Calculate relative changes in parameters and other metrics before and after training
-    train_start_ind = df.index[df['stage'] == 1][0]
+    try:
+        train_start_ind = df.index[df['stage'] == 0][-1]
+    except:
+        train_start_ind = df.index[df['stage'] == 1][0]
     train_end_ind = len(J_m_EE)-1
     relative_changes[0,1] =(J_m_EE[train_end_ind] - J_m_EE[train_start_ind]) / J_m_EE[train_start_ind]
     relative_changes[1,1] =(J_m_IE[train_end_ind] - J_m_IE[train_start_ind]) / J_m_IE[train_start_ind]

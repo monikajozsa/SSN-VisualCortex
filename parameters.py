@@ -16,9 +16,9 @@ class PreTrainPars:
     ''' accuracy threshold to calculate corresponding offset (training task) - used for early stopping of pretraining '''
     acc_check_freq = 10
     ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
-    min_acc_check_ind = 50
+    min_acc_check_ind = 10
     ''' minimum SGD step where accuracy check happens for the training task '''
-    offset_threshold = 5
+    offset_threshold = 6
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
     batch_size = 100
     ''' number of trials per SGD step during pretraining '''
@@ -41,7 +41,7 @@ class TrainingPars:
     '''number of SGD step'''
     validation_freq = 30  
     '''frequency of validation loss and accuracy calculation'''
-    first_stage_acc_th = 0.65
+    first_stage_acc_th = 0.55
     '''accuracy threshold for early stopping criterium for the first stage of training'''
 
 training_pars = TrainingPars()

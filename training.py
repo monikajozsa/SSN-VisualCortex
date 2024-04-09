@@ -107,6 +107,15 @@ def train_ori_discr(
                 train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad)
                 if jax.numpy.isnan(train_loss):
                     return None, None
+                
+                if not pretrain_on and stage==1 and SGD_step == 0:
+                    if train_acc > first_stage_acc_th:
+                        print("Early stop: accuracy {} reached target {} for stage 1 training".format(
+                                train_acc, first_stage_acc_th)
+                        )
+                        # Store final step index and exit first training loop (-1 because we did do not save this step)
+                        first_stage_final_step = SGD_step -1
+                        break
 
                 # ii) Store parameters and metrics 
                 if 'stages' in locals():
