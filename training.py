@@ -170,15 +170,14 @@ def train_ori_discr(
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                     offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     if SGD_step==acc_check_ind[0] and stage==1:
-                        offsets_at_bl_acc=[float(offset_at_bl_acc)]
+                        offsets_th=[float(offset_at_bl_acc)]
                     else:
-                        offsets_at_bl_acc.append(float(offset_at_bl_acc))
+                        offsets_th.append(float(offset_at_bl_acc))
                     print('Baseline acc is achieved at offset:', offset_at_bl_acc, ' for step ', SGD_step)
 
                     # Stop pretraining: break out from SGD_step loop and stages loop (using a flag)
-                    if len(offsets_at_bl_acc)>2: # we stop pretraining even if the training task is solved for the pretraining
-                        pretrain_stop_flag = all(np.array(offsets_at_bl_acc[-2:]) < pretrain_offset_threshold)
-                        offsets_at_bl_acc[-1]=np.mean(np.array(offsets_at_bl_acc[-2:]))
+                    if len(offsets_th)>1: # we stop pretraining even if the training task is solved for the pretraining
+                        pretrain_stop_flag = all(np.array(offsets_th[-2:]) < pretrain_offset_threshold)
                     if pretrain_stop_flag:
                         print('Desired accuracy achieved during pretraining.')
                         first_stage_final_step = SGD_step
@@ -256,7 +255,7 @@ def train_ori_discr(
         SGD_steps = np.arange(0, len(stages))
         val_SGD_steps = val_steps[0:len(val_accs)]
         offsets = None
-        acc_check_ind = acc_check_ind[0:len(offsets_at_bl_acc)]
+        acc_check_ind = acc_check_ind[0:len(offsets_th)]
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps, acc_check_ind=acc_check_ind)
     else:
         SGD_steps = np.arange(0, len(stages))
@@ -264,12 +263,12 @@ def train_ori_discr(
         val_SGD_steps_stage2 = np.arange(first_stage_final_step + 1, first_stage_final_step + 1 + numSGD_steps, training_pars.validation_freq)
         val_SGD_steps = np.hstack([val_SGD_steps_stage1, val_SGD_steps_stage2])
         val_SGD_steps = val_SGD_steps[0:len(val_accs)]
-        offsets_at_bl_acc = None
+        offsets_th = None
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps)
         
     # Create DataFrame and save the DataFrame to a CSV file
         
-    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets, offsets_at_bl_acc)
+    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets, offsets_th)
 
     if results_filename:
         file_exists = os.path.isfile(results_filename)

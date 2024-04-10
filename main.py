@@ -110,7 +110,7 @@ while i < N_training and numFailedRuns < 20:
     tc_post, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_filename, ori_vec=tc_ori_list)
     
     ########## TRAINING ONLY with the same initialization and orimap ##########
-    
+    '''
     # Load the first parameters that pretraining started with
     trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
     # Set the offset to the original offset that pretraining started with
@@ -126,7 +126,7 @@ while i < N_training and numFailedRuns < 20:
             results_filename=results_filename_train_only,
             jit_on=True
         )
-    
+    '''
     # Calculate and save tuning curves
     trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename_train_only, iloc_ind = 0)
     _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_pre_train_only_filename, ori_vec=tc_ori_list)
@@ -141,8 +141,8 @@ while i < N_training and numFailedRuns < 20:
 
 #numpy.random.seed(0)
 start_time=time.time()
-#final_folder_path='results/Apr07_v0'
-#N_training=10
+#final_folder_path='results/Apr10_v6'
+#N_training=3
 tc_ori_list = numpy.arange(0,180,2)
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features
 from Mahal_distances import Mahal_dist_from_csv
