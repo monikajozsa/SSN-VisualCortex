@@ -168,7 +168,7 @@ def train_ori_discr(
                     if np.sum(acc_mean<0.5)>0.5*len(acc_mean):
                         acc_mean = 1-acc_mean
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
-                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= pretrain_offset_threshold)
+                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     if SGD_step==acc_check_ind[0] and stage==1:
                         offsets_at_bl_acc=[float(offset_at_bl_acc)]
                     else:
@@ -547,7 +547,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
         # Calculate the midpoint of the interval where y_vals crosses baseline_acc
         sign_change_ind = np.where(np.diff(np.sign(y_vals - baseline_acc)))[0]
         offsets_at_bl_acc = (x_vals[sign_change_ind] + x_vals[sign_change_ind + 1]) / 2
-    
+
     if offsets_at_bl_acc.size ==0:
         mask = acc_vec < baseline_acc
         first_index = np.argmax(mask)
