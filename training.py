@@ -178,7 +178,7 @@ def train_ori_discr(
                     # Stop pretraining: break out from SGD_step loop and stages loop (using a flag)
                     if len(offsets_at_bl_acc)>2: # we stop pretraining even if the training task is solved for the pretraining
                         pretrain_stop_flag = all(np.array(offsets_at_bl_acc[-2:]) < pretrain_offset_threshold)
-                        offsets_at_bl_acc[-1]=np.mean(offsets_at_bl_acc[-2:])
+                        offsets_at_bl_acc[-1]=np.mean(np.array(offsets_at_bl_acc[-2:]))
                     if pretrain_stop_flag:
                         print('Desired accuracy achieved during pretraining.')
                         first_stage_final_step = SGD_step
