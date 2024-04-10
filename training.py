@@ -68,7 +68,7 @@ def train_ori_discr(
         min_acc_check_ind = untrained_pars.pretrain_pars.min_acc_check_ind
         acc_check_ind = np.arange(0, numSGD_steps, untrained_pars.pretrain_pars.acc_check_freq)
         acc_check_ind = acc_check_ind[(acc_check_ind > min_acc_check_ind) | (acc_check_ind <2)] # by leaving in 0, we make sure that it is not empty as we refer to it later
-        test_offset_vec = numpy.array([2, 4, 6, 9, 12, 15, 20]) # offsets that help us define accuracy for training task during pretraining
+        test_offset_vec = numpy.array([2, 5, 10, 18])  # numpy.array([2, 4, 6, 9, 12, 15, 20]) # offsets that help us define accuracy for training task during pretraining
         numStages = 1
     else:
         numSGD_steps = training_pars.SGD_steps
@@ -168,21 +168,22 @@ def train_ori_discr(
                     if np.sum(acc_mean<0.5)>0.5*len(acc_mean):
                         acc_mean = 1-acc_mean
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
-                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= pretrain_offset_threshold)
                     if SGD_step==acc_check_ind[0] and stage==1:
                         offsets_at_bl_acc=[float(offset_at_bl_acc)]
                     else:
                         offsets_at_bl_acc.append(float(offset_at_bl_acc))
                     print('Baseline acc is achieved at offset:', offset_at_bl_acc, ' for step ', SGD_step)
 
-                    # Stop pretraining: nreak out from STG_step loop and stages loop (using a flag)
-                    if len(offsets_at_bl_acc)>3: # we stop pretraining even if the training task is solved for the pretraining
-                        pretrain_stop_flag = all(np.array(offsets_at_bl_acc[-3:]) < pretrain_offset_threshold)
+                    # Stop pretraining: break out from SGD_step loop and stages loop (using a flag)
+                    if len(offsets_at_bl_acc)>2: # we stop pretraining even if the training task is solved for the pretraining
+                        pretrain_stop_flag = all(np.array(offsets_at_bl_acc[-2:]) < pretrain_offset_threshold)
+                        offsets_at_bl_acc[-1]=np.mean(offsets_at_bl_acc[-2:])
                     if pretrain_stop_flag:
                         print('Desired accuracy achieved during pretraining.')
                         first_stage_final_step = SGD_step
                         break
-
+                    
                 # Check for early stopping during training
                 if not pretrain_on and stage==1:
                     if SGD_step == 0:
@@ -484,7 +485,7 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     untrained_pars.stimuli_pars.offset = test_offset
     
     # Generate noise that is added to the output of the model
-    batch_size=200
+    batch_size=300
     noise_ref = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
     noise_target = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
     
@@ -501,7 +502,7 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     
     return acc, loss
 
-def mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec, sample_size = 3):
+def mean_training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec, sample_size = 1):
     """
     This function runs training_task_acc_test sample_size times to get accuracies and losses for the training task for a given parameter set. It averages the accuracies accross independent samples of accuracies.
     """

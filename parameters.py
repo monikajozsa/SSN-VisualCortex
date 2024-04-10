@@ -14,7 +14,7 @@ class PreTrainPars:
     ''' interval where the absolute orientation difference between reference and target is randomly chosen from '''
     acc_th = 0.749
     ''' accuracy threshold to calculate corresponding offset (training task) - used for early stopping of pretraining '''
-    acc_check_freq = 10
+    acc_check_freq = 3
     ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
     min_acc_check_ind = 10
     ''' minimum SGD step where accuracy check happens for the training task '''
@@ -31,15 +31,15 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta = 2*10e-4 
+    eta = 5*10e-4 
     '''learning rate - the maximum rate of parameter change in one SGD step'''
     batch_size = 50
     '''number of trials per SGD step'''
     noise_type = "poisson"
     '''there is an additive Gaussian noise to the model output (rates) that is related to parameters N_readout and dt'''
-    SGD_steps = 500 
+    SGD_steps = 500
     '''number of SGD step'''
-    validation_freq = 30  
+    validation_freq = 50  
     '''frequency of validation loss and accuracy calculation'''
     first_stage_acc_th = 0.55
     '''accuracy threshold for early stopping criterium for the first stage of training'''
@@ -80,7 +80,7 @@ loss_pars = LossPars()
 
 
 def xy_distance(gridsize_Nx,gridsize_deg):
-    ''' This function calculates distances between grid points of a grid with given sizes. '''
+    ''' This function calculates distances between grid points of a grid with given sizes. It is used in GridPars class.'''
     Nn = gridsize_Nx**2
     gridsize_mm = gridsize_deg * 2
     Lx = Ly = gridsize_mm

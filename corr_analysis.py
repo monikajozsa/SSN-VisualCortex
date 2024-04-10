@@ -111,8 +111,9 @@ def corr_from_csvs(folder,num_trainings, batch_size = 100):
     #print(corr_offset_th_J)
     return offset_diff, offset_th_diff, J_m_diff, J_s_diff
 
-#corr_offset_J, corr_offset_th_J, offset_diff, offset_th_diff, J_m_diff, J_s_diff = corr_from_csvs('results/Apr07_v0', 18)
-offset_diff, offset_th_diff, J_m_diff, J_s_diff = corr_from_csvs('results/Mar27_v0', 30)
+folder='results/Mar27_v0'
+N_training=30
+offset_diff, offset_th_diff, J_m_diff, J_s_diff = corr_from_csvs(folder, N_training)
 
 import scipy
 import seaborn as sns
