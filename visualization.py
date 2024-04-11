@@ -26,7 +26,7 @@ def boxplots_from_csvs(directory, save_directory, plot_filename = None):
             # Read CSV file
             df = pd.read_csv(filepath)
             # Calculate relative change
-            relative_changes = 100 * calculate_relative_change(df)
+            relative_changes,_,_,_,_ = 100 * calculate_relative_change(df)
             relative_changes_pretrain.append(relative_changes[:,0])
             relative_changes_train.append(relative_changes[:,1])
     
@@ -310,7 +310,7 @@ def plot_results_from_csv(
     # BARPLOTS about relative changes
     categories_params = ['Jm_EE', 'Jm_IE', 'Jm_EI', 'Jm_II', 'Js_EE', 'Js_IE', 'Js_EI', 'Js_II']
     categories_metrics = [ 'c_E', 'c_I', 'f_E', 'f_I', 'acc', 'offset', 'rm_E', 'rm_I', 'rs_E','rs_I']
-    rel_changes = calculate_relative_change(df) # 0 is pretraining and 1 is training in the second dimensions
+    rel_changes,_,_,_,_ = calculate_relative_change(df) # 0 is pretraining and 1 is training in the second dimensions
     for i_train_pretrain in range(2):
         values_params = 100 * rel_changes[0:8,i_train_pretrain]
         values_metrics = 100 * rel_changes[8:18,i_train_pretrain]
@@ -485,9 +485,10 @@ def calculate_relative_change(df):
 
     # Calculate relative changes in parameters and other metrics before and after training
     try:
-        train_start_ind = df.index[df['stage'] == 0][-1]
+        start_0 = df[df['stage'] == 0].index[-1]
+        train_start_ind = df['offset'].iloc[start_0:start_0+100].argmin()+start_0
     except:
-        train_start_ind = df.index[df['stage'] == 1][0]
+        train_start_ind = df[df['stage'] == 1].index[0]
     train_end_ind = len(J_m_EE)-1
     relative_changes[0,1] =(J_m_EE[train_end_ind] - J_m_EE[train_start_ind]) / J_m_EE[train_start_ind]
     relative_changes[1,1] =(J_m_IE[train_end_ind] - J_m_IE[train_start_ind]) / J_m_IE[train_start_ind]
@@ -512,23 +513,24 @@ def calculate_relative_change(df):
     relative_changes[17,1] = (df['maxr_I_sup'].iloc[train_end_ind] - df['maxr_I_sup'].iloc[train_start_ind]) / df['maxr_I_sup'].iloc[train_start_ind] # r_sup
 
     # Calculate relative changes in parameters and other metrics before and after pretraining
-    pretraining_on = float(np.sum(df['stage'].ravel() == 0))>0
+    pretraining_on = float(np.sum(df['stage'].ravel() == 0))>0 
     if pretraining_on:
         pretrain_start_ind = df.index[df['stage'] == 0][0]
-        relative_changes[0,0] =(J_m_EE[train_start_ind] - J_m_EE[pretrain_start_ind]) / J_m_EE[pretrain_start_ind]
-        relative_changes[1,0] =(J_m_IE[train_start_ind] - J_m_IE[pretrain_start_ind]) / J_m_IE[pretrain_start_ind]
-        relative_changes[2,0] =(J_m_EI[train_start_ind] - J_m_EI[pretrain_start_ind]) / J_m_EI[pretrain_start_ind]
-        relative_changes[3,0] =(J_m_II[train_start_ind] - J_m_II[pretrain_start_ind]) / J_m_II[pretrain_start_ind]
-        relative_changes[4,0] =(J_s_EE[train_start_ind] - J_s_EE[pretrain_start_ind]) / J_s_EE[pretrain_start_ind]
-        relative_changes[5,0] =(J_s_IE[train_start_ind] - J_s_IE[pretrain_start_ind]) / J_s_IE[pretrain_start_ind]
-        relative_changes[6,0] =(J_s_EI[train_start_ind] - J_s_EI[pretrain_start_ind]) / J_s_EI[pretrain_start_ind]
-        relative_changes[7,0] =(J_s_II[train_start_ind] - J_s_II[pretrain_start_ind]) / J_s_II[pretrain_start_ind]
-        relative_changes[8,0] = (c_E[train_start_ind] - c_E[pretrain_start_ind]) / c_E[pretrain_start_ind]
-        relative_changes[9,0] = (c_I[train_start_ind] - c_I[pretrain_start_ind]) / c_I[pretrain_start_ind]
-        relative_changes[10,0] = (f_E[train_start_ind] - f_E[pretrain_start_ind]) / f_E[pretrain_start_ind]
-        relative_changes[11,0] = (f_I[train_start_ind] - f_I[pretrain_start_ind]) / f_I[pretrain_start_ind]
+        pretrain_end_ind = df[df['stage'] == 0].index[-1]
+        relative_changes[0,0] =(J_m_EE[pretrain_end_ind] - J_m_EE[pretrain_start_ind]) / J_m_EE[pretrain_start_ind]
+        relative_changes[1,0] =(J_m_IE[pretrain_end_ind] - J_m_IE[pretrain_start_ind]) / J_m_IE[pretrain_start_ind]
+        relative_changes[2,0] =(J_m_EI[pretrain_end_ind] - J_m_EI[pretrain_start_ind]) / J_m_EI[pretrain_start_ind]
+        relative_changes[3,0] =(J_m_II[pretrain_end_ind] - J_m_II[pretrain_start_ind]) / J_m_II[pretrain_start_ind]
+        relative_changes[4,0] =(J_s_EE[pretrain_end_ind] - J_s_EE[pretrain_start_ind]) / J_s_EE[pretrain_start_ind]
+        relative_changes[5,0] =(J_s_IE[pretrain_end_ind] - J_s_IE[pretrain_start_ind]) / J_s_IE[pretrain_start_ind]
+        relative_changes[6,0] =(J_s_EI[pretrain_end_ind] - J_s_EI[pretrain_start_ind]) / J_s_EI[pretrain_start_ind]
+        relative_changes[7,0] =(J_s_II[pretrain_end_ind] - J_s_II[pretrain_start_ind]) / J_s_II[pretrain_start_ind]
+        relative_changes[8,0] = (c_E[pretrain_end_ind] - c_E[pretrain_start_ind]) / c_E[pretrain_start_ind]
+        relative_changes[9,0] = (c_I[pretrain_end_ind] - c_I[pretrain_start_ind]) / c_I[pretrain_start_ind]
+        relative_changes[10,0] = (f_E[pretrain_end_ind] - f_E[pretrain_start_ind]) / f_E[pretrain_start_ind]
+        relative_changes[11,0] = (f_I[pretrain_end_ind] - f_I[pretrain_start_ind]) / f_I[pretrain_start_ind]
         
-        relative_changes[12,0] = (df['acc'].iloc[train_end_ind] - df['acc'].iloc[train_start_ind]) / df['acc'].iloc[train_start_ind] # accuracy
+        relative_changes[12,0] = (df['acc'].iloc[pretrain_end_ind] - df['acc'].iloc[train_start_ind]) / df['acc'].iloc[train_start_ind] # accuracy
         for column in df.columns:
             if 'offset' in column:
                 relative_changes[13,1] = (df[column].iloc[train_start_ind] - df[column].iloc[pretrain_start_ind]) / df[column].iloc[pretrain_start_ind] # offset threshold
@@ -537,7 +539,7 @@ def calculate_relative_change(df):
         relative_changes[16,0] = (df['maxr_E_sup'].iloc[train_start_ind] - df['maxr_E_sup'].iloc[pretrain_start_ind]) / df['maxr_E_sup'].iloc[pretrain_start_ind] # r_mid
         relative_changes[17,0] = (df['maxr_I_sup'].iloc[train_start_ind] - df['maxr_I_sup'].iloc[pretrain_start_ind]) / df['maxr_I_sup'].iloc[pretrain_start_ind] # r_sup
     
-    return relative_changes
+    return relative_changes, train_start_ind, train_end_ind, pretrain_start_ind, pretrain_end_ind
 
 
 def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6)):

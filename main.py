@@ -1,6 +1,6 @@
 import numpy
 import time
-
+'''
 from util_gabor import init_untrained_pars
 from util import save_code, load_parameters
 from training import train_ori_discr
@@ -23,6 +23,7 @@ from parameters import (
 if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
+train_only_flag = False
 ########## Initialize orientation map and gabor filters ############
 
 # Save out initial offset and reference orientation
@@ -34,10 +35,10 @@ results_filename, final_folder_path = save_code()
 
 # Run N_training number of pretraining + training
 tc_ori_list = numpy.arange(0,180,2)
-N_training = 30
+N_training = 50
 starting_time_in_main= time.time()
 numFailedRuns = 0
-i=0
+i=26
 while i < N_training and numFailedRuns < 20:
     numpy.random.seed(i)
 
@@ -110,39 +111,39 @@ while i < N_training and numFailedRuns < 20:
     tc_post, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_filename, ori_vec=tc_ori_list)
     
     ########## TRAINING ONLY with the same initialization and orimap ##########
-    '''
-    # Load the first parameters that pretraining started with
-    trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
-    # Set the offset to the original offset that pretraining started with
-    untrained_pars.stimuli_pars.offset = offset_saved
-    # Set the reference orientation to the original one that pretraining started with
-    untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
-    
-    # Run training
-    training_output_df, _ = train_ori_discr(
-            trained_pars_stage1,
-            trained_pars_stage2,
-            untrained_pars,
-            results_filename=results_filename_train_only,
-            jit_on=True
-        )
-    '''
-    # Calculate and save tuning curves
-    trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename_train_only, iloc_ind = 0)
-    _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_pre_train_only_filename, ori_vec=tc_ori_list)
-    trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename_train_only, iloc_ind = -1)
-    _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_train_only_filename, ori_vec=tc_ori_list)
-    
+    if train_only_flag:
+        # Load the first parameters that pretraining started with
+        trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
+        # Set the offset to the original offset that pretraining started with
+        untrained_pars.stimuli_pars.offset = offset_saved
+        # Set the reference orientation to the original one that pretraining started with
+        untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
+        
+        # Run training
+        training_output_df, _ = train_ori_discr(
+                trained_pars_stage1,
+                trained_pars_stage2,
+                untrained_pars,
+                results_filename=results_filename_train_only,
+                jit_on=True
+            )
+        
+        # Calculate and save tuning curves
+        trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename_train_only, iloc_ind = 0)
+        _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_pre_train_only_filename, ori_vec=tc_ori_list)
+        trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename_train_only, iloc_ind = -1)
+        _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_train_only_filename, ori_vec=tc_ori_list)
+        
     i = i + 1
     print('runtime of {} pretraining + training run(s)'.format(i), time.time()-starting_time_in_main)
     print('number of failed runs = ', numFailedRuns)
-
+'''
 ######### PLOT RESULTS ############
 
 #numpy.random.seed(0)
 start_time=time.time()
-#final_folder_path='results/Apr10_v6'
-#N_training=3
+final_folder_path='results/Apr10_v1'
+N_training=50
 tc_ori_list = numpy.arange(0,180,2)
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features
 from Mahal_distances import Mahal_dist_from_csv
@@ -154,12 +155,12 @@ folder_to_save = final_folder_path + '/figures'
 boxplot_file_name = 'boxplot_pretraining'
 #mahal_file_name = 'Mahal_dist'
 num_SGD_inds=3
-plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save)#, starting_run=10)
+#plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save)#, starting_run=10)
 boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name)
 #Mahal_dist_from_csv(N_training, final_folder_path, folder_to_save, mahal_file_name, num_SGD_inds)
 #MVPA_score_from_csv(N_training, final_folder_path, folder_to_save, mahal_file_name, num_SGD_inds)
-plot_tc_features(final_folder_path, N_training, tc_ori_list)
-plot_tuning_curves(final_folder_path,tc_cells,N_training,folder_to_save)
+#plot_tc_features(final_folder_path, N_training, tc_ori_list)
+#plot_tuning_curves(final_folder_path,tc_cells,N_training,folder_to_save)
 
 ## Training only
 #final_folder_path_train_only = final_folder_path + '/train_only'
@@ -172,6 +173,7 @@ plot_tuning_curves(final_folder_path,tc_cells,N_training,folder_to_save)
 #plot_tuning_curves(final_folder_path_train_only,tc_cells,N_training,folder_to_save,train_only_str='train_only_')
 
 print('runtime of plotting', time.time()-start_time)
+
 
 '''
 # Recalculating and replotting tuning curves if ori list is different than default
