@@ -156,10 +156,10 @@ boxplot_file_name = 'boxplot_pretraining'
 #mahal_file_name = 'Mahal_dist'
 num_SGD_inds=3
 #plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save)#, starting_run=10)
-boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name)
+#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name)
 #Mahal_dist_from_csv(N_training, final_folder_path, folder_to_save, mahal_file_name, num_SGD_inds)
 #MVPA_score_from_csv(N_training, final_folder_path, folder_to_save, mahal_file_name, num_SGD_inds)
-#plot_tc_features(final_folder_path, N_training, tc_ori_list)
+plot_tc_features(final_folder_path, N_training, tc_ori_list)
 #plot_tuning_curves(final_folder_path,tc_cells,N_training,folder_to_save)
 
 ## Training only
