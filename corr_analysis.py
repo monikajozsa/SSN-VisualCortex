@@ -57,7 +57,6 @@ def corr_from_csvs(folder,num_trainings, batch_size = 100):
         # Check if offset_th.csv is already present
         if 'offset_th.csv' in os.listdir(folder):
             offset_th = numpy.loadtxt(folder + '/offset_th.csv', delimiter=',')
-            offset_th_diff = -(offset_th[:,0] - offset_th[:,1]) / offset_th[:,0]
         else:
             # Calculate the offset difference at start and end of training
             offsets[i,:] = numpy.array([df['offset'][training_start],df['offset'][training_end]])
@@ -76,12 +75,10 @@ def corr_from_csvs(folder,num_trainings, batch_size = 100):
             trained_pars_stage1, trained_pars_stage2, _ = load_parameters(file_name, iloc_ind = training_end)
             acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
             offset_th[i,1] = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= 0.85)[0]
-            offset_th_diff[i] = -(offset_th[i,1] - offset_th[i,0]) / offset_th[i,0] *100
-            
+            # save out offset_th in a csv
+            numpy.savetxt(folder + '/offset_th.csv', offset_th, delimiter=',')
+        offset_th_diff[i] = -(offset_th[i,1] - offset_th[i,0]) / offset_th[i,0] *100            
         print('Finished reading file', i, 'time elapsed:', time.time() - start_time)
-
-    # save out offset_th in a csv
-    numpy.savetxt(folder + '/offset_th.csv', offset_th, delimiter=',')
 
     # Check if the offset difference is less valid (180 is a default value for when offset_th is not found within range)    
     mesh_offset_th=numpy.sum(offset_th, axis=1)<180
@@ -108,7 +105,7 @@ import matplotlib.pyplot as plt
 
 # Convert relative parameter differences to pandas DataFrame
 data = pd.DataFrame({'offset_th_diff': offset_th_diff, 'J_m_EE_diff': J_m_diff[:, 0], 'J_m_IE_diff': J_m_diff[:, 1], 'J_m_EI_diff': J_m_diff[:, 2], 'J_m_II_diff': J_m_diff[:, 3], 'J_s_EE_diff': J_s_diff[:, 0], 'J_s_IE_diff': J_s_diff[:, 1], 'J_s_EI_diff': J_s_diff[:, 2], 'J_s_II_diff': J_s_diff[:, 3], 'f_E_diff': f_diff[:, 0], 'f_I_diff': f_diff[:, 1], 'c_E_diff': c_diff[:, 0], 'c_I_diff': c_diff[:, 1]})
-
+'''
 ##################### Plot 1: Correlate offset_th_diff with the J_m_EE_diff, J_m_IE_diff, J_m_EI_diff, J_m_II_diff, J_s_EE_diff, J_s_IE_diff, J_s_EI_diff, J_s_II_diff #####################
 # Create a 2x4 subplot grid
 fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(16, 8))
@@ -155,7 +152,7 @@ axes[1].axhline(y=0, color='black', linestyle='--')
 
 plt.savefig(folder + "/figures/J_changes.png")
 plt.close()
-
+'''
 ##################### Plot 2: Correlate offset_th_diff with the combintation of the J_m_EE and J_m_IE, J_m_EI and J_m_II, etc. #####################
 ## Create a 2x2 subplot grid
 fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8))
@@ -182,6 +179,9 @@ for i in range(4):
     # Calculate the Pearson correlation coefficient and the p-value
     corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], data[x_labels2[i]])
     
+    # display corr and p-value at the left bottom of the figure
+    #axes_flat[i].text(0.05, 0.05, f'Corr: {corr:.2f}, p-val: {p_value:.2f}', transform=axes_flat[i % 2].transAxes, fontsize=20) 
+
     # Close the lmplot's figure to prevent overlapping
     axes_flat[i].set_title( f'Corr: {corr:.2f}, p-val: {p_value:.2f}')
 
@@ -192,6 +192,7 @@ plt.tight_layout()
 plt.savefig(folder + "/figures/Offset_corr_J_IE.png")
 plt.close()
 
+'''
 ##################### Plot 3: Correlate offset_th_diff with the ratio J_m_I_diff/J_m_E_diff and J_s_I_diff/J_s_E_diff #####################
 ## Create a 2x2 subplot grid
 fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(4, 8))
@@ -218,28 +219,30 @@ plt.tight_layout()
 # Save the plot as a PNG file
 plt.savefig(folder + "/figures/Offset_corr_Jratio.png")
 plt.close()
-
+'''
 ##################### Plot 4: Correlate offset_th_diff with f_diff and c_diff #####################
 ## Create a 2x2 subplot grid
-fig, axes = plt.subplots(nrows=1, ncols=4, figsize=(16, 4))
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(8, 4))
 axes_flat = axes.flatten()
 
 # x-axis labels
 x_labels4 = ['f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
 E_indices = [0,2]
+colors = ['brown', 'purple', 'orange', 'green']
+linecolors = ['#8B4513', '#800080', '#FF8C00',  '#006400']  # Approximate dark versions of purple, green, orange, and brown
+axes_indices = [0,0,1,1]
 for i in range(len(x_labels4)):
     # Create lmplot for each pair of variables
-    if i in E_indices:
-        sns.regplot(x=x_labels4[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='red', 
-            line_kws={'color':'darkred'}, scatter_kws={'alpha':0.3, 'color':'red'})
-    else:
-        sns.regplot(x=x_labels4[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='blue',
-            line_kws={'color':'darkblue'}, scatter_kws={'alpha':0.3, 'color':'blue'})
+    # set colors to purple, green, orange and brown for the different indices
+    sns.regplot(x=x_labels4[i], y='offset_th_diff', data=data, ax=axes_flat[axes_indices[i]], ci=95, color=colors[i],
+        line_kws={'color':linecolors[i]}, scatter_kws={'alpha':0.3, 'color':colors[i]})
     # Calculate the Pearson correlation coefficient and the p-value
     corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], data[x_labels4[i]])
-    
+
+    # display corr and p-value at the left bottom of the figure
+    #axes_flat[i % 2].text(0.05, 0.05, f'Corr: {corr:.2f}, p-val: {p_value:.2f}', transform=axes_flat[i % 2].transAxes, fontsize=10)    
     # Close the lmplot's figure to prevent overlapping
-    axes_flat[i].set_title( f'Corr: {corr:.2f}, p-val: {p_value:.2f}')
+    axes_flat[axes_indices[i]].set_title( f'Corr: {corr:.2f}, p-val: {p_value:.2f}')
 
 # Adjust layout to prevent overlap
 plt.tight_layout()
@@ -248,15 +251,16 @@ plt.tight_layout()
 plt.savefig(folder + "/figures/Offset_corr_f_c.png")
 plt.close()
 
+##################### Plot 5: Create boxplots for the f_diff and c_diff #####################
+# clear the plot
+plt.clf()
 
-# Create a boxplot for the f and c differences
-box_colors = ['tab:red','tab:blue', 'tab:red','tab:blue']
+# Create a boxplot for the f and c differences separately
 labels=['f_E_diff', 'f_I_diff', 'c_E_diff', 'c_I_diff']
 bp = plt.boxplot(data[labels], labels=labels, patch_artist=True, showfliers=False)
-for box, color in zip(bp['boxes'], box_colors):
+for box, color in zip(bp['boxes'], colors):
     box.set_facecolor(color)
 plt.axhline(y=0, color='black', linestyle='--')
 
 plt.savefig(folder + "/figures/fc_changes.png")
 plt.close()
-

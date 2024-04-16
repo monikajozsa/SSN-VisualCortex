@@ -5,18 +5,23 @@ import os
 import jax.numpy as np
 import numpy
 import sys
+import seaborn as sns
+import statsmodels.api as sm
 
 from model import evaluate_model_response
 from util import sep_exponentiate
 from SSN_classes import SSN_mid, SSN_sup
 from util_gabor import BW_image_jit
 
+plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
+plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels
+
 ########### Plotting functions ##############
 def boxplots_from_csvs(directory, save_directory, plot_filename = None):
     # List to store relative changes from each file
     relative_changes_pretrain = []
     relative_changes_train = []
-
+    
     # Iterate through each file in the directory
     numFiles = 0
     for filename in os.listdir(directory):
@@ -26,11 +31,43 @@ def boxplots_from_csvs(directory, save_directory, plot_filename = None):
             # Read CSV file
             df = pd.read_csv(filepath)
             # Calculate relative change
-            relative_changes,_,_,_,_ = 100 * calculate_relative_change(df)
+            relative_changes, train_start_ind, train_end_ind,_, _ = calculate_relative_change(df)
+            relative_changes = relative_changes*100
             relative_changes_pretrain.append(relative_changes[:,0])
             relative_changes_train.append(relative_changes[:,1])
+            if numFiles==1:
+                offset_pre_and_post =  numpy.array([df['offset'][train_start_ind], df['offset'][train_end_ind]])
+            else:
+                offset_pre_and_post_temp =  numpy.array([df['offset'][train_start_ind], df['offset'][train_end_ind]])
+                offset_pre_and_post = numpy.vstack((offset_pre_and_post,offset_pre_and_post_temp))
     
-    # Plotting bar plots
+    # Plotting bar plots of offset before and after training
+    offset_pre_and_post=offset_pre_and_post.T
+    means = np.mean(offset_pre_and_post, axis=1)
+
+    # Create figure and axis
+    fig, ax = plt.subplots()
+
+    # Colors for bars
+    colors = ['blue', 'green']
+
+    # Bar plot for mean values
+    bars = ax.bar(['Pre', 'Post'], means, color=colors, alpha=0.7)
+
+        # Plot individual data points and connect them
+    for i in range(2):
+        group_data = offset_pre_and_post[i,:]
+        mean=means[i]
+        x_positions = numpy.random.normal(i, 0.04, size=len(group_data))
+        ax.scatter(x_positions, group_data, color='black', alpha=0.7)  # Scatter plot of individual data points
+        # Draw lines from bar to points
+    for j in range(len(group_data)):
+        ax.plot([0, 1], [offset_pre_and_post[0,j], offset_pre_and_post[1,j]], color='black', alpha=0.2)
+    # Save plot
+    if plot_filename is not None:
+        full_path = save_directory + '/offset_pre_post.png'
+        fig.savefig(full_path)
+
     # Define groups of parameters and plot each parameter group
     groups = [
         ['J_m_EE', 'J_m_IE', 'J_m_EI', 'J_m_II'],
@@ -81,6 +118,7 @@ def boxplots_from_csvs(directory, save_directory, plot_filename = None):
         fig.savefig(full_path)
 
     plt.close()
+
 
 
 def plot_tuning_curves(folder_path,tc_cells,num_runs,folder_to_save,train_only_str='', seed=0):
@@ -158,11 +196,11 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, N_r
             plot_indices = numpy.intersect1d(in_bin, indices_to_plot)
             
             if len(plot_indices) > 0:
-                ax.scatter(x_axis[run_ind,plot_indices], y_axis[run_ind,plot_indices], color=color, s=20, alpha=0.7)
+                ax.scatter(x_axis[run_ind,plot_indices], y_axis[run_ind,plot_indices], color=color, s=20, alpha=0.5)
     
     # Plot x = y line
     xpoints = ypoints = ax.get_xlim()
-    ax.plot(xpoints, ypoints, linestyle='--', color='gold', linewidth=1)
+    ax.plot(xpoints, ypoints, color='black', linewidth=2)
     ax.set_xlabel('Pre training')
     ax.set_ylabel('Post training')
     ax.set_title(title)
@@ -237,16 +275,18 @@ def plot_tc_features(results_dir, N_runs, ori_list, train_only_str='', pre_post_
     #E_mid_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
     #I_mid_centre = (E_mid_centre+81).astype(int)
     
-    if pre_post_scatter_flag:
-        # Create labels and legends for the plot
-        labels = ['E_sup','I_sup','E_mid','I_mid']
-        patches = []
-        cmap = plt.get_cmap('rainbow')
-        colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
-        bins = ['0-4', '4-12', '12-20', '20-28', '28-36', '36-44', '44-50', '+50']
-        for j in range(0,len(colors)):
-            patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
+    # Create labels for the plot
+    labels = ['E_sup','I_sup','E_mid','I_mid']
+    # Create legends for the plot
+    patches = []
+    cmap = plt.get_cmap('rainbow')
+    colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
+    bins = ['0-4', '4-12', '12-20', '20-28', '28-36', '36-44', '44-50', '+50']
+    for j in range(0,len(colors)):
+        patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
 
+    if pre_post_scatter_flag:
+        
         # Plot slope
         if train_only_str=='':
             fig, axs = plt.subplots(4, 4, figsize=(15, 20)) 
@@ -277,27 +317,55 @@ def plot_tc_features(results_dir, N_runs, ori_list, train_only_str='', pre_post_
             fig.savefig(os.path.dirname(results_dir) + "/figures/tc_features" + train_only_str +".png")
         else:
             fig.savefig(results_dir + "/figures/tc_features" + train_only_str +".png")
-    else:
-        # Scatter slope, where x-axis is orientation and y-axis is the % relative change in slope before and after training
-        fig, axs = plt.subplots(2, 2, figsize=(15, 20))
-        axes_flat = axs.flatten()
-        for j in range(len(indices)):
-            axes_flat[j].scatter(data['orientations_prepre'][:,indices[j]], (data['norm_slope_post'][:,indices[j]]-data['norm_slope_prepre'][:,indices[j]]) /data['norm_slope_prepre'][:,indices[j]], s=20, alpha=0.7)
-            fig.savefig(results_dir + "/figures/tc_slope" + train_only_str +".png")
-            axes_flat[j].set_title(labels[j])
         plt.close()
-        # plot mean slope before and after training (separately for the four indices groups), where x axis is bins of orientations and y axis is the mean slope value across cells
-        fig, axs = plt.subplots(2, 2, figsize=(15, 20))
-        axes_flat = axs.flatten()
-        for j in range(len(indices)):
-            bin_indices = numpy.digitize(numpy.abs(data['orientations_prepre'][:,indices[j]]), [4, 12, 20, 28, 36, 44, 50, 180])
-            mean_slope = numpy.zeros(len(bin_indices))
-            for i in range(1,len(bin_indices)+1):
-                indices_in_bin = numpy.where(bin_indices == i)[0]
-                mean_slope[i] = numpy.mean(data['norm_slope_prepre'][:,indices[j]][indices_in_bin])
-            axes_flat[j].plot(numpy.array([4, 12, 20, 28, 36, 44, 50, 180]),mean_slope)
-            axes_flat[j].set_title(labels[j])
-        fig.savefig(results_dir + "/figures/tc_slope_mean" + train_only_str +".png")
+
+    # Plots for CCN abstract
+    else:
+        ############# Plot fwhm before vs after training for E_sup and E_mid #############
+        fig, axs = plt.subplots(2, 1, figsize=(8, 16)) 
+        for j in [0,2]:            
+            title = 'Fwhm training, ' + labels[j] 
+
+            # add a little jitter to x and y to avoid overlapping points
+            x = numpy.random.normal(0, 0.3, data['fwhm_prepre'].shape) + data['fwhm_prepre']
+            y = numpy.random.normal(0, 0.3, data['fwhm_post'].shape) + data['fwhm_post']
+
+            plot_pre_post_scatter(axs[abs((2-j))//2], x , y ,data['orientations_postpre'], indices[j], N_runs,title = title,colors=colors)
+        axs[1].legend(handles=patches, loc='lower right',  bbox_to_anchor=(1, 1), title='Pref ori - 55',
+                title_fontsize='large',  # Increase the title font size
+                fontsize='large',  # Increase the legend font size
+                borderpad=1.5,  # Increase the border padding of the legend box
+                labelspacing=1.5,  # Increase the space between items
+                handletextpad=2)  # Increase the padding between the icon and text
+        fig.savefig(results_dir + "/figures/tc_fwhm" + train_only_str +".png")
+        plt.close()
+
+        ############# Plot orientation vs slope #############
+        # Add slope difference before and after training to the data dictionary
+        data['slope_diff'] = data['norm_slope_post'] - data['norm_slope_prepre']
+        
+        # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
+        fig, axs = plt.subplots(2, 1, figsize=(8, 16))
+        for j in [0,2]:
+            #axes_flat[j].scatter(data['orientations_prepre'][:,indices[j]], (data['norm_slope_post'][:,indices[j]]-data['norm_slope_prepre'][:,indices[j]]), s=20, alpha=0.7)
+            
+            # Define x and y values for the scatter plot
+            x= data['orientations_prepre'][:,indices[j]].flatten()
+            #shift x to have 0 in its center (with circular orientation) and 180 at the end and apply the same shift to the slope_diff
+            x = numpy.where(x>90, x-180, x)
+            y= data['slope_diff'][:,indices[j]].flatten()
+            lowess = sm.nonparametric.lowess(y, x, frac=0.15)  # Example with frac=0.2 for more local averaging
+            axs[abs((2-j)) // 2].scatter(x, y, s=15, alpha=0.7)
+            axs[abs((2-j)) // 2].plot(lowess[:, 0], lowess[:, 1], color='black', linewidth=3)
+            # center the x-axis at 0
+
+            #df = pd.DataFrame(data['orientations_prepre'][:,indices[j]].flatten(), columns=['orientations_prepre'])
+            #df['slope_diff'] = data['slope_diff'][:,indices[j]].flatten()
+
+            # scatter plot with smooth line
+            #sns.regplot(x='orientations_prepre', y='slope_diff', data=df, lowess=True, scatter_kws={"s": 50, "alpha": 0.5}, line_kws={"color": "black", "lw": 2}, ax=axes_flat[j])
+            axs[abs((2-j)) // 2].set_title(labels[j])
+        fig.savefig(results_dir + "/figures/tc_slope_change_centered" + train_only_str +".png")
         plt.close()
 
 
@@ -640,7 +708,7 @@ def tc_slope(tuning_curve, x_axis, x1, x2, normalised=False):
     """
     #Remove baseline if normalising
     if normalised == True:
-        tuning_curve = (tuning_curve - tuning_curve.min()) / (tuning_curve.max()  - tuning_curve.min())
+        tuning_curve = (tuning_curve - tuning_curve.min()) / tuning_curve.max()
     
     #Find indices corresponding to desired x values
     idx_1 = (np.abs(x_axis - x1)).argmin()
@@ -683,7 +751,7 @@ def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
     # Norm slope
     avg_slope_vec =numpy.zeros(num_cells) 
     for i in range(num_cells):
-        avg_slope_vec[i] = tc_slope(tuning_curve[:, i], x_axis = ori_list, x1 = 52, x2 = 58, normalised =True)
+        avg_slope_vec[i] = tc_slope(tuning_curve[:, i], x_axis = ori_list, x1 = 52, x2 = 58, normalised =False)
     if expand_dims:
         avg_slope_vec = numpy.expand_dims(avg_slope_vec, axis=0)
         full_width_half_max_vec = numpy.expand_dims(full_width_half_max_vec, axis=0)
