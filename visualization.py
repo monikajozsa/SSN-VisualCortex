@@ -30,7 +30,7 @@ def boxplots_from_csvs(directory, save_directory, plot_filename = None, num_time
             # Read CSV file
             df = pd.read_csv(filepath)
             # Calculate relative change
-            relative_changes, time_inds = calculate_relative_change(df, num_time_inds)
+            relative_changes, time_inds = rel_changes(df, num_time_inds)
             relative_changes = relative_changes*100
             relative_changes_at_time_inds.append(relative_changes)
             if numFiles==1:
@@ -408,7 +408,7 @@ def plot_results_from_csv(
     # BARPLOTS about relative changes
     categories_params = ['Jm_EE', 'Jm_IE', 'Jm_EI', 'Jm_II', 'Js_EE', 'Js_IE', 'Js_EI', 'Js_II']
     categories_metrics = [ 'c_E', 'c_I', 'f_E', 'f_I', 'acc', 'offset', 'rm_E', 'rm_I', 'rs_E','rs_I']
-    rel_changes,_ = calculate_relative_change(df) # 0 is pretraining and 1 is training in the second dimensions
+    rel_changes,_ = rel_changes(df) # 0 is pretraining and 1 is training in the second dimensions
     for i_train_pretrain in range(2):
         values_params = 100 * rel_changes[0:8,i_train_pretrain]
         values_metrics = 100 * rel_changes[8:18,i_train_pretrain]
@@ -565,7 +565,7 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_s
 
 ############## Analysis functions ##########
            
-def calculate_relative_change(df, num_indices=3):
+def rel_changes(df, num_indices=3):
     # Calculate relative changes in Jm and Js
     J_m_EE = df['J_m_EE']
     J_m_IE = df['J_m_IE']
