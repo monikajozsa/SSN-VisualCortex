@@ -70,12 +70,12 @@ def smooth_data(X, gridsize_Nx =9, sigma = 1):
     '''
     N_grid_points=gridsize_Nx*gridsize_Nx
     N_phases = X.shape[0]//N_grid_points
-    smoothed_data= numpy.zeros((N_grid_points,N_phases))
+    smoothed_data= np.zeros((N_grid_points,N_phases))
     for phase in range(N_phases):
         trial_response = X[phase*N_grid_points:(phase+1)*N_grid_points]
         trial_response = trial_response.reshape(gridsize_Nx,gridsize_Nx)
         smoothed_data_temp = gaussian_filter_jax(trial_response, sigma = sigma).ravel()
-        smoothed_data.at[:, phase].set(smoothed_data_temp) # Error to be fixed ***
+        smoothed_data.at[:, phase].set(smoothed_data_temp) 
 
     return smoothed_data
 
@@ -86,7 +86,7 @@ def filtered_model_response_task(file_name, untrained_pars, ori_list= np.asarray
     '''Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)'''
     start_time = time.time()
     df = pd.read_csv(file_name)
-    train_start_ind = df.index[df['stage'] == 1][0]
+    train_start_ind = df.index[df['stage'] == 0][-1]+1
     if num_SGD_inds==3:        
         if numpy.min(df['stage'])==0:
             pretrain_start_ind = df.index[df['stage'] == 0][0]
@@ -151,16 +151,16 @@ def filtered_model_response_task(file_name, untrained_pars, ori_list= np.asarray
             filtered_r_mid_ref_E = select_type_mid(filtered_r_mid_ref_EI,'E')
             filtered_r_mid_ref_I = select_type_mid(filtered_r_mid_ref_EI,'I')
             filtered_r_mid_ref = np.sum(0.8*filtered_r_mid_ref_E + 0.2 *filtered_r_mid_ref_I, axis=2) # sum up along phases - should it be sum of squares?
-            filtered_r_mid_target_EI= vmap_smooth_data(r_mid_target_noisy,sigma_filter)  #n_noisy_trials x 648
+            filtered_r_mid_target_EI= vmap_smooth_data(r_mid_target_noisy,gridsize_Nx,sigma_filter)  #n_noisy_trials x 648
             filtered_r_mid_target_E = select_type_mid(filtered_r_mid_target_EI,'E')
             filtered_r_mid_target_I = select_type_mid(filtered_r_mid_target_EI,'I')
             filtered_r_mid_target = np.sum(0.8*filtered_r_mid_target_E + 0.2 *filtered_r_mid_target_I, axis=2) # order of summing up phases and mixing I-E matters if we change to sum of squares!
 
-            filtered_r_sup_ref_EI = vmap_smooth_data(r_sup_ref_noisy,sigma_filter)
+            filtered_r_sup_ref_EI = vmap_smooth_data(r_sup_ref_noisy,gridsize_Nx,sigma_filter)
             filtered_r_sup_ref_E = filtered_r_sup_ref_EI[:,:,0]
             filtered_r_sup_ref_I = filtered_r_sup_ref_EI[:,:,1]
             filtered_r_sup_ref = 0.8*filtered_r_sup_ref_E + 0.2 *filtered_r_sup_ref_I
-            filtered_r_sup_target_EI = vmap_smooth_data(r_sup_target_noisy,sigma_filter)
+            filtered_r_sup_target_EI = vmap_smooth_data(r_sup_target_noisy,gridsize_Nx,sigma_filter)
             filtered_r_sup_target_E = filtered_r_sup_target_EI[:,:,0]
             filtered_r_sup_target_I = filtered_r_sup_target_EI[:,:,1]
             filtered_r_sup_target = 0.8*filtered_r_sup_target_E + 0.2 *filtered_r_sup_target_I
@@ -184,7 +184,8 @@ def filtered_model_response_task(file_name, untrained_pars, ori_list= np.asarray
                 step_df = np.concatenate((step_df, np.repeat(step_ind, n_noisy_trials)))
                 labels = np.concatenate((labels, label))
             print('filtered model response task done for step ind and ori: ',[step_ind, ori])
-            print(time.time()-start_time)
+    # print time
+    print('Time taken for filtered model response task:', time.time()-start_time)
 
     # Define output dictionary with keys: ori, SGD_step, r_mid_ref, r_mid_target, r_sup_ref, r_sup_target, labels
     output = dict(ori = ori_df, SGD_step = step_df, r_mid_ref = filtered_r_mid_ref_df, r_mid_target = filtered_r_mid_target_df, r_sup_ref = filtered_r_sup_ref_df , r_sup_target = filtered_r_sup_target_df , labels = labels)
@@ -255,4 +256,8 @@ def MVPA_score_from_csv(final_folder_path, num_training, folder_to_save, file_na
     ''' Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer'''
     plt.close()
     MVPA_scores = MVPA_score(final_folder_path,num_training, num_SGD_inds)
+
+    # save the MVPA scores into folder_to_save as a npy file with file_name
+    numpy.save(f"{folder_to_save}/{file_name}.npy", MVPA_scores)
+
     return MVPA_scores

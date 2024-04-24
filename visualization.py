@@ -573,8 +573,8 @@ def plot_param_offset_correlations(folder, N_training, num_time_inds=3):
             sns.regplot(x=x_labels_J[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='blue', 
                 line_kws={'color':'darkblue'}, scatter_kws={'alpha':0.3, 'color':'blue'})
         # Calculate the Pearson correlation coefficient and the p-value
-        corr = corr_and_p['corr'][i]
-        p_value = corr_and_p['p_value'][i]
+        corr = corr_and_p[i]['corr']
+        p_value = corr_and_p[i]['p_value']
         print('Correlation between offset_th_diff and', x_labels_J[i], 'is', corr, 'with p-value', p_value)
         
         # display corr and p-value as title of the figure
@@ -602,8 +602,8 @@ def plot_param_offset_correlations(folder, N_training, num_time_inds=3):
         sns.regplot(x=x_labels_fc[i], y='offset_th_diff', data=data, ax=axes_flat[axes_indices[i]], ci=95, color=colors[i],
             line_kws={'color':linecolors[i]}, scatter_kws={'alpha':0.3, 'color':colors[i]})
         # Calculate the Pearson correlation coefficient and the p-value
-        corr = corr_and_p['corr'][4+i]
-        p_value = corr_and_p['p_value'][4+i]
+        corr = corr_and_p[4+i]['corr']
+        p_value = corr_and_p[4+i]['p_value']
         print('Correlation between offset_th_diff and', x_labels_fc[i], 'is', corr, 'with p-value', p_value)
         # display corr and p-value at the left bottom of the figure
         # axes_flat[i % 2].text(0.05, 0.05, f'Corr: {corr:.2f}, p-val: {p_value:.2f}', transform=axes_flat[i % 2].transAxes, fontsize=10)    

@@ -165,7 +165,7 @@ def rel_changes(df, num_indices=3):
     time_inds = numpy.zeros(num_indices, dtype=int)
     if num_indices>2:
         time_inds[0]=df.index[df['stage'] == 0][0] #index of when pretraining starts
-        time_inds[1]= df.index[df['stage'] == 0][-1] #index of when pretraining ends
+        time_inds[1]= df.index[df['stage'] == 0][-1]+1 #index of when training starts
         time_inds[-1]=len(J_m_EE)-1 #index of when training ends
         # Fill in the rest of the indices with equidistant points between end of pretraining and end of training
         for i in range(2,num_indices-1):

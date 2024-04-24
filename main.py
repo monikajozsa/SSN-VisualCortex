@@ -4,6 +4,7 @@ import numpy
 import time
 import os
 
+
 from util_gabor import init_untrained_pars
 from util import save_code, load_parameters
 from training import train_ori_discr
@@ -147,8 +148,8 @@ while i < N_training and numFailedRuns < 20:
 '''
 #numpy.random.seed(0)
 start_time=time.time()
-final_folder_path=os.path.join('results','Apr10_v1')
-N_training=50
+final_folder_path=os.path.join('results','Apr24_v2')
+N_training=5
 tc_ori_list = numpy.arange(0,180,2)
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_param_offset_correlations
 from Mahal_distances import Mahal_dist_from_csv
@@ -160,13 +161,13 @@ folder_to_save = os.path.join(final_folder_path, 'figures')
 boxplot_file_name = 'boxplot_pretraining'
 #mahal_file_name = 'Mahal_dist'
 num_SGD_inds=3
-plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save)#, starting_run=10)
-boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
+#plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save)#, starting_run=10)
+#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
+#plot_tc_features(final_folder_path, N_training, tc_ori_list)
+#plot_tuning_curves(final_folder_path,tc_cells,N_training,folder_to_save)
+#plot_param_offset_correlations(final_folder_path, N_training, num_time_inds=3)
 #Mahal_dist_from_csv(final_folder_path, N_training, folder_to_save, mahal_file_name, num_SGD_inds)
-#MVPA_score_from_csv(final_folder_path, N_training, folder_to_save, mahal_file_name, num_SGD_inds)
-plot_tc_features(final_folder_path, N_training, tc_ori_list)
-plot_tuning_curves(final_folder_path,tc_cells,N_training,folder_to_save)
-plot_param_offset_correlations(final_folder_path, folder_to_save, N_training, num_time_inds=3)
+MVPA_score_from_csv(final_folder_path, N_training, folder_to_save, 'MVPA_scores', num_SGD_inds)
 
 ## Training only
 #final_folder_path_train_only = final_folder_path + '/train_only'
