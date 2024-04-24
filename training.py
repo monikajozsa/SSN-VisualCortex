@@ -479,8 +479,12 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     else:
         readout_pars_dict_copy = copy.deepcopy(readout_pars_dict)
     
-    # Iterate over each offset by using vmap outside of the function
+    # Save the original values of jitter, std and offset and set them to local values
+    jitter_saved = untrained_pars.stimuli_pars.jitter_val
+    std_saved = untrained_pars.stimuli_pars.std
     offset_saved = untrained_pars.stimuli_pars.offset
+    untrained_pars.stimuli_pars.jitter_val = 0
+    untrained_pars.stimuli_pars.std = 0
     untrained_pars.stimuli_pars.offset = test_offset
     
     # Generate noise that is added to the output of the model
@@ -488,16 +492,17 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     noise_ref = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
     noise_target = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
     
-    # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
-    untrained_pars.stimuli_pars.jitter_val=0
-    untrained_pars.stimuli_pars.std=0
+    # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'    
     train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size, untrained_pars.BW_image_jax_inp)
     
     # Calculate loss and accuracy
     loss, [_, acc, _, _, _] = batch_loss_ori_discr(ssn_layer_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
 
+    # Restore the original values of jitter, std and offset
     untrained_pars.pretrain_pars.is_on = pretrain_is_on_saved
     untrained_pars.stimuli_pars.offset = offset_saved
+    untrained_pars.stimuli_pars.jitter_val = jitter_saved
+    untrained_pars.stimuli_pars.std = std_saved
     
     return acc, loss
 

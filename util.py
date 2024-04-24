@@ -166,7 +166,7 @@ def leaky_relu(x, R_thresh, slope, height=0.15):
     return y
 
 
-def save_code(folder_to_save=None):
+def save_code(final_folder_path=None, train_only_flag=False):
     '''
     This code is used to save code files to make results replicable.
     1) It copies specific code files into a folder called 'script'
@@ -176,39 +176,40 @@ def save_code(folder_to_save=None):
     current_date = datetime.now().strftime("%b%d")
 
     # Create a folder name based on the current date
-    if folder_to_save is None:
+    if final_folder_path is None:
         folder_name = f"results/{current_date}_v"
-    else:
-        folder_name = folder_to_save + f"/{current_date}_v"
-    
-    # Find the next available script version
-    version = 0
-    while os.path.exists(f"{folder_name}{version}"):
-        version += 1
+        # Find the next available script version
+        version = 0
+        while os.path.exists(f"{folder_name}{version}"):
+            version += 1
+        final_folder_path = f"{folder_name}{version}"
+        # Create the folder for the results    
+        os.makedirs(final_folder_path)
+    # Create a folder for the scripts and a folder for the figures
+    script_folder = os.path.join(final_folder_path, 'scripts')
+    if not os.path.exists(script_folder):
+        os.makedirs(script_folder)
+    figure_folder = os.path.join(final_folder_path, 'figures')
+    if not os.path.exists(figure_folder):
+        os.makedirs(figure_folder)
 
-    # Create the folder for the results
-    final_folder_path = f"{folder_name}{version}"
-    os.makedirs(final_folder_path)
-
-    # Create a subfolder for the scripts
-    subfolder_script_path = f"{folder_name}{version}/scripts"
-    os.makedirs(subfolder_script_path)
-
-    # Create train_only and figures folders
-    os.makedirs(final_folder_path+'/train_only')
-    os.makedirs(final_folder_path+'/figures')
+    # Create train_only folder if train_only_flag is True
+    train_only_folder = os.path.join(final_folder_path, 'train_only')
+    if train_only_flag:
+        if not os.path.exists(train_only_folder):
+            os.makedirs(train_only_folder)    
     
     # Get the path to the script's directory
-    script_directory = os.path.dirname(os.path.realpath(__file__))
+    script_from_folder = os.path.dirname(os.path.realpath(__file__))
 
     # Copy files into the folder
     file_names = ['main.py', 'util_gabor.py', 'perturb_params.py', 'parameters.py', 'training.py', 'model.py', 'util.py', 'SSN_classes.py', 'visualization.py', 'Mahal_distances.py']
     for file_name in file_names:
-        source_path = os.path.join(script_directory, file_name)
-        destination_path = os.path.join(subfolder_script_path, file_name)
+        source_path = os.path.join(script_from_folder, file_name)
+        destination_path = os.path.join(script_folder, file_name)
         shutil.copyfile(source_path, destination_path)
 
-    print(f"Script files copied successfully to: {subfolder_script_path}")
+    print(f"Script files copied successfully to: {script_folder}")
 
     # return path (inclusing filename) to save results into
     results_filename = os.path.join(final_folder_path,f"{current_date}_v{version}_results.csv")

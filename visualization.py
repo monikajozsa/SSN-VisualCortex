@@ -7,26 +7,24 @@ import numpy
 import sys
 import seaborn as sns
 import statsmodels.api as sm
+import scipy
 
-from model import evaluate_model_response
-from util import sep_exponentiate
-from SSN_classes import SSN_mid, SSN_sup
-from util_gabor import BW_image_jit
+from analysis import rel_changes, tc_features, param_offset_correlations
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
 plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels
 
 ########### Plotting functions ##############
-def boxplots_from_csvs(directory, save_directory, plot_filename = None, num_time_inds = 3):
+def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds = 3):
     # List to store relative changes from each file
     relative_changes_at_time_inds = []
     
     # Iterate through each file in the directory
     numFiles = 0
-    for filename in os.listdir(directory):
+    for filename in os.listdir(folder):
         if filename.endswith('.csv') and filename.startswith('result'):
             numFiles = numFiles + 1
-            filepath = os.path.join(directory, filename)
+            filepath = os.path.join(folder, filename)
             # Read CSV file
             df = pd.read_csv(filepath)
             # Calculate relative change
@@ -48,19 +46,21 @@ def boxplots_from_csvs(directory, save_directory, plot_filename = None, num_time
                 else:
                     numFiles = numFiles - 1
     
-    # Plotting bar plots of offset before and after training
-    offset_pre_post=offset_pre_post.T
-
+    # Plotting bar plots of offset before and after given time indices
+    offset_pre_post = offset_pre_post.T
     means = np.mean(offset_pre_post, axis=1)
 
     # Create figure and axis
     fig, ax = plt.subplots()
-
     # Colors for bars
     colors = ['blue', 'green']
 
     # Bar plot for mean values
     bars = ax.bar(['Pre', 'Post'], means, color=colors, alpha=0.7)
+    # Annotate each bar with its value
+    for bar in bars:
+        yval = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width() / 2, yval, f'{yval:.2f}', ha='center', va='bottom', fontsize=20)
 
     # Plot individual data points and connect them
     for i in range(2):
@@ -72,7 +72,7 @@ def boxplots_from_csvs(directory, save_directory, plot_filename = None, num_time
         ax.plot([0, 1], [offset_pre_post[0,j], offset_pre_post[1,j]], color='black', alpha=0.2)
     # Save plot
     if plot_filename is not None:
-        full_path = save_directory + '/offset_pre_post.png'
+        full_path = save_folder + '/offset_pre_post.png'
         fig.savefig(full_path)
 
     # Define groups of parameters and plot each parameter group
@@ -83,45 +83,32 @@ def boxplots_from_csvs(directory, save_directory, plot_filename = None, num_time
         ['f_E', 'f_I']
     ]
     num_groups = len(groups)
-    fig, axs = plt.subplots(2, num_groups, figsize=(5*num_groups, 10))  # Create subplots for each group
+    fig, axs = plt.subplots(num_time_inds-1, num_groups, figsize=(5*num_groups, 10))  # Create subplots for each group
     
-    relative_changes_train = numpy.array(relative_changes_train)
     relative_changes_at_time_inds = numpy.array(relative_changes_at_time_inds)
     group_start_ind = [0,4,8,10,12] # putting together Jm, Js, c, f
-    titles_pretrain= ['Jm changes in pretraining, {} runs'.format(numFiles),'Js changes in pretraining, {} runs'.format(numFiles),'c changes in pretraining, {} runs'.format(numFiles), 'f changes in pretraining, {} runs'.format(numFiles)]
-    titles_train=['Jm changes in training, {} runs'.format(numFiles), 'Js changes in training, {} runs'.format(numFiles), 'c changes in training, {} runs'.format(numFiles), 'f changes in training, {} runs'.format(numFiles)]
+    titles= ['Jm changes, {} runs'.format(numFiles),'Js changes, {} runs'.format(numFiles),'c changes, {} runs'.format(numFiles), 'f changes, {} runs'.format(numFiles)]
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
     c_f_box_colors = ['tab:red','tab:blue']
     if np.sum(np.abs(relative_changes[:,0])) >0:
-        for i, group in enumerate(groups):
-            group_data = relative_changes_at_time_inds[:, group_start_ind[i]:group_start_ind[i+1]]  # Extract data for the current group
-            bp = axs[0,i].boxplot(group_data, labels=group, patch_artist=True)
-            if i<2:
-                for box, color in zip(bp['boxes'], J_box_colors):
-                    box.set_facecolor(color)
-            else:
-                for box, color in zip(bp['boxes'], c_f_box_colors):
-                    box.set_facecolor(color)
-            axs[0,i].axhline(y=0, color='black', linestyle='--')
-            axs[0,i].set_title(titles_pretrain[i])
-            axs[0,i].set_ylabel('rel change in %')
-    for i, group in enumerate(groups):
-        group_data = relative_changes_train[:, group_start_ind[i]:group_start_ind[i+1]]  # Extract data for the current group
-        bp = axs[1,i].boxplot(group_data, labels=group, patch_artist=True)
-        if i<2:
-            for box, color in zip(bp['boxes'], J_box_colors):
-                box.set_facecolor(color)
-        else:
-            for box, color in zip(bp['boxes'], c_f_box_colors):
-                box.set_facecolor(color)
-        axs[1,i].axhline(y=0, color='black', linestyle='--')
-        axs[1,i].set_title(titles_train[i])
-        axs[1,i].set_ylabel('rel change in %')
+        for j in range(num_time_inds-1):
+            for i, group in enumerate(groups):
+                group_data = relative_changes_at_time_inds[:, group_start_ind[i]:group_start_ind[i+1], j]  # Extract data for the current group
+                bp = axs[j,i].boxplot(group_data, labels=group, patch_artist=True)
+                if i<2:
+                    for box, color in zip(bp['boxes'], J_box_colors):
+                        box.set_facecolor(color)
+                else:
+                    for box, color in zip(bp['boxes'], c_f_box_colors):
+                        box.set_facecolor(color)
+                axs[j,i].axhline(y=0, color='black', linestyle='--')
+                axs[j,i].set_title(titles[i])
+                axs[j,i].set_ylabel('rel change in %')
         
     plt.tight_layout()
     
     if plot_filename is not None:
-        full_path = save_directory + '/' + plot_filename + ".png"
+        full_path = save_folder + '/' + plot_filename + ".png"
         fig.savefig(full_path)
 
     plt.close()
@@ -408,10 +395,10 @@ def plot_results_from_csv(
     # BARPLOTS about relative changes
     categories_params = ['Jm_EE', 'Jm_IE', 'Jm_EI', 'Jm_II', 'Js_EE', 'Js_IE', 'Js_EI', 'Js_II']
     categories_metrics = [ 'c_E', 'c_I', 'f_E', 'f_I', 'acc', 'offset', 'rm_E', 'rm_I', 'rs_E','rs_I']
-    rel_changes,_ = rel_changes(df) # 0 is pretraining and 1 is training in the second dimensions
+    rel_par_changes,_ = rel_changes(df) # 0 is pretraining and 1 is training in the second dimensions
     for i_train_pretrain in range(2):
-        values_params = 100 * rel_changes[0:8,i_train_pretrain]
-        values_metrics = 100 * rel_changes[8:18,i_train_pretrain]
+        values_params = 100 * rel_par_changes[0:8,i_train_pretrain]
+        values_metrics = 100 * rel_par_changes[8:18,i_train_pretrain]
 
         # Choosing colors for each bar
         colors_params = ['tab:red', 'tab:orange', 'tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:blue']
@@ -563,209 +550,68 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_s
         if not os.path.exists(results_fig_filename):
             plot_results_from_csv(results_filename,results_fig_filename)
 
-############## Analysis functions ##########
-           
-def rel_changes(df, num_indices=3):
-    # Calculate relative changes in Jm and Js
-    J_m_EE = df['J_m_EE']
-    J_m_IE = df['J_m_IE']
-    J_m_EI = [np.abs(df['J_m_EI'][i]) for i in range(len(df['J_m_EI']))]
-    J_m_II = [np.abs(df['J_m_II'][i]) for i in range(len(df['J_m_II']))]
-    J_s_EE = df['J_s_EE']
-    J_s_IE = df['J_s_IE']
-    J_s_EI = [np.abs(df['J_s_EI'][i]) for i in range(len(df['J_s_EI']))]
-    J_s_II = [np.abs(df['J_s_II'][i]) for i in range(len(df['J_s_II']))]
-    c_E = df['c_E']
-    c_I = df['c_I']
-    f_E = df['f_E']
-    f_I = df['f_I']
-    relative_changes = numpy.zeros((18,num_indices-1))
+################### CORRELATION ANALYSIS ###################
 
-    ############### Calculate relative changes in parameters and other metrics before and after training ###############
-    # Define time indices for pretraining and training
-    time_inds = numpy.zeros(num_indices, dtype=int)
-    if num_indices>2:
-        time_inds[0]=df.index[df['stage'] == 0][0] #index of when pretraining starts
-        time_inds[1]= df.index[df['stage'] == 0][-1] #index of when pretraining ends
-        time_inds[-1]=len(J_m_EE)-1 #index of when training ends
-        # Fill in the rest of the indices with equidistant points between end of pretraining and end of training
-        for i in range(2,num_indices-1):
-            time_inds[i] = int(time_inds[1] + (time_inds[-1]-time_inds[1])*(i-1)/(num_indices-2))
-    else:
-        time_inds[0]= df.index[df['stage'] == 2][0] # index of when training starts (second stage of training)
-        time_inds[-1]=len(J_m_EE)-1 #index of when training ends    
+def plot_param_offset_correlations(folder, N_training, num_time_inds=3):
 
-    # Calculate relative changes for pretraining and training (additional time points may be included)
-    for j in range(2):
-        if j==0:
-            # changes during pretraining
-            start_ind = time_inds[0]
-            relative_changes[0,0] =(J_m_EE[time_inds[1]] - J_m_EE[start_ind]) / J_m_EE[start_ind] # J_m_EE
-            relative_changes[1,0] =(J_m_IE[time_inds[1]] - J_m_IE[start_ind]) / J_m_IE[start_ind] # J_m_IE
-            relative_changes[2,0] =(J_m_EI[time_inds[1]] - J_m_EI[start_ind]) / J_m_EI[start_ind] # J_m_EI
-            relative_changes[3,0] =(J_m_II[time_inds[1]] - J_m_II[start_ind]) / J_m_II[start_ind] # J_m_II
-            relative_changes[4,0] =(J_s_EE[time_inds[1]] - J_s_EE[start_ind]) / J_s_EE[start_ind] # J_s_EE
-            relative_changes[5,0] =(J_s_IE[time_inds[1]] - J_s_IE[start_ind]) / J_s_IE[start_ind] # J_s_IE
-            relative_changes[6,0] =(J_s_EI[time_inds[1]] - J_s_EI[start_ind]) / J_s_EI[start_ind] # J_s_EI
-            relative_changes[7,0] =(J_s_II[time_inds[1]] - J_s_II[start_ind]) / J_s_II[start_ind] # J_s_II
-            relative_changes[8,0] = (c_E[time_inds[1]] - c_E[start_ind]) / c_E[start_ind] # c_E
-            relative_changes[9,0] = (c_I[time_inds[1]] - c_I[start_ind]) / c_I[start_ind] # c_I
-            relative_changes[10,0] = (f_E[time_inds[1]] - f_E[start_ind]) / f_E[start_ind] # f_E
-            relative_changes[11,0] = (f_I[time_inds[1]] - f_I[start_ind]) / f_I[start_ind] # f_I
-            relative_changes[12,0] = (df['acc'].iloc[time_inds[1]] - df['acc'].iloc[start_ind]) / df['acc'].iloc[start_ind] # accuracy
-            relative_changes[13,1] = (df['offset'].iloc[time_inds[1]] - df['offset'].iloc[start_ind]) / df['offset'].iloc[start_ind] # offset and offset threshold
-            relative_changes[14,0] = (df['maxr_E_mid'].iloc[time_inds[1]] - df['maxr_E_mid'].iloc[start_ind]) / df['maxr_E_mid'].iloc[start_ind] # r_E_mid
-            relative_changes[15,0] = (df['maxr_I_mid'].iloc[time_inds[1]] - df['maxr_I_mid'].iloc[start_ind]) / df['maxr_I_mid'].iloc[start_ind] # r_I_mid
-            relative_changes[16,0] = (df['maxr_E_sup'].iloc[time_inds[1]] - df['maxr_E_sup'].iloc[start_ind]) / df['maxr_E_sup'].iloc[start_ind] # r_E_sup
-            relative_changes[17,0] = (df['maxr_I_sup'].iloc[time_inds[1]] - df['maxr_I_sup'].iloc[start_ind]) / df['maxr_I_sup'].iloc[start_ind] # r_I_sup
-        else: 
-            # changes during training
-            start_ind = time_inds[1]
-            for i in range(num_indices-2):
-                relative_changes[0,i+j] =(J_m_EE[time_inds[i+2]] - J_m_EE[start_ind]) / J_m_EE[start_ind] # J_m_EE
-                relative_changes[1,i+j] =(J_m_IE[time_inds[i+2]] - J_m_IE[start_ind]) / J_m_IE[start_ind] # J_m_IE
-                relative_changes[2,i+j] =(J_m_EI[time_inds[i+2]] - J_m_EI[start_ind]) / J_m_EI[start_ind] # J_m_EI
-                relative_changes[3,i+j] =(J_m_II[time_inds[i+2]] - J_m_II[start_ind]) / J_m_II[start_ind] # J_m_II
-                relative_changes[4,i+j] =(J_s_EE[time_inds[i+2]] - J_s_EE[start_ind]) / J_s_EE[start_ind] # J_s_EE
-                relative_changes[5,i+j] =(J_s_IE[time_inds[i+2]] - J_s_IE[start_ind]) / J_s_IE[start_ind] # J_s_IE
-                relative_changes[6,i+j] =(J_s_EI[time_inds[i+2]] - J_s_EI[start_ind]) / J_s_EI[start_ind] # J_s_EI
-                relative_changes[7,i+j] =(J_s_II[time_inds[i+2]] - J_s_II[start_ind]) / J_s_II[start_ind] # J_s_II
-                relative_changes[8,i+j] = (c_E[time_inds[i+2]] - c_E[start_ind]) / c_E[start_ind] # c_E
-                relative_changes[9,i+j] = (c_I[time_inds[i+2]] - c_I[start_ind]) / c_I[start_ind] # c_I
-                relative_changes[10,i+j] = (f_E[time_inds[i+2]] - f_E[start_ind]) / f_E[start_ind] # f_E
-                relative_changes[11,i+j] = (f_I[time_inds[i+2]] - f_I[start_ind]) / f_I[start_ind] # f_I
-                relative_changes[12,i+j] = (df['acc'].iloc[time_inds[i+2]] - df['acc'].iloc[start_ind]) / df['acc'].iloc[start_ind] # accuracy
-                relative_changes[13,i+j] = (df['offset'].iloc[time_inds[i+2]] - df['offset'].iloc[start_ind]) / df['offset'].iloc[start_ind]
-                relative_changes[14,i+j] = (df['maxr_E_mid'].iloc[time_inds[i+2]] - df['maxr_E_mid'].iloc[start_ind]) / df['maxr_E_mid'].iloc[start_ind] # r_E_mid
-                relative_changes[15,i+j] = (df['maxr_I_mid'].iloc[time_inds[i+2]] - df['maxr_I_mid'].iloc[start_ind]) / df['maxr_I_mid'].iloc[start_ind] # r_I_mid
-                relative_changes[16,i+j] = (df['maxr_E_sup'].iloc[time_inds[i+2]] - df['maxr_E_sup'].iloc[start_ind]) / df['maxr_E_sup'].iloc[start_ind] # r_E_sup
-                relative_changes[17,i+j] = (df['maxr_I_sup'].iloc[time_inds[i+2]] - df['maxr_I_sup'].iloc[start_ind]) / df['maxr_I_sup'].iloc[start_ind] # r_I_sup
-
-    return relative_changes, time_inds
-
-
-def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6)):
-    '''
-    Calculate responses of middle and superficial layers to different orientations.
-    '''
-    ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
-    for key in list(trained_pars.keys()):  # Use list to make a copy of keys to avoid RuntimeError
-        # Check if key starts with 'log'
-        if key.startswith('log'):
-            # Create a new key by removing 'log' prefix
-            new_key = key[4:]
-            # Exponentiate the values and assign to the new key
-            if np.isscalar(trained_pars[key]) or numpy.isscalar(trained_pars[key]):
-                if key.startswith('log_J') and key.endswith('I'):
-                    trained_pars[new_key] = -numpy.exp(trained_pars[key])
-                else:
-                    trained_pars[new_key] = numpy.exp(trained_pars[key])
-            else:
-                trained_pars[new_key] = sep_exponentiate(trained_pars[key])
+    corr_and_p, data = param_offset_correlations(folder, N_training, num_time_inds)
     
-    ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_m'])
-    
-    N_ori = len(ori_vec)
-    new_rows = []
-    x = untrained_pars.BW_image_jax_inp[5]
-    y = untrained_pars.BW_image_jax_inp[6]
-    alpha_channel = untrained_pars.BW_image_jax_inp[7]
-    mask = untrained_pars.BW_image_jax_inp[8]
-    background = untrained_pars.BW_image_jax_inp[9]
-    
-    train_data = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(N_ori))
-    for i in range(N_ori):
-        ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_s'], p_local=untrained_pars.ssn_layer_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_layer_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
-        _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, trained_pars['c_E'], trained_pars['c_I'], trained_pars['f_E'], trained_pars['f_I'], untrained_pars.gabor_filters)
-        # testing tuning curve differece ***
-        #constant_vector_mid = constant_to_vec(c_E = trained_pars['c_E'], c_I = trained_pars['c_I'], ssn= ssn_mid)
-        #constant_vector_sup = constant_to_vec(c_E = trained_pars['c_E'], c_I = trained_pars['c_I'], ssn = ssn_sup, sup=True)
-        #_, _, _, _, [fp_mid, fp_sup] = two_layer_model(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, constant_vector_mid, constant_vector_sup,trained_pars['f_E'], trained_pars['f_I'])
-        if i==0:
-            responses_mid = numpy.zeros((N_ori,len(r_mid_i)))
-            responses_sup = numpy.zeros((N_ori,len(r_sup_i)))
-        responses_mid[i,:] = r_mid_i
-        responses_sup[i,:] = r_sup_i
-    
-        # Save responses into csv file
-        if tuning_curves_filename is not None:
- 
-            # Concatenate the new data as additional rows
-            new_row = numpy.concatenate((r_mid_i, r_sup_i), axis=0)
-            new_rows.append(new_row)
+    ########## Plot the correlation between offset_th_diff and the combination of the J_m_E_diff, J_m_I_diff, J_s_E_diff, and J_s_I_diff ##########
+    _, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8))
+    axes_flat = axes.flatten()
 
-    if tuning_curves_filename is not None:
-        new_rows_df = pd.DataFrame(new_rows)
-        if os.path.exists(tuning_curves_filename):
-            # Read existing data and concatenate new data
-            existing_df = pd.read_csv(tuning_curves_filename)
-            df = pd.concat([existing_df, new_rows_df], axis=0)
+    # x-axis labels for the subplots on J_m_E, J_m_I, J_s_E, and J_s_I
+    x_labels_J = ['J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff']
+    E_indices = [0,2]
+
+    for i in range(4):
+        # Create lmplot for each pair of variables
+        if i in E_indices:
+            sns.regplot(x=x_labels_J[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='red', 
+                line_kws={'color':'darkred'}, scatter_kws={'alpha':0.3, 'color':'red'})
         else:
-            # If CSV does not exist, use new data as the DataFrame
-            df = new_rows_df
+            sns.regplot(x=x_labels_J[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='blue', 
+                line_kws={'color':'darkblue'}, scatter_kws={'alpha':0.3, 'color':'blue'})
+        # Calculate the Pearson correlation coefficient and the p-value
+        corr = corr_and_p['corr'][i]
+        p_value = corr_and_p['p_value'][i]
+        print('Correlation between offset_th_diff and', x_labels_J[i], 'is', corr, 'with p-value', p_value)
+        
+        # display corr and p-value as title of the figure
+        axes_flat[i].set_title( f'Corr: {corr:.2f}, p-val: {p_value:.2f}')
 
-        # Write the DataFrame to CSV file
-        df.to_csv(tuning_curves_filename, index=False)
+    # Adjust layout and save + close the plot
+    plt.tight_layout()
+    plt.savefig(folder + "/figures/Offset_corr_J_IE.png")
+    plt.close()
+    plt.clf()
 
-    untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
+    ########## Plot the correlation between offset_th_diff and the combination of the f_E_diff, f_I_diff, c_E_diff, and c_I_diff ##########
+    _, axes = plt.subplots(nrows=1, ncols=2, figsize=(8, 4))
+    axes_flat = axes.flatten()
 
-    return responses_sup, responses_mid
+    # x-axis labels
+    x_labels_fc = ['f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
+    E_indices = [0,2]
+    colors = ['brown', 'purple', 'orange', 'green']
+    linecolors = ['#8B4513', '#800080', '#FF8C00',  '#006400']  # Approximate dark versions of purple, green, orange, and brown
+    axes_indices = [0,0,1,1]
+    for i in range(len(x_labels_fc)):
+        # Create lmplot for each pair of variables
+        # set colors to purple, green, orange and brown for the different indices
+        sns.regplot(x=x_labels_fc[i], y='offset_th_diff', data=data, ax=axes_flat[axes_indices[i]], ci=95, color=colors[i],
+            line_kws={'color':linecolors[i]}, scatter_kws={'alpha':0.3, 'color':colors[i]})
+        # Calculate the Pearson correlation coefficient and the p-value
+        corr = corr_and_p['corr'][4+i]
+        p_value = corr_and_p['p_value'][4+i]
+        print('Correlation between offset_th_diff and', x_labels_fc[i], 'is', corr, 'with p-value', p_value)
+        # display corr and p-value at the left bottom of the figure
+        # axes_flat[i % 2].text(0.05, 0.05, f'Corr: {corr:.2f}, p-val: {p_value:.2f}', transform=axes_flat[i % 2].transAxes, fontsize=10)    
+        # Close the lmplot's figure to prevent overlapping
+        axes_flat[axes_indices[i]].set_title( f'Corr: {corr:.2f}, p-val: {p_value:.2f}')
 
-
-def tc_slope(tuning_curve, x_axis, x1, x2, normalised=False):
-    """
-    Calculates slope of normalized tuning_curve between points x1 and x2. tuning_curve is given at x_axis points.
-    """
-    #Remove baseline if normalising
-    if normalised == True:
-        tuning_curve = (tuning_curve - tuning_curve.min()) / tuning_curve.max()
-    
-    #Find indices corresponding to desired x values
-    idx_1 = (np.abs(x_axis - x1)).argmin()
-    idx_2 = (np.abs(x_axis - x2)).argmin()
-    x1, x2 = x_axis[[idx_1, idx_2]]
-     
-    grad =(np.abs(tuning_curve[idx_2] - tuning_curve[idx_1]))/(x2-x1)
-    
-    return grad
-
-
-def full_width_half_max(vector, d_theta):
-    
-    #Remove baseline
-    vector = vector-vector.min()
-    half_height = vector.max()/2
-    points_above = len(vector[vector>half_height])
-
-    distance = d_theta * points_above
-    
-    return distance
-
-
-def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
-    
-    # Tuning curve of given cell indices
-    tuning_curve = numpy.array(pd.read_csv(file_name))
-    num_cells = tuning_curve.shape[1]
-    
-    # Find preferred orientation and center it at 55
-    pref_ori = ori_list[np.argmax(tuning_curve, axis = 0)]
-    norm_pref_ori = pref_ori -55
-
-    # Full width half height
-    full_width_half_max_vec = numpy.zeros(num_cells) 
-    d_theta = ori_list[1]-ori_list[0]
-    for i in range(0, num_cells):
-        full_width_half_max_vec[i] = full_width_half_max(tuning_curve[:,i], d_theta = d_theta)
-
-    # Norm slope
-    avg_slope_vec =numpy.zeros(num_cells) 
-    for i in range(num_cells):
-        avg_slope_vec[i] = tc_slope(tuning_curve[:, i], x_axis = ori_list, x1 = 52, x2 = 58, normalised =False)
-    if expand_dims:
-        avg_slope_vec = numpy.expand_dims(avg_slope_vec, axis=0)
-        full_width_half_max_vec = numpy.expand_dims(full_width_half_max_vec, axis=0)
-        norm_pref_ori = numpy.expand_dims(norm_pref_ori, axis=0)
-
-    return avg_slope_vec, full_width_half_max_vec, norm_pref_ori
-
+    # Adjust layout and save + close the plot
+    plt.tight_layout()
+    plt.savefig(folder + "/figures/Offset_corr_f_c.png")
+    plt.close()
+    plt.clf()

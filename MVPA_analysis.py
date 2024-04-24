@@ -82,7 +82,7 @@ def smooth_data(X, gridsize_Nx =9, sigma = 1):
 # Vectorize the function over the first axis (trials)
 vmap_smooth_data = vmap(smooth_data, in_axes=(0, None, None))
 
-def filtered_model_response_task(file_name, untrained_pars, ori_list= np.asarray([55, 125, 0]), n_noisy_trials = 100, num_SGD_inds = 2, r_noise=None, sigma_filter = 1,gridsize_Nx=9):
+def filtered_model_response_task(file_name, untrained_pars, ori_list= np.asarray([55, 125, 0]), n_noisy_trials = 100, num_SGD_inds = 2, r_noise=None, sigma_filter = 1, gridsize_Nx=9):
     '''Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)'''
     start_time = time.time()
     df = pd.read_csv(file_name)
@@ -146,7 +146,7 @@ def filtered_model_response_task(file_name, untrained_pars, ori_list= np.asarray
                 r_sup_ref_noisy = r_sup_ref 
                 r_sup_target_noisy = r_sup_target
 
-            # Smooth data for each celltype, layer and stimulus type (ref or target) separately with Gaussian filter
+            # Smooth responses for each celltype, layer and stimulus type (ref or target) separately with Gaussian filter
             filtered_r_mid_ref_EI= vmap_smooth_data(r_mid_ref_noisy,gridsize_Nx,sigma_filter)  #n_noisy_trials x 648
             filtered_r_mid_ref_E = select_type_mid(filtered_r_mid_ref_EI,'E')
             filtered_r_mid_ref_I = select_type_mid(filtered_r_mid_ref_EI,'I')
@@ -191,66 +191,68 @@ def filtered_model_response_task(file_name, untrained_pars, ori_list= np.asarray
 
     return output, SGD_step_inds
 
+def load_orientation_map(folder, run_ind):
+    '''Loads the orientation map from the folder for the training indexed by run_ind.'''
+    orimap_filename = os.path.join(folder, f"orimap_{run_ind}.npy")
+    orimap = np.load(orimap_filename)
+    return orimap
+
+def select_response(responses, sgd_step, layer, ori):
+    '''Selects the response for a given sgd_step, layer and ori from the responses dictionary.'''
+    step_mask = responses['SGD_step'] == sgd_step
+    train_mask = responses['ori'] == ori
+    combined_mask = step_mask & train_mask
+    if layer == 0:
+        response = responses['r_sup_ref'][combined_mask] - responses['r_sup_target'][combined_mask]
+    else:
+        response = responses['r_mid_ref'][combined_mask] - responses['r_mid_target'][combined_mask]
+    labels = responses['labels'][combined_mask]
+    
+    return response, labels
+
 ######### Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer #########
-def MVPA_score(num_training, folder, num_SGD_inds=2):
+
+
+def MVPA_score(folder, num_training, num_SGD_inds=2):
+    
     ori_list = numpy.asarray([55, 125, 0])
     num_layers=2 # number of layers
-    num_noisy_trials=200 # Note: do not run this with small trial number because the estimation error of covariance matrix of the response for the control orientation stimuli will introduce a bias
+    num_noisy_trials=200 
     
     # parameters of the SVM classifier (MVPA analysis)
     clf = make_pipeline(StandardScaler(), SGDClassifier(max_iter=1000, tol=1e-3))
+
+    # Initialize the MVPA scores matrix
     MVPA_scores = numpy.zeros((num_training,num_layers,num_SGD_inds, len(ori_list)))
                 
-    # Iterate over the different parameter initializations (runs)
+    # Iterate over the different parameter initializations (runs or trainings)
     for run_ind in range(num_training):
         file_name = f"{folder}/results_{run_ind}.csv"
-        orimap_filename = f"{folder}/orimap_{run_ind}.npy"
-        if not os.path.exists(file_name):
-            file_name = f"{folder}/results_train_only{run_ind}.csv"
-            orimap_filename = os.path.dirname(folder)+f'/orimap_{run_ind}.npy'
-        
-        loaded_orimap =  numpy.load(orimap_filename)
+        loaded_orimap = load_orientation_map(folder, run_ind)
+
         untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                         loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
         
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_SGD_inds rows)
-        r_mid_sup, SGD_step_inds = filtered_model_response_task(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = num_noisy_trials, num_SGD_inds=num_SGD_inds, r_noise=True)
-        
-        # Separate the responses into orientation conditions
-        mesh_train = r_mid_sup['ori'] == ori_list[0]
-        mesh_untrain = r_mid_sup['ori'] == ori_list[1]
-        mesh_control = r_mid_sup['ori'] == ori_list[2]
-        
+        response_all, SGD_step_inds = filtered_model_response_task(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = num_noisy_trials, num_SGD_inds=num_SGD_inds, r_noise=True)
+                      
         # Iterate over the layers and SGD steps
         for layer in range(num_layers):
             for SGD_ind in range(num_SGD_inds):
-                # Define filter to select the responses corresponding to SGD_ind
-                mesh_step = r_mid_sup['SGD_step'] == SGD_step_inds[SGD_ind]
-                # Select the layer (superficial=0 or middle=1) and the SGD_step and subtract the target from the reference response
-                label = numpy.array(r_mid_sup['labels'][mesh_step])
-                if layer==0:
-                    r = numpy.array(r_mid_sup['r_sup_ref'][mesh_step]) - numpy.array(r_mid_sup['r_sup_target'][mesh_step])
-                else:
-                    r = numpy.array(r_mid_sup['r_mid_ref'][mesh_step])- numpy.array(r_mid_sup['r_mid_target'][mesh_step])
                 # Define filter to select the responses corresponding to the orientation condition
                 for ori_ind in range(len(ori_list)):
-                    if ori_ind==0:
-                        mesh_ori = mesh_train[mesh_step]
-                    if ori_ind==1:
-                        mesh_ori = mesh_untrain[mesh_step]
-                    if ori_ind==2:
-                        mesh_ori = mesh_control[mesh_step]
-                    r_ori = r[mesh_ori]
-                    label_ori = label[mesh_ori]
-
+                    # Define filter to select the responses corresponding to SGD_ind
+                    response, label = select_response(response_all, SGD_step_inds[SGD_ind], layer, ori_list[ori_ind])
+                
                     # MVPA analysis
-                    X_train, X_test, y_train, y_test = train_test_split(r_ori, label_ori, test_size=0.2, random_state=42)
-                    MVPA_scores[run_ind,layer,SGD_ind, ori_ind]=clf.fit(X_train, y_train).score(X_test, y_test)
+                    X_train, X_test, y_train, y_test = train_test_split(response, label, test_size=0.2, random_state=42)
+                    MVPA_scores[run_ind,layer,SGD_ind, ori_ind] = clf.fit(X_train, y_train).score(X_test, y_test)
                 
     return MVPA_scores
     
 
-def MVPA_score_from_csv(num_training, final_folder_path, folder_to_save, file_name='MVPA_scores', num_SGD_inds=2):
+def MVPA_score_from_csv(final_folder_path, num_training, folder_to_save, file_name='MVPA_scores', num_SGD_inds=2):
     ''' Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer'''
     plt.close()
-    MVPA_scores = MVPA_score(num_training, final_folder_path, num_SGD_inds)
+    MVPA_scores = MVPA_score(final_folder_path,num_training, num_SGD_inds)
+    return MVPA_scores

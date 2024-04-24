@@ -151,7 +151,7 @@ def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55,
             # Calculate fixed point for data    
             _, _, [_, _], [_, _], [_, _, _, _], [r_mid, r_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
 
-            # Smooth data fof each celltype separately with Gaussian filter
+            # Smooth data for each celltype separately with Gaussian filter
             filtered_r_mid_EI= smooth_data(r_mid)  #n_noisy_trials x 648
             filtered_r_mid_E=select_type_mid(filtered_r_mid_EI,'E')
             filtered_r_mid_I=select_type_mid(filtered_r_mid_EI,'I')
