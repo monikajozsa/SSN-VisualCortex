@@ -6,19 +6,12 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import pandas as pd
 #import pingouin as pg
-from scipy import ndimage
 from scipy.stats import ttest_1samp
-from sklearn.model_selection import train_test_split
 import os
 import matplotlib.pyplot as plt
-from sklearn.pipeline import make_pipeline
-from sklearn.linear_model import SGDClassifier
-from sklearn.preprocessing import StandardScaler
 
-from model import vmap_evaluate_model_response
-from util import sep_exponentiate, load_parameters
-from util_gabor import BW_image_jit_noisy, init_untrained_pars
-from SSN_classes import SSN_mid, SSN_sup
+from analysis import filtered_model_response
+from util_gabor import init_untrained_pars
 from parameters import (
     grid_pars,
     filter_pars,
@@ -32,34 +25,6 @@ from parameters import (
     pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
 
-def select_type_mid(r_mid, cell_type='E'):
-    '''Selects the excitatory or inhibitory cell responses. This function assumes that r_mid is 3D (trials x grid points x celltype and phase)'''
-    if cell_type=='E':
-        map_numbers = np.arange(1, 2 * ssn_pars.phases, 2)-1 # 0,2,4,6
-    else:
-        map_numbers = np.arange(2, 2 * ssn_pars.phases + 1, 2)-1 # 1,3,5,7
-    
-    out = numpy.zeros((r_mid.shape[0],r_mid.shape[1], int(r_mid.shape[2]/2)))
-    for i in range(len(map_numbers)):
-        out[:,:,i] = r_mid[:,:,map_numbers[i]]
-
-    return np.array(out)
-
-def smooth_data(X, gridsize_Nx =9, sigma = 1):
-    '''
-    Smooth data matrix (trials x cells) over grid points. Data is reshaped into 9x9 grid before smoothing and then flattened again.
-    '''
-    N_grid_points=gridsize_Nx*gridsize_Nx
-    N_phases = int(X.shape[1]/N_grid_points)
-    N_trials = X.shape[0]
-    smoothed_data= numpy.zeros((N_trials,N_grid_points,N_phases))
-    for trial in range(N_trials):
-        for phase in range(N_phases):
-            trial_response = X[trial,phase*N_grid_points:(phase+1)*N_grid_points]
-            trial_response = trial_response.reshape(gridsize_Nx,gridsize_Nx,-1)
-            smoothed_data[trial,:, phase] =numpy.asarray(ndimage.gaussian_filter(trial_response, sigma = sigma)).ravel()
-
-    return smoothed_data
 
 def mahal(X,Y):
     '''
@@ -96,87 +61,6 @@ def mahal(X,Y):
     
     return np.sqrt(d)
 
-
-def filtered_model_response(file_name, untrained_pars, ori_list= np.asarray([55, 125, 0]), n_noisy_trials = 100, num_SGD_inds = 2, sigma_filter = 1):
-    df = pd.read_csv(file_name)
-    train_start_ind = df.index[df['stage'] == 1][0]
-    if num_SGD_inds==3:        
-        if numpy.min(df['stage'])==0:
-            pretrain_start_ind = df.index[df['stage'] == 0][0]
-            SGD_step_inds=[pretrain_start_ind, train_start_ind, -1]
-        else:
-            print('Warning: There is no 0 stage but Mahal dist was asked to be calculated for pretraining!')
-            SGD_step_inds=[train_start_ind, -1]
-    else:
-        SGD_step_inds=[train_start_ind, -1]
-
-    # Iterate overs SGD_step indices (default is before and after training)
-    for step_ind in SGD_step_inds:
-        # Load parameters from csv for given epoch
-        trained_pars_stage1, trained_pars_stage2, _ = load_parameters(file_name, iloc_ind = step_ind)
-        J_2x2_m = sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
-        J_2x2_s = sep_exponentiate(trained_pars_stage2['log_J_2x2_s'])
-        c_E = trained_pars_stage2['c_E']
-        c_I = trained_pars_stage2['c_I']
-        f_E = np.exp(trained_pars_stage2['log_f_E'])
-        f_I = np.exp(trained_pars_stage2['log_f_I'])
-        
-        # Iterate over the orientations
-        for ori in ori_list:
-
-            # Select orientation from list
-            untrained_pars.stimuli_pars.ref_ori = ori
-
-            # Generate noisy data
-            ori_vec = np.repeat(ori, n_noisy_trials)
-            jitter_vec = np.repeat(0, n_noisy_trials)
-            x = untrained_pars.BW_image_jax_inp[5]
-            y = untrained_pars.BW_image_jax_inp[6]
-            alpha_channel = untrained_pars.BW_image_jax_inp[7]
-            mask = untrained_pars.BW_image_jax_inp[8]
-            background = untrained_pars.BW_image_jax_inp[9]
-            
-            # Generate data
-            test_grating = BW_image_jit_noisy(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, jitter_vec)
-            
-            # Create middle and superficial SSN layers *** this is something that would be great to call from outside the SGD loop and only refresh the params that change (and what rely on them such as W)
-            kappa_pre = untrained_pars.ssn_layer_pars.kappa_pre
-            kappa_post = untrained_pars.ssn_layer_pars.kappa_post
-            p_local_s = untrained_pars.ssn_layer_pars.p_local_s
-            s_2x2 = untrained_pars.ssn_layer_pars.s_2x2_s
-            sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris
-            ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
-            ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
-    
-            # Calculate fixed point for data    
-            _, _, [_, _], [_, _], [_, _, _, _], [r_mid, r_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-
-            # Smooth data for each celltype separately with Gaussian filter
-            filtered_r_mid_EI= smooth_data(r_mid)  #n_noisy_trials x 648
-            filtered_r_mid_E=select_type_mid(filtered_r_mid_EI,'E')
-            filtered_r_mid_I=select_type_mid(filtered_r_mid_EI,'I')
-            filtered_r_mid=np.sum(0.8*filtered_r_mid_E + 0.2 *filtered_r_mid_I, axis=2)# order of summing up phases and mixing I-E matters if we change to sum of squares!
-
-            filtered_r_sup_EI= smooth_data(r_sup, sigma = sigma_filter) 
-            filtered_r_sup_E=filtered_r_sup_EI[:,:,0]
-            filtered_r_sup_I=filtered_r_sup_EI[:,:,1]
-            filtered_r_sup=0.8*filtered_r_sup_E + 0.2 *filtered_r_sup_I
-            
-            # Concatenate all orientation responses
-            if ori == ori_list[0] and step_ind==SGD_step_inds[0]:
-                filtered_r_mid_df = filtered_r_mid
-                filtered_r_sup_df = filtered_r_sup
-                ori_df = np.repeat(ori, n_noisy_trials)
-                step_df = np.repeat(step_ind, n_noisy_trials)
-            else:
-                filtered_r_mid_df = np.concatenate((filtered_r_mid_df, filtered_r_mid))
-                filtered_r_sup_df = np.concatenate((filtered_r_sup_df, filtered_r_sup))
-                ori_df = np.concatenate((ori_df, np.repeat(ori, n_noisy_trials)))
-                step_df = np.concatenate((step_df, np.repeat(step_ind, n_noisy_trials)))
-
-    output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_df, r_sup = filtered_r_sup_df )
-
-    return output, SGD_step_inds, r_mid, r_sup
 
 ######### Calculate Mahalanobis distance for before pretraining, after pretraining and after training - distance between trained and control should increase more than distance between untrained and control after training #########
 def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
@@ -223,7 +107,7 @@ def Mahalanobis_dist(num_training, folder, num_SGD_inds=2):
                         loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
         
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_SGD_inds rows)
-        r_mid_sup, SGD_steps, _, _ = filtered_model_response(file_name, untrained_pars, ori_list= ori_list, n_noisy_trials = num_noisy_trials, num_SGD_inds=num_SGD_inds)
+        r_mid_sup, SGD_steps, _, _ = filtered_model_response(file_name, untrained_pars, ori_list= ori_list, num_noisy_trials = num_noisy_trials, num_SGD_inds=num_SGD_inds)
         # Note: r_mid_sup is a dictionary with the oris and SGD_steps saved in them
         
         # Separate the responses into orientation conditions

@@ -3,7 +3,7 @@
 import numpy
 import time
 import os
-
+'''
 from util_gabor import init_untrained_pars
 from util import save_code, load_parameters
 from training import train_ori_discr
@@ -142,12 +142,12 @@ while i < num_training and num_FailedRuns < 20:
     i = i + 1
     print('runtime of {} pretraining + training run(s)'.format(i), time.time()-starting_time_in_main)
     print('number of failed runs = ', num_FailedRuns)
-
+'''
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_correlations
 from Mahal_distances import Mahal_dist_from_csv
-from MVPA_analysis import MVPA_score_from_csv
+from MVPA_analysis import Scores_from_csv
 from analysis import MVPA_param_offset_correlations
 
 #numpy.random.seed(0)
@@ -162,24 +162,24 @@ folder_to_save = os.path.join(final_folder_path, 'figures')
 boxplot_file_name = 'boxplot_pretraining'
 mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
-plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
-boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
-plot_tc_features(final_folder_path, num_training, tc_ori_list)
-plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
-Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, mahal_file_name, num_SGD_inds)
-MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None)
-MVPA_score_from_csv(final_folder_path, num_training, final_folder_path, 'MVPA_scores', num_SGD_inds)
-plot_correlations(final_folder_path, num_training, num_time_inds=3)
+#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
+#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
+#plot_tc_features(final_folder_path, num_training, tc_ori_list)
+#plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
+#Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, mahal_file_name, num_SGD_inds)
+#MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None)
+Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds)
+#plot_correlations(final_folder_path, num_training, num_time_inds=3)
 
 ## Training only
-final_folder_path_train_only = final_folder_path + '/train_only'
-boxplot_file_name_train_only = 'boxplot_train_only'
-mahal_file_name_train_only = 'Mahal_dist_train_only'
-plot_results_from_csvs(final_folder_path_train_only, num_training, folder_to_save=folder_to_save)
-boxplots_from_csvs(final_folder_path_train_only,folder_to_save, boxplot_file_name_train_only)
-Mahal_dist_from_csv(final_folder_path_train_only,num_training, folder_to_save, mahal_file_name_train_only)
-plot_tc_features(final_folder_path_train_only, num_training, tc_ori_list, train_only_str='train_only_')
-plot_tuning_curves(final_folder_path_train_only,tc_cells,num_training,folder_to_save,train_only_str='train_only_')
+#final_folder_path_train_only = final_folder_path + '/train_only'
+#boxplot_file_name_train_only = 'boxplot_train_only'
+#mahal_file_name_train_only = 'Mahal_dist_train_only'
+#plot_results_from_csvs(final_folder_path_train_only, num_training, folder_to_save=folder_to_save)
+#boxplots_from_csvs(final_folder_path_train_only,folder_to_save, boxplot_file_name_train_only)
+#Mahal_dist_from_csv(final_folder_path_train_only,num_training, folder_to_save, mahal_file_name_train_only)
+#plot_tc_features(final_folder_path_train_only, num_training, tc_ori_list, train_only_str='train_only_')
+#plot_tuning_curves(final_folder_path_train_only,tc_cells,num_training,folder_to_save,train_only_str='train_only_')
 
 print('runtime of plotting', time.time()-start_time)
 
