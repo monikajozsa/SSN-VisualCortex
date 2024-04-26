@@ -244,7 +244,7 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
     
     ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_m'])
     
-    N_ori = len(ori_vec)
+    num_ori = len(ori_vec)
     new_rows = []
     x = untrained_pars.BW_image_jax_inp[5]
     y = untrained_pars.BW_image_jax_inp[6]
@@ -252,8 +252,8 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
     mask = untrained_pars.BW_image_jax_inp[8]
     background = untrained_pars.BW_image_jax_inp[9]
     
-    train_data = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(N_ori))
-    for i in range(N_ori):
+    train_data = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
+    for i in range(num_ori):
         ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_s'], p_local=untrained_pars.ssn_layer_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_layer_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
         _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, trained_pars['c_E'], trained_pars['c_I'], trained_pars['f_E'], trained_pars['f_I'], untrained_pars.gabor_filters)
         # testing tuning curve differece ***
@@ -261,8 +261,8 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
         #constant_vector_sup = constant_to_vec(c_E = trained_pars['c_E'], c_I = trained_pars['c_I'], ssn = ssn_sup, sup=True)
         #_, _, _, _, [fp_mid, fp_sup] = two_layer_model(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, constant_vector_mid, constant_vector_sup,trained_pars['f_E'], trained_pars['f_I'])
         if i==0:
-            responses_mid = numpy.zeros((N_ori,len(r_mid_i)))
-            responses_sup = numpy.zeros((N_ori,len(r_sup_i)))
+            responses_mid = numpy.zeros((num_ori,len(r_mid_i)))
+            responses_sup = numpy.zeros((num_ori,len(r_sup_i)))
         responses_mid[i,:] = r_mid_i
         responses_sup[i,:] = r_sup_i
     
@@ -349,8 +349,8 @@ def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
     return avg_slope_vec, full_width_half_max_vec, norm_pref_ori
 
 
-def param_offset_correlations(folder, N_training, num_time_inds=3, x_labels=None):
-    offset_th_diff, J_m_diff, J_s_diff, f_diff, c_diff = rel_changes_from_csvs(folder, N_training, num_time_inds)
+def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None):
+    offset_th_diff, J_m_diff, J_s_diff, f_diff, c_diff = rel_changes_from_csvs(folder, num_trainings, num_time_inds)
 
     # Convert relative parameter differences to pandas DataFrame
     data = pd.DataFrame({'offset_th_diff': offset_th_diff, 'J_m_EE_diff': J_m_diff[:, 0], 'J_m_IE_diff': J_m_diff[:, 1], 'J_m_EI_diff': J_m_diff[:, 2], 'J_m_II_diff': J_m_diff[:, 3], 'J_s_EE_diff': J_s_diff[:, 0], 'J_s_IE_diff': J_s_diff[:, 1], 'J_s_EI_diff': J_s_diff[:, 2], 'J_s_II_diff': J_s_diff[:, 3], 'f_E_diff': f_diff[:, 0], 'f_I_diff': f_diff[:, 1], 'c_E_diff': c_diff[:, 0], 'c_I_diff': c_diff[:, 1]})
@@ -362,12 +362,44 @@ def param_offset_correlations(folder, N_training, num_time_inds=3, x_labels=None
     data['J_m_I_diff'] = J_m_diff[:, 5]
     data['J_s_E_diff'] = J_s_diff[:, 4]
     data['J_s_I_diff'] = J_s_diff[:, 5]
-    all_correlations = []
+    offset_pars_corr = []
     if x_labels is None:
         x_labels = ['J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff', 'f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
     for i in range(len(x_labels)):
         # Calculate the Pearson correlation coefficient and the p-value
         corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], data[x_labels[i]])
-        all_correlations.append({'corr': corr, 'p_value': p_value})
-        
-    return all_correlations, data  # Returns a list of dictionaries for each training run
+        offset_pars_corr.append({'corr': corr, 'p_value': p_value})
+    
+    # Load MVPA_scores and correlate (along num_trainings) them with the offset threshold and the parameter differences
+    MVPA_scores = numpy.load(folder + '/MVPA_scores.npy') # num_trainings x layer x SGD_ind x ori_ind
+    MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
+    MVPA_offset_corr = []
+    for i in range(MVPA_scores_diff.shape[1]):
+        for j in range(MVPA_scores_diff.shape[2]):
+            corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], MVPA_scores_diff[:,i,j])
+            MVPA_offset_corr.append({'corr': corr, 'p_value': p_value})
+    MVPA_pars_corr = [] # (J_m_I,J_m_E,J_s_I,J_s_E,f_E,f_I,c_E,c_I) x ori_ind
+    for j in range(MVPA_scores_diff.shape[2]):
+        for i in range(MVPA_scores_diff.shape[1]):        
+            if i==0:
+                corr_m_I, p_value_m_I = scipy.stats.pearsonr(data['J_m_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_E, p_value_m_E = scipy.stats.pearsonr(data['J_m_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_f_E, p_value_m_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_f_I, p_value_m_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_c_E, p_value_m_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_c_I, p_value_m_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
+            if i==1:
+                corr_s_I, p_value_s_I = scipy.stats.pearsonr(data['J_s_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_s_E, p_value_s_E = scipy.stats.pearsonr(data['J_s_E_diff'], MVPA_scores_diff[:,i,j])                
+                corr_s_f_E, p_value_s_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_s_f_I, p_value_s_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_s_c_E, p_value_s_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_s_c_I, p_value_s_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
+            
+        corr = [corr_m_E, corr_m_I, corr_s_E, corr_s_I, corr_m_f_E, corr_m_f_I, corr_m_c_E, corr_m_c_I, corr_s_f_E, corr_s_f_I, corr_s_c_E, corr_s_c_I]
+        p_value = [p_value_m_E, p_value_m_I, p_value_s_E, p_value_s_I, p_value_m_f_E, p_value_m_f_I, p_value_m_c_E, p_value_m_c_I, p_value_s_f_E, p_value_s_f_I, p_value_s_c_E, p_value_s_c_I]
+        MVPA_pars_corr.append({'corr': corr, 'p_value': p_value})
+    # combine MVPA_offset_corr and MVPA_pars_corr into a single list
+    MVPA_corrs = MVPA_offset_corr + MVPA_pars_corr
+
+    return offset_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run

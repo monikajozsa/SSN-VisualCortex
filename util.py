@@ -12,7 +12,7 @@ from util_gabor import BW_image_jit_noisy
 
 
 ##### Functions to create training data #####
-def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all= None):
+def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
     '''
     Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
     Input:

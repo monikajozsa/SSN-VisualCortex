@@ -40,8 +40,8 @@ for run_ind in range(N_trainings):
         # Generate data
         test_data = create_grating_pretraining(pretrain_pars, batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=1)        
         for j in range(len(N_readout_noise_list)):            
-            noise_ref = generate_noise(batch_size, trained_pars_stage1["w_sig"].shape[0], N_readout=N_readout_noise_list[j])
-            noise_target = generate_noise(batch_size,  trained_pars_stage1["w_sig"].shape[0], N_readout=N_readout_noise_list[j])
+            noise_ref = generate_noise(batch_size, trained_pars_stage1["w_sig"].shape[0], num_readout_noise=N_readout_noise_list[j])
+            noise_target = generate_noise(batch_size,  trained_pars_stage1["w_sig"].shape[0], num_readout_noise=N_readout_noise_list[j])
             loss, [all_losses, true_accuracy, sig_input, sig_output, max_rates] = batch_loss_ori_discr(trained_pars_stage2, trained_pars_stage1, untrained_pars, test_data, noise_ref, noise_target, jit_on=True)
             true_accuracy_all[i,j,run_ind] = true_accuracy
     print(time.time()-start_time)

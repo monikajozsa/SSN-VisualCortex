@@ -9,7 +9,7 @@ import seaborn as sns
 import statsmodels.api as sm
 import scipy
 
-from analysis import rel_changes, tc_features, param_offset_correlations
+from analysis import rel_changes, tc_features, MVPA_param_offset_correlations
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
 plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels
@@ -173,12 +173,12 @@ def plot_tuning_curves(folder_path,tc_cells,num_runs,folder_to_save,train_only_s
     plt.close()
 
 
-def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, N_runs, title, colors):
+def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num_training, title, colors):
     '''
     Scatter plot of pre vs post training values for a given set of indices
     '''
     
-    for run_ind in range(N_runs):
+    for run_ind in range(num_training):
         bin_indices = numpy.digitize(numpy.abs(orientations[run_ind,:]), [4, 12, 20, 28, 36, 44, 50, 180])
     
         # Iterate over bins rather than individual points
@@ -199,7 +199,7 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, N_r
     ax.set_title(title)
   
 
-def plot_tc_features(results_dir, N_runs, ori_list, train_only_str='', pre_post_scatter_flag=False):
+def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre_post_scatter_flag=False):
 
     # Initialize dictionaries to store the data arrays
     if train_only_str=='':
@@ -224,7 +224,7 @@ def plot_tc_features(results_dir, N_runs, ori_list, train_only_str='', pre_post_
             'orientations_train_only_post': []
         }
 
-    for i in range(N_runs):
+    for i in range(num_training):
         # File names associated with each data type
         if train_only_str=='':
             file_names = {
@@ -285,25 +285,25 @@ def plot_tc_features(results_dir, N_runs, ori_list, train_only_str='', pre_post_
             fig, axs = plt.subplots(4, 4, figsize=(15, 20)) 
             for j in range(len(indices)):
                 title = 'Slope pretraining ' + labels[j]
-                plot_pre_post_scatter(axs[j,0], data['norm_slope_prepre'] , data['norm_slope_postpre'] ,  data['orientations_prepre'],  indices[j],N_runs, title = title,colors=colors)
+                plot_pre_post_scatter(axs[j,0], data['norm_slope_prepre'] , data['norm_slope_postpre'] ,  data['orientations_prepre'],  indices[j],num_training, title = title,colors=colors)
 
                 title = 'Slope training, ' + labels[j]
-                plot_pre_post_scatter(axs[j,1], data['norm_slope_postpre'] , data['norm_slope_post'] ,  data['orientations_postpre'], indices[j],N_runs, title = title,colors=colors)
+                plot_pre_post_scatter(axs[j,1], data['norm_slope_postpre'] , data['norm_slope_post'] ,  data['orientations_postpre'], indices[j],num_training, title = title,colors=colors)
 
                 title = 'Fwhm pretraining ' + labels[j]
-                plot_pre_post_scatter(axs[j,2],  data['fwhm_prepre'] ,  data['fwhm_postpre'] ,  data['orientations_prepre'], indices[j], N_runs, title = title,colors=colors)
+                plot_pre_post_scatter(axs[j,2],  data['fwhm_prepre'] ,  data['fwhm_postpre'] ,  data['orientations_prepre'], indices[j], num_training, title = title,colors=colors)
 
                 title = 'Fwhm training, ' + labels[j] 
-                plot_pre_post_scatter(axs[j,3], data['fwhm_postpre'] , data['fwhm_post'] ,data['orientations_postpre'], indices[j], N_runs,title = title,colors=colors)
+                plot_pre_post_scatter(axs[j,3], data['fwhm_postpre'] , data['fwhm_post'] ,data['orientations_postpre'], indices[j], num_training,title = title,colors=colors)
             axs[j,3].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
         else:
             fig, axs = plt.subplots(4, 2, figsize=(10, 20)) 
             for j in range(len(indices)):    
                 title = 'Slope training_only ' + labels[j]
-                plot_pre_post_scatter(axs[j,0],  data['norm_slope_train_only_pre'] , data['norm_slope_train_only_post'] , data['orientations_train_only_pre'], indices[j], N_runs, title = title,colors=colors)
+                plot_pre_post_scatter(axs[j,0],  data['norm_slope_train_only_pre'] , data['norm_slope_train_only_post'] , data['orientations_train_only_pre'], indices[j], num_training, title = title,colors=colors)
 
                 title = 'Fwhm training_only ' + labels[j] 
-                plot_pre_post_scatter(axs[j,1],  data['fwhm_train_only_pre'] , data['fwhm_train_only_post'] ,data['orientations_train_only_pre'], indices[j], N_runs, title = title,colors=colors)
+                plot_pre_post_scatter(axs[j,1],  data['fwhm_train_only_pre'] , data['fwhm_train_only_post'] ,data['orientations_train_only_pre'], indices[j], num_training, title = title,colors=colors)
             axs[j,1].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
         plt.tight_layout()
         if results_dir[-4:]=='only':
@@ -323,7 +323,7 @@ def plot_tc_features(results_dir, N_runs, ori_list, train_only_str='', pre_post_
             x = numpy.random.normal(0, 0.3, data['fwhm_prepre'].shape) + data['fwhm_prepre']
             y = numpy.random.normal(0, 0.3, data['fwhm_post'].shape) + data['fwhm_post']
 
-            plot_pre_post_scatter(axs[abs((2-j))//2], x , y ,data['orientations_postpre'], indices[j], N_runs,title = title,colors=colors)
+            plot_pre_post_scatter(axs[abs((2-j))//2], x , y ,data['orientations_postpre'], indices[j], num_training,title = title,colors=colors)
         axs[1].legend(handles=patches, loc='lower right',  bbox_to_anchor=(1, 1), title='Pref ori - 55',
                 title_fontsize='large',  # Increase the title font size
                 fontsize='large',  # Increase the legend font size
@@ -552,9 +552,9 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_s
 
 ################### CORRELATION ANALYSIS ###################
 
-def plot_param_offset_correlations(folder, N_training, num_time_inds=3):
+def plot_correlations(folder, num_training, num_time_inds=3):
 
-    corr_and_p, data = param_offset_correlations(folder, N_training, num_time_inds)
+    corr_and_p, MVPA_corrs, data = MVPA_param_offset_correlations(folder, num_training, num_time_inds)
     
     ########## Plot the correlation between offset_th_diff and the combination of the J_m_E_diff, J_m_I_diff, J_s_E_diff, and J_s_I_diff ##########
     _, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8))
@@ -615,3 +615,17 @@ def plot_param_offset_correlations(folder, N_training, num_time_inds=3):
     plt.savefig(folder + "/figures/Offset_corr_f_c.png")
     plt.close()
     plt.clf()
+
+    # plot MVPA_pars_corr for each ori_ind on the same plot but different subplots with scatter and different colors for each parameter
+    import matplotlib.pyplot as plt
+    x= numpy.arange(1,13)
+    x_labels = ['offset','J_m_E', 'J_m_I', 'J_s_E', 'J_s_I', 'm_f_E', 'm_f_I', 'm_c_E', 'm_c_I', 's_f_E', 's_f_I', 's_c_E', 's_c_I']
+    plt.scatter(x, MVPA_corrs[0]['corr'])
+    plt.scatter(x, MVPA_corrs[1]['corr'])
+    plt.scatter(x, MVPA_corrs[2]['corr'])
+    plt.xticks(x, x_labels)
+    plt.legend(['55', '125', '0'])
+    plt.title('Correlation of MVPA scores with parameter differences')
+    #save the plot
+    plt.savefig(folder + '/MVPA_pars_corr.png')
+    plt.close()

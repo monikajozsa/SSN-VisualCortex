@@ -296,14 +296,14 @@ def loss_and_grad_ori_discr(ssn_layer_pars_dict, readout_pars_dict, untrained_pa
     if untrained_pars.pretrain_pars.is_on:
         pretrain_pars=untrained_pars.pretrain_pars
         # Generate training data and noise that is added to the output of the model
-        noise_ref = generate_noise(pretrain_pars.batch_size, readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
-        noise_target = generate_noise(pretrain_pars.batch_size, readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+        noise_ref = generate_noise(pretrain_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
+        noise_target = generate_noise(pretrain_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
         train_data = create_grating_pretraining(untrained_pars.pretrain_pars, pretrain_pars.batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=pretrain_pars.batch_size)
     else:
         training_pars=untrained_pars.training_pars
         # Generate noise that is added to the output of the model
-        noise_ref = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
-        noise_target = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+        noise_ref = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
+        noise_target = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
         train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp)
 
     # Calculate gradient, loss and accuracy
@@ -444,11 +444,11 @@ def binary_crossentropy_loss(n, x):
     return -(n * np.log(x) + (1 - n) * np.log(1 - x))
 
 
-def generate_noise(batch_size, length, N_readout=125, dt_readout = 0.2):
+def generate_noise(batch_size, length, num_readout_noise=125, dt_readout = 0.2):
     '''
     Creates vectors of neural noise. Function creates batch_size number of vectors, each vector of length = length. 
     '''
-    sig_noise = 1/np.sqrt(N_readout * dt_readout)
+    sig_noise = 1/np.sqrt(num_readout_noise * dt_readout)
     return sig_noise*numpy.random.randn(batch_size, length)
 
 
@@ -489,8 +489,8 @@ def training_task_acc_test(ssn_layer_pars_dict, readout_pars_dict, untrained_par
     
     # Generate noise that is added to the output of the model
     batch_size=300
-    noise_ref = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
-    noise_target = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], N_readout = untrained_pars.N_readout_noise)
+    noise_ref = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
+    noise_target = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
     
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'    
     train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size, untrained_pars.BW_image_jax_inp)

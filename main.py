@@ -4,7 +4,6 @@ import numpy
 import time
 import os
 
-
 from util_gabor import init_untrained_pars
 from util import save_code, load_parameters
 from training import train_ori_discr
@@ -39,13 +38,13 @@ offset_saved = float(stimuli_pars.offset)
 # Save scripts into scripts folder and create figures and train_only folders
 results_filename, final_folder_path = save_code(train_only_flag=train_only_flag)
 
-# Run N_training number of pretraining + training
+# Run num_training number of pretraining + training
 tc_ori_list = numpy.arange(0,180,2)
-N_training = 5
+num_training = 5
 starting_time_in_main= time.time()
-numFailedRuns = 0
+num_FailedRuns = 0
 i=0
-while i < N_training and numFailedRuns < 20:
+while i < num_training and num_FailedRuns < 20:
     numpy.random.seed(i)
 
     # Set pretraining flag to False
@@ -88,8 +87,8 @@ while i < N_training and numFailedRuns < 20:
     
     # Handle the case when pretraining failed (possible reason can be the divergence of ssn diff equations)
     if training_output_df is None:
-        print('######### Stopped run {} because of NaN values  - num failed runs = {} #########'.format(i, numFailedRuns))
-        numFailedRuns = numFailedRuns + 1
+        print('######### Stopped run {} because of NaN values  - num failed runs = {} #########'.format(i, num_FailedRuns))
+        num_FailedRuns = num_FailedRuns + 1
         continue
     
     ##### FINE DISCRIMINATION #####
@@ -142,57 +141,60 @@ while i < N_training and numFailedRuns < 20:
         
     i = i + 1
     print('runtime of {} pretraining + training run(s)'.format(i), time.time()-starting_time_in_main)
-    print('number of failed runs = ', numFailedRuns)
+    print('number of failed runs = ', num_FailedRuns)
 
 ######### PLOT RESULTS ############
-'''
-#numpy.random.seed(0)
-start_time=time.time()
-final_folder_path=os.path.join('results','Apr24_v2')
-N_training=5
-tc_ori_list = numpy.arange(0,180,2)
-from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_param_offset_correlations
+
+from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_correlations
 from Mahal_distances import Mahal_dist_from_csv
 from MVPA_analysis import MVPA_score_from_csv
+from analysis import MVPA_param_offset_correlations
+
+#numpy.random.seed(0)
+start_time=time.time()
+final_folder_path=os.path.join('results','Apr10_v1')
+num_training = 50
+tc_ori_list = numpy.arange(0,180,2)
 tc_cells=[10,40,100,130,650,690,740,760]
 
 ## Pretraining + training
 folder_to_save = os.path.join(final_folder_path, 'figures')
 boxplot_file_name = 'boxplot_pretraining'
-#mahal_file_name = 'Mahal_dist'
-num_SGD_inds=3
-#plot_results_from_csvs(final_folder_path, N_training, folder_to_save=folder_to_save)#, starting_run=10)
-#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
-#plot_tc_features(final_folder_path, N_training, tc_ori_list)
-#plot_tuning_curves(final_folder_path,tc_cells,N_training,folder_to_save)
-#plot_param_offset_correlations(final_folder_path, N_training, num_time_inds=3)
-#Mahal_dist_from_csv(final_folder_path, N_training, folder_to_save, mahal_file_name, num_SGD_inds)
-MVPA_score_from_csv(final_folder_path, N_training, folder_to_save, 'MVPA_scores', num_SGD_inds)
+mahal_file_name = 'Mahal_dist'
+num_SGD_inds = 3
+plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
+boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
+plot_tc_features(final_folder_path, num_training, tc_ori_list)
+plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
+Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, mahal_file_name, num_SGD_inds)
+MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None)
+MVPA_score_from_csv(final_folder_path, num_training, final_folder_path, 'MVPA_scores', num_SGD_inds)
+plot_correlations(final_folder_path, num_training, num_time_inds=3)
 
 ## Training only
-#final_folder_path_train_only = final_folder_path + '/train_only'
-#boxplot_file_name_train_only = 'boxplot_train_only'
-#mahal_file_name_train_only = 'Mahal_dist_train_only'
-#plot_results_from_csvs(final_folder_path_train_only, N_training, folder_to_save=folder_to_save)
-#boxplots_from_csvs(final_folder_path_train_only,folder_to_save, boxplot_file_name_train_only)
-#Mahal_dist_from_csv(final_folder_path_train_only,N_training, folder_to_save, mahal_file_name_train_only)
-#plot_tc_features(final_folder_path_train_only, N_training, tc_ori_list, train_only_str='train_only_')
-#plot_tuning_curves(final_folder_path_train_only,tc_cells,N_training,folder_to_save,train_only_str='train_only_')
+final_folder_path_train_only = final_folder_path + '/train_only'
+boxplot_file_name_train_only = 'boxplot_train_only'
+mahal_file_name_train_only = 'Mahal_dist_train_only'
+plot_results_from_csvs(final_folder_path_train_only, num_training, folder_to_save=folder_to_save)
+boxplots_from_csvs(final_folder_path_train_only,folder_to_save, boxplot_file_name_train_only)
+Mahal_dist_from_csv(final_folder_path_train_only,num_training, folder_to_save, mahal_file_name_train_only)
+plot_tc_features(final_folder_path_train_only, num_training, tc_ori_list, train_only_str='train_only_')
+plot_tuning_curves(final_folder_path_train_only,tc_cells,num_training,folder_to_save,train_only_str='train_only_')
 
 print('runtime of plotting', time.time()-start_time)
-'''
+
 
 '''
 # Recalculating and replotting tuning curves if ori list is different than default
 import pandas as pd
 final_folder_path='results/Mar22_v0'
-N_training=5
+num_training=5
 tc_ori_list = numpy.arange(0,180,2)
 
 orimap_filename = final_folder_path+ '/orimap_0.npy'
 untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, readout_pars, orimap_filename)
-for i in range(N_training):
+for i in range(num_training):
     results_filename=final_folder_path+f'/results_{i}.csv'
     tc_prepre_filename = f"{final_folder_path}/tc_prepre_{i}.csv"
     tc_postpre_filename = f"{final_folder_path}/tc_postpre_{i}.csv"

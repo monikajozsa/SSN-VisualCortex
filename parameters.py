@@ -36,7 +36,7 @@ class TrainingPars:
     batch_size = 50
     '''number of trials per SGD step'''
     noise_type = "poisson"
-    '''there is an additive Gaussian noise to the model output (rates) that is related to parameters N_readout and dt'''
+    '''there is an additive Gaussian noise to the model output (rates) that is related to parameters num_readout_noise and dt'''
     SGD_steps = 100
     '''number of SGD step'''
     validation_freq = 50  
@@ -194,7 +194,7 @@ class ReadoutPars:
         ''' readout weights (between the superficial and the sigmoid layer) '''
     b_sig: float = 0.0 
     ''' bias added to the sigmoid layer '''
-    N_readout_noise = 125
+    num_readout_noise = 125
     ''' defines readout noise level, see generate_noise function for its effect '''
 
 readout_pars = ReadoutPars()
