@@ -7,6 +7,8 @@ import scipy
 from scipy import ndimage
 import jax
 from jax import vmap
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from model import evaluate_model_response, vmap_evaluate_model_response
 from util import sep_exponentiate
@@ -43,12 +45,14 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
     file_pattern = folder + '/results_{}'
 
     # Initialize the arrays to store the results in
-    J_m_diff = numpy.zeros((num_trainings*(num_indices-2),6))
-    J_s_diff = numpy.zeros((num_trainings*(num_indices-2),6))
+    J_m_diff = numpy.zeros((num_trainings*(num_indices-2),7))
+    J_s_diff = numpy.zeros((num_trainings*(num_indices-2),7))
     f_diff = numpy.zeros((num_trainings*(num_indices-2),2))
     c_diff = numpy.zeros((num_trainings*(num_indices-2),2))
     offset_th = numpy.zeros((num_trainings*(num_indices-2),2))
+    offset_th_125 = numpy.zeros((num_trainings*(num_indices-2),2))
     offset_th_diff = numpy.zeros(num_trainings*(num_indices-2))
+    offset_th_diff_125 = numpy.zeros(num_trainings*(num_indices-2))
 
     # Initialize the test offset vector for the threshold calculation
     test_offset_vec = numpy.array([1, 2, 3, 4, 6]) 
@@ -60,9 +64,11 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
     if offset_calc:
         if 'offset_th.csv' in os.listdir(folder):
             offset_th = numpy.loadtxt(folder + '/offset_th.csv', delimiter=',')
+            offset_th_125 = numpy.loadtxt(folder + '/offset_th_125.csv', delimiter=',')
             if offset_th.shape[0]==num_trainings*(num_indices-2):
                 offset_calc = False
     
+    ref_ori_saved = float(stimuli_pars.ref_ori)
     for i in range(num_trainings):
         # Construct the file name
         file_name = file_pattern.format(i) + '.csv'
@@ -95,14 +101,29 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
             acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec, sample_size = 1 )
             offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= 0.85))[0]
             offset_th[sample_ind : sample_ind + num_indices-2,0] = numpy.repeat(offset_temp, num_indices-2)
+            untrained_pars.stimuli_pars.ref_ori = 125
+            acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec, sample_size = 1 )
+            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= 0.85))[0]
+            offset_th_125[sample_ind : sample_ind + num_indices-2,0] = numpy.repeat(offset_temp, num_indices-2)
             
         for j in range(2,num_indices):
             training_end = time_inds[j]
             # Calculate the relative changes in the combined J_m_E J_m_I, J_s_E and J_s_I parameters
-            J_m_diff[sample_ind,4] = (J_m_EE[training_end]+J_m_IE[training_end]) - (J_m_EE[training_start]+J_m_IE[training_start]) / (J_m_EE[training_start]+J_m_IE[training_start])
-            J_m_diff[sample_ind,5] = (J_m_II[training_end]+J_m_EI[training_end]) - (J_m_II[training_start]+J_m_EI[training_start]) / (J_m_II[training_start]+J_m_EI[training_start])
-            J_s_diff[sample_ind,4] = (J_s_EE[training_end]+J_s_IE[training_end]) - (J_s_EE[training_start]+J_s_IE[training_start]) / (J_s_EE[training_start]+J_s_IE[training_start])        
-            J_s_diff[sample_ind,5] = (J_s_II[training_end]+J_s_EI[training_end]) - (J_s_II[training_start]+J_s_EI[training_start]) / (J_s_II[training_start]+J_s_EI[training_start])
+            J_m_E_0 = (J_m_EE[training_start]+J_m_IE[training_start])
+            J_m_I_0 = (J_m_II[training_start]+J_m_EI[training_start])
+            J_s_E_0 = (J_s_EE[training_start]+J_s_IE[training_start])
+            J_s_I_0 = (J_s_II[training_start]+J_s_EI[training_start])
+            J_m_E_1 = (J_m_EE[training_end]+J_m_IE[training_end])
+            J_m_I_1 = (J_m_II[training_end]+J_m_EI[training_end])
+            J_s_E_1 = (J_s_EE[training_end]+J_s_IE[training_end])
+            J_s_I_1 = (J_s_II[training_end]+J_s_EI[training_end])
+
+            J_m_diff[sample_ind,4] = (J_m_E_1 - J_m_E_0) / J_m_E_0
+            J_m_diff[sample_ind,5] = (J_m_I_1 - J_m_I_0) / J_m_I_0
+            J_m_diff[sample_ind,6] = (J_m_I_1/J_m_E_1 - J_m_I_0/J_m_E_0) / (J_m_I_0/J_m_E_0)
+            J_s_diff[sample_ind,4] = (J_s_E_1 - J_s_E_0) / J_s_E_0       
+            J_s_diff[sample_ind,5] = (J_s_I_1 - J_s_I_0) / J_s_I_0
+            J_s_diff[sample_ind,6] = (J_s_I_1/J_s_E_1 - J_s_I_0/J_s_E_0) / (J_s_I_0/J_s_E_0)
             # Calculate the relative changes in the parameters
             J_m_diff[sample_ind,0:4]= relative_changes[0:4,1] *100
             J_s_diff[sample_ind,0:4]= relative_changes[4:8,1] *100
@@ -116,7 +137,14 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
                 offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= 0.85))[0]
                 offset_th[sample_ind,1] = offset_temp
                 
+                untrained_pars.stimuli_pars.ref_ori = 125
+                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
+                offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= 0.85))[0]
+                offset_th_125[sample_ind,1] = offset_temp
+                untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
+                
             offset_th_diff[sample_ind] = -(offset_th[sample_ind,1] - offset_th[sample_ind,0]) / offset_th[sample_ind,0] *100
+            offset_th_diff_125[sample_ind] = -(offset_th_125[sample_ind,1] - offset_th_125[sample_ind,0]) / offset_th_125[sample_ind,0] *100
         
             # increment the sample index
             sample_ind += 1
@@ -127,10 +155,13 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
     if offset_calc:
         numpy.savetxt(folder + '/offset_th.csv', offset_th, delimiter=',')
 
-    # Check if the offset difference is less valid (180 is a default value for when offset_th is not found within range)    
+    # Check if the offset is valid (180 is a default value for when offset_th is not found within range)    
     mesh_offset_th=numpy.sum(offset_th, axis=1)<180
-    offset_th = offset_th[mesh_offset_th,:]
+    # Filter the data based on the valid offset values
+    #offset_th = offset_th[mesh_offset_th,:]
     offset_th_diff = offset_th_diff[mesh_offset_th]
+    #offset_th_125 = offset_th_125[mesh_offset_th,:]
+    offset_th_diff_125 = offset_th_diff_125[mesh_offset_th]
     J_m_diff = J_m_diff[mesh_offset_th,:]
     J_s_diff = J_s_diff[mesh_offset_th,:]
     f_diff = f_diff[mesh_offset_th,:]
@@ -138,7 +169,7 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
     
     print('Number of samples:', sum(mesh_offset_th))
     
-    return  offset_th_diff, J_m_diff, J_s_diff, f_diff, c_diff
+    return  offset_th_diff, offset_th_diff_125, J_m_diff, J_s_diff, f_diff, c_diff
 
 
 def rel_changes(df, num_indices=3):
@@ -342,11 +373,11 @@ def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
     return avg_slope_vec, full_width_half_max_vec, norm_pref_ori
 
 
-def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None):
-    offset_th_diff, J_m_diff, J_s_diff, f_diff, c_diff = rel_changes_from_csvs(folder, num_trainings, num_time_inds)
-
+def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None, plot_flag=False):
+    offset_th_diff, offset_th_diff_125, J_m_diff, J_s_diff, f_diff, c_diff = rel_changes_from_csvs(folder, num_trainings, num_time_inds)
+    
     # Convert relative parameter differences to pandas DataFrame
-    data = pd.DataFrame({'offset_th_diff': offset_th_diff, 'J_m_EE_diff': J_m_diff[:, 0], 'J_m_IE_diff': J_m_diff[:, 1], 'J_m_EI_diff': J_m_diff[:, 2], 'J_m_II_diff': J_m_diff[:, 3], 'J_s_EE_diff': J_s_diff[:, 0], 'J_s_IE_diff': J_s_diff[:, 1], 'J_s_EI_diff': J_s_diff[:, 2], 'J_s_II_diff': J_s_diff[:, 3], 'f_E_diff': f_diff[:, 0], 'f_I_diff': f_diff[:, 1], 'c_E_diff': c_diff[:, 0], 'c_I_diff': c_diff[:, 1]})
+    data = pd.DataFrame({'offset_th_diff': offset_th_diff, 'offset_th_diff_125': offset_th_diff_125, 'J_m_EE_diff': J_m_diff[:, 0], 'J_m_IE_diff': J_m_diff[:, 1], 'J_m_EI_diff': J_m_diff[:, 2], 'J_m_II_diff': J_m_diff[:, 3], 'J_s_EE_diff': J_s_diff[:, 0], 'J_s_IE_diff': J_s_diff[:, 1], 'J_s_EI_diff': J_s_diff[:, 2], 'J_s_II_diff': J_s_diff[:, 3], 'f_E_diff': f_diff[:, 0], 'f_I_diff': f_diff[:, 1], 'c_E_diff': c_diff[:, 0], 'c_I_diff': c_diff[:, 1]})
 
     ##################### Correlate offset_th_diff with the combintation of the J_m_EE and J_m_IE, J_m_EI and J_m_II, etc. #####################
 
@@ -355,6 +386,8 @@ def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_lab
     data['J_m_I_diff'] = J_m_diff[:, 5]
     data['J_s_E_diff'] = J_s_diff[:, 4]
     data['J_s_I_diff'] = J_s_diff[:, 5]
+    data['J_m_ratio_diff'] = J_m_diff[:, 6]
+    data['J_s_ratio_diff'] = J_s_diff[:, 6]
     offset_pars_corr = []
     if x_labels is None:
         x_labels = ['J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff', 'f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
@@ -363,7 +396,7 @@ def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_lab
         corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], data[x_labels[i]])
         offset_pars_corr.append({'corr': corr, 'p_value': p_value})
     
-    # Load MVPA_scores and correlate (along num_trainings) them with the offset threshold and the parameter differences
+    # Load MVPA_scores and correlate them with the offset threshold and the parameter differences (samples are the different trainings)
     MVPA_scores = numpy.load(folder + '/MVPA_scores.npy') # num_trainings x layer x SGD_ind x ori_ind
     MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
     MVPA_offset_corr = []
@@ -375,25 +408,53 @@ def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_lab
     for j in range(MVPA_scores_diff.shape[2]):
         for i in range(MVPA_scores_diff.shape[1]):        
             if i==0:
-                corr_m_I, p_value_m_I = scipy.stats.pearsonr(data['J_m_I_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_E, p_value_m_E = scipy.stats.pearsonr(data['J_m_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_f_E, p_value_m_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_f_I, p_value_m_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_c_E, p_value_m_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_c_I, p_value_m_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_J_I, p_val_m_J_I = scipy.stats.pearsonr(data['J_m_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_J_E, p_val_m_J_E = scipy.stats.pearsonr(data['J_m_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_f_E, p_val_m_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_f_I, p_val_m_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_c_E, p_val_m_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_m_c_I, p_val_m_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
             if i==1:
-                corr_s_I, p_value_s_I = scipy.stats.pearsonr(data['J_s_I_diff'], MVPA_scores_diff[:,i,j])
-                corr_s_E, p_value_s_E = scipy.stats.pearsonr(data['J_s_E_diff'], MVPA_scores_diff[:,i,j])                
-                corr_s_f_E, p_value_s_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_s_f_I, p_value_s_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
-                corr_s_c_E, p_value_s_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_s_c_I, p_value_s_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_s_J_I, p_val_s_J_I = scipy.stats.pearsonr(data['J_s_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_s_J_E, p_val_s_J_E = scipy.stats.pearsonr(data['J_s_E_diff'], MVPA_scores_diff[:,i,j])                
+                corr_s_f_E, p_val_s_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_s_f_I, p_val_s_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
+                corr_s_c_E, p_val_s_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
+                corr_s_c_I, p_val_s_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
             
-        corr = [corr_m_E, corr_m_I, corr_s_E, corr_s_I, corr_m_f_E, corr_m_f_I, corr_m_c_E, corr_m_c_I, corr_s_f_E, corr_s_f_I, corr_s_c_E, corr_s_c_I]
-        p_value = [p_value_m_E, p_value_m_I, p_value_s_E, p_value_s_I, p_value_m_f_E, p_value_m_f_I, p_value_m_c_E, p_value_m_c_I, p_value_s_f_E, p_value_s_f_I, p_value_s_c_E, p_value_s_c_I]
+        corr = [corr_m_J_E, corr_m_J_I, corr_s_J_E, corr_s_J_I, corr_m_f_E, corr_m_f_I, corr_m_c_E, corr_m_c_I, corr_s_f_E, corr_s_f_I, corr_s_c_E, corr_s_c_I]
+        p_value = [p_val_m_J_E, p_val_m_J_I, p_val_s_J_E, p_val_s_J_I, p_val_m_f_E, p_val_m_f_I, p_val_m_c_E, p_val_m_c_I, p_val_s_f_E, p_val_s_f_I, p_val_s_c_E, p_val_s_c_I]
         MVPA_pars_corr.append({'corr': corr, 'p_value': p_value})
     # combine MVPA_offset_corr and MVPA_pars_corr into a single list
     MVPA_corrs = MVPA_offset_corr + MVPA_pars_corr
+
+    if plot_flag:
+        # Create a 6x6 grid of subplots
+        fig, axes = plt.subplots(6, 6, figsize=(20, 20))
+        axes_flat = axes.flatten()
+        # x-axis labels
+        x_labels = ['J_m_ratio_diff', 'J_s_ratio_diff', 'J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff']
+        # y-axis labels
+        y_axes = ['offset_th_diff', 'offset_th_diff_125', 'MVPA_m_55', 'MVPA_s_55', 'offset_125', 'MVPA_m_125', 'MVPA_s_125']
+
+        for i in range(6):
+            for j in range(6):
+                # Create lmplot for each pair of variables
+                sns.regplot(x=x_labels[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='red', 
+                        line_kws={'color':'darkred'}, scatter_kws={'alpha':0.3, 'color':'red'})
+                
+                # Close the lmplot's figure to prevent overlapping
+                axes[i,j].set_title( f'Corr: {corr:.2f}, p-val: {p_value:.2f}')
+
+        plt.tight_layout()
+        plt.savefig(folder + "/figures/Offset_MVPA_corr_Jall.png")
+        plt.close()
+
+        # Create a 4x6 grid of subplots
+        fig, axes = plt.subplots(4, 6, figsize=(20, 15))
+        axes_flat = axes.flatten()
+        x_axes_labels = ['f_E', 'f_I', 'c_E', 'c_I']
+        x_labels=['f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
 
     return offset_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run
 
@@ -414,6 +475,7 @@ def select_type_mid(r_mid, cell_type='E'):
 
 vmap_select_type_mid = jax.vmap(select_type_mid, in_axes=(0, None))
 
+
 def gaussian_kernel(size: int, sigma: float):
     """Generates a 2D Gaussian kernel."""
     x = np.arange(-size // 2 + 1., size // 2 + 1.)
@@ -423,12 +485,14 @@ def gaussian_kernel(size: int, sigma: float):
     kernel = kernel / np.sum(kernel)
     return kernel
 
+
 def gaussian_filter_jax(image, sigma: float):
     """Applies Gaussian filter to a 2D JAX array (image)."""
     size = int(np.ceil(3 * sigma) * 2 + 1)  # Kernel size
     kernel = gaussian_kernel(size, sigma)
     smoothed_image = jax.scipy.signal.convolve2d(image, kernel, mode='same')
     return smoothed_image
+
 
 def smooth_trial(X_trial, num_phases, gridsize_Nx, sigma, num_grid_points):
     smoothed_data_trial = np.zeros((gridsize_Nx,gridsize_Nx,num_phases))
@@ -440,6 +504,7 @@ def smooth_trial(X_trial, num_phases, gridsize_Nx, sigma, num_grid_points):
     return smoothed_data_trial
 
 vmap_smooth_trial = jax.vmap(smooth_trial, in_axes=(0, None, None, None, None))
+
 
 def smooth_data(X, gridsize_Nx =9, sigma = 1):
     '''
@@ -460,11 +525,13 @@ def smooth_data(X, gridsize_Nx =9, sigma = 1):
     
     return smoothed_data
 
+
 def load_orientation_map(folder, run_ind):
     '''Loads the orientation map from the folder for the training indexed by run_ind.'''
     orimap_filename = os.path.join(folder, f"orimap_{run_ind}.npy")
     orimap = np.load(orimap_filename)
     return orimap
+
 
 def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, c_E = None, c_I = None, f_E = None, f_I = None):
     # Generate noisy data
@@ -509,6 +576,39 @@ def SGD_step_indices(df, num_indices=2):
         SGD_step_inds[0]= df.index[df['stage'] == 2][0] # index of when training starts (second stage of training)
         SGD_step_inds[-1]=num_SGD_steps-1 #index of when training ends    
     return SGD_step_inds
+
+
+def select_response(responses, sgd_step, layer, ori):
+    '''
+    Selects the response for a given sgd_step, layer and ori from the responses dictionary. If the dictionary has ref and target responses, it returns the difference between them.
+    The response is the output from filtered_model_response or filtered_model_response_task functions.    
+    '''
+    step_mask = responses['SGD_step'] == sgd_step
+    if ori is None:
+        ori_mask = responses['ori'] >-1
+        ori_out = responses['ori'][step_mask]
+    else:
+        ori_mask = responses['ori'] == ori
+    combined_mask = step_mask & ori_mask
+    if len(responses)>4:
+        if layer == 0:
+            response = responses['r_sup_ref'][combined_mask] - responses['r_sup_target'][combined_mask]
+        else:
+            response = responses['r_mid_ref'][combined_mask] - responses['r_mid_target'][combined_mask]
+        labels = responses['labels'][combined_mask]
+    else:
+        if layer == 0:
+            response_sup = responses['r_sup']
+            response = response_sup[combined_mask]
+        else:
+            response_mid = responses['r_mid']
+            response = response_mid[combined_mask]
+        labels = None
+    if ori is None:
+        return response, labels, ori_out
+    else:
+        return response, labels
+
 
 def filtered_model_response(folder,run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=False, sigma_filter = 1):
     file_name = f"{folder}/results_{run_ind}.csv"

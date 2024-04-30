@@ -12,37 +12,12 @@ from sklearn.linear_model import SGDClassifier, LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
 
-from analysis import  filtered_model_response, filtered_model_response_task
+from analysis import  filtered_model_response, filtered_model_response_task, select_response
 
-
-def select_response(responses, sgd_step, layer, ori):
-    '''
-    Selects the response for a given sgd_step, layer and ori from the responses dictionary. If the dictionary has ref and target responses, it returns the difference between them.
-    The response is the output from filtered_model_response or filtered_model_response_task functions.    
-    '''
-    step_mask = responses['SGD_step'] == sgd_step
-    ori_mask = responses['ori'] == ori
-    combined_mask = step_mask & ori_mask
-    if len(responses)>4:
-        if layer == 0:
-            response = responses['r_sup_ref'][combined_mask] - responses['r_sup_target'][combined_mask]
-        else:
-            response = responses['r_mid_ref'][combined_mask] - responses['r_mid_target'][combined_mask]
-        labels = responses['labels'][combined_mask]
-    else:
-        if layer == 0:
-            response_sup = responses['r_sup']
-            response = response_sup[combined_mask]
-        else:
-            response_mid = responses['r_mid']
-            response = response_mid[combined_mask]
-        labels = None
-    
-    return response, labels
 
 ######### MVPA scores:  #########
 
-def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5):
+def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5, plot_flag=False):
     ''' Calculate MVPA scores for before pretraining, after pretraining and after training'''
     ori_list = numpy.asarray([55, 125, 0])
     num_layers=2 # number of layers
@@ -83,14 +58,15 @@ def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5):
                 response_1_2 = numpy.concatenate((response_1, response_2))
                 response_1_2 = response_1_2.reshape(response_1_2.shape[0],-1)
                 label_1_2 = numpy.concatenate((numpy.zeros(len(response_1)), numpy.ones(len(response_2))))
-                # plot 10 trials from response_0,response_1, response_2 on a 10 x 3 subplot
-                fig, axs = plt.subplots(10, 3, figsize=(15, 30))
-                for i in range(10):
-                    axs[i, 0].imshow(response_0[i])
-                    axs[i, 1].imshow(response_1[i])
-                    axs[i, 2].imshow(response_2[i])
-                # save figure
-                plt.savefig(f'{folder}/response_{run_ind}_{layer}_{sigma_filter}.png')
+                if plot_flag:
+                    # plot 10 trials from response_0,response_1, response_2 on a 10 x 3 subplot
+                    fig, axs = plt.subplots(10, 3, figsize=(15, 30))
+                    for i in range(10):
+                        axs[i, 0].imshow(response_0[i])
+                        axs[i, 1].imshow(response_1[i])
+                        axs[i, 2].imshow(response_2[i])
+                    # save figure
+                    plt.savefig(f'{folder}/response_{run_ind}_{layer}_{sigma_filter}.png')
 
                 # make test-train split
                 X_train, X_test, y_train, y_test = train_test_split(response_1_2, label_1_2, test_size=0.2, random_state=42)
@@ -105,7 +81,7 @@ def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5):
                 MVPA_t_test[run_ind,layer,ori_ind,0] = t_stat
                 MVPA_t_test[run_ind,layer,ori_ind,1] = p_val
 
-    return MVPA_scores,MVPA_t_test
+    return MVPA_scores, MVPA_t_test
 
 
 def task_score(folder, num_training, num_SGD_inds=2, sigma_filter=5):
@@ -137,7 +113,7 @@ def task_score(folder, num_training, num_SGD_inds=2, sigma_filter=5):
                     response, label = select_response(response_all, SGD_step_inds[SGD_ind], layer, ori_list[ori_ind])
                 
                     # MVPA analysis
-                    X_train, X_test, y_train, y_test = train_test_split(response, label, test_size=0.2, random_state=42)
+                    X_train, X_test, y_train, y_test = train_test_split(response, label, test_size=0.5, random_state=42)
                     log_reg = LogisticRegression(max_iter=100)
                     log_reg.fit(X_train, y_train)
                     y_pred = log_reg.predict(X_test)
@@ -159,42 +135,41 @@ def task_score(folder, num_training, num_SGD_inds=2, sigma_filter=5):
     return SVM_scores, LogReg_scores, SVM_t_test, LogReg_t_test
 
 
-def Scores_from_csv(final_folder_path, num_training, folder_to_save, num_SGD_inds=2, sigma_filter=5):
+def Scores_from_csv(final_folder_path, num_training, folder_to_save, num_SGD_inds=2, sigma_filter=5, task_score_flag=False, plot_flag=False):
     ''' Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer'''
     plt.close()
-    MVPA_scores, MVPA_t_test = MVPA_score(final_folder_path,num_training, num_SGD_inds, sigma_filter=6)
-    SVM_scores, LogReg_scores, SVM_t_test, LogReg_t_test = task_score(final_folder_path,num_training, num_SGD_inds, sigma_filter=sigma_filter)
+    MVPA_scores, MVPA_t_test = MVPA_score(final_folder_path,num_training, num_SGD_inds, sigma_filter=sigma_filter,plot_flag=plot_flag)
+    
     # save the output into folder_to_save as npy files
     numpy.save(f"{folder_to_save}/{'MVPA_scores'}.npy", MVPA_scores) 
     numpy.save(f"{folder_to_save}/{'MVPA_t_test'}.npy", MVPA_t_test)
-    numpy.save(f"{folder_to_save}/{'SVM_scores'}.npy", SVM_scores)
-    numpy.save(f"{folder_to_save}/{'SVM_t_test'}.npy", SVM_t_test)
-    numpy.save(f"{folder_to_save}/{'Logreg_scores'}.npy", LogReg_scores)
-    numpy.save(f"{folder_to_save}/{'Logreg_t_test'}.npy", LogReg_t_test)
+    
     print('Before and after for 55~0, sup layer:',[np.mean(MVPA_scores[:,0,0,0]),np.mean(MVPA_scores[:,0,-1,0])])
     print('Before and after for 55~0, mid layer:',[np.mean(MVPA_scores[:,1,0,0]),np.mean(MVPA_scores[:,1,-1,0])])
     print('Before and after for 125~0, sup layer:',[np.mean(MVPA_scores[:,0,0,1]),np.mean(MVPA_scores[:,0,-1,1])])
     print('Before and after for 125~0, mid layer:',[np.mean(MVPA_scores[:,1,0,1]),np.mean(MVPA_scores[:,1,-1,1])])
 
-    print('Before and after for 55, sup layer:',[np.mean(SVM_scores[:,0,0,0]),np.mean(SVM_scores[:,0,-1,0])])
-    print('Before and after for 55, mid layer:',[np.mean(SVM_scores[:,1,0,0]),np.mean(SVM_scores[:,1,-1,0])])
-    print('Before and after for 125, sup layer:',[np.mean(SVM_scores[:,0,0,1]),np.mean(SVM_scores[:,0,-1,1])])
-    print('Before and after for 125, mid layer:',[np.mean(SVM_scores[:,1,0,1]),np.mean(SVM_scores[:,1,-1,1])])
-    print('Before and after for 0, sup layer:',[np.mean(SVM_scores[:,0,0,2]),np.mean(SVM_scores[:,0,-1,2])])
-    print('Before and after for 0, mid layer:',[np.mean(SVM_scores[:,1,0,2]),np.mean(SVM_scores[:,1,-1,2])])
+    if task_score_flag:
+        SVM_scores, LogReg_scores, SVM_t_test, LogReg_t_test = task_score(final_folder_path,num_training, num_SGD_inds, sigma_filter=sigma_filter)
+        numpy.save(f"{folder_to_save}/{'SVM_scores'}.npy", SVM_scores)
+        numpy.save(f"{folder_to_save}/{'SVM_t_test'}.npy", SVM_t_test)
+        numpy.save(f"{folder_to_save}/{'Logreg_scores'}.npy", LogReg_scores)
+        numpy.save(f"{folder_to_save}/{'Logreg_t_test'}.npy", LogReg_t_test)
+        print('Before and after for 55, sup layer:',[np.mean(SVM_scores[:,0,0,0]),np.mean(SVM_scores[:,0,-1,0])])
+        print('Before and after for 55, mid layer:',[np.mean(SVM_scores[:,1,0,0]),np.mean(SVM_scores[:,1,-1,0])])
+        print('Before and after for 125, sup layer:',[np.mean(SVM_scores[:,0,0,1]),np.mean(SVM_scores[:,0,-1,1])])
+        print('Before and after for 125, mid layer:',[np.mean(SVM_scores[:,1,0,1]),np.mean(SVM_scores[:,1,-1,1])])
+        print('Before and after for 0, sup layer:',[np.mean(SVM_scores[:,0,0,2]),np.mean(SVM_scores[:,0,-1,2])])
+        print('Before and after for 0, mid layer:',[np.mean(SVM_scores[:,1,0,2]),np.mean(SVM_scores[:,1,-1,2])])
 
-    print('Before and after for 55, sup layer:',[np.mean(LogReg_scores[:,0,0,0]),np.mean(LogReg_scores[:,0,-1,0])])
-    print('Before and after for 55, mid layer:',[np.mean(LogReg_scores[:,1,0,0]),np.mean(LogReg_scores[:,1,-1,0])])
-    print('Before and after for 125, sup layer:',[np.mean(LogReg_scores[:,0,0,1]),np.mean(LogReg_scores[:,0,-1,1])])
-    print('Before and after for 125, mid layer:',[np.mean(LogReg_scores[:,1,0,1]),np.mean(LogReg_scores[:,1,-1,1])])
-    print('Before and after for 0, sup layer:',[np.mean(LogReg_scores[:,0,0,2]),np.mean(LogReg_scores[:,0,-1,2])])
-    print('Before and after for 0, mid layer:',[np.mean(LogReg_scores[:,1,0,2]),np.mean(LogReg_scores[:,1,-1,2])])
+        print('Before and after for 55, sup layer:',[np.mean(LogReg_scores[:,0,0,0]),np.mean(LogReg_scores[:,0,-1,0])])
+        print('Before and after for 55, mid layer:',[np.mean(LogReg_scores[:,1,0,0]),np.mean(LogReg_scores[:,1,-1,0])])
+        print('Before and after for 125, sup layer:',[np.mean(LogReg_scores[:,0,0,1]),np.mean(LogReg_scores[:,0,-1,1])])
+        print('Before and after for 125, mid layer:',[np.mean(LogReg_scores[:,1,0,1]),np.mean(LogReg_scores[:,1,-1,1])])
+        print('Before and after for 0, sup layer:',[np.mean(LogReg_scores[:,0,0,2]),np.mean(LogReg_scores[:,0,-1,2])])
+        print('Before and after for 0, mid layer:',[np.mean(LogReg_scores[:,1,0,2]),np.mean(LogReg_scores[:,1,-1,2])])
 
-    return MVPA_scores
+        return MVPA_scores, MVPA_t_test, SVM_scores, LogReg_scores, SVM_t_test, LogReg_t_test
+    else:
+        return MVPA_scores, MVPA_t_test
 
-final_folder_path=os.path.join('results','Apr10_v1')
-num_training = 50
-
-## Pretraining + training
-num_SGD_inds = 3
-Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds)
