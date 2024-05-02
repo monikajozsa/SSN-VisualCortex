@@ -58,19 +58,22 @@ def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5, plot_flag=F
                 response_1_2 = numpy.concatenate((response_1, response_2))
                 response_1_2 = response_1_2.reshape(response_1_2.shape[0],-1)
                 label_1_2 = numpy.concatenate((numpy.zeros(len(response_1)), numpy.ones(len(response_2))))
-                if plot_flag:
+                
+                # make test-train split
+                X_train, X_test, y_train, y_test = train_test_split(response_1_2, label_1_2, test_size=0.2, random_state=42)
+                MVPA_scores[run_ind,layer,SGD_ind, 1] = clf.fit(X_train, y_train).score(X_test, y_test)
+                if plot_flag & (run_ind<2):
                     # plot 10 trials from response_0,response_1, response_2 on a 10 x 3 subplot
-                    fig, axs = plt.subplots(10, 3, figsize=(15, 30))
-                    for i in range(10):
+                    fig, axs = plt.subplots(4, 3, figsize=(15, 30))
+                    for i in range(4):
                         axs[i, 0].imshow(response_0[i])
                         axs[i, 1].imshow(response_1[i])
                         axs[i, 2].imshow(response_2[i])
                     # save figure
+                    axs[0, 0].set_title(f'MVPA: {MVPA_scores[run_ind,layer,SGD_ind, 0]}')
+                    axs[0, 1].set_title(f'MVPA: {MVPA_scores[run_ind,layer,SGD_ind, 1]}')
                     plt.savefig(f'{folder}/response_{run_ind}_{layer}_{sigma_filter}.png')
-
-                # make test-train split
-                X_train, X_test, y_train, y_test = train_test_split(response_1_2, label_1_2, test_size=0.2, random_state=42)
-                MVPA_scores[run_ind,layer,SGD_ind, 1] = clf.fit(X_train, y_train).score(X_test, y_test)             
+            
 
     # t-test for significant change in scores before and after training
     MVPA_t_test = numpy.zeros((num_training,num_layers,len(ori_list)-1,2))

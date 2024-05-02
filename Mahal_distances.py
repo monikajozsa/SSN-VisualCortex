@@ -34,31 +34,27 @@ def mahal(X,Y):
     where MU and SIGMA are the sample mean and covariance of the data in X.
     Rows of Y and X correspond to observations, and columns to variables.
     '''
+
     rx, _ = X.shape
     ry, _ = Y.shape
 
     # Subtract the mean from X
     m = np.mean(X, axis=0)
-    X_demean = X - np.tile(m, (rx, 1))
+    X_demean = X - m
 
     # Create a matrix M by repeating m for ry rows
-    M = np.tile(m, (ry, 1))
+    #M = np.tile(m, (ry, 1))
 
     # Perform QR decomposition on C
     Q, R = np.linalg.qr(X_demean, mode='reduced')
-    
-    #if ry==1:
-    #    cov_X_approx = np.dot(R.T, R) / (X.shape[0] - 1)
-    #    d = (Y-m) @ numpy.linalg.inv(cov_X_approx) @ np.transpose(Y-m)
-    #else:
-    
+
     # Solve for ri in the equation R' * ri = (Y-M) using least squares or directly if R is square and of full rank
-    Y_demean=(Y-M).T
-    ri = np.linalg.lstsq(R.T, Y_demean, rcond=None)[0]
+    Y_demean=(Y-m).T
+    ri = numpy.linalg.solve(R.T, Y_demean)
 
     # Calculate d as the sum of squares of ri, scaled by (rx-1)
     d = np.sum(ri**2, axis=0) * (rx-1)
-    
+
     return np.sqrt(d)
 
 
@@ -100,36 +96,46 @@ def Mahalanobis_dist(folder,num_training, num_SGD_inds=2, r_noise = True, sigma_
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_SGD_inds rows)
         r_mid_sup, SGD_steps = filtered_model_response(folder, run_ind, ori_list= ori_list, num_noisy_trials = num_noisy_trials, num_SGD_inds=num_SGD_inds,r_noise=r_noise, sigma_filter = sigma_filter)
         # Note: r_mid_sup is a dictionary with the oris and SGD_steps saved in them
-
+        r_ori = r_mid_sup['ori']
+        mesh_train_ = r_ori == ori_list[0] 
+        mesh_untrain_ = r_ori == ori_list[1]
+        mesh_control_ = r_ori == ori_list[2]
         # Iterate over the layers and SGD steps
         if plot_flag and run_ind<2:
             # make grid of plots for each layer and SGD step
             fig, axs = plt.subplots(num_layers, num_SGD_inds, figsize=(5*num_SGD_inds, 5*num_layers))
         for layer in range(num_layers):
+            if layer == 0:
+                r_l = r_mid_sup['r_sup']
+            else:
+                r_l = r_mid_sup['r_mid']
+            r_l = r_l.reshape((r_l.shape[0], -1))
+            score = pca.fit_transform(r_l)
+            r_pca = score[:, :num_PC_used]
+
+            ## Explained variance is above 99% for 15 components (70% for the experiments)
+            #variance_explained = pca.explained_variance_ratio_
+            #for i, var in enumerate(variance_explained):
+            #    print(f"Variance explained by {i+1} PCs: {numpy.sum(variance_explained[0:i+1]):.2%}")
+            #Variance explained by 1 PCs: 99.05%
+            #Variance explained by 2 PCs: 99.70%
             for SGD_ind in range(num_SGD_inds):                        
                 # Define filter to select the responses corresponding to SGD_ind
-                r, _, r_ori = select_response(r_mid_sup, SGD_steps[SGD_ind], layer, None)
-                r = r.reshape((r.shape[0], -1))
-                mesh_train_ = r_ori == ori_list[0] 
-                mesh_untrain_ = r_ori == ori_list[1]
-                mesh_control_ = r_ori == ori_list[2]
-                
-                score = pca.fit_transform(r)
-                r_pca = score[:, :num_PC_used]
-                
-                ## Explained variance is above 99% for 15 components (70% for the experiments)
-                #variance_explained = pca.explained_variance_ratio_
-                #for i, var in enumerate(variance_explained):
-                #    print(f"Variance explained by {i+1} PCs: {numpy.sum(variance_explained[0:i+1]):.2%}")
-
+                SGD_mask = r_mid_sup['SGD_step'] == SGD_steps[SGD_ind]
+                 
                 # Separate data into orientation conditions
-                train_data = r_pca[mesh_train_,:]
-                untrain_data = r_pca[mesh_untrain_,:]    
-                control_data = r_pca[mesh_control_,:]
+                train_data = r_pca[mesh_train_ & SGD_mask,:]
+                untrain_data = r_pca[mesh_untrain_ & SGD_mask,:]
+                control_data = r_pca[mesh_control_ & SGD_mask,:]
 
                 # Calculate Mahalanobis distance - mean and std of control data is calculated (along axis 0) and compared to the train and untrain data
                 mahal_train_control = mahal(control_data, train_data)
                 mahal_untrain_control = mahal(control_data, untrain_data)
+
+                # save control_data, train_data and untrain_data as csv files
+                numpy.savetxt(folder + f"/control_data_{layer}_{SGD_ind}.csv", control_data, delimiter=",")
+                numpy.savetxt(folder + f"/train_data_{layer}_{SGD_ind}.csv", train_data, delimiter=",")
+                numpy.savetxt(folder + f"/untrain_data_{layer}_{SGD_ind}.csv", untrain_data, delimiter=",")
 
                 # Calculate the within group Mahal distances
                 num_noisy_trials = train_data.shape[0] 
@@ -151,11 +157,13 @@ def Mahalanobis_dist(folder,num_training, num_SGD_inds=2, r_noise = True, sigma_
                     mahal_within_untrain[trial] = mahal(untrain_data_temp, untrain_data_trial_2d)
 
                 # scatter plot the three conditions with different colors
+                symbols = ['o', 's', '^']
+                SGD_labels = ['prepre', 'pre', 'post']
                 if plot_flag and run_ind < 2:
-                    axs[layer,SGD_ind].scatter(control_data[:,0], control_data[:,1], label='control', color='tab:green', s=5)
-                    axs[layer,SGD_ind].scatter(train_data[:,0], train_data[:,1], label='trained', color='blue', s=5)
-                    axs[layer,SGD_ind].scatter(untrain_data[:,0], untrain_data[:,1], label='untrained', color='red', s=5)
-                    axs[layer,SGD_ind].set_title(f'Layer {layer}, SGD step {SGD_ind}')
+                    axs[layer,SGD_ind].scatter(control_data[:,0], control_data[:,1], label='control '+SGD_labels[SGD_ind], color='tab:green', s=5, marker=symbols[SGD_ind])
+                    axs[layer,SGD_ind].scatter(train_data[:,0], train_data[:,1], label='trained '+SGD_labels[SGD_ind], color='blue', s=5, marker=symbols[SGD_ind])
+                    axs[layer,SGD_ind].scatter(untrain_data[:,0], untrain_data[:,1], label='untrained '+SGD_labels[SGD_ind], color='red', s=5, marker=symbols[SGD_ind])
+                    axs[layer,SGD_ind].set_title(f'Layer {layer}, run {run_ind}')
                     # Add lines between the mean of the conditions and write the Euclidean distance between them
                     mean_control = numpy.mean(control_data, axis=0)
                     mean_train = numpy.mean(train_data, axis=0)
@@ -163,10 +171,17 @@ def Mahalanobis_dist(folder,num_training, num_SGD_inds=2, r_noise = True, sigma_
                     axs[layer,SGD_ind].plot([mean_control[0], mean_train[0]], [mean_control[1], mean_train[1]], color='gray')
                     axs[layer,SGD_ind].plot([mean_control[0], mean_untrain[0]], [mean_control[1], mean_untrain[1]], color='gray')
                     axs[layer,SGD_ind].plot([mean_train[0], mean_untrain[0]], [mean_train[1], mean_untrain[1]], color='gray')
-                    axs[layer,SGD_ind].text((mean_control[0]+mean_train[0])/2, (mean_control[1]+mean_train[1])/2, f'train_ctr:{np.mean(mahal_train_control):.2f}, within: {np.mean(mahal_within_train):.2f}', color='gray')
-                    axs[layer,SGD_ind].text((mean_control[0]+mean_untrain[0])/2, (mean_control[1]+mean_untrain[1])/2, f'untrain_ctr: {np.mean(mahal_untrain_control):.2f}, within: {np.mean(mahal_within_untrain):.2f}', color='gray')
-                    
+                    axs[layer,SGD_ind].text((mean_control[0]+mean_train[0])/2, (mean_control[1]+mean_train[1])/2, f'acr:{np.mean(mahal_train_control):.2f}, within: {np.mean(mahal_within_train):.2f}', color='gray')
+                    axs[layer,SGD_ind].text((mean_control[0]+mean_untrain[0])/2, (mean_control[1]+mean_untrain[1])/2, f'acr: {np.mean(mahal_untrain_control):.2f}, within: {np.mean(mahal_within_untrain):.2f}', color='gray')
                     axs[layer,SGD_ind].legend()
+                    # add all SGD steps to the first column
+                    if SGD_ind>0:
+                        axs[layer,0].scatter(control_data[:,0], control_data[:,1],color='tab:green', s=5, marker=symbols[SGD_ind], alpha=0.4)
+                        axs[layer,0].scatter(train_data[:,0], train_data[:,1], color='blue', s=5, marker=symbols[SGD_ind], alpha=0.4)
+                        axs[layer,0].scatter(untrain_data[:,0], untrain_data[:,1], color='red', s=5, marker=symbols[SGD_ind], alpha=0.4)
+                        axs[layer,0].plot([mean_control[0], mean_train[0]], [mean_control[1], mean_train[1]], color='gray', alpha=0.4)
+                        axs[layer,0].plot([mean_control[0], mean_untrain[0]], [mean_control[1], mean_untrain[1]], color='gray', alpha=0.4)
+                        axs[layer,0].plot([mean_train[0], mean_untrain[0]], [mean_train[1], mean_untrain[1]], color='gray', alpha=0.4)
 
                 # Save Mahal distances and ratios
                 mahal_train_control_all[run_ind,layer,SGD_ind,:] = mahal_train_control
@@ -194,6 +209,39 @@ def Mahalanobis_dist(folder,num_training, num_SGD_inds=2, r_noise = True, sigma_
             plt.close()
         print(run_ind)
         print(time.time()-start_time)
+
+    # plot histograms of the LMI acorss the runs
+    if plot_flag:
+        fig, axs = plt.subplots(num_layers, 3, figsize=(30, 20))
+        for layer in range(num_layers):
+            for SGD_ind in range(num_SGD_inds-1):
+                axs[layer,0].hist(LMI_across[:,layer,SGD_ind], label='across', color='blue', alpha=0.5*(SGD_ind+1)) #  fainter for the pretraining
+                axs[layer,1].hist(LMI_within[:,layer,SGD_ind], label='within', color='red', alpha=0.5*(SGD_ind+1))
+                axs[layer,2].hist(LMI_ratio[:,layer,SGD_ind], label='ratio', color='green', alpha=0.5*(SGD_ind+1))
+            axs[layer,0].set_title(f'LMI for layer {layer}, SGD step {SGD_ind}')
+            axs[layer,0].legend()
+            axs[layer,1].legend()
+            axs[layer,2].legend()
+            # Add black vertical lines at 0
+            axs[layer,0].axvline(0, color='black', linestyle='dashed', linewidth=1)
+            axs[layer,1].axvline(0, color='black', linestyle='dashed', linewidth=1)
+            axs[layer,2].axvline(0, color='black', linestyle='dashed', linewidth=1)
+        fig.savefig(folder + f"/figures/LMI_histograms")
+        plt.close()
+        # plot histograms of the mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean across the runs
+    if plot_flag:
+        fig, axs = plt.subplots(num_layers, 4, figsize=(40, 20))
+        for layer in range(num_layers):
+            for SGD_ind in range(num_SGD_inds):
+                # plot histograms with contoured colors
+                axs[layer,0].hist(mahal_train_control_mean[:,layer,SGD_ind], label='train-control', color='blue', alpha=0.33*(SGD_ind+1))
+                axs[layer,1].hist(mahal_untrain_control_mean[:,layer,SGD_ind], label='untrain-control', color='red', alpha=0.33*(SGD_ind+1))
+                axs[layer,2].hist(mahal_within_train_mean[:,layer,SGD_ind], label='within-train', color='green', alpha=0.33*(SGD_ind+1))
+                axs[layer,3].hist(mahal_within_untrain_mean[:,layer,SGD_ind], label='within-untrain', color='purple', alpha=0.33*(SGD_ind+1))
+                axs[layer,SGD_ind].set_title(f'Mahal distances for layer {layer}, SGD step {SGD_ind}')
+                axs[layer,SGD_ind].legend()
+        fig.savefig(folder + f"/figures/Mahal_histograms")
+        plt.close()
 
     # Apply t-test per layer and SGD_ind difference (samples are the different runs)
     for layer in range(num_layers):
@@ -372,9 +420,9 @@ def plot_Mahalanobis_dist(num_trainings, num_SGD_inds, mahal_train_control, maha
 #final_folder_path = 'results/Mar22_v0'
 #folder_to_save = final_folder_path + '/figures'
 
-def Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, file_name='mahal_dist', num_SGD_inds=2, plot_flag=False):
+def Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, file_name='mahal_dist', num_SGD_inds=2, plot_flag=False,sigma_filter=1):
     plt.close()
-    df_mahal, df_LMI, df_stats, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain = Mahalanobis_dist(final_folder_path,num_training, num_SGD_inds, plot_flag=plot_flag)
+    df_mahal, df_LMI, df_stats, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain = Mahalanobis_dist(final_folder_path,num_training, num_SGD_inds, plot_flag=plot_flag, sigma_filter=sigma_filter)
     df_mahal.to_csv(final_folder_path+'/df_mahal.csv', index=False)
     df_LMI.to_csv(final_folder_path+'/df_LMI.csv', index=False)
     df_stats.to_csv(final_folder_path+'/df_stats.csv', index=False)

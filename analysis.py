@@ -590,12 +590,14 @@ def select_response(responses, sgd_step, layer, ori):
     else:
         ori_mask = responses['ori'] == ori
     combined_mask = step_mask & ori_mask
+    # fine discrimination task
     if len(responses)>4:
         if layer == 0:
             response = responses['r_sup_ref'][combined_mask] - responses['r_sup_target'][combined_mask]
         else:
             response = responses['r_mid_ref'][combined_mask] - responses['r_mid_target'][combined_mask]
         labels = responses['labels'][combined_mask]
+    # crude discrimination task
     else:
         if layer == 0:
             response_sup = responses['r_sup']

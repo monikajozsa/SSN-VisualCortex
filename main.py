@@ -150,7 +150,7 @@ from Mahal_distances import Mahal_dist_from_csv
 from MVPA_analysis import Scores_from_csv
 from analysis import MVPA_param_offset_correlations
 
-numpy.random.seed(1)
+numpy.random.seed(0)
 start_time=time.time()
 final_folder_path=os.path.join('results','Apr10_v1')
 num_training = 50
@@ -162,11 +162,13 @@ folder_to_save = os.path.join(final_folder_path, 'figures')
 boxplot_file_name = 'boxplot_pretraining'
 mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
+sigma_filter = 5
 #plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
 #boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
 #plot_tc_features(final_folder_path, num_training, tc_ori_list)
 #plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
-Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, mahal_file_name, num_SGD_inds, plot_flag=True)
+Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, mahal_file_name, num_SGD_inds, plot_flag=True,sigma_filter=sigma_filter)
+Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds,sigma_filter=sigma_filter)
 #Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds)
 #MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None)
 #plot_correlations(final_folder_path, num_training, num_time_inds=3)
