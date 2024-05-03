@@ -160,7 +160,7 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 
 
 def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, file_name = None, orimap_loaded=None, regen_orimap=False):
+                 loss_pars, training_pars, pretrain_pars, readout_pars, file_name = None, orimap_loaded=None, regen_extended_orimap=False):
     """Define untrained_pars with a randomly generated or given orientation map."""
 
     if (orimap_loaded is not None) and (orimap_loaded.shape[0] == grid_pars.gridsize_Nx):
@@ -172,18 +172,18 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_laye
         Y = grid_pars.y_map
         while not is_uniform:
             ssn_ori_map = make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False)
+            if (orimap_loaded is not None) and not regen_extended_orimap:
+                # paste the loaded orimap in the middle of the generated orimap
+                loaded_ori_size = orimap_loaded.shape[0]
+                start_ind = (grid_pars.gridsize_Nx-loaded_ori_size)//2
+                end_ind = start_ind+loaded_ori_size
+                ssn_ori_map=ssn_ori_map.at[start_ind:end_ind,start_ind:end_ind].set(orimap_loaded)
             ssn_ori_map_flat = ssn_ori_map.ravel()
             is_uniform = test_uniformity(ssn_ori_map_flat[readout_pars.middle_grid_ind], num_bins=10, alpha=0.25)
             map_gen_ind = map_gen_ind+1
-            if map_gen_ind>20:
-                print('############## After 20 attemptsm the randomly generated maps did not pass the uniformity test ##############')
+            if map_gen_ind>50:
+                print('############## After 50 attempts the randomly generated maps did not pass the uniformity test ##############')
                 break
-        if (orimap_loaded is not None) and not regen_orimap:
-            # switch the middle grid of the orimap to the loaded one
-            loaded_ori_size = orimap_loaded.shape[0]
-            start_ind = (grid_pars.gridsize_Nx-loaded_ori_size)//2
-            end_ind = start_ind+loaded_ori_size
-            ssn_ori_map=ssn_ori_map.at[start_ind:end_ind,start_ind:end_ind].set(orimap_loaded)
     
     gabor_filters, A, A2 = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars)
     

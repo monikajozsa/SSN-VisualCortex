@@ -249,4 +249,12 @@ ssn_layer_pars = SsnLayerPars()
 
 class MVPA_pars:
     gridsize_Nx = 27
-    readout_grid_size = 9
+    readout_grid_size = 5
+    middle_grid_ind = []
+    mid_grid_ind0 = int((gridsize_Nx-readout_grid_size)/2)
+    mid_grid_ind1 = int(gridsize_Nx) - mid_grid_ind0
+    for i in range(mid_grid_ind0,mid_grid_ind1):  
+        row_start = i * gridsize_Nx
+        middle_grid_ind.extend(range(row_start + mid_grid_ind0, row_start + mid_grid_ind1))
+    middle_grid_ind = np.array(middle_grid_ind)
+    noise_std = 1.0

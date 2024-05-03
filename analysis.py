@@ -511,7 +511,7 @@ def smooth_trial(X_trial, num_phases, gridsize_Nx, sigma, num_grid_points):
 vmap_smooth_trial = jax.vmap(smooth_trial, in_axes=(0, None, None, None, None))
 
 
-def smooth_data(X, gridsize_Nx =9, sigma = 1):
+def smooth_data(X, gridsize_Nx, sigma = 1):
     '''
     Smooth data matrix (trials x cells or single trial) over grid points. Data is reshaped into 9x9 grid before smoothing and then flattened again.
     '''
@@ -566,7 +566,7 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     return r_mid, r_sup
 
 
-def SGD_step_indices(df, num_indices=2, peak_offset_flag=True):
+def SGD_step_indices(df, num_indices=2, peak_offset_flag=False):
     # get the number of rows in the dataframe
     num_SGD_steps = len(df)
     SGD_step_inds = numpy.zeros(num_indices, dtype=int)
@@ -630,7 +630,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     file_name = f"{folder}/results_{run_ind}.csv"
     loaded_orimap = load_orientation_map(folder, run_ind)
     grid_pars.gridsize_Nx = MVPA_pars.gridsize_Nx
-    grid_pars.readout_gridsize_Nx = MVPA_pars.readout_gridsize_Nx
+    readout_pars.readout_grid_size = MVPA_pars.readout_grid_size
     grid_pars.xy_dist, grid_pars.x_map, grid_pars.y_map = xy_distance(grid_pars.gridsize_Nx,grid_pars.gridsize_deg)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                     loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
@@ -660,12 +660,12 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
                 r_sup = r_sup + noise_sup*np.sqrt(jax.nn.softplus(r_sup))
 
             # Smooth data for each celltype separately with Gaussian filter
-            filtered_r_mid_EI= smooth_data(r_mid)  #num_noisy_trials x 648
+            filtered_r_mid_EI= smooth_data(r_mid, grid_pars.gridsize_Nx, sigma_filter)  #num_noisy_trials x 648
             filtered_r_mid_E=vmap_select_type_mid(filtered_r_mid_EI,'E')
             filtered_r_mid_I=vmap_select_type_mid(filtered_r_mid_EI,'I')
             filtered_r_mid=np.sum(0.8*filtered_r_mid_E + 0.2 *filtered_r_mid_I, axis=-1)# order of summing up phases and mixing I-E matters if we change to sum of squares!
 
-            filtered_r_sup_EI= smooth_data(r_sup, sigma = sigma_filter)
+            filtered_r_sup_EI= smooth_data(r_sup, grid_pars.gridsize_Nx, sigma_filter)
             if filtered_r_sup_EI.ndim == 3:
                 filtered_r_sup_E=filtered_r_sup_EI[:,:,0]
                 filtered_r_sup_I=filtered_r_sup_EI[:,:,1]
@@ -674,6 +674,10 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
                 filtered_r_sup_I=filtered_r_sup_EI[:,:,:,1]
             filtered_r_sup=0.8*filtered_r_sup_E + 0.2 *filtered_r_sup_I
             
+            # Divide the responses by the std of the responses for equal noise effect ***
+            filtered_r_mid = filtered_r_mid / np.std(filtered_r_mid)
+            filtered_r_sup = filtered_r_sup / np.std(filtered_r_sup)
+
             # Concatenate all orientation responses
             if ori == ori_list[0] and step_ind==SGD_step_inds[0]:
                 filtered_r_mid_df = filtered_r_mid
@@ -686,11 +690,21 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
                 ori_df = np.concatenate((ori_df, np.repeat(ori, num_noisy_trials)))
                 step_df = np.concatenate((step_df, np.repeat(step_ind, num_noisy_trials)))
 
-    output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_df, r_sup = filtered_r_sup_df )
+    # Get the responses from the center of the grid
+    min_ind = MVPA_pars.mid_grid_ind0
+    max_ind = MVPA_pars.mid_grid_ind1
+    filtered_r_mid_box_df = filtered_r_mid_df[:,min_ind:max_ind, min_ind:max_ind]
+    filtered_r_sup_box_df = filtered_r_sup_df[:,min_ind:max_ind, min_ind:max_ind]
+
+    # Add noise to the responses - scaled by the std of the responses
+    filtered_r_mid_box_noisy_df= filtered_r_mid_box_df + numpy.random.normal(0, MVPA_pars.noise_std, filtered_r_mid_box_df.shape)
+    filtered_r_sup_box_noisy_df= filtered_r_sup_box_df + numpy.random.normal(0, MVPA_pars.noise_std, filtered_r_sup_box_df.shape)
+
+    output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_box_noisy_df, r_sup = filtered_r_sup_box_noisy_df)
 
     return output, SGD_step_inds
 
-
+"""
 def filtered_model_response_task(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=False, sigma_filter = 1, gridsize_Nx=9):
     '''Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)'''
     file_name = f"{folder}/results_{run_ind}.csv"
@@ -800,3 +814,4 @@ def filtered_model_response_task(folder, run_ind, ori_list= np.asarray([55, 125,
     output = dict(ori = ori_df, SGD_step = step_df, r_mid_ref = filtered_r_mid_ref_df, r_mid_target = filtered_r_mid_target_df, r_sup_ref = filtered_r_sup_ref_df , r_sup_target = filtered_r_sup_target_df , labels = labels)
 
     return output, SGD_step_inds
+"""
