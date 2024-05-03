@@ -82,21 +82,12 @@ def middle_layer_fixed_point(
     return_fp=False,
 ):    
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
-    # Clara's select_type function
-    #fp_E_on = ssn.select_type(fp, map_number = 1)
-    #fp_E_off = ssn.select_type(fp, map_number = (ssn.phases+1))
-    #fp_E_on_pi2 = ssn.select_type(fp, map_number = 3)
-    #fp_E_off_pi2 = ssn.select_type(fp, map_number = 7)
-    #layer_output = fp_E_on + fp_E_off + fp_E_on_pi2 + fp_E_off_pi2
-    #max_E =  np.max(fp_E_on)
-    #fp_I_on = ssn.select_type(fp, map_number = 2)
-    #max_I =  np.max(fp_I_on)
     
     map_numbers_E = np.arange(1, 2 * ssn.phases, 2) # 1,3,5,7
     map_numbers_I = np.arange(2, 2 * ssn.phases + 1, 2) # 2,4,6,8
     
-    fp_E=ssn.select_type_mj(fp, map_numbers_E)
-    fp_I=ssn.select_type_mj(fp, map_numbers = map_numbers_I)
+    fp_E=ssn.select_type(fp, map_numbers_E)
+    fp_I=ssn.select_type(fp, map_numbers = map_numbers_I)
  
     #Define output as sum of E neurons
     layer_output = np.sum(fp_E, axis=0)

@@ -141,7 +141,7 @@ class SSN_sup(_SSN_Base):
    
         xy_dist = grid_pars.xy_dist
         cosdiff_ring = lambda d_x, L: np.sqrt(2 * (1 - np.cos(d_x * 2 * np.pi/L))) * L / 2/ np.pi
-        trained_ori_dist = cosdiff_ring(oris - self.train_ori, SSN_sup._Lring) #NEW - calculate distance to trained orientation
+        trained_ori_dist = cosdiff_ring(oris - self.train_ori, SSN_sup._Lring)
         self.trained_ori_dist = trained_ori_dist.squeeze()
         self.W = self.make_W(J_2x2, xy_dist, ori_dist, kappa_pre, kappa_post)
 
@@ -151,7 +151,7 @@ class SSN_sup(_SSN_Base):
                     tauE=self.tau_vec[0], tauI=self.tau_vec[self.Ne])
     
         
-    def make_W(self, J_2x2, xy_dist, ori_dist, kappa_pre, kappa_post, MinSyn=1e-4, CellWiseNormalized=False): #, prngKey=0):
+    def make_W(self, J_2x2, xy_dist, ori_dist, kappa_pre, kappa_post, MinSyn=1e-4, CellWiseNormalized=False):
             """
             make the full recurrent connectivity matrix W
             Input:
@@ -227,9 +227,9 @@ class SSN_sup(_SSN_Base):
         assert vec.ndim == 1
         maps = self.vec2map(vec)
 
-        if select=='E': # last 81
+        if select=='E': # second half
             output = maps[0]
-        if select =='I': # first 81
+        if select =='I': # first half
             output = maps[1]
 
         return output
@@ -248,7 +248,7 @@ class SSN_mid(_SSN_Base):
         self.phases = ssn_pars.phases
         self.k = ssn_pars.k
         self.grid_pars = grid_pars
-        self.Nc = grid_pars.gridsize_Nx**2  # number of columns
+        self.Nc = grid_pars.gridsize_Nx**2 # number of cells per phase
 
         Ni = Ne = self.phases * self.Nc
         n = ssn_pars.n
@@ -272,8 +272,8 @@ class SSN_mid(_SSN_Base):
         return out
 
     def make_W(self, J_2x2):
+        '''Create the recurrent connectivity matrix W - a block diagonal matrix with J_2x2 as the block matrix.'''
         self.W = np.kron(np.eye(self.phases), np.asarray(J_2x2))
-
 
     @property
     def neuron_params(self):
@@ -281,11 +281,7 @@ class SSN_mid(_SSN_Base):
             n=self.n, k=self.k, tauE=self.tau_vec[0], tauI=self.tau_vec[self.Ne]
         )
     
-    def select_type(self, vec, map_number):
-        out = vec[(map_number-1)*self.Nc:map_number*self.Nc]
-        return out
-    
-    def select_type_mj(self, vec, map_numbers):
+    def select_type(self, vec, map_numbers):
         # Calculate start and end indices for each map_number
         start_indices = (map_numbers - 1) * self.Nc
         

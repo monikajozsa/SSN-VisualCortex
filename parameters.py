@@ -246,3 +246,7 @@ class SsnLayerPars:
     ''' relative strength of local parts of E projections in middle layer '''
 
 ssn_layer_pars = SsnLayerPars()
+
+class MVPA_pars:
+    gridsize_Nx = 27
+    readout_grid_size = 9

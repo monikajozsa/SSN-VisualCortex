@@ -168,7 +168,7 @@ sigma_filter = 5
 #plot_tc_features(final_folder_path, num_training, tc_ori_list)
 #plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
 Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, mahal_file_name, num_SGD_inds, plot_flag=True,sigma_filter=sigma_filter)
-Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds,sigma_filter=sigma_filter)
+#Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds,sigma_filter=sigma_filter)
 #Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds)
 #MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None)
 #plot_correlations(final_folder_path, num_training, num_time_inds=3)

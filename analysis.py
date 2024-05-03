@@ -18,6 +18,7 @@ from training import mean_training_task_acc_test, offset_at_baseline_acc, genera
 from util import load_parameters, create_grating_training
 from util_gabor import init_untrained_pars
 from parameters import (
+    xy_distance,
     grid_pars,
     filter_pars,
     stimuli_pars,
@@ -27,7 +28,8 @@ from parameters import (
     conv_pars,
     training_pars,
     loss_pars,
-    pretrain_pars # Setting pretraining (pretrain_pars.is_on) should happen in parameters.py because w_sig depends on it
+    pretrain_pars, # Setting pretraining (pretrain_pars.is_on) should happen in parameters.py because w_sig depends on it
+    MVPA_pars
 )
 
 ############## Analysis functions ##########
@@ -374,6 +376,9 @@ def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
 
 
 def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None, plot_flag=False):
+    '''
+    Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores.
+    '''
     offset_th_diff, offset_th_diff_125, J_m_diff, J_s_diff, f_diff, c_diff = rel_changes_from_csvs(folder, num_trainings, num_time_inds)
     
     # Convert relative parameter differences to pandas DataFrame
@@ -561,20 +566,25 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     return r_mid, r_sup
 
 
-def SGD_step_indices(df, num_indices=2):
+def SGD_step_indices(df, num_indices=2, peak_offset_flag=True):
     # get the number of rows in the dataframe
     num_SGD_steps = len(df)
     SGD_step_inds = numpy.zeros(num_indices, dtype=int)
     if num_indices>2:
-        SGD_step_inds[0]=df.index[df['stage'] == 0][0] #index of when pretraining starts
-        SGD_step_inds[1]= df.index[df['stage'] == 0][-1]+1 #index of when training starts
-        SGD_step_inds[-1]=num_SGD_steps-1 #index of when training ends
+        SGD_step_inds[0] = df.index[df['stage'] == 0][0] #index of when pretraining starts
+        training_start = df.index[df['stage'] == 0][-1]+1
+        if peak_offset_flag:
+            # get the index where max offset is reached 
+            SGD_step_inds[1] = training_start + df['offset'][training_start:training_start+100].idxmax()
+        else:    
+            SGD_step_inds[1] = training_start
+        SGD_step_inds[-1] = num_SGD_steps-1 #index of when training ends
         # Fill in the rest of the indices with equidistant points between end of pretraining and end of training
         for i in range(2,num_indices-1):
             SGD_step_inds[i] = int(SGD_step_inds[1] + (SGD_step_inds[-1]-SGD_step_inds[1])*(i-1)/(num_indices-2))
     else:
-        SGD_step_inds[0]= df.index[df['stage'] == 2][0] # index of when training starts (second stage of training)
-        SGD_step_inds[-1]=num_SGD_steps-1 #index of when training ends    
+        SGD_step_inds[0] = df.index[df['stage'] == 2][0] # index of when training starts (second stage of training)
+        SGD_step_inds[-1] = num_SGD_steps-1 #index of when training ends    
     return SGD_step_inds
 
 
@@ -612,10 +622,16 @@ def select_response(responses, sgd_step, layer, ori):
         return response, labels
 
 
-def filtered_model_response(folder,run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=False, sigma_filter = 1):
+def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=False, sigma_filter = 1):
+    '''
+    Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)
+    '''
+
     file_name = f"{folder}/results_{run_ind}.csv"
     loaded_orimap = load_orientation_map(folder, run_ind)
-
+    grid_pars.gridsize_Nx = MVPA_pars.gridsize_Nx
+    grid_pars.readout_gridsize_Nx = MVPA_pars.readout_gridsize_Nx
+    grid_pars.xy_dist, grid_pars.x_map, grid_pars.y_map = xy_distance(grid_pars.gridsize_Nx,grid_pars.gridsize_deg)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                     loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
     df = pd.read_csv(file_name)
