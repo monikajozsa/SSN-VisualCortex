@@ -622,7 +622,7 @@ def select_response(responses, sgd_step, layer, ori):
         return response, labels
 
 
-def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=False, sigma_filter = 1):
+def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=False, sigma_filter = 1, plot_flag = False):
     '''
     Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)
     '''
@@ -702,6 +702,28 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
 
     output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_box_noisy_df, r_sup = filtered_r_sup_box_noisy_df)
 
+    if plot_flag & (run_ind<2):
+        for layer in [0,1]:
+            for SGD_ind in range(num_SGD_inds):
+                response_0, _ = select_response(output, SGD_step_inds[SGD_ind], layer, ori_list[0])
+                response_1, _ = select_response(output, SGD_step_inds[SGD_ind], layer, ori_list[1])
+                response_2, _ = select_response(output, SGD_step_inds[SGD_ind], layer, ori_list[2])
+                global_min = np.min(np.array([float(response_0.min()), float(response_1.min()), float(response_2.min())]))
+                global_max = np.max(np.array([float(response_0.max()), float(response_1.max()), float(response_2.max())]))
+                # plot 4 trials from response_0,response_1, response_2 on a 10 x 3 subplot
+                fig, axs = plt.subplots(4, 3, figsize=(15, 30))
+                for i in range(4):
+
+                    axs[i, 0].imshow(response_0[i,:,:], vmin=global_min, vmax=global_max)
+                    axs[i, 1].imshow(response_1[i,:,:], vmin=global_min, vmax=global_max)
+                    axs[i, 2].imshow(response_2[i,:,:], vmin=global_min, vmax=global_max)
+                # Add black square in the middle of the image to highlight the readout region
+                for ax in axs.flatten():
+                    ax.add_patch(plt.Rectangle((8.5, 8.5), 9, 9, edgecolor='black', facecolor='none'))
+                # Add colorbar to the right of the last column
+                #fig.colorbar(axs[0, 2].imshow(response_0[i,:,:], vmin=global_min, vmax=global_max), ax=axs[:, 0], orientation='vertical')
+
+                plt.savefig(f'{folder}/figures/filt_resp_{run_ind}_{layer}_{sigma_filter}.png')
     return output, SGD_step_inds
 
 """

@@ -162,7 +162,7 @@ folder_to_save = os.path.join(final_folder_path, 'figures')
 boxplot_file_name = 'boxplot_pretraining'
 mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
-sigma_filter = 5
+sigma_filter = 1
 #plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
 #boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
 #plot_tc_features(final_folder_path, num_training, tc_ori_list)

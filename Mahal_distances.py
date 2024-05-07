@@ -77,7 +77,7 @@ def mahal(X,Y):
 
 
 ######### Calculate Mahalanobis distance for before pretraining, after pretraining and after training - distance between trained and control should increase more than distance between untrained and control after training #########
-def Mahalanobis_dist(folder,num_training, num_SGD_inds=2, r_noise = True, sigma_filter=1, plot_flag=False):
+def Mahalanobis_dist(folder,num_training, num_SGD_inds=2, r_noise = False, sigma_filter=1, plot_flag=False):
     ori_list = numpy.asarray([55, 125, 0])
     num_PC_used=2 # number of principal components used for the analysis
     num_layers=2 # number of layers
@@ -109,10 +109,10 @@ def Mahalanobis_dist(folder,num_training, num_SGD_inds=2, r_noise = True, sigma_
       
     # Iterate over the different parameter initializations (runs)
     for run_ind in range(num_training):
-        start_time=time.time()        
+        start_time=time.time()
                 
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_SGD_inds rows)
-        r_mid_sup, SGD_steps = filtered_model_response(folder, run_ind, ori_list= ori_list, num_noisy_trials = num_noisy_trials, num_SGD_inds=num_SGD_inds,r_noise=r_noise, sigma_filter = sigma_filter)
+        r_mid_sup, SGD_steps = filtered_model_response(folder, run_ind, ori_list= ori_list, num_noisy_trials = num_noisy_trials, num_SGD_inds=num_SGD_inds,r_noise=r_noise, sigma_filter = sigma_filter, plot_flag=plot_flag)
         # Note: r_mid_sup is a dictionary with the oris and SGD_steps saved in them
         r_ori = r_mid_sup['ori']
         mesh_train_ = r_ori == ori_list[0] 
@@ -194,17 +194,17 @@ def Mahalanobis_dist(folder,num_training, num_SGD_inds=2, r_noise = True, sigma_
                     axs[layer,SGD_ind].set_title(f'train:{numpy.linalg.norm(mean_control-mean_train):.2f},untrain:{numpy.linalg.norm(mean_control-mean_untrain):.2f} \n train:{np.mean(mahal_train_control):.2f},untrain:{np.mean(mahal_untrain_control):.2f} within: {np.mean(mahal_within_train):.2f}, {np.mean(mahal_within_untrain):.2f}')
                     
                     axs[layer,SGD_ind].legend()
-                    # add all SGD steps to the first column
-                    if SGD_ind>0:
-                        axs[layer,0].scatter(control_data[:,0], control_data[:,1],color='tab:green', s=5, marker=symbols[SGD_ind], alpha=0.4)
-                        axs[layer,0].scatter(train_data[:,0], train_data[:,1], color='blue', s=5, marker=symbols[SGD_ind], alpha=0.4)
-                        axs[layer,0].scatter(untrain_data[:,0], untrain_data[:,1], color='red', s=5, marker=symbols[SGD_ind], alpha=0.4)
-                        axs[layer,0].plot([mean_control[0], mean_train[0]], [mean_control[1], mean_train[1]], color='gray', alpha=0.4)
-                        axs[layer,0].plot([mean_control[0], mean_untrain[0]], [mean_control[1], mean_untrain[1]], color='gray', alpha=0.4)
-                        axs[layer,0].plot([mean_train[0], mean_untrain[0]], [mean_train[1], mean_untrain[1]], color='gray', alpha=0.4)
-                        # add Eucledean distances and Mahalanobis distances as text in the middle of the plot
-                        axs[layer,0].text((mean_control[0]+mean_train[0])/2, (mean_control[1]+mean_train[1])/2, f'{numpy.linalg.norm(mean_control-mean_train):.2f}', color='black', ha='center')
-                        axs[layer,0].text((mean_control[0]+mean_untrain[0])/2, (mean_control[1]+mean_untrain[1])/2, f'{numpy.linalg.norm(mean_control-mean_untrain):.2f}', color='black', ha='center')
+                    ## add all SGD steps to the first column
+                    #if SGD_ind>0:
+                    #    axs[layer,0].scatter(control_data[:,0], control_data[:,1],color='tab:green', s=5, marker=symbols[SGD_ind], alpha=0.4)
+                    #    axs[layer,0].scatter(train_data[:,0], train_data[:,1], color='blue', s=5, marker=symbols[SGD_ind], alpha=0.4)
+                    #    axs[layer,0].scatter(untrain_data[:,0], untrain_data[:,1], color='red', s=5, marker=symbols[SGD_ind], alpha=0.4)
+                    #    axs[layer,0].plot([mean_control[0], mean_train[0]], [mean_control[1], mean_train[1]], color='gray', alpha=0.4)
+                    #    axs[layer,0].plot([mean_control[0], mean_untrain[0]], [mean_control[1], mean_untrain[1]], color='gray', alpha=0.4)
+                    #    axs[layer,0].plot([mean_train[0], mean_untrain[0]], [mean_train[1], mean_untrain[1]], color='gray', alpha=0.4)
+                    #    # add Eucledean distances and Mahalanobis distances as text in the middle of the plot
+                    #    axs[layer,0].text((mean_control[0]+mean_train[0])/2, (mean_control[1]+mean_train[1])/2, f'{numpy.linalg.norm(mean_control-mean_train):.2f}', color='black', ha='center')
+                    #    axs[layer,0].text((mean_control[0]+mean_untrain[0])/2, (mean_control[1]+mean_untrain[1])/2, f'{numpy.linalg.norm(mean_control-mean_untrain):.2f}', color='black', ha='center')
 
                 # Save Mahal distances and ratios
                 mahal_train_control_all[run_ind,layer,SGD_ind,:] = mahal_train_control

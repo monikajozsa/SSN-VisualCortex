@@ -33,7 +33,7 @@ def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5, plot_flag=F
     start_time = time.time()
     for run_ind in range(num_training):
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_SGD_inds rows)
-        response_all, SGD_step_inds = filtered_model_response(folder, run_ind, ori_list=ori_list, num_noisy_trials=num_noisy_trials, num_SGD_inds=num_SGD_inds, r_noise=True, sigma_filter=sigma_filter)
+        response_all, SGD_step_inds = filtered_model_response(folder, run_ind, ori_list=ori_list, num_noisy_trials=num_noisy_trials, num_SGD_inds=num_SGD_inds, r_noise=True, sigma_filter=sigma_filter, plot_flag=plot_flag)
         print(f'Time taken for filtered model response task for run {run_ind}:', time.time()-start_time)   
         # Iterate over the layers and SGD steps
         for layer in range(num_layers):
@@ -65,26 +65,7 @@ def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5, plot_flag=F
                     score_i = clf.fit(X_train, y_train).score(X_test, y_test)
                     scores.append(score_i)
                 MVPA_scores[run_ind,layer,SGD_ind, 1] = np.mean(np.array(scores))#clf.fit(X_train, y_train).score(X_test, y_test)
-                if plot_flag & (run_ind<2):
-                    global_min = np.min(np.array([float(response_0.min()), float(response_1.min()), float(response_2.min())]))
-                    global_max = np.max(np.array([float(response_0.max()), float(response_1.max()), float(response_2.max())]))
-                    # plot 4 trials from response_0,response_1, response_2 on a 10 x 3 subplot
-                    fig, axs = plt.subplots(4, 3, figsize=(15, 30))
-                    for i in range(4):
-                        axs[i, 0].imshow(response_0[i,:,:], vmin=global_min, vmax=global_max)
-                        axs[i, 1].imshow(response_1[i,:,:], vmin=global_min, vmax=global_max)
-                        axs[i, 2].imshow(response_2[i,:,:], vmin=global_min, vmax=global_max)
-                    # save figure
-                    axs[0, 0].set_title(f'MVPA: {MVPA_scores[run_ind,layer,SGD_ind, 0]}')
-                    axs[0, 1].set_title(f'MVPA: {MVPA_scores[run_ind,layer,SGD_ind, 1]}')
-                    # Add black square in the middle of the image to highlight the readout region
-                    for ax in axs.flatten():
-                        ax.add_patch(plt.Rectangle((8.5, 8.5), 9, 9, edgecolor='black', facecolor='none'))
-                    # Add colorbar to the right of the last column
-                    fig.colorbar(axs[0, 2].imshow(response_0[i,:,:], vmin=global_min, vmax=global_max), ax=axs[:, 0], orientation=' vertical')
-
-                    plt.savefig(f'{folder}/figures/filt_resp_{run_ind}_{layer}_{sigma_filter}.png')
-            
+                
 
     # t-test for significant change in scores before and after training
     MVPA_t_test = numpy.zeros((num_layers,len(ori_list)-1,2))
