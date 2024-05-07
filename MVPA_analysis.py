@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 import os
 import matplotlib.pyplot as plt
 from sklearn.pipeline import make_pipeline
-from sklearn.linear_model import SGDClassifier, LogisticRegression
+from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
 
@@ -17,7 +17,7 @@ from analysis import  filtered_model_response, select_response #, filtered_model
 
 ######### MVPA scores:  #########
 
-def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5, plot_flag=False):
+def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5, r_noise=True, plot_flag=False):
     ''' Calculate MVPA scores for before pretraining, after pretraining and after training'''
     ori_list = numpy.asarray([55, 125, 0])
     num_layers=2 # number of layers
@@ -33,7 +33,7 @@ def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5, plot_flag=F
     start_time = time.time()
     for run_ind in range(num_training):
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_SGD_inds rows)
-        response_all, SGD_step_inds = filtered_model_response(folder, run_ind, ori_list=ori_list, num_noisy_trials=num_noisy_trials, num_SGD_inds=num_SGD_inds, r_noise=True, sigma_filter=sigma_filter, plot_flag=plot_flag)
+        response_all, SGD_step_inds = filtered_model_response(folder, run_ind, ori_list=ori_list, num_noisy_trials=num_noisy_trials, num_SGD_inds=num_SGD_inds, r_noise=r_noise, sigma_filter=sigma_filter, plot_flag=plot_flag)
         print(f'Time taken for filtered model response task for run {run_ind}:', time.time()-start_time)   
         # Iterate over the layers and SGD steps
         for layer in range(num_layers):
@@ -66,7 +66,6 @@ def MVPA_score(folder, num_training, num_SGD_inds=2, sigma_filter=5, plot_flag=F
                     scores.append(score_i)
                 MVPA_scores[run_ind,layer,SGD_ind, 1] = np.mean(np.array(scores))#clf.fit(X_train, y_train).score(X_test, y_test)
                 
-
     # t-test for significant change in scores before and after training
     MVPA_t_test = numpy.zeros((num_layers,len(ori_list)-1,2))
     for layer in range(num_layers):
@@ -129,10 +128,10 @@ def task_score(folder, num_training, num_SGD_inds=2, sigma_filter=5):
     return SVM_scores, LogReg_scores, SVM_t_test, LogReg_t_test
 """
 
-def Scores_from_csv(final_folder_path, num_training, folder_to_save, num_SGD_inds=2, sigma_filter=5, task_score_flag=False, plot_flag=False):
+def Scores_from_csv(final_folder_path, num_training, folder_to_save, num_SGD_inds=2, sigma_filter=5, task_score_flag=False,r_noise=True, plot_flag=False):
     ''' Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer'''
     plt.close()
-    MVPA_scores, MVPA_t_test = MVPA_score(final_folder_path,num_training, num_SGD_inds, sigma_filter=sigma_filter,plot_flag=plot_flag)
+    MVPA_scores, MVPA_t_test = MVPA_score(final_folder_path,num_training, num_SGD_inds, sigma_filter=sigma_filter,r_noise=r_noise, plot_flag=plot_flag)
     
     # save the output into folder_to_save as npy files
     numpy.save(f"{folder_to_save}/{'MVPA_scores'}.npy", MVPA_scores) 

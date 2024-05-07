@@ -70,6 +70,9 @@ def perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, or
         pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
     pars_stage1['w_sig'] = (pars_stage1['w_sig'] / np.std(pars_stage1['w_sig']) ) * 0.25 / int(np.sqrt(len(pars_stage1['w_sig']))) # get the same std as before - see param
 
+    # Perturn learning rate
+    untrained_pars.training_pars.eta = untrained_pars.training_pars.eta + percent * untrained_pars.training_pars.eta * random.uniform(-1, 1)
+    
     return pars_stage1, pars_stage2, untrained_pars
 
 

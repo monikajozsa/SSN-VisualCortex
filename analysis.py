@@ -29,7 +29,7 @@ from parameters import (
     training_pars,
     loss_pars,
     pretrain_pars, # Setting pretraining (pretrain_pars.is_on) should happen in parameters.py because w_sig depends on it
-    MVPA_pars
+    mvpa_pars
 )
 
 ############## Analysis functions ##########
@@ -622,16 +622,49 @@ def select_response(responses, sgd_step, layer, ori):
         return response, labels
 
 
-def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=False, sigma_filter = 1, plot_flag = False):
+def mahal(X,Y):
+    '''
+    D2 = MAHAL(Y,X) returns the Mahalanobis distance (in squared units) of
+    each observation (point) in Y from the sample data in X, i.e.,
+    D2(I) = (Y(I,:)-MU) * SIGMA^(-1) * (Y(I,:)-MU)',
+    where MU and SIGMA are the sample mean and covariance of the data in X.
+    Rows of Y and X correspond to observations, and columns to variables.
+    '''
+
+    rx, _ = X.shape
+    ry, _ = Y.shape
+
+    # Subtract the mean from X
+    m = np.mean(X, axis=0)
+    X_demean = X - m
+
+    # Create a matrix M by repeating m for ry rows
+    #M = np.tile(m, (ry, 1))
+
+    # Perform QR decomposition on C
+    Q, R = np.linalg.qr(X_demean, mode='reduced')
+
+    # Solve for ri in the equation R' * ri = (Y-M) using least squares or directly if R is square and of full rank
+    Y_demean=(Y-m).T
+    ri = numpy.linalg.solve(R.T, Y_demean)
+
+    # Calculate d as the sum of squares of ri, scaled by (rx-1)
+    d = np.sum(ri**2, axis=0) * (rx-1)
+
+    return np.sqrt(d)
+
+
+def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=True, sigma_filter = 1, plot_flag = False):
     '''
     Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)
     '''
 
     file_name = f"{folder}/results_{run_ind}.csv"
     loaded_orimap = load_orientation_map(folder, run_ind)
-    grid_pars.gridsize_Nx = MVPA_pars.gridsize_Nx
-    readout_pars.readout_grid_size = MVPA_pars.readout_grid_size
-    grid_pars.xy_dist, grid_pars.x_map, grid_pars.y_map = xy_distance(grid_pars.gridsize_Nx,grid_pars.gridsize_deg)
+    grid_pars.gridsize_Nx = mvpa_pars.gridsize_Nx
+    readout_pars.readout_grid_size = mvpa_pars.readout_grid_size
+    grid_pars.gridsize_mm = float(grid_pars.gridsize_mm) * mvpa_pars.size_conv_factor
+    grid_pars.xy_dist, grid_pars.x_map, grid_pars.y_map = xy_distance(grid_pars.gridsize_Nx, grid_pars.gridsize_mm)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
                     loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
     df = pd.read_csv(file_name)
@@ -691,14 +724,14 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
                 step_df = np.concatenate((step_df, np.repeat(step_ind, num_noisy_trials)))
 
     # Get the responses from the center of the grid
-    min_ind = MVPA_pars.mid_grid_ind0
-    max_ind = MVPA_pars.mid_grid_ind1
+    min_ind = mvpa_pars.mid_grid_ind0
+    max_ind = mvpa_pars.mid_grid_ind1
     filtered_r_mid_box_df = filtered_r_mid_df[:,min_ind:max_ind, min_ind:max_ind]
     filtered_r_sup_box_df = filtered_r_sup_df[:,min_ind:max_ind, min_ind:max_ind]
 
     # Add noise to the responses - scaled by the std of the responses
-    filtered_r_mid_box_noisy_df= filtered_r_mid_box_df + numpy.random.normal(0, MVPA_pars.noise_std, filtered_r_mid_box_df.shape)
-    filtered_r_sup_box_noisy_df= filtered_r_sup_box_df + numpy.random.normal(0, MVPA_pars.noise_std, filtered_r_sup_box_df.shape)
+    filtered_r_mid_box_noisy_df= filtered_r_mid_box_df + numpy.random.normal(0, mvpa_pars.noise_std, filtered_r_mid_box_df.shape)
+    filtered_r_sup_box_noisy_df= filtered_r_sup_box_df + numpy.random.normal(0, mvpa_pars.noise_std, filtered_r_sup_box_df.shape)
 
     output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_box_noisy_df, r_sup = filtered_r_sup_box_noisy_df)
 
@@ -837,3 +870,60 @@ def filtered_model_response_task(folder, run_ind, ori_list= np.asarray([55, 125,
 
     return output, SGD_step_inds
 """
+
+def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio, LMI_ttests, LMI_ttest_p):
+    '''
+    Create dataframes for Mahalanobis distance and LMI values
+    '''
+    run_layer_df=np.repeat(np.arange(num_training),num_layers)
+    SGD_ind_df = numpy.zeros(num_training*num_layers)
+    for i in range(1, num_SGD_inds):
+        SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(num_training * num_layers)))
+    # switch dimensions to : layer, run, SGD_ind
+    mahal_train_control_mean = np.transpose(mahal_train_control_mean, (1, 0, 2))
+    mahal_untrain_control_mean = np.transpose(mahal_untrain_control_mean, (1, 0, 2))
+    mahal_within_train_mean = np.transpose(mahal_within_train_mean, (1, 0, 2))
+    mahal_within_untrain_mean = np.transpose(mahal_within_untrain_mean, (1, 0, 2))
+    train_SNR_mean = np.transpose(train_SNR_mean, (1, 0, 2))
+    untrain_SNR_mean = np.transpose(untrain_SNR_mean, (1, 0, 2))
+    df_mahal = pd.DataFrame({
+        'run': np.tile(run_layer_df, num_SGD_inds), # 1,1,2,2,3,3,4,4,... , 1,1,2,2,3,3,4,4,... 
+        'layer': np.tile(np.arange(num_layers),num_training*num_SGD_inds),# 1,2,1,2,1,2,...
+        'SGD_ind': SGD_ind_df, # 0,0,0,... 1,1,1,...
+        'ori55_across': mahal_train_control_mean.ravel(),
+        'ori125_across': mahal_untrain_control_mean.ravel(),
+        'ori55_within': mahal_within_train_mean.ravel(),
+        'ori125_within': mahal_within_untrain_mean.ravel(),
+        'ori55_SNR': train_SNR_mean.ravel(),
+        'ori125_SNR': untrain_SNR_mean.ravel()
+    })
+
+    SGD_ind_df = numpy.zeros(num_training*num_layers)
+    for i in range(1, num_SGD_inds-1):
+        SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(num_training * num_layers)))
+    LMI_across = np.transpose(LMI_across,(1,0,2))
+    LMI_within = np.transpose(LMI_within,(1,0,2))
+    LMI_ratio = np.transpose(LMI_ratio,(1,0,2))
+    df_LMI = pd.DataFrame({
+        'run': np.tile(run_layer_df, num_SGD_inds-1), # 1,1,2,2,3,3,4,4,... , 1,1,2,2,3,3,4,4,... 
+        'layer': np.tile(np.arange(num_layers),num_training*(num_SGD_inds-1)),# 1,2,1,2,1,2,...
+        'SGD_ind': SGD_ind_df,
+        'LMI_across': LMI_across.ravel(),# layer, SGD
+        'LMI_within': LMI_within.ravel(),
+        'LMI_ratio': LMI_ratio.ravel()
+    })
+
+    SGD_ind_df = numpy.zeros(3*num_layers)
+    for i in range(1, num_SGD_inds-1):
+        SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(3 * num_layers)))
+
+    LMI_type=['accross','accross', 'within', 'within', 'ratio', 'ratio']
+    df_stats = pd.DataFrame({
+        'layer': np.tile(np.arange(num_layers),3*(num_SGD_inds-1)),# 1,2,1,2,1,2,...
+        'LMI_type': LMI_type *(num_SGD_inds-1),
+        'SGD_ind': SGD_ind_df,
+        'LMI_ttests': LMI_ttests.ravel(),
+        'LMI_ttest_p': LMI_ttest_p.ravel()
+    })
+
+    return df_mahal, df_LMI, df_stats
