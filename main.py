@@ -40,7 +40,7 @@ results_filename, final_folder_path = save_code(train_only_flag=train_only_flag)
 
 # Run num_training number of pretraining + training
 tc_ori_list = numpy.arange(0,180,2)
-num_training = 5
+num_training = 10
 starting_time_in_main= time.time()
 num_FailedRuns = 0
 i=0
@@ -146,14 +146,13 @@ while i < num_training and num_FailedRuns < 20:
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_correlations
-from Mahal_distances import Mahal_dist_from_csv
-from MVPA_analysis import Scores_from_csv
+from MVPA_Mahal_combined import MVPA_Mahal_from_csv
 from analysis import MVPA_param_offset_correlations
 
 numpy.random.seed(0)
 start_time=time.time()
-final_folder_path=os.path.join('results','Apr10_v1')
-num_training = 50
+final_folder_path=os.path.join('results','May08_v2')
+num_training = 10
 tc_ori_list = numpy.arange(0,180,2)
 tc_cells=[10,40,100,130,650,690,740,760]
 
@@ -162,16 +161,18 @@ folder_to_save = os.path.join(final_folder_path, 'figures')
 boxplot_file_name = 'boxplot_pretraining'
 mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
-sigma_filter = 1
-#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
-#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
-#plot_tc_features(final_folder_path, num_training, tc_ori_list)
-#plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
-#Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, mahal_file_name, num_SGD_inds, plot_flag=True,sigma_filter=sigma_filter)
-Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds,sigma_filter=sigma_filter, plot_flag=True)
+sigma_filter = 2
+
+plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
+boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
+plot_tc_features(final_folder_path, num_training, tc_ori_list)
+plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
+MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
+
 #MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None)
 #plot_correlations(final_folder_path, num_training, num_time_inds=3)
 
+'''
 ## Training only
 #final_folder_path_train_only = final_folder_path + '/train_only'
 #boxplot_file_name_train_only = 'boxplot_train_only'
@@ -185,7 +186,6 @@ Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds
 print('runtime of plotting', time.time()-start_time)
 
 
-'''
 # Recalculating and replotting tuning curves if ori list is different than default
 import pandas as pd
 final_folder_path='results/Mar22_v0'

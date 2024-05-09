@@ -5,7 +5,7 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import pandas as pd
 #import pingouin as pg
-from scipy.stats import ttest_1samp
+
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.linear_model import SGDClassifier
@@ -35,9 +35,7 @@ def MVPA_Mahal_analysis(folder,num_training, num_SGD_inds=2, r_noise = True, sig
     LMI_across = numpy.zeros((num_training,num_layers,num_SGD_inds-1))
     LMI_within = numpy.zeros((num_training,num_layers,num_SGD_inds-1))
     LMI_ratio = numpy.zeros((num_training,num_layers,num_SGD_inds-1))
-    LMI_ttests = numpy.zeros((num_layers,3,num_SGD_inds-1))# 3 is for across, within and ratio
-    LMI_ttest_p = numpy.zeros((num_layers,3,num_SGD_inds-1))
-
+    
     mahal_within_train_all = numpy.zeros((num_training,num_layers,num_SGD_inds, num_noisy_trials))
     mahal_within_untrain_all = numpy.zeros((num_training,num_layers,num_SGD_inds, num_noisy_trials))
     mahal_train_control_all = numpy.zeros((num_training,num_layers,num_SGD_inds, num_noisy_trials))
@@ -141,8 +139,8 @@ def MVPA_Mahal_analysis(folder,num_training, num_SGD_inds=2, r_noise = True, sig
                     # Calculate distances
                     train_data_trial_2d = numpy.expand_dims(train_data[trial], axis=0)
                     untrain_data_trial_2d = numpy.expand_dims(untrain_data[trial], axis=0)
-                    mahal_within_train[trial] = mahal(train_data_temp, train_data_trial_2d) 
-                    mahal_within_untrain[trial] = mahal(untrain_data_temp, untrain_data_trial_2d)
+                    mahal_within_train[trial] = mahal(train_data_temp, train_data_trial_2d)[0]
+                    mahal_within_untrain[trial] = mahal(untrain_data_temp, untrain_data_trial_2d)[0]
 
                 # PCA scatter plot the three conditions with different colors
                 symbols = ['o', 's', '^']
@@ -179,11 +177,10 @@ def MVPA_Mahal_analysis(folder,num_training, num_SGD_inds=2, r_noise = True, sig
                 train_SNR_mean[run_ind,layer,SGD_ind] = numpy.mean(train_SNR_all[run_ind,layer,SGD_ind,:])
                 untrain_SNR_mean[run_ind,layer,SGD_ind] = numpy.mean(untrain_SNR_all[run_ind,layer,SGD_ind,:])
 
-            # Add the Euclidean distances and Mahal distances as the last column of the plot as bar plots
+            # Add Mahal distances as the last column of the plot as bar plots
             if plot_flag and run_ind < num_PCA_plots:
                 axs[layer,num_SGD_inds].bar([1,2,3],mahal_train_control_mean[run_ind,layer,:], color='blue', alpha=0.5)
                 axs[layer,num_SGD_inds].bar([5,6,7],mahal_untrain_control_mean[run_ind,layer,:], color='red', alpha=0.5)
-                #axs[layer,num_SGD_inds].bar([9,10,11,12],[numpy.linalg.norm(mean_control-mean_train), numpy.linalg.norm(mean_control-mean_untrain)], color='green', alpha=0.5)
                 axs[layer,num_SGD_inds].set_xticks([1,2,3,5,6,7])
                 axs[layer,num_SGD_inds].set_xticklabels(['tr0', 'tr1', 'tr2', 'ut0', 'ut1', 'ut2'])
                 fig.savefig(folder + f"/figures/PCA_{run_ind}")
@@ -202,51 +199,11 @@ def MVPA_Mahal_analysis(folder,num_training, num_SGD_inds=2, r_noise = True, sig
         print([np.mean(mahal_untrain_control_all[run_ind,0,0,:]),np.mean(mahal_untrain_control_all[run_ind,0,1,:]),np.mean(mahal_untrain_control_all[run_ind,0,2,:])],'untrain')
 
         print(f'runtime of run {run_ind}:',time.time()-start_time)
-
-    # Plot histograms of the LMI acorss the runs
-    if plot_flag:
-        plot_Mahal_LMI_hists(LMI_across, LMI_within, LMI_ratio, folder, mahal_train_control_mean,mahal_untrain_control_mean, mahal_within_train_mean,mahal_within_untrain_mean, num_layers, num_SGD_inds)
-
-    ################# Statistical tests #################
-    # t-test on LMI per layer and SGD_ind difference (samples are the different runs)
-    for layer in range(num_layers):
-        for SGD_ind in range(num_SGD_inds-1):
-            LMI_ttests[layer,0,SGD_ind], LMI_ttest_p[layer,0,SGD_ind] = ttest_1samp(LMI_across[:,layer,SGD_ind],0) # compare it to mean 0
-            LMI_ttests[layer,1,SGD_ind], LMI_ttest_p[layer,1,SGD_ind] = ttest_1samp(LMI_within[:,layer,SGD_ind],0)
-            LMI_ttests[layer,2,SGD_ind], LMI_ttest_p[layer,2,SGD_ind] = ttest_1samp(LMI_ratio[:,layer,SGD_ind],0)
-    
-    ################# Create dataframes #################
+        ################# Create dataframes #################
     # Create dataframes for the Mahalanobis distances and LMI
-    df_mahal, df_LMI, df_stats = LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio, LMI_ttests, LMI_ttest_p)
+    df_mahal, df_LMI = LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio)
 
-    # ANOVA on LMI_across, within and ratio
-    
-    ## Example usage of ANOVA
-    ## I need to reorganize the data such that Factor1 (SGD_inds) and Factor2 (control, untrained, trained) are the first dim in the data (6) and samples are the second
-    #data = np.random.randn(6, 100)  # Example 6x100 data matrix, where factor 1 has 2 values and factor 2 has 3 values
-    ## Define factor levels
-    #factor1_levels = np.repeat(['pre', 'post'], repeats=3)
-    #factor2_levels = np.tile(np.arange(1, 4), reps=2)
-    ## Add indices
-    #indices = np.column_stack((factor1_levels, factor2_levels))                
-    ## Create DataFrame with data and indices
-    #df = pd.DataFrame(data, index=indices)
-    # Name the index levels
-    #df.index.names = ['Session', 'Ori']
-    #rm_anova = pg.rm_anova(dv='dependent_variable_column', within=['Session', 'Ori'], subject='subject', data=df, correction=True, effsize="np2", detailed=True)
-    ## ANOVA args:
-    ## 'dv' is the dependent variable
-    ## 'within' specifies the repeated measures factors
-    ## 'subject' specifies the subject ID column
-    ## 'correction' specifies the correction method for violation of sphericity assumption
-    ## 'effsize' specifies the effect size calculation method
-    ## 'detailed' provides detailed ANOVA results
-
-    ## Extract F-statistic and p-value
-    #F_statistic = rm_anova['F'][0]  # Extract F-statistic (index 0 because it's the first factor)
-    #p_value = rm_anova['p-unc'][0]  # Extract p-value (index 0 because it's the first factor)
-    
-    return df_mahal, df_LMI, df_stats, mahal_train_control_all, mahal_untrain_control_all, mahal_within_train_all, mahal_within_untrain_all
+    return MVPA_scores, df_mahal, df_LMI, mahal_train_control_all, mahal_untrain_control_all, mahal_within_train_all, mahal_within_untrain_all
     
 def plot_Mahalanobis_dist(num_trainings, num_SGD_inds, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, folder_to_save, file_to_save):
     ori_list = numpy.asarray([55, 125, 0])
@@ -333,7 +290,16 @@ def plot_Mahalanobis_dist(num_trainings, num_SGD_inds, mahal_train_control, maha
     return 
 
 
-def plot_Mahal_LMI_hists(LMI_across, LMI_within, LMI_ratio, folder, mahal_train_control_mean,mahal_untrain_control_mean, mahal_within_train_mean,mahal_within_untrain_mean, num_layers, num_SGD_inds):
+def plot_Mahal_LMI_hists(df_LMI, df_mahal, folder, num_SGD_inds):
+    num_layers=2
+    LMI_across=numpy.array(df_LMI['LMI_across'].values.reshape(-1,num_layers,num_SGD_inds-1))
+    LMI_within=numpy.array(df_LMI['LMI_within'].values.reshape(-1,num_layers,num_SGD_inds-1))
+    LMI_ratio=numpy.array(df_LMI['LMI_ratio'].values.reshape(-1,num_layers,num_SGD_inds-1))
+    mahal_train_control_mean = numpy.array(df_mahal['ori55_across'].values.reshape(-1,num_layers,num_SGD_inds))
+    mahal_untrain_control_mean = numpy.array(df_mahal['ori125_across'].values.reshape(-1,num_layers,num_SGD_inds))
+    mahal_within_train_mean = numpy.array(df_mahal['ori55_within'].values.reshape(-1,num_layers,num_SGD_inds))
+    mahal_within_untrain_mean = numpy.array(df_mahal['ori125_within'].values.reshape(-1,num_layers,num_SGD_inds))
+    
     fig, axs = plt.subplots(num_layers, 3, figsize=(30, 20))
     for layer in range(num_layers):
         for SGD_ind in range(num_SGD_inds-1):
@@ -361,7 +327,7 @@ def plot_Mahal_LMI_hists(LMI_across, LMI_within, LMI_ratio, folder, mahal_train_
     # Plot histograms of the mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean across the runs
     fig, axs = plt.subplots(num_layers, 4, figsize=(40, 20))
     for layer in range(num_layers):
-        for SGD_ind in range(num_SGD_inds):
+        for SGD_ind in range(num_SGD_inds-1):
             # plot histograms with contoured colors
             axs[layer,0].hist(mahal_train_control_mean[:,layer,SGD_ind], label='train-control', color='blue', alpha=0.33*(SGD_ind+1))
             axs[layer,1].hist(mahal_untrain_control_mean[:,layer,SGD_ind], label='untrain-control', color='red', alpha=0.33*(SGD_ind+1))
@@ -385,3 +351,26 @@ def plot_Mahal_LMI_hists(LMI_across, LMI_within, LMI_ratio, folder, mahal_train_
     fig.savefig(folder + f"/figures/Mahal_histograms")
     plt.close()
 
+
+def MVPA_Mahal_from_csv(folder, num_training, num_SGD_inds=2, sigma_filter=5, r_noise=True, plot_flag=False):
+    ''' Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer'''
+    MVPA_scores, df_mahal, df_LMI, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain = MVPA_Mahal_analysis(folder,num_training, num_SGD_inds, r_noise = r_noise, sigma_filter=sigma_filter, plot_flag=plot_flag)
+    
+    # save the output into folder_to_save as npy files
+    folder_to_save = folder + f'/sigmafilt_{sigma_filter}'
+    numpy.save(folder_to_save +'/MVPA_scores.npy', MVPA_scores)    
+    df_mahal.to_csv(folder_to_save + '/df_mahal.csv', index=False)
+    df_LMI.to_csv(folder_to_save + '/df_LMI.csv', index=False)
+    
+    print('Pre-pre, pre and post training for 55~0, sup layer:',[np.mean(MVPA_scores[:,0,0,0]),np.mean(MVPA_scores[:,0,1,0]),np.mean(MVPA_scores[:,0,-1,0])])
+    print('Pre-pre, pre and post training for 55~0, mid layer:',[np.mean(MVPA_scores[:,1,0,0]),np.mean(MVPA_scores[:,1,1,0]),np.mean(MVPA_scores[:,1,-1,0])])
+    print('Pre-pre, pre and post training for 125~0, sup layer:',[np.mean(MVPA_scores[:,0,0,1]),np.mean(MVPA_scores[:,0,1,1]),np.mean(MVPA_scores[:,0,-1,1])])
+    print('Pre-pre, pre and post training for 125~0, mid layer:',[np.mean(MVPA_scores[:,1,0,1]),np.mean(MVPA_scores[:,1,1,1]),np.mean(MVPA_scores[:,1,-1,1])])
+
+    # Plot histograms of the LMI acorss the runs
+    if plot_flag:
+        plot_Mahal_LMI_hists(df_LMI, df_mahal, folder, num_SGD_inds)
+        file_name = 'Mahal_dist'
+        plot_Mahalanobis_dist(num_training, num_SGD_inds, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, folder_to_save, file_name)
+    
+    return MVPA_scores, df_mahal, df_LMI

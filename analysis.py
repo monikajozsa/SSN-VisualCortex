@@ -871,7 +871,7 @@ def filtered_model_response_task(folder, run_ind, ori_list= np.asarray([55, 125,
     return output, SGD_step_inds
 """
 
-def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio, LMI_ttests, LMI_ttest_p):
+def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio):
     '''
     Create dataframes for Mahalanobis distance and LMI values
     '''
@@ -917,13 +917,4 @@ def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mea
     for i in range(1, num_SGD_inds-1):
         SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(3 * num_layers)))
 
-    LMI_type=['accross','accross', 'within', 'within', 'ratio', 'ratio']
-    df_stats = pd.DataFrame({
-        'layer': np.tile(np.arange(num_layers),3*(num_SGD_inds-1)),# 1,2,1,2,1,2,...
-        'LMI_type': LMI_type *(num_SGD_inds-1),
-        'SGD_ind': SGD_ind_df,
-        'LMI_ttests': LMI_ttests.ravel(),
-        'LMI_ttest_p': LMI_ttest_p.ravel()
-    })
-
-    return df_mahal, df_LMI, df_stats
+    return df_mahal, df_LMI

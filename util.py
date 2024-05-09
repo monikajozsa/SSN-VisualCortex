@@ -203,7 +203,7 @@ def save_code(final_folder_path=None, train_only_flag=False):
     script_from_folder = os.path.dirname(os.path.realpath(__file__))
 
     # Copy files into the folder
-    file_names = ['main.py', 'util_gabor.py', 'perturb_params.py', 'parameters.py', 'training.py', 'model.py', 'util.py', 'SSN_classes.py', 'visualization.py', 'Mahal_distances.py']
+    file_names = ['main.py', 'util_gabor.py', 'perturb_params.py', 'parameters.py', 'training.py', 'model.py', 'util.py', 'SSN_classes.py', 'visualization.py', 'MVPA_Mahal_combined.py']
     for file_name in file_names:
         source_path = os.path.join(script_from_folder, file_name)
         destination_path = os.path.join(script_folder, file_name)

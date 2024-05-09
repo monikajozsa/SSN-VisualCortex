@@ -20,9 +20,9 @@ class PreTrainPars:
     ''' minimum SGD step where accuracy check happens for the training task '''
     offset_threshold = 6
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
-    batch_size = 50
+    batch_size = 100
     ''' number of trials per SGD step during pretraining '''
-    SGD_steps = 50
+    SGD_steps = 500
     ''' maximum number of SGD steps during pretraining '''
 
 pretrain_pars = PreTrainPars()
@@ -37,7 +37,7 @@ class TrainingPars:
     '''number of trials per SGD step'''
     noise_type = "poisson"
     '''there is an additive Gaussian noise to the model output (rates) that is related to parameters num_readout_noise and dt'''
-    SGD_steps = 100
+    SGD_steps = 1000
     '''number of SGD step'''
     validation_freq = 50  
     '''frequency of validation loss and accuracy calculation'''
