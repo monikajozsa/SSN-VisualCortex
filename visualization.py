@@ -173,27 +173,30 @@ def plot_tuning_curves(folder_path,tc_cells,num_runs,folder_to_save,train_only_s
     plt.close()
 
 
-def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num_training, title, colors):
+def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num_training, title, colors=None, linecolor='black'):
     '''
     Scatter plot of pre vs post training values for a given set of indices
     '''
-    
-    for run_ind in range(num_training):
-        bin_indices = numpy.digitize(numpy.abs(orientations[run_ind,:]), [4, 12, 20, 28, 36, 44, 50, 180])
-    
-        # Iterate over bins rather than individual points
-        for bin_idx, color in enumerate(colors, start=1):  # Adjust as needed
-            # Find indices within this bin
-            in_bin = numpy.where(bin_indices == bin_idx)[0]
-            # Find intersection with indices_to_plot
-            plot_indices = numpy.intersect1d(in_bin, indices_to_plot)
+    if colors is None:
+        ax.scatter(x_axis, y_axis, s=20, alpha=0.5)
+    else:
+        for run_ind in range(num_training):
+            bin_indices = numpy.digitize(numpy.abs(orientations[run_ind,:]), [4, 12, 20, 28, 36, 44, 50, 180])
+        
+            # Iterate over bins rather than individual points
+        
+            for bin_idx, color in enumerate(colors, start=1):  # Adjust as needed
+                # Find indices within this bin
+                in_bin = numpy.where(bin_indices == bin_idx)[0]
+                # Find intersection with indices_to_plot
+                plot_indices = numpy.intersect1d(in_bin, indices_to_plot)
+                
+                if len(plot_indices) > 0:
+                    ax.scatter(x_axis[run_ind,plot_indices], y_axis[run_ind,plot_indices], color=color, s=20, alpha=0.5)
             
-            if len(plot_indices) > 0:
-                ax.scatter(x_axis[run_ind,plot_indices], y_axis[run_ind,plot_indices], color=color, s=20, alpha=0.5)
-    
     # Plot x = y line
     xpoints = ypoints = ax.get_xlim()
-    ax.plot(xpoints, ypoints, color='black', linewidth=2)
+    ax.plot(xpoints, ypoints, color=linecolor, linewidth=2)
     ax.set_xlabel('Pre training')
     ax.set_ylabel('Post training')
     ax.set_title(title)
@@ -314,31 +317,47 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
 
     # Plots for CCN abstract
     else:
+        colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
+        fs_text = 40
+        fs_ticks = 30
         ############# Plot fwhm before vs after training for E_sup and E_mid #############
-        fig, axs = plt.subplots(2, 1, figsize=(8, 16)) 
+        fig, axs = plt.subplots(2, 2, figsize=(16, 16))
         for j in [0,2]:            
-            title = 'Fwhm training, ' + labels[j] 
-
             # add a little jitter to x and y to avoid overlapping points
             x = numpy.random.normal(0, 0.3, data['fwhm_prepre'].shape) + data['fwhm_prepre']
             y = numpy.random.normal(0, 0.3, data['fwhm_post'].shape) + data['fwhm_post']
 
-            plot_pre_post_scatter(axs[abs((2-j))//2], x , y ,data['orientations_postpre'], indices[j], num_training,title = title,colors=colors)
-        axs[1].legend(handles=patches, loc='lower right',  bbox_to_anchor=(1, 1), title='Pref ori - 55',
-                title_fontsize='large',  # Increase the title font size
-                fontsize='large',  # Increase the legend font size
-                borderpad=1.5,  # Increase the border padding of the legend box
-                labelspacing=1.5,  # Increase the space between items
-                handletextpad=2)  # Increase the padding between the icon and text
-        fig.savefig(results_dir + "/figures/tc_fwhm" + train_only_str +".png")
-        plt.close()
-
+            plot_pre_post_scatter(axs[abs((2-j))//2,1], x , y ,data['orientations_postpre'], indices[j], num_training, '', colors=None)
+            
+            # Reduce the number of ticks to 2
+            xtick_loc = axs[abs((2-j))//2,1].get_xticks()
+            if len(xtick_loc)>5:
+                axs[abs((2-j))//2,1].set_xticks(xtick_loc[numpy.array([1,-2])])
+            else:
+                axs[abs((2-j))//2,1].set_xticks(xtick_loc[numpy.array([0,-1])])
+            ytick_loc = axs[abs((2-j))//2,1].get_yticks()
+            if len(ytick_loc)>5:
+                axs[abs((2-j))//2,1].set_yticks(ytick_loc[numpy.array([1,-2])])
+            else:
+                axs[abs((2-j))//2,1].set_yticks(ytick_loc[numpy.array([0,-1])])
+            #axs[abs((2-j))//2].xaxis.set_major_locator(plt.MaxNLocator(2))
+            #axs[abs((2-j))//2].yaxis.set_major_locator(plt.MaxNLocator(2))
+            # Adjust tick parameters
+            axs[abs((2-j))//2,1].tick_params(axis='both', which='major', labelsize=fs_ticks, width=5, length=10)
+            # Adjust axes line width (spines thickness)
+            for spine in axs[abs((2-j))//2,1].spines.values():
+                spine.set_linewidth(2)
+            axs[0,1].set_title('Full width \n at half maximum (deg.)', fontsize=fs_text)
+        axs[0,1].set_xlabel('')
+        axs[1,1].set_xlabel('Pre FWHM', fontsize=fs_text, labelpad=20)
+        axs[1,1].set_ylabel('Post FWHM', fontsize=fs_text)
+        axs[0,1].set_ylabel('Post FWHM', fontsize=fs_text)
+        
         ############# Plot orientation vs slope #############
         # Add slope difference before and after training to the data dictionary
         data['slope_diff'] = data['norm_slope_post'] - data['norm_slope_prepre']
         
         # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
-        fig, axs = plt.subplots(2, 1, figsize=(8, 16))
         for j in [0,2]:
             #axes_flat[j].scatter(data['orientations_prepre'][:,indices[j]], (data['norm_slope_post'][:,indices[j]]-data['norm_slope_prepre'][:,indices[j]]), s=20, alpha=0.7)
             
@@ -348,17 +367,27 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
             x = numpy.where(x>90, x-180, x)
             y= data['slope_diff'][:,indices[j]].flatten()
             lowess = sm.nonparametric.lowess(y, x, frac=0.15)  # Example with frac=0.2 for more local averaging
-            axs[abs((2-j)) // 2].scatter(x, y, s=15, alpha=0.7)
-            axs[abs((2-j)) // 2].plot(lowess[:, 0], lowess[:, 1], color='black', linewidth=3)
-            # center the x-axis at 0
+            axs[abs((2-j)) // 2,0].scatter(x, y, s=15, alpha=0.7)
+            axs[abs((2-j)) // 2,0].plot(lowess[:, 0], lowess[:, 1], color='black', linewidth=3)
+            xtick_loc = axs[abs((2-j))//2,0].get_xticks()
+            if len(xtick_loc)>5:
+                axs[abs((2-j))//2,0].set_xticks(xtick_loc[numpy.array([1,-2])])
+            else:
+                axs[abs((2-j))//2,0].set_xticks(xtick_loc[numpy.array([0,-1])])
+            ytick_loc = axs[abs((2-j))//2,0].get_yticks()
+            if len(ytick_loc)>5:
+                axs[abs((2-j))//2,0].set_yticks(ytick_loc[numpy.array([1,-2])])
+            else:
+                axs[abs((2-j))//2,0].set_yticks(ytick_loc[numpy.array([0,-1])])
+            axs[abs((2-j))//2,0].tick_params(axis='both', which='major', labelsize=fs_ticks, width=5, length=10)
 
-            #df = pd.DataFrame(data['orientations_prepre'][:,indices[j]].flatten(), columns=['orientations_prepre'])
-            #df['slope_diff'] = data['slope_diff'][:,indices[j]].flatten()
-
-            # scatter plot with smooth line
-            #sns.regplot(x='orientations_prepre', y='slope_diff', data=df, lowess=True, scatter_kws={"s": 50, "alpha": 0.5}, line_kws={"color": "black", "lw": 2}, ax=axes_flat[j])
-            axs[abs((2-j)) // 2].set_title(labels[j])
-        fig.savefig(results_dir + "/figures/tc_slope_change_centered" + train_only_str +".png")
+        axs[0,0].set_title('Tuning curve slope \n at trained orientation', fontsize=fs_text)
+        axs[0,0].set_xlabel('')
+        axs[1,0].set_xlabel('pref. ori - trained ori', fontsize=fs_text, labelpad=20)
+        axs[1,0].set_ylabel(r'$\Delta$ slope', fontsize=fs_text)
+        axs[0,0].set_ylabel(r'$\Delta$ slope', fontsize=fs_text)
+        plt.tight_layout(w_pad=10, h_pad=7)
+        fig.savefig(results_dir + "/figures/tc_features" + train_only_str +".png", bbox_inches='tight')
         plt.close()
 
 
