@@ -15,13 +15,15 @@ plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
 plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels
 
 ########### Plotting functions ##############
-def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds = 3):
+def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds = 3, num_training = None):
     # List to store relative changes from each file
     relative_changes_at_time_inds = []
     
     # Iterate through each file in the directory
     numFiles = 0
     for filename in os.listdir(folder):
+        if num_training is not None and numFiles > (num_training-1):
+            break
         if filename.endswith('.csv') and filename.startswith('result'):
             numFiles = numFiles + 1
             filepath = os.path.join(folder, filename)

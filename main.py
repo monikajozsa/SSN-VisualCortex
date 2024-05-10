@@ -3,6 +3,7 @@
 import numpy
 import time
 import os
+
 '''
 from util_gabor import init_untrained_pars
 from util import save_code, load_parameters
@@ -15,7 +16,7 @@ from parameters import (
     stimuli_pars,
     readout_pars,
     ssn_pars,
-    ssn_layer_pars,
+    trained_pars,
     conv_pars,
     training_pars,
     loss_pars,
@@ -40,7 +41,7 @@ results_filename, final_folder_path = save_code(train_only_flag=train_only_flag)
 
 # Run num_training number of pretraining + training
 tc_ori_list = numpy.arange(0,180,2)
-num_training = 5
+num_training = 4
 starting_time_in_main= time.time()
 num_FailedRuns = 0
 i=0
@@ -64,14 +65,14 @@ while i < num_training and num_FailedRuns < 20:
     orimap_filename = os.path.join(final_folder_path, f"orimap_{i}.npy")
 
     # Initialize untrained parameters (calculate gabor filters, orientation map related variables)
-    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, readout_pars, orimap_filename)
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
 
-    # Perturb readout_pars and ssn_layer_pars by percent % and collect them into two dictionaries for the two stages of the pretraining
+    # Perturb readout_pars and trained_pars by percent % and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
-    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, orimap_filename=orimap_filename)
+    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, orimap_filename=orimap_filename)
     # Calculate and save tuning curves
     tc_prepre, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_prepre_filename, ori_vec=tc_ori_list)
     
@@ -96,7 +97,7 @@ while i < num_training and num_FailedRuns < 20:
     # Set pretraining flag to False
     untrained_pars.pretrain_pars.is_on = False
     # Load the last parameters from the pretraining
-    trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = pretraining_final_step)
+    trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_stage2.keys())
     # Calculate and save tuning curves
     tc_postpre, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_postpre_filename, ori_vec=tc_ori_list)
     # Set the offset to the offset, where a threshold accuracy is achieved with the parameters from the last SGD step (loaded as offset_last)
@@ -143,17 +144,17 @@ while i < num_training and num_FailedRuns < 20:
     print('runtime of {} pretraining + training run(s)'.format(i), time.time()-starting_time_in_main)
     print('number of failed runs = ', num_FailedRuns)
 '''
+
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_correlations
-from Mahal_distances import Mahal_dist_from_csv
-from MVPA_analysis import Scores_from_csv
+from MVPA_Mahal_combined import MVPA_Mahal_from_csv
 from analysis import MVPA_param_offset_correlations
 
 numpy.random.seed(0)
 start_time=time.time()
-final_folder_path=os.path.join('results','Apr10_v1')
-num_training = 50
+final_folder_path=os.path.join('results','May10_v0')
+num_training = 2
 tc_ori_list = numpy.arange(0,180,2)
 tc_cells=[10,40,100,130,650,690,740,760]
 
@@ -162,16 +163,18 @@ folder_to_save = os.path.join(final_folder_path, 'figures')
 boxplot_file_name = 'boxplot_pretraining'
 mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
-sigma_filter = 1
-#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
-#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 4)
-#plot_tc_features(final_folder_path, num_training, tc_ori_list)
-#plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
-#Mahal_dist_from_csv(final_folder_path, num_training, folder_to_save, mahal_file_name, num_SGD_inds, plot_flag=True,sigma_filter=sigma_filter)
-Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds,sigma_filter=sigma_filter, plot_flag=True)
+sigma_filter = 2
+
+plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
+boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
+plot_tc_features(final_folder_path, num_training, tc_ori_list)
+plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
+#MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
+
 #MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None)
 #plot_correlations(final_folder_path, num_training, num_time_inds=3)
 
+'''
 ## Training only
 #final_folder_path_train_only = final_folder_path + '/train_only'
 #boxplot_file_name_train_only = 'boxplot_train_only'
@@ -185,7 +188,6 @@ Scores_from_csv(final_folder_path, num_training, final_folder_path, num_SGD_inds
 print('runtime of plotting', time.time()-start_time)
 
 
-'''
 # Recalculating and replotting tuning curves if ori list is different than default
 import pandas as pd
 final_folder_path='results/Mar22_v0'
@@ -193,7 +195,7 @@ num_training=5
 tc_ori_list = numpy.arange(0,180,2)
 
 orimap_filename = final_folder_path+ '/orimap_0.npy'
-untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, readout_pars, orimap_filename)
 for i in range(num_training):
     results_filename=final_folder_path+f'/results_{i}.csv'

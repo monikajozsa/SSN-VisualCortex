@@ -203,7 +203,7 @@ def save_code(final_folder_path=None, train_only_flag=False):
     script_from_folder = os.path.dirname(os.path.realpath(__file__))
 
     # Copy files into the folder
-    file_names = ['main.py', 'util_gabor.py', 'perturb_params.py', 'parameters.py', 'training.py', 'model.py', 'util.py', 'SSN_classes.py', 'visualization.py', 'Mahal_distances.py']
+    file_names = ['main.py', 'util_gabor.py', 'perturb_params.py', 'parameters.py', 'training.py', 'model.py', 'util.py', 'SSN_classes.py', 'visualization.py', 'MVPA_Mahal_combined.py']
     for file_name in file_names:
         source_path = os.path.join(script_from_folder, file_name)
         destination_path = os.path.join(script_folder, file_name)
@@ -217,7 +217,7 @@ def save_code(final_folder_path=None, train_only_flag=False):
     return results_filename, final_folder_path
 
 
-def load_parameters(file_path, readout_grid_size=5, iloc_ind=-1):
+def load_parameters(file_path, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['log_J_2x2_m', 'log_J_2x2_s', 'c_E', 'c_I', 'log_f_E', 'log_f_I']):
 
     # Get the last row of the given csv file
     df = pd.read_csv(file_path)
@@ -234,14 +234,18 @@ def load_parameters(file_path, readout_grid_size=5, iloc_ind=-1):
     J_m_values = selected_row[log_J_m_keys].values.reshape(2, 2)
     J_s_values = selected_row[log_J_s_keys].values.reshape(2, 2)
     
+    # Create a dictionary with the trained parameters
     pars_stage2 = dict(
         log_J_2x2_m = J_m_values,
-        log_J_2x2_s = J_s_values,
-        c_E=selected_row['c_E'],
-        c_I=selected_row['c_I'],
-        log_f_E=selected_row['log_f_E'],
-        log_f_I=selected_row['log_f_I'],
+        log_J_2x2_s = J_s_values
     )
+    if 'c_E' in trained_pars_keys:
+        pars_stage2['c_E'] = selected_row['c_E']
+        pars_stage2['c_I'] = selected_row['c_I']
+    if 'log_f_E' in trained_pars_keys:
+        pars_stage2['log_f_E'] = selected_row['log_f_E']
+        pars_stage2['log_f_I'] = selected_row['log_f_I']
+
     offsets  = df['offset'].dropna().reset_index(drop=True)
     offset_last = offsets[len(offsets)-1]
 

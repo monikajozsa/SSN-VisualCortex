@@ -20,9 +20,9 @@ class PreTrainPars:
     ''' minimum SGD step where accuracy check happens for the training task '''
     offset_threshold = 6
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
-    batch_size = 50
+    batch_size = 100
     ''' number of trials per SGD step during pretraining '''
-    SGD_steps = 50
+    SGD_steps = 500
     ''' maximum number of SGD steps during pretraining '''
 
 pretrain_pars = PreTrainPars()
@@ -31,17 +31,15 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta = 2*10e-4 
+    eta: float = 5*10e-4
     '''learning rate - the maximum rate of parameter change in one SGD step'''
-    batch_size = 50
+    batch_size: int = 50
     '''number of trials per SGD step'''
-    noise_type = "poisson"
-    '''there is an additive Gaussian noise to the model output (rates) that is related to parameters num_readout_noise and dt'''
-    SGD_steps = 100
+    SGD_steps: int = 1000
     '''number of SGD step'''
-    validation_freq = 50  
+    validation_freq: int = 50  
     '''frequency of validation loss and accuracy calculation'''
-    first_stage_acc_th = 0.55
+    first_stage_acc_th: float = 0.55
     '''accuracy threshold for early stopping criterium for the first stage of training'''
 
 training_pars = TrainingPars()
@@ -56,9 +54,9 @@ class ConvPars:
     '''Convergence tolerance of SSN'''
     Tmax: float = 250.0
     '''Maximum number of steps to be taken during convergence of SSN'''
-    Rmax_E = 40
+    Rmax_E: float = 40
     '''Maximum firing rate for E neurons - rates above this are penalised'''
-    Rmax_I = 80
+    Rmax_I: float = 80
     '''Maximum firing rate for I neurons - rates above this are penalised '''
 
 conv_pars = ConvPars()
@@ -67,27 +65,26 @@ conv_pars = ConvPars()
 # Loss parameters
 @dataclass
 class LossPars:
-    lambda_dx = 1
+    lambda_dx: float = 1
     ''' Constant for loss with respect to convergence of Euler function'''
-    lambda_r_max = 1
+    lambda_r_max: float = 1
     ''' Constant for loss with respect to maximum rates in the network'''
-    lambda_w = 1
+    lambda_w: float = 1
     ''' Constant for L2 regularizer of sigmoid layer weights'''
-    lambda_b = 1
+    lambda_b: float = 1
     ''' Constant for L2 regulazier of sigmoid layer bias '''
 
 loss_pars = LossPars()
 
 
-def xy_distance(gridsize_Nx,gridsize_deg):
+def xy_distance(gridsize_Nx,gridsize_mm):
     ''' This function calculates distances between grid points of a grid with given sizes. It is used in GridPars class.'''
     Nn = gridsize_Nx**2
-    gridsize_mm = gridsize_deg * 2
     Lx = Ly = gridsize_mm
     Nx = Ny = gridsize_Nx
 
     # Simplified meshgrid creation
-    xs = numpy.linspace(0, Lx, Nx)
+    xs = numpy.linspace(0, Lx, Nx) # 
     ys = numpy.linspace(0, Ly, Ny)
     [x_map, y_map] = numpy.meshgrid(xs - xs[len(xs) // 2], ys - ys[len(ys) // 2])
     y_map = -y_map # without this y_map decreases going upwards
@@ -112,13 +109,16 @@ class GridPars:
     gridsize_Nx: int = 9
     ''' size of the grid is gridsize_Nx x gridsize_Nx '''
     gridsize_deg: float = 2 * 1.6
-    ''' edge length in degrees - visual field'''
+    ''' edge length in degrees of visual angle '''
+    c: float = 2.0
+    ''' converts deg to mm (mm/deg) '''
     magnif_factor: float = 2.0
     ''' converts deg to mm (mm/deg) '''
     gridsize_mm = gridsize_deg * magnif_factor
+    ''' edge length in mm - cortical space '''
     hyper_col: float = 0.4
-    ''' parameter to generate orientation map '''
-    xy_dist, x_map, y_map = xy_distance(gridsize_Nx,gridsize_deg)
+    ''' size of hypercolumn, parameter to generate orientation map '''
+    xy_dist, x_map, y_map = xy_distance(gridsize_Nx,gridsize_mm)
     ''' distances between grid points '''
 
 grid_pars = GridPars()
@@ -133,7 +133,7 @@ class FilterPars:
     ''' converts deg to mm (mm/deg), same as magnification factor '''
     k: float = 1.0
     ''' scaling parameter for the spacial frequency of the Gabor filter '''
-    edge_deg: float = grid_pars.gridsize_deg
+    gridsize_deg: float = grid_pars.gridsize_deg
     ''' edge length in degrees - visual field, same as grid_pars.gridsize_deg '''
     degree_per_pixel: float = 0.05
     ''' convert degree to number of pixels (129 x 129), note that this is not an independent parameter and could be calculated from other parameters '''
@@ -159,7 +159,7 @@ class StimuliPars:
     ''' constant that defines and interval [-jitter_val, jitter_val] from where jitter (same applied for reference an target stimuli orientation) is randomly taken '''
     k: float = filter_pars.k
     ''' scaling parameter for the spacial frequency of the Gabor filter '''
-    edge_deg: float = filter_pars.edge_deg  
+    gridsize_deg: float = filter_pars.gridsize_deg  
     ''' edge length in degrees - visual field, same as grid_pars.gridsize_deg '''
     degree_per_pixel = filter_pars.degree_per_pixel  
     ''' convert degree to number of pixels (129 x 129), note that this is not an independent parameter and could be calculated from other parameters '''
@@ -194,8 +194,8 @@ class ReadoutPars:
         ''' readout weights (between the superficial and the sigmoid layer) '''
     b_sig: float = 0.0 
     ''' bias added to the sigmoid layer '''
-    num_readout_noise = 125
-    ''' defines readout noise level, see generate_noise function for its effect '''
+    num_readout_noise: int = 125
+    ''' defines the additive Gaussian readout noise var (meaning is number of neighbouring cells), see generate_noise function '''
 
 readout_pars = ReadoutPars()
 
@@ -203,53 +203,58 @@ readout_pars = ReadoutPars()
 # general SSN parameters
 @dataclass
 class SSNPars:
-    n = 2.0  
+    n: float = 2.0  
     ''' power law parameter '''
-    k = 0.04  
+    k: float = 0.04  
     ''' power law parameter '''
-    tauE = 20.0 
+    tauE: float = 20.0 
     '''  time constant for excitatory neurons in ms '''
-    tauI = 10.0
+    tauI: float = 10.0
     ''' time constant for inhibitory neurons in ms '''
-    phases = 4 
+    phases: int = 4 
     ''' number of inh. and exc. neurons (with different Gabor filt.) per grid point in middle layer (has to be an even integer) '''
-
-ssn_pars = SSNPars()
-
-
-# SSN layer parameters
-@dataclass
-class SsnLayerPars:
     sigma_oris = np.asarray([90.0, 90.0])
     ''' range of weights in terms of preferred orientation difference (in degree) '''
     kappa_pre = np.asarray([0.0, 0.0])
     ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
     kappa_post = np.asarray([0.0, 0.0])
     ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
-    f_E = 1.11 
-    ''' Scaling constant for feedforwards connections to excitatory units in sup layer '''
-    f_I = 0.7
-    ''' Scaling constant for feedforwards connections to inhibitory units in sup layer '''
-    c_E = 5.0 
-    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
-    c_I = 5.0 
-    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
-    J_2x2_s = (np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774)
-    ''' relative strength of weights of different pre/post cell-type in middle layer '''
-    J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
-    ''' relative strength of weights of different pre/post cell-type in superficial layer '''
     s_2x2_s = np.array([[0.2, 0.09], [0.4, 0.09]])
     ''' ranges of weights between different pre/post cell-type '''
     p_local_s = [0.4, 0.7]
     ''' relative strength of local parts of E projections in superficial layer '''
     p_local_m = [1.0, 1.0]
     ''' relative strength of local parts of E projections in middle layer '''
+    c_E: float = 5.0 
+    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
+    c_I: float = 5.0 
+    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
+    
+ssn_pars = SSNPars()
 
-ssn_layer_pars = SsnLayerPars()
+
+# Trained SSN parameters - f and c parameters can be moved between TrainedSSNPars and SSNPars
+@dataclass
+class TrainedSSNPars:
+    f_E: float = 1.11 
+    ''' Scaling constant for feedforwards connections to excitatory units in sup layer '''
+    f_I: float = 0.7
+    ''' Scaling constant for feedforwards connections to inhibitory units in sup layer '''
+    J_2x2_s = np.array([[2.5, -1.5], [4.7, -2.0]]) * 0.774 #(np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774)
+    ''' relative strength of weights of different pre/post cell-type in middle layer '''
+    J_2x2_m = np.array([[2.5, -1.5], [4.7, -2.0]]) * 0.774 #np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
+    ''' relative strength of weights of different pre/post cell-type in superficial layer '''
+    
+trained_pars = TrainedSSNPars()
+
 
 class MVPA_pars:
-    gridsize_Nx = 27
+    gridsize_Nx = 9
+    ''' size of the extended grid that is filtered '''
+    size_conv_factor = (gridsize_Nx -1)/ (grid_pars.gridsize_Nx - 1)
+    ''' adjusted conversion factor to keep the role of the middle grid the same'''
     readout_grid_size = 5
+    ''' size of the readout grid '''
     middle_grid_ind = []
     mid_grid_ind0 = int((gridsize_Nx-readout_grid_size)/2)
     mid_grid_ind1 = int(gridsize_Nx) - mid_grid_ind0
@@ -257,4 +262,8 @@ class MVPA_pars:
         row_start = i * gridsize_Nx
         middle_grid_ind.extend(range(row_start + mid_grid_ind0, row_start + mid_grid_ind1))
     middle_grid_ind = np.array(middle_grid_ind)
+    ''' indices of the middle grid when grid is flattened '''
     noise_std = 1.0
+    ''' std of the noise added to the readout layer '''
+
+mvpa_pars = MVPA_pars()
