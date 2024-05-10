@@ -8,7 +8,7 @@ from parameters import StimuliPars
 ######### Orimap and initialization of untrained parameters #########
 # class definition to collect parameters that are not trained
 class UntrainedPars:
-    def __init__(self, grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+    def __init__(self, grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
                  readout_pars):
         self.grid_pars = grid_pars
@@ -18,7 +18,6 @@ class UntrainedPars:
         self.oris = oris
         self.ori_dist = ori_dist
         self.ssn_pars = ssn_pars
-        self.ssn_layer_pars = ssn_layer_pars
         self.conv_pars = conv_pars
         self.loss_pars = loss_pars
         self.training_pars = training_pars
@@ -159,7 +158,7 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 	return ori_map
 
 
-def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, readout_pars, file_name = None, orimap_loaded=None, regen_extended_orimap=False):
     """
     Define untrained_pars with a randomly generated or given orientation map.
@@ -193,7 +192,7 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_laye
     ori_dist = cosdiff_ring(oris - oris.T, 180)
     
     # Collect parameters that are not trained into a single class
-    untrained_pars = UntrainedPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+    untrained_pars = UntrainedPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
                  readout_pars)
     

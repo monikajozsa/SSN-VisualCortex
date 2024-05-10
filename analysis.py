@@ -24,7 +24,7 @@ from parameters import (
     stimuli_pars,
     readout_pars,
     ssn_pars,
-    ssn_layer_pars,
+    trained_pars,
     conv_pars,
     training_pars,
     loss_pars,
@@ -78,7 +78,7 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
             # Load the orimap file and define the untrained parameters
             orimap_filename = folder + '/orimap_{}.npy'.format(i)
             loaded_orimap =  numpy.load(orimap_filename)
-            untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+            untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                             loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
             untrained_pars.pretrain_pars.is_on = False        
         
@@ -254,21 +254,29 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
     Calculate responses of middle and superficial layers to different orientations.
     '''
     ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
-    for key in list(trained_pars.keys()):  # Use list to make a copy of keys to avoid RuntimeError
-        # Check if key starts with 'log'
-        if key.startswith('log'):
-            # Create a new key by removing 'log' prefix
-            new_key = key[4:]
-            # Exponentiate the values and assign to the new key
-            if np.isscalar(trained_pars[key]) or numpy.isscalar(trained_pars[key]):
-                if key.startswith('log_J') and key.endswith('I'):
-                    trained_pars[new_key] = -numpy.exp(trained_pars[key])
-                else:
-                    trained_pars[new_key] = numpy.exp(trained_pars[key])
-            else:
-                trained_pars[new_key] = sep_exponentiate(trained_pars[key])
+    if 'log_J_2x2_m' in trained_pars:
+        J_2x2_m = sep_exponentiate(trained_pars['log_J_2x2_m'])
+        J_2x2_s = sep_exponentiate(trained_pars['log_J_2x2_s'])
+    if 'J_2x2_m' in trained_pars:
+        J_2x2_m = trained_pars['J_2x2_m']
+        J_2x2_s = trained_pars['J_2x2_s']
+    if 'c_E' in trained_pars:
+        c_E = trained_pars['c_E']
+        c_I = trained_pars['c_I']
+    else:
+        c_E = untrained_pars.ssn_pars.c_E
+        c_I = untrained_pars.ssn_pars.c_I        
+    if 'log_f_E' in trained_pars:  
+        f_E = np.exp(trained_pars['log_f_E'])
+        f_I = np.exp(trained_pars['log_f_I'])
+    elif 'f_E' in trained_pars:
+        f_E = trained_pars['f_E']
+        f_I = trained_pars['f_I']
+    else:
+        f_E = untrained_pars.ssn_pars.f_E
+        f_I = untrained_pars.ssn_pars.f_I
     
-    ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_m'])
+    ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
     
     num_ori = len(ori_vec)
     new_rows = []
@@ -280,12 +288,8 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
     
     train_data = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
     for i in range(num_ori):
-        ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=trained_pars['J_2x2_s'], p_local=untrained_pars.ssn_layer_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_layer_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
-        _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, trained_pars['c_E'], trained_pars['c_I'], trained_pars['f_E'], trained_pars['f_I'], untrained_pars.gabor_filters)
-        # testing tuning curve differece ***
-        #constant_vector_mid = constant_to_vec(c_E = trained_pars['c_E'], c_I = trained_pars['c_I'], ssn= ssn_mid)
-        #constant_vector_sup = constant_to_vec(c_E = trained_pars['c_E'], c_I = trained_pars['c_I'], ssn = ssn_sup, sup=True)
-        #_, _, _, _, [fp_mid, fp_sup] = two_layer_model(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, constant_vector_mid, constant_vector_sup,trained_pars['f_E'], trained_pars['f_I'])
+        ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=untrained_pars.ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
+        _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
         if i==0:
             responses_mid = numpy.zeros((num_ori,len(r_mid_i)))
             responses_sup = numpy.zeros((num_ori,len(r_sup_i)))
@@ -552,11 +556,11 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     test_grating = BW_image_jit_noisy(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, jitter_vec)
     
     # Create middle and superficial SSN layers *** this is something that would be great to call from outside the SGD loop and only refresh the params that change (and what rely on them such as W)
-    kappa_pre = untrained_pars.ssn_layer_pars.kappa_pre
-    kappa_post = untrained_pars.ssn_layer_pars.kappa_post
-    p_local_s = untrained_pars.ssn_layer_pars.p_local_s
-    s_2x2 = untrained_pars.ssn_layer_pars.s_2x2_s
-    sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris
+    kappa_pre = untrained_pars.ssn_pars.kappa_pre
+    kappa_post = untrained_pars.ssn_pars.kappa_post
+    p_local_s = untrained_pars.ssn_pars.p_local_s
+    s_2x2 = untrained_pars.ssn_pars.s_2x2_s
+    sigma_oris = untrained_pars.ssn_pars.sigma_oris
     ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
     ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
 
@@ -665,7 +669,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     readout_pars.readout_grid_size = mvpa_pars.readout_grid_size
     grid_pars.gridsize_mm = float(grid_pars.gridsize_mm) * mvpa_pars.size_conv_factor
     grid_pars.xy_dist, grid_pars.x_map, grid_pars.y_map = xy_distance(grid_pars.gridsize_Nx, grid_pars.gridsize_mm)
-    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                     loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
     df = pd.read_csv(file_name)
     SGD_step_inds = SGD_step_indices(df, num_SGD_inds)
@@ -765,7 +769,7 @@ def filtered_model_response_task(folder, run_ind, ori_list= np.asarray([55, 125,
     file_name = f"{folder}/results_{run_ind}.csv"
     loaded_orimap = load_orientation_map(folder, run_ind)
 
-    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, ssn_layer_pars, conv_pars, 
+    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                     loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
     df = pd.read_csv(file_name)
     SGD_step_inds = SGD_step_indices(df, num_SGD_inds)
@@ -791,11 +795,11 @@ def filtered_model_response_task(folder, run_ind, ori_list= np.asarray([55, 125,
            
             label = test_gratings['label']
             # Create middle and superficial SSN layers *** this is something that would be great to call from outside the SGD loop and only refresh the params that change (and what rely on them such as W)
-            kappa_pre = untrained_pars.ssn_layer_pars.kappa_pre
-            kappa_post = untrained_pars.ssn_layer_pars.kappa_post
-            p_local_s = untrained_pars.ssn_layer_pars.p_local_s
-            s_2x2 = untrained_pars.ssn_layer_pars.s_2x2_s
-            sigma_oris = untrained_pars.ssn_layer_pars.sigma_oris
+            kappa_pre = untrained_pars.ssn_pars.kappa_pre
+            kappa_post = untrained_pars.ssn_pars.kappa_post
+            p_local_s = untrained_pars.ssn_pars.p_local_s
+            s_2x2 = untrained_pars.ssn_pars.s_2x2_s
+            sigma_oris = untrained_pars.ssn_pars.sigma_oris
             ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
             ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     

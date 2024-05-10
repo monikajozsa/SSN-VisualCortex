@@ -31,17 +31,15 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta = 5*10e-4
+    eta: float = 5*10e-4
     '''learning rate - the maximum rate of parameter change in one SGD step'''
-    batch_size = 50
+    batch_size: int = 50
     '''number of trials per SGD step'''
-    noise_type = "poisson"
-    '''there is an additive Gaussian noise to the model output (rates) that is related to parameters num_readout_noise and dt'''
-    SGD_steps = 1000
+    SGD_steps: int = 1000
     '''number of SGD step'''
-    validation_freq = 50  
+    validation_freq: int = 50  
     '''frequency of validation loss and accuracy calculation'''
-    first_stage_acc_th = 0.55
+    first_stage_acc_th: float = 0.55
     '''accuracy threshold for early stopping criterium for the first stage of training'''
 
 training_pars = TrainingPars()
@@ -56,9 +54,9 @@ class ConvPars:
     '''Convergence tolerance of SSN'''
     Tmax: float = 250.0
     '''Maximum number of steps to be taken during convergence of SSN'''
-    Rmax_E = 40
+    Rmax_E: float = 40
     '''Maximum firing rate for E neurons - rates above this are penalised'''
-    Rmax_I = 80
+    Rmax_I: float = 80
     '''Maximum firing rate for I neurons - rates above this are penalised '''
 
 conv_pars = ConvPars()
@@ -67,13 +65,13 @@ conv_pars = ConvPars()
 # Loss parameters
 @dataclass
 class LossPars:
-    lambda_dx = 1
+    lambda_dx: float = 1
     ''' Constant for loss with respect to convergence of Euler function'''
-    lambda_r_max = 1
+    lambda_r_max: float = 1
     ''' Constant for loss with respect to maximum rates in the network'''
-    lambda_w = 1
+    lambda_w: float = 1
     ''' Constant for L2 regularizer of sigmoid layer weights'''
-    lambda_b = 1
+    lambda_b: float = 1
     ''' Constant for L2 regulazier of sigmoid layer bias '''
 
 loss_pars = LossPars()
@@ -196,8 +194,8 @@ class ReadoutPars:
         ''' readout weights (between the superficial and the sigmoid layer) '''
     b_sig: float = 0.0 
     ''' bias added to the sigmoid layer '''
-    num_readout_noise = 125
-    ''' defines readout noise level, see generate_noise function for its effect '''
+    num_readout_noise: int = 125
+    ''' defines the additive Gaussian readout noise var (meaning is number of neighbouring cells), see generate_noise function '''
 
 readout_pars = ReadoutPars()
 
@@ -205,49 +203,49 @@ readout_pars = ReadoutPars()
 # general SSN parameters
 @dataclass
 class SSNPars:
-    n = 2.0  
+    n: float = 2.0  
     ''' power law parameter '''
-    k = 0.04  
+    k: float = 0.04  
     ''' power law parameter '''
-    tauE = 20.0 
+    tauE: float = 20.0 
     '''  time constant for excitatory neurons in ms '''
-    tauI = 10.0
+    tauI: float = 10.0
     ''' time constant for inhibitory neurons in ms '''
-    phases = 4 
+    phases: int = 4 
     ''' number of inh. and exc. neurons (with different Gabor filt.) per grid point in middle layer (has to be an even integer) '''
-
-ssn_pars = SSNPars()
-
-
-# SSN layer parameters
-@dataclass
-class SsnLayerPars:
     sigma_oris = np.asarray([90.0, 90.0])
     ''' range of weights in terms of preferred orientation difference (in degree) '''
     kappa_pre = np.asarray([0.0, 0.0])
     ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
     kappa_post = np.asarray([0.0, 0.0])
     ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
-    f_E = 1.11 
-    ''' Scaling constant for feedforwards connections to excitatory units in sup layer '''
-    f_I = 0.7
-    ''' Scaling constant for feedforwards connections to inhibitory units in sup layer '''
-    c_E = 5.0 
-    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
-    c_I = 5.0 
-    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
-    J_2x2_s = np.array([[2.5, -1.5], [4.5, -2.0]]) * 0.774 #(np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774)
-    ''' relative strength of weights of different pre/post cell-type in middle layer '''
-    J_2x2_m = np.array([[2.5, -1.5], [4.5, -2.0]]) * 0.774 #np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
-    ''' relative strength of weights of different pre/post cell-type in superficial layer '''
     s_2x2_s = np.array([[0.2, 0.09], [0.4, 0.09]])
     ''' ranges of weights between different pre/post cell-type '''
     p_local_s = [0.4, 0.7]
     ''' relative strength of local parts of E projections in superficial layer '''
     p_local_m = [1.0, 1.0]
     ''' relative strength of local parts of E projections in middle layer '''
+    c_E: float = 5.0 
+    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
+    c_I: float = 5.0 
+    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
+    
+ssn_pars = SSNPars()
 
-ssn_layer_pars = SsnLayerPars()
+
+# Trained SSN parameters - f and c parameters can be moved between TrainedSSNPars and SSNPars
+@dataclass
+class TrainedSSNPars:
+    f_E: float = 1.11 
+    ''' Scaling constant for feedforwards connections to excitatory units in sup layer '''
+    f_I: float = 0.7
+    ''' Scaling constant for feedforwards connections to inhibitory units in sup layer '''
+    J_2x2_s = np.array([[2.5, -1.5], [4.7, -2.0]]) * 0.774 #(np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774)
+    ''' relative strength of weights of different pre/post cell-type in middle layer '''
+    J_2x2_m = np.array([[2.5, -1.5], [4.7, -2.0]]) * 0.774 #np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
+    ''' relative strength of weights of different pre/post cell-type in superficial layer '''
+    
+trained_pars = TrainedSSNPars()
 
 
 class MVPA_pars:
