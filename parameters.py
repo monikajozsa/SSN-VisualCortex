@@ -225,10 +225,6 @@ class SSNPars:
     ''' relative strength of local parts of E projections in superficial layer '''
     p_local_m = [1.0, 1.0]
     ''' relative strength of local parts of E projections in middle layer '''
-    c_E: float = 5.0 
-    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
-    c_I: float = 5.0 
-    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
     
 ssn_pars = SSNPars()
 
@@ -240,6 +236,10 @@ class TrainedSSNPars:
     ''' Scaling constant for feedforwards connections to excitatory units in sup layer '''
     f_I: float = 0.7
     ''' Scaling constant for feedforwards connections to inhibitory units in sup layer '''
+    c_E: float = 5.0 
+    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
+    c_I: float = 5.0 
+    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
     J_2x2_s = np.array([[2.5, -1.5], [4.7, -2.0]]) * 0.774 #(np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774)
     ''' relative strength of weights of different pre/post cell-type in middle layer '''
     J_2x2_m = np.array([[2.5, -1.5], [4.7, -2.0]]) * 0.774 #np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774

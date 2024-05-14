@@ -4,7 +4,6 @@ import numpy
 import time
 import os
 
-'''
 from util_gabor import init_untrained_pars
 from util import save_code, load_parameters
 from training import train_ori_discr
@@ -41,7 +40,7 @@ results_filename, final_folder_path = save_code(train_only_flag=train_only_flag)
 
 # Run num_training number of pretraining + training
 tc_ori_list = numpy.arange(0,180,2)
-num_training = 4
+num_training = 20
 starting_time_in_main= time.time()
 num_FailedRuns = 0
 i=0
@@ -143,6 +142,7 @@ while i < num_training and num_FailedRuns < 20:
     i = i + 1
     print('runtime of {} pretraining + training run(s)'.format(i), time.time()-starting_time_in_main)
     print('number of failed runs = ', num_FailedRuns)
+    
 '''
 
 ######### PLOT RESULTS ############
@@ -153,8 +153,8 @@ from analysis import MVPA_param_offset_correlations
 
 numpy.random.seed(0)
 start_time=time.time()
-final_folder_path=os.path.join('results','May10_v0')
-num_training = 2
+final_folder_path=os.path.join('results','Apr10_v1')
+num_training = 50
 tc_ori_list = numpy.arange(0,180,2)
 tc_cells=[10,40,100,130,650,690,740,760]
 
@@ -165,15 +165,15 @@ mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
 sigma_filter = 2
 
-plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
-boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
-plot_tc_features(final_folder_path, num_training, tc_ori_list)
-plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
+#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
+#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
+#plot_tc_features(final_folder_path, num_training, tc_ori_list)
+#plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
 #MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
 
 #MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None)
-#plot_correlations(final_folder_path, num_training, num_time_inds=3)
-
+plot_correlations(final_folder_path, num_training, num_time_inds=3)
+'''
 '''
 ## Training only
 #final_folder_path_train_only = final_folder_path + '/train_only'

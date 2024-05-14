@@ -31,7 +31,7 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
     # Vectorize target_ori calculation, label and jitter generation 
     uniform_dist_value = numpy.random.uniform(low = 0, high = 1, size = batch_size)
     mask = uniform_dist_value < 0.5
-    target_ori_vec = np.where(mask, ref_ori - offset, ref_ori + offset)
+    target_ori_vec = np.where(mask, ref_ori - offset, ref_ori + offset) # 1 when ref> target
     labels = mask.astype(int)  # Converts True/False to 1/0
     jitter_val = stimuli_pars.jitter_val
     jitter_vec = np.array(numpy.random.uniform(low = -jitter_val, high = jitter_val, size=batch_size))
@@ -116,11 +116,7 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
 
     # Define label as the normalized signed difference in angle
     label = np.zeros_like(ori1_minus_ori2)
-    data_dict['label'] = label.at[ori1_minus_ori2 > 0].set(1) # 1 when ref> target and 0 when ref/,target
-    
-    #mask = uniform_dist_value < 0.5
-    #target_ori_vec = np.where(mask, ref_ori - offset, ref_ori + offset) # 1 when ref> target
-    #labels = mask.astype(int)  # Converts True/False to 1/0
+    data_dict['label'] = label.at[ori1_minus_ori2 > 0].set(1) # 1 when ref> target and 0 when ref<=target
     
     return data_dict
 

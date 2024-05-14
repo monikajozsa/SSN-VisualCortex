@@ -59,7 +59,7 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
     offset_staircase_diff = numpy.zeros(num_rows)
 
     # Initialize the test offset vector for the threshold calculation
-    test_offset_vec = numpy.array([1, 2, 3, 4, 6]) 
+    test_offset_vec = numpy.array([1, 2, 3, 4, 6, 10, 15, 20]) 
 
     start_time = time.time()
     sample_ind = 0
