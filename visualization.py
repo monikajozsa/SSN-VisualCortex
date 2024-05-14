@@ -31,17 +31,18 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
             df = pd.read_csv(filepath)
             # Calculate relative change
             relative_changes, time_inds = rel_changes(df, num_time_inds)
+            start_time_ind = 1 if num_time_inds > 2 else 0
             relative_changes = relative_changes*100
             relative_changes_at_time_inds.append(relative_changes)
             if numFiles==1:
                 # offset at time_inds[0] and at time_inds[i] handled as new row for each i
-                offset_pre_post_temp = [[df['offset'][time_inds[1]] ,df['offset'][time_inds[i] ]] for i in range(2,num_time_inds)]
+                offset_pre_post_temp = [[df['offset'][time_inds[start_time_ind]] ,df['offset'][time_inds[i] ]] for i in range(start_time_ind+1,num_time_inds)]
                 if not numpy.isnan(numpy.array(offset_pre_post_temp)).any():
                     offset_pre_post = numpy.array(offset_pre_post_temp)
                 else:
                     numFiles = numFiles - 1
             else:
-                offset_pre_and_post_temp = [[df['offset'][time_inds[1]] ,df['offset'][time_inds[i] ]] for i in range(2,num_time_inds)]
+                offset_pre_and_post_temp = [[df['offset'][time_inds[start_time_ind]] ,df['offset'][time_inds[i] ]] for i in range(start_time_ind+1,num_time_inds)]
                 # skip if there is a nan value
                 if not numpy.isnan(offset_pre_and_post_temp).any():
                     offset_pre_post = numpy.vstack((offset_pre_post,offset_pre_and_post_temp))
@@ -77,35 +78,38 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
         full_path = save_folder + '/offset_pre_post.png'
         fig.savefig(full_path)
 
+    ################# Boxplots for relative parameter changes #################
     # Define groups of parameters and plot each parameter group
-    groups = [
-        ['J_m_EE', 'J_m_IE', 'J_m_EI', 'J_m_II'],
-        ['J_s_EE', 'J_s_IE', 'J_s_EI', 'J_s_II'],
-        ['c_E', 'c_I'], 
-        ['f_E', 'f_I']
+    labels = [
+        [r'$\Delta J^{\text{mid}}_{E \rightarrow E}$', r'$\Delta J^{\text{mid}}_{E \rightarrow I}$', r'$\Delta J^{\text{mid}}_{I \rightarrow E}$', r'$\Delta J^{\text{mid}}_{I \rightarrow I}$'],
+        [r'$\Delta J^{\text{sup}}_{E \rightarrow E}$', r'$\Delta J^{\text{sup}}_{E \rightarrow I}$', r'$\Delta J^{\text{sup}}_{I \rightarrow E}$', r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'],
+        [r'$\Delta c_E$', r'$\Delta c_I$', r'$\Delta f_E$', r'$\Delta f_I$']
     ]
-    num_groups = len(groups)
-    fig, axs = plt.subplots(num_time_inds-1, num_groups, figsize=(5*num_groups, 10))  # Create subplots for each group
+    num_groups = len(labels)
+
+    fig, axs = plt.subplots(num_time_inds-1, num_groups, figsize=(5*num_groups, 5*(num_time_inds-1)))  # Create subplots for each group
+    axes_flat = axs.flatten()
     
     relative_changes_at_time_inds = numpy.array(relative_changes_at_time_inds)
-    group_start_ind = [0,4,8,10,12] # putting together Jm, Js, c, f
-    titles= ['Jm changes, {} runs'.format(numFiles),'Js changes, {} runs'.format(numFiles),'c changes, {} runs'.format(numFiles), 'f changes, {} runs'.format(numFiles)]
+    group_start_ind = [0,4,8,12] # putting together Jm, Js, c, f
+    #titles= ['Jm changes, {} runs'.format(numFiles),'Js changes, {} runs'.format(numFiles),'c changes, {} runs'.format(numFiles), 'f changes, {} runs'.format(numFiles)]
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
-    c_f_box_colors = ['tab:red','tab:blue']
+    c_f_box_colors = ['#8B4513', '#800080', '#FF8C00',  '#006400']
     if np.sum(np.abs(relative_changes[:,0])) >0:
         for j in range(num_time_inds-1):
-            for i, group in enumerate(groups):
+            for i, label in enumerate(labels):
                 group_data = relative_changes_at_time_inds[:, group_start_ind[i]:group_start_ind[i+1], j]  # Extract data for the current group
-                bp = axs[j,i].boxplot(group_data, labels=group, patch_artist=True)
+                bp = axes_flat[j*num_groups+i].boxplot(group_data,labels=label,patch_artist=True)
                 if i<2:
                     for box, color in zip(bp['boxes'], J_box_colors):
                         box.set_facecolor(color)
                 else:
                     for box, color in zip(bp['boxes'], c_f_box_colors):
                         box.set_facecolor(color)
-                axs[j,i].axhline(y=0, color='black', linestyle='--')
-                axs[j,i].set_title(titles[i])
-                axs[j,i].set_ylabel('rel change in %')
+                axes_flat[j*num_groups+i].axhline(y=0, color='black', linestyle='--')
+                axes_format(axes_flat[j*num_groups+i], fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=False)
+                #axes_flat[j*num_groups+i].set_title(titles[i])
+                #axes_flat[j*num_groups+i].set_ylabel('rel change in %')
         
     plt.tight_layout()
     
@@ -180,7 +184,7 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
     Scatter plot of pre vs post training values for a given set of indices
     '''
     if colors is None:
-        ax.scatter(x_axis, y_axis, s=20, alpha=0.5)
+        ax.scatter(x_axis[:,indices_to_plot], y_axis[:,indices_to_plot], s=20, alpha=0.5)
     else:
         for run_ind in range(num_training):
             bin_indices = numpy.digitize(numpy.abs(orientations[run_ind,:]), [4, 12, 20, 28, 36, 44, 50, 180])
@@ -330,26 +334,9 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
             y = numpy.random.normal(0, 0.3, data['fwhm_post'].shape) + data['fwhm_post']
 
             plot_pre_post_scatter(axs[abs((2-j))//2,1], x , y ,data['orientations_postpre'], indices[j], num_training, '', colors=None)
-            
-            # Reduce the number of ticks to 2
-            xtick_loc = axs[abs((2-j))//2,1].get_xticks()
-            if len(xtick_loc)>5:
-                axs[abs((2-j))//2,1].set_xticks(xtick_loc[numpy.array([1,-2])])
-            else:
-                axs[abs((2-j))//2,1].set_xticks(xtick_loc[numpy.array([0,-1])])
-            ytick_loc = axs[abs((2-j))//2,1].get_yticks()
-            if len(ytick_loc)>5:
-                axs[abs((2-j))//2,1].set_yticks(ytick_loc[numpy.array([1,-2])])
-            else:
-                axs[abs((2-j))//2,1].set_yticks(ytick_loc[numpy.array([0,-1])])
-            #axs[abs((2-j))//2].xaxis.set_major_locator(plt.MaxNLocator(2))
-            #axs[abs((2-j))//2].yaxis.set_major_locator(plt.MaxNLocator(2))
-            # Adjust tick parameters
-            axs[abs((2-j))//2,1].tick_params(axis='both', which='major', labelsize=fs_ticks, width=5, length=10)
-            # Adjust axes line width (spines thickness)
-            for spine in axs[abs((2-j))//2,1].spines.values():
-                spine.set_linewidth(2)
-            axs[0,1].set_title('Full width \n at half maximum (deg.)', fontsize=fs_text)
+            # Format axes
+            axes_format(axs[abs((2-j))//2,1], fs_ticks)
+        axs[0,1].set_title('Full width \n at half maximum (deg.)', fontsize=fs_text)
         axs[0,1].set_xlabel('')
         axs[1,1].set_xlabel('Pre FWHM', fontsize=fs_text, labelpad=20)
         axs[1,1].set_ylabel('Post FWHM', fontsize=fs_text)
@@ -371,18 +358,8 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
             lowess = sm.nonparametric.lowess(y, x, frac=0.15)  # Example with frac=0.2 for more local averaging
             axs[abs((2-j)) // 2,0].scatter(x, y, s=15, alpha=0.7)
             axs[abs((2-j)) // 2,0].plot(lowess[:, 0], lowess[:, 1], color='black', linewidth=3)
-            xtick_loc = axs[abs((2-j))//2,0].get_xticks()
-            if len(xtick_loc)>5:
-                axs[abs((2-j))//2,0].set_xticks(xtick_loc[numpy.array([1,-2])])
-            else:
-                axs[abs((2-j))//2,0].set_xticks(xtick_loc[numpy.array([0,-1])])
-            ytick_loc = axs[abs((2-j))//2,0].get_yticks()
-            if len(ytick_loc)>5:
-                axs[abs((2-j))//2,0].set_yticks(ytick_loc[numpy.array([1,-2])])
-            else:
-                axs[abs((2-j))//2,0].set_yticks(ytick_loc[numpy.array([0,-1])])
-            axs[abs((2-j))//2,0].tick_params(axis='both', which='major', labelsize=fs_ticks, width=5, length=10)
-
+            axes_format(axs[abs((2-j)) // 2,0], fs_ticks)
+            
         axs[0,0].set_title('Tuning curve slope \n at trained orientation', fontsize=fs_text)
         axs[0,0].set_xlabel('')
         axs[1,0].set_xlabel('pref. ori - trained ori', fontsize=fs_text, labelpad=20)
@@ -391,6 +368,26 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
         plt.tight_layout(w_pad=10, h_pad=7)
         fig.savefig(results_dir + "/figures/tc_features" + train_only_str +".png", bbox_inches='tight')
         plt.close()
+
+def axes_format(axs, fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=True, ytick_flag=True):
+    # Adjust axes line width (spines thickness)
+    for spine in axs.spines.values():
+        spine.set_linewidth(ax_width)
+
+    # Reduce the number of ticks to 2
+    if xtick_flag:
+        xtick_loc = axs.get_xticks()
+        if len(xtick_loc)>5:
+            axs.set_xticks(xtick_loc[numpy.array([1,-2])])
+        else:
+            axs.set_xticks(xtick_loc[numpy.array([0,-1])])
+    if ytick_flag:
+        ytick_loc = axs.get_yticks()
+        if len(ytick_loc)>5:
+            axs.set_yticks(ytick_loc[numpy.array([1,-2])])
+        else:
+            axs.set_yticks(ytick_loc[numpy.array([0,-1])])
+    axs.tick_params(axis='both', which='major', labelsize=fs_ticks, width=tick_width, length=tick_length)
 
 
 def plot_results_from_csv(
@@ -584,36 +581,77 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_s
 ################### CORRELATION ANALYSIS ###################
 
 def plot_correlations(folder, num_training, num_time_inds=3):
+    import matplotlib.pyplot as plt
+    offset_pars_corr, offset_staircase_pars_corr, MVPA_corrs, data = MVPA_param_offset_correlations(folder, num_training, num_time_inds, mesh_for_valid_offset=False)
 
-    corr_and_p, MVPA_corrs, data = MVPA_param_offset_correlations(folder, num_training, num_time_inds)
-    
     ########## Plot the correlation between offset_th_diff and the combination of the J_m_E_diff, J_m_I_diff, J_s_E_diff, and J_s_I_diff ##########
     _, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8))
     axes_flat = axes.flatten()
 
     # x-axis labels for the subplots on J_m_E, J_m_I, J_s_E, and J_s_I
-    x_labels_J = ['J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff']
+    x_keys_J = ['J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff']
+    x_labels_J = [
+    r'$\Delta (J^\text{mid}_{E \rightarrow E} + J^\text{mid}_{E \rightarrow I})$',
+    r'$\Delta (J^\text{mid}_{I \rightarrow I} + J^\text{mid}_{I \rightarrow E})$',
+    r'$\Delta (J^\text{sup}_{E \rightarrow E} + J^\text{sup}_{E \rightarrow I})$',
+    r'$\Delta (J^\text{sup}_{I \rightarrow I} + J^\text{sup}_{I \rightarrow E})$']
     E_indices = [0,2]
+
+    # Plot the correlation between offset_th_diff and the combination of the J_m_E_diff, J_m_I_diff, J_s_E_diff, and J_s_I_diff
+    for i in range(4):
+        # Create lmplot for each pair of variables
+        if i in E_indices:
+            sns.regplot(x=x_keys_J[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='red', 
+                line_kws={'color':'darkred'}, scatter_kws={'alpha':0.3, 'color':'red'})
+        else:
+            sns.regplot(x=x_keys_J[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='blue', 
+                line_kws={'color':'darkblue'}, scatter_kws={'alpha':0.3, 'color':'blue'})
+        # Calculate the Pearson correlation coefficient and the p-value
+        corr = offset_pars_corr[i]['corr']
+        p_value = offset_pars_corr[i]['p_value']
+        print('Correlation between offset_th_diff and', x_keys_J[i], 'is', corr, 'with p-value', p_value)
+        
+        # display corr and p-value in the right bottom of the figure
+        axes_flat[i].text(0.05, 0.05, f'r= {corr:.2f}', transform=axes_flat[i].transAxes, fontsize=20)
+        axes_format(axes_flat[i], fs_ticks=20)
+        # add xlabel and ylabel
+        axes_flat[i].set_xlabel(x_labels_J[i], fontsize=20, labelpad=20)
+    # Adjust layout and save + close the plot
+    plt.tight_layout()
+    plt.savefig(folder + "/figures/Offset_corr_J_IE.png")
+    plt.close()
+    plt.clf()
+
+    ########## Plot the correlation between offset_staircase_diff and the combination of the J_m_E_diff, J_m_I_diff, J_s_E_diff, and J_s_I_diff ##########
+    data['offset_staircase_improve'] = -1*data['offset_staircase_diff']
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8))
+    axes_flat = axes.flatten()
 
     for i in range(4):
         # Create lmplot for each pair of variables
         if i in E_indices:
-            sns.regplot(x=x_labels_J[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='red', 
+            sns.regplot(x=x_keys_J[i], y='offset_staircase_improve', data=data, ax=axes_flat[i], ci=95, color='red', 
                 line_kws={'color':'darkred'}, scatter_kws={'alpha':0.3, 'color':'red'})
         else:
-            sns.regplot(x=x_labels_J[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='blue', 
+            sns.regplot(x=x_keys_J[i], y='offset_staircase_improve', data=data, ax=axes_flat[i], ci=95, color='blue', 
                 line_kws={'color':'darkblue'}, scatter_kws={'alpha':0.3, 'color':'blue'})
+        axes_flat[i].set(ylabel=None)
         # Calculate the Pearson correlation coefficient and the p-value
-        corr = corr_and_p[i]['corr']
-        p_value = corr_and_p[i]['p_value']
-        print('Correlation between offset_th_diff and', x_labels_J[i], 'is', corr, 'with p-value', p_value)
+        corr = offset_staircase_pars_corr[i]['corr']
+        p_value = offset_staircase_pars_corr[i]['p_value']
+        print('Correlation between offset_staircase_improve and', x_keys_J[i], 'is', corr, 'with p-value', p_value)
         
-        # display corr and p-value as title of the figure
-        axes_flat[i].set_title( f'Corr: {corr:.2f}, p-val: {p_value:.2f}')
+        # display corr and p-value in the right bottom of the figure
+        axes_flat[i].text(0.05, 0.05, f'r= {corr:.2f}', transform=axes_flat[i].transAxes, fontsize=20)
+        axes_format(axes_flat[i], fs_ticks=20)
+        # add xlabel and ylabel
+        axes_flat[i].set_xlabel(x_labels_J[i], fontsize=20, labelpad=20)
+    # Add shared y-label
+    fig.text(-0.05, 0.5, 'offset threshold improvement (%)', va='center', rotation='vertical', fontsize=20)
 
     # Adjust layout and save + close the plot
     plt.tight_layout()
-    plt.savefig(folder + "/figures/Offset_corr_J_IE.png")
+    plt.savefig(folder + "/figures/Offset_staircase_corr_J_IE.png", bbox_inches='tight')
     plt.close()
     plt.clf()
 
@@ -633,8 +671,8 @@ def plot_correlations(folder, num_training, num_time_inds=3):
         sns.regplot(x=x_labels_fc[i], y='offset_th_diff', data=data, ax=axes_flat[axes_indices[i]], ci=95, color=colors[i],
             line_kws={'color':linecolors[i]}, scatter_kws={'alpha':0.3, 'color':colors[i]})
         # Calculate the Pearson correlation coefficient and the p-value
-        corr = corr_and_p[4+i]['corr']
-        p_value = corr_and_p[4+i]['p_value']
+        corr = offset_pars_corr[4+i]['corr']
+        p_value = offset_pars_corr[4+i]['p_value']
         print('Correlation between offset_th_diff and', x_labels_fc[i], 'is', corr, 'with p-value', p_value)
         # display corr and p-value at the left bottom of the figure
         # axes_flat[i % 2].text(0.05, 0.05, f'Corr: {corr:.2f}, p-val: {p_value:.2f}', transform=axes_flat[i % 2].transAxes, fontsize=10)    
@@ -648,7 +686,6 @@ def plot_correlations(folder, num_training, num_time_inds=3):
     plt.clf()
 
     # plot MVPA_pars_corr for each ori_ind on the same plot but different subplots with scatter and different colors for each parameter
-    import matplotlib.pyplot as plt
     x= numpy.arange(1,13)
     x_labels = ['offset','J_m_E', 'J_m_I', 'J_s_E', 'J_s_I', 'm_f_E', 'm_f_I', 'm_c_E', 'm_c_I', 's_f_E', 's_f_I', 's_c_E', 's_c_I']
     plt.scatter(x, MVPA_corrs[0]['corr'])

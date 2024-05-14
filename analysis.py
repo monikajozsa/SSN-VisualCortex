@@ -34,7 +34,7 @@ from parameters import (
 
 ############## Analysis functions ##########
 
-def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_calc=True):
+def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_calc=True, mesh_for_valid_offset=True):
     '''read CSV files and calculate the correlation between the changes of accuracy and J (J_II and J_EI are summed up and J_EE and J_IE are summed up) for each file'''
     
     # Check if num_trainings is None and calculate the number of result files in the folder
@@ -47,14 +47,16 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
     file_pattern = folder + '/results_{}'
 
     # Initialize the arrays to store the results in
-    J_m_diff = numpy.zeros((num_trainings*(num_indices-2),7))
-    J_s_diff = numpy.zeros((num_trainings*(num_indices-2),7))
-    f_diff = numpy.zeros((num_trainings*(num_indices-2),2))
-    c_diff = numpy.zeros((num_trainings*(num_indices-2),2))
-    offset_th = numpy.zeros((num_trainings*(num_indices-2),2))
-    offset_th_125 = numpy.zeros((num_trainings*(num_indices-2),2))
-    offset_th_diff = numpy.zeros(num_trainings*(num_indices-2))
-    offset_th_diff_125 = numpy.zeros(num_trainings*(num_indices-2))
+    num_rows = num_trainings*max(1,(num_indices-2))
+    J_m_diff = numpy.zeros((num_rows,7))
+    J_s_diff = numpy.zeros((num_rows,7))
+    f_diff = numpy.zeros((num_rows,2))
+    c_diff = numpy.zeros((num_rows,2))
+    offset_th = numpy.zeros((num_rows,2))
+    offset_th_125 = numpy.zeros((num_rows,2))
+    offset_th_diff = numpy.zeros(num_rows)
+    offset_th_diff_125 = numpy.zeros(num_rows)
+    offset_staircase_diff = numpy.zeros(num_rows)
 
     # Initialize the test offset vector for the threshold calculation
     test_offset_vec = numpy.array([1, 2, 3, 4, 6]) 
@@ -66,9 +68,13 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
     if offset_calc:
         if 'offset_th.csv' in os.listdir(folder):
             offset_th = numpy.loadtxt(folder + '/offset_th.csv', delimiter=',')
+        if 'offset_th_125.csv' in os.listdir(folder):
             offset_th_125 = numpy.loadtxt(folder + '/offset_th_125.csv', delimiter=',')
-            if offset_th.shape[0]==num_trainings*(num_indices-2):
+            if offset_th.shape[0]==num_rows and offset_th_125.shape[0]==num_rows:
                 offset_calc = False
+            else:
+                offset_th = numpy.zeros((num_rows,2))
+                offset_th_125 = numpy.zeros((num_rows,2))
     
     ref_ori_saved = float(stimuli_pars.ref_ori)
     for i in range(num_trainings):
@@ -98,16 +104,18 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
         J_s_II = [numpy.abs(df['J_s_II'][i]) for i in range(len(df['J_s_II']))]
 
         if offset_calc:
-            # Calculate the offset threshold
+            # Calculate the offset threshold before training (repeat as many times as the number of indices-2)
             trained_pars_stage1, trained_pars_stage2, _ = load_parameters(file_name, iloc_ind = training_start)
             acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec, sample_size = 1 )
-            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= 0.85))[0]
-            offset_th[sample_ind : sample_ind + num_indices-2,0] = numpy.repeat(offset_temp, num_indices-2)
+            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
+            offset_th[sample_ind : sample_ind + max(1,num_indices-2),0] = numpy.repeat(offset_temp, max(1,num_indices-2))
+            
             untrained_pars.stimuli_pars.ref_ori = 125
             acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec, sample_size = 1 )
-            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= 0.85))[0]
-            offset_th_125[sample_ind : sample_ind + num_indices-2,0] = numpy.repeat(offset_temp, num_indices-2)
-            
+            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
+            offset_th_125[sample_ind : sample_ind + max(1,num_indices-2),0] = numpy.repeat(offset_temp, max(1,num_indices-2))
+            untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
+
         for j in range(2,num_indices):
             training_end = time_inds[j]
             # Calculate the relative changes in the combined J_m_E J_m_I, J_s_E and J_s_I parameters
@@ -131,17 +139,18 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
             J_s_diff[sample_ind,0:4]= relative_changes[4:8,1] *100
             c_diff[sample_ind,:] = relative_changes[8:10,1] *100
             f_diff[sample_ind,:] = relative_changes[10:12,1] *100
+            offset_staircase_diff[sample_ind] = relative_changes[13,1] *100
                     
             if offset_calc:
-                # Calculate the offset threshold
+                # Calculate the offset threshold after training
                 trained_pars_stage1, trained_pars_stage2, _ = load_parameters(file_name, iloc_ind = training_end)
                 acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
-                offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= 0.85))[0]
+                offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
                 offset_th[sample_ind,1] = offset_temp
                 
                 untrained_pars.stimuli_pars.ref_ori = 125
                 acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
-                offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= 0.85))[0]
+                offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
                 offset_th_125[sample_ind,1] = offset_temp
                 untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
                 
@@ -156,22 +165,23 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
     # save out offset_th in a csv if it is not already present
     if offset_calc:
         numpy.savetxt(folder + '/offset_th.csv', offset_th, delimiter=',')
+        numpy.savetxt(folder + '/offset_th_125.csv', offset_th_125, delimiter=',')
 
-    # Check if the offset is valid (180 is a default value for when offset_th is not found within range)    
+    # Check if the offset is valid (180 is a default value for when offset_th is not found within range)
     mesh_offset_th=numpy.sum(offset_th, axis=1)<180
-    # Filter the data based on the valid offset values
-    #offset_th = offset_th[mesh_offset_th,:]
-    offset_th_diff = offset_th_diff[mesh_offset_th]
-    #offset_th_125 = offset_th_125[mesh_offset_th,:]
-    offset_th_diff_125 = offset_th_diff_125[mesh_offset_th]
-    J_m_diff = J_m_diff[mesh_offset_th,:]
-    J_s_diff = J_s_diff[mesh_offset_th,:]
-    f_diff = f_diff[mesh_offset_th,:]
-    c_diff = c_diff[mesh_offset_th,:]
+    if mesh_for_valid_offset:  
+        # Filter the data based on the valid offset values
+        offset_th_diff = offset_th_diff[mesh_offset_th]
+        offset_th_diff_125 = offset_th_diff_125[mesh_offset_th]
+        J_m_diff = J_m_diff[mesh_offset_th,:]
+        J_s_diff = J_s_diff[mesh_offset_th,:]
+        f_diff = f_diff[mesh_offset_th,:]
+        c_diff = c_diff[mesh_offset_th,:]
+        offset_staircase_diff = offset_staircase_diff[mesh_offset_th]
+        
+        print('Number of samples:', sum(mesh_offset_th))
     
-    print('Number of samples:', sum(mesh_offset_th))
-    
-    return  offset_th_diff, offset_th_diff_125, J_m_diff, J_s_diff, f_diff, c_diff
+    return  offset_th_diff, offset_th_diff_125, offset_staircase_diff, J_m_diff, J_s_diff, f_diff, c_diff, mesh_offset_th
 
 
 def rel_changes(df, num_indices=3):
@@ -218,7 +228,7 @@ def rel_changes(df, num_indices=3):
             relative_changes[10,0] = (f_E[time_inds[1]] - f_E[start_ind]) / f_E[start_ind] # f_E
             relative_changes[11,0] = (f_I[time_inds[1]] - f_I[start_ind]) / f_I[start_ind] # f_I
             relative_changes[12,0] = (acc[time_inds[1]] - acc[start_ind]) / acc[start_ind] # accuracy
-            relative_changes[13,1] = (offset[time_inds[1]] - offset[start_ind]) / offset[start_ind] # offset and offset threshold
+            relative_changes[13,0] = (offset[time_inds[1]] - offset[start_ind]) / offset[start_ind] # offset and offset threshold
             relative_changes[14,0] = (maxr_E_mid[time_inds[1]] - maxr_E_mid[start_ind]) /maxr_E_mid[start_ind] # r_E_mid
             relative_changes[15,0] = (maxr_I_mid[time_inds[1]] -maxr_I_mid[start_ind]) / maxr_I_mid[start_ind] # r_I_mid
             relative_changes[16,0] = (maxr_E_sup[time_inds[1]] - maxr_E_sup[start_ind]) / maxr_E_sup[start_ind] # r_E_sup
@@ -379,14 +389,14 @@ def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
     return avg_slope_vec, full_width_half_max_vec, norm_pref_ori
 
 
-def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None, plot_flag=False):
+def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None, mesh_for_valid_offset=True):
     '''
     Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores.
     '''
-    offset_th_diff, offset_th_diff_125, J_m_diff, J_s_diff, f_diff, c_diff = rel_changes_from_csvs(folder, num_trainings, num_time_inds)
+    offset_th_diff, offset_th_diff_125,offset_staircase_diff, J_m_diff, J_s_diff, f_diff, c_diff, mesh_offset_th = rel_changes_from_csvs(folder, num_trainings, num_time_inds, mesh_for_valid_offset=mesh_for_valid_offset)
     
     # Convert relative parameter differences to pandas DataFrame
-    data = pd.DataFrame({'offset_th_diff': offset_th_diff, 'offset_th_diff_125': offset_th_diff_125, 'J_m_EE_diff': J_m_diff[:, 0], 'J_m_IE_diff': J_m_diff[:, 1], 'J_m_EI_diff': J_m_diff[:, 2], 'J_m_II_diff': J_m_diff[:, 3], 'J_s_EE_diff': J_s_diff[:, 0], 'J_s_IE_diff': J_s_diff[:, 1], 'J_s_EI_diff': J_s_diff[:, 2], 'J_s_II_diff': J_s_diff[:, 3], 'f_E_diff': f_diff[:, 0], 'f_I_diff': f_diff[:, 1], 'c_E_diff': c_diff[:, 0], 'c_I_diff': c_diff[:, 1]})
+    data = pd.DataFrame({'offset_th_diff': offset_th_diff, 'offset_th_diff_125': offset_th_diff_125, 'offset_staircase_diff': offset_staircase_diff,  'J_m_EE_diff': J_m_diff[:, 0], 'J_m_IE_diff': J_m_diff[:, 1], 'J_m_EI_diff': J_m_diff[:, 2], 'J_m_II_diff': J_m_diff[:, 3], 'J_s_EE_diff': J_s_diff[:, 0], 'J_s_IE_diff': J_s_diff[:, 1], 'J_s_EI_diff': J_s_diff[:, 2], 'J_s_II_diff': J_s_diff[:, 3], 'f_E_diff': f_diff[:, 0], 'f_I_diff': f_diff[:, 1], 'c_E_diff': c_diff[:, 0], 'c_I_diff': c_diff[:, 1]})
 
     ##################### Correlate offset_th_diff with the combintation of the J_m_EE and J_m_IE, J_m_EI and J_m_II, etc. #####################
 
@@ -398,15 +408,20 @@ def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_lab
     data['J_m_ratio_diff'] = J_m_diff[:, 6]
     data['J_s_ratio_diff'] = J_s_diff[:, 6]
     offset_pars_corr = []
+    offset_staircase_pars_corr = []
     if x_labels is None:
         x_labels = ['J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff', 'f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
     for i in range(len(x_labels)):
         # Calculate the Pearson correlation coefficient and the p-value
         corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], data[x_labels[i]])
         offset_pars_corr.append({'corr': corr, 'p_value': p_value})
+        corr, p_value = scipy.stats.pearsonr(data['offset_staircase_diff'], data[x_labels[i]])
+        offset_staircase_pars_corr.append({'corr': corr, 'p_value': p_value})
     
     # Load MVPA_scores and correlate them with the offset threshold and the parameter differences (samples are the different trainings)
     MVPA_scores = numpy.load(folder + '/MVPA_scores.npy') # num_trainings x layer x SGD_ind x ori_ind
+    if mesh_for_valid_offset:
+        MVPA_scores = MVPA_scores[mesh_offset_th,:,:,:]
     MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
     MVPA_offset_corr = []
     for i in range(MVPA_scores_diff.shape[1]):
@@ -437,35 +452,7 @@ def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_lab
     # combine MVPA_offset_corr and MVPA_pars_corr into a single list
     MVPA_corrs = MVPA_offset_corr + MVPA_pars_corr
 
-    if plot_flag:
-        # Create a 6x6 grid of subplots
-        fig, axes = plt.subplots(6, 6, figsize=(20, 20))
-        axes_flat = axes.flatten()
-        # x-axis labels
-        x_labels = ['J_m_ratio_diff', 'J_s_ratio_diff', 'J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff']
-        # y-axis labels
-        y_axes = ['offset_th_diff', 'offset_th_diff_125', 'MVPA_m_55', 'MVPA_s_55', 'offset_125', 'MVPA_m_125', 'MVPA_s_125']
-
-        for i in range(6):
-            for j in range(6):
-                # Create lmplot for each pair of variables
-                sns.regplot(x=x_labels[i], y='offset_th_diff', data=data, ax=axes_flat[i], ci=95, color='red', 
-                        line_kws={'color':'darkred'}, scatter_kws={'alpha':0.3, 'color':'red'})
-                
-                # Close the lmplot's figure to prevent overlapping
-                axes[i,j].set_title( f'Corr: {corr:.2f}, p-val: {p_value:.2f}')
-
-        plt.tight_layout()
-        plt.savefig(folder + "/figures/Offset_MVPA_corr_Jall.png")
-        plt.close()
-
-        # Create a 4x6 grid of subplots
-        fig, axes = plt.subplots(4, 6, figsize=(20, 15))
-        axes_flat = axes.flatten()
-        x_axes_labels = ['f_E', 'f_I', 'c_E', 'c_I']
-        x_labels=['f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
-
-    return offset_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run
+    return offset_pars_corr, offset_staircase_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run
 
 ############################## helper functions for MVPA and Mahal distance analysis ##############################
 
