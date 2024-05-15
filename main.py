@@ -45,7 +45,7 @@ starting_time_in_main= time.time()
 num_FailedRuns = 0
 i=0
 while i < num_training and num_FailedRuns < 20:
-    numpy.random.seed(i)
+    numpy.random.seed(i+1)
 
     # Set pretraining flag to False
     pretrain_pars.is_on=True

@@ -2,34 +2,29 @@ conda update conda
 conda create -name SSN_env python=3.10 anaconda
 conda activate SSN_env
 conda install pandas
-conda install -c anaconda jupyter
 pip install --upgrade "jax[cpu]"
 conda install -c conda-forge matplotlib
-conda install -c pytorch pytorch
 conda install -c anaconda scikit-learn
-conda install -c anaconda h5py
-conda install -c conda-forge tqdm
 conda install -c anaconda seaborn
 pip install optax
+pip install statsmodels
 
+extras for dependency graphs
 conda install -c conda-forge pycallgraph2
 conda install -c anaconda graphviz
---------------------------
+---------------
 
-in VS Code
-create venv environment (ctrl+shift+p)
-activate venv by running .venv\Scripts\activate.bat
-pip install pandas
-pip install --upgrade "jax[cpu]"
-pip install matplotlib
-pip install tqdm
-pip install seaborn
-pip install h5py
-pip install scikit-learn
-pip install ipykernel
+Seeting up venv on GPU desktop
+python -m venv SSN_venv
+SSN_venv\Scripts|activate
+pip install numpy pandas matplotlib
 pip install optax
-pip install https://files.pythonhosted.org/packages/74/07/edce54779f5c3fe8ab8390eafad3d7c8190fce68f922a254ea77f4a94a99/torch-2.1.0-cp311-cp311-win_amd64.whl
---------------------------
+pip install -U scikit-learn
+pip install statsmodels
+pip install seaborn
+pip install jax
+
+---------------
 
 vs code packages
 python

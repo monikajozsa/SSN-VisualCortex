@@ -7,7 +7,6 @@ import numpy
 import sys
 import seaborn as sns
 import statsmodels.api as sm
-import scipy
 
 from analysis import rel_changes, tc_features, MVPA_param_offset_correlations
 

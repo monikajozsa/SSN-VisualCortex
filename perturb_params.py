@@ -10,7 +10,7 @@ from util import take_log, create_grating_training, sep_exponentiate, create_gra
 from util_gabor import init_untrained_pars
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response, vmap_evaluate_model_response
-from dataclasses import asdict
+from training import mean_training_task_acc_test
 
 def perturb_params_supp(param_dict, percent = 0.1):
     '''Perturb all values in a dictionary by a percentage of their values. The perturbation is done by adding a uniformly sampled random value to the original value.'''
@@ -155,9 +155,19 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     readout_pars_opt['b_sig'] = float(log_reg.intercept_)
     w_sig = log_reg.coef_.T
     w_sig = w_sig.squeeze()
+    
     if untrained_pars.pretrain_pars.is_on:
         readout_pars_opt['w_sig'] = w_sig
     else:
         readout_pars_opt['w_sig'] = w_sig[untrained_pars.middle_grid_ind]
-    
+
+    # check if the readout parameters solve the task in the correct direction
+    test_offset_vec = numpy.array([2, 5, 10, 18]) 
+    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_opt, untrained_pars, True, test_offset_vec)
+    if np.sum(acc_mean<0.5)>0.5*len(acc_mean):
+        readout_pars_opt['w_sig'] = -w_sig
+        readout_pars_opt['b_sig'] = -readout_pars_opt['b_sig']
+    acc_mean_flipped, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_opt, untrained_pars, True, test_offset_vec)
+    print('accuracy of logistic regression before and after flipping the w_sig and b_sig', acc_mean, acc_mean_flipped)
+
     return readout_pars_opt
