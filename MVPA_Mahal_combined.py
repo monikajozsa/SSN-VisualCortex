@@ -4,6 +4,7 @@ import numpy
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import pandas as pd
+import os
 #import pingouin as pg
 
 from sklearn.model_selection import train_test_split
@@ -358,6 +359,9 @@ def MVPA_Mahal_from_csv(folder, num_training, num_SGD_inds=2, sigma_filter=5, r_
     
     # save the output into folder_to_save as npy files
     folder_to_save = folder + f'/sigmafilt_{sigma_filter}'
+    # create the folder if it does not exist
+    if not os.path.exists(folder_to_save):
+        os.makedirs(folder_to_save)
     numpy.save(folder_to_save +'/MVPA_scores.npy', MVPA_scores)    
     df_mahal.to_csv(folder_to_save + '/df_mahal.csv', index=False)
     df_LMI.to_csv(folder_to_save + '/df_LMI.csv', index=False)
