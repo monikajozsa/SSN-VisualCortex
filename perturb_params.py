@@ -165,9 +165,10 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     test_offset_vec = numpy.array([2, 5, 10, 18]) 
     acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_opt, untrained_pars, True, test_offset_vec)
     if np.sum(acc_mean<0.5)>0.5*len(acc_mean):
+        # flip the sign of w_sig and b_sig if the logistic regression is solving the flipped task
         readout_pars_opt['w_sig'] = -w_sig
         readout_pars_opt['b_sig'] = -readout_pars_opt['b_sig']
-    acc_mean_flipped, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_opt, untrained_pars, True, test_offset_vec)
-    print('accuracy of logistic regression before and after flipping the w_sig and b_sig', acc_mean, acc_mean_flipped)
+        acc_mean_flipped, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_opt, untrained_pars, True, test_offset_vec)
+        print('accuracy of logistic regression before and after flipping the w_sig and b_sig', acc_mean, acc_mean_flipped)
 
     return readout_pars_opt
