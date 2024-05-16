@@ -3,7 +3,7 @@
 import numpy
 import time
 import os
-
+'''
 from util_gabor import init_untrained_pars
 from util import save_code, load_parameters
 from training import train_ori_discr
@@ -142,12 +142,12 @@ while i < num_training and num_FailedRuns < 20:
     i = i + 1
     print('runtime of {} pretraining + training run(s)'.format(i), time.time()-starting_time_in_main)
     print('number of failed runs = ', num_FailedRuns)
-    
+
 '''
 
 ######### PLOT RESULTS ############
 
-from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_correlations
+from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_correlations, plot_corr_triangle
 from MVPA_Mahal_combined import MVPA_Mahal_from_csv
 from analysis import MVPA_param_offset_correlations
 
@@ -169,11 +169,40 @@ sigma_filter = 2
 #boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
 #plot_tc_features(final_folder_path, num_training, tc_ori_list)
 #plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
-#MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
+MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
+import pandas as pd
+folder_to_save=os.path.join(final_folder_path, 'figures')
+data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff
+data_rel_changes['offset_staircase_diff']=numpy.abs(data_rel_changes['offset_staircase_diff'])
+data_rel_changes['J_m_ratio_diff']=numpy.abs(data_rel_changes['J_m_ratio_diff'])
+data_rel_changes['J_s_ratio_diff']=numpy.abs(data_rel_changes['J_s_ratio_diff'])
 
-#MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None)
-plot_correlations(final_folder_path, num_training, num_time_inds=3)
-'''
+MVPA_scores = numpy.load(final_folder_path + '/MVPA_scores.npy') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
+data_sup_55 = pd.DataFrame({
+    'MVPA': (MVPA_scores[:,0,-1,0]- MVPA_scores[:,0,-2,0])/MVPA_scores[:,0,-2,0],
+    'JsI/JsE': data_rel_changes['J_s_ratio_diff'],
+    'offset': data_rel_changes['offset_staircase_diff']
+})
+plot_corr_triangle(data_sup_55, folder_to_save, 'corr_triangle_sup_55')
+data_sup_125 = pd.DataFrame({
+    'MVPA': (MVPA_scores[:,0,-1,1]- MVPA_scores[:,0,-2,1])/MVPA_scores[:,0,-2,1],
+    'JsI/JsE': data_rel_changes['J_s_ratio_diff'],
+    'offset': data_rel_changes['offset_staircase_diff']
+})
+plot_corr_triangle(data_sup_125, folder_to_save, 'corr_triangle_sup_125')
+data_mid_55 = pd.DataFrame({
+    'MVPA': (MVPA_scores[:,1,-1,0]- MVPA_scores[:,1,-2,0])/MVPA_scores[:,1,-2,0],
+    'JmI/JmE': data_rel_changes['J_m_ratio_diff'],
+    'offset': data_rel_changes['offset_staircase_diff']
+})
+plot_corr_triangle(data_mid_55, folder_to_save, 'corr_triangle_mid_55')
+data_mid_125 = pd.DataFrame({
+    'MVPA': (MVPA_scores[:,1,-1,1]- MVPA_scores[:,1,-2,1])/MVPA_scores[:,1,-2,1],
+    'JmI/JmE': data_rel_changes['J_m_ratio_diff'],
+    'offset': data_rel_changes['offset_staircase_diff']
+})
+plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
+
 '''
 ## Training only
 #final_folder_path_train_only = final_folder_path + '/train_only'
