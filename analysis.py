@@ -389,7 +389,7 @@ def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
     return avg_slope_vec, full_width_half_max_vec, norm_pref_ori
 
 
-def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None, mesh_for_valid_offset=True):
+def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None, mesh_for_valid_offset=True, data_only=False):
     '''
     Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores.
     '''
@@ -397,9 +397,7 @@ def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_lab
     
     # Convert relative parameter differences to pandas DataFrame
     data = pd.DataFrame({'offset_th_diff': offset_th_diff, 'offset_th_diff_125': offset_th_diff_125, 'offset_staircase_diff': offset_staircase_diff,  'J_m_EE_diff': J_m_diff[:, 0], 'J_m_IE_diff': J_m_diff[:, 1], 'J_m_EI_diff': J_m_diff[:, 2], 'J_m_II_diff': J_m_diff[:, 3], 'J_s_EE_diff': J_s_diff[:, 0], 'J_s_IE_diff': J_s_diff[:, 1], 'J_s_EI_diff': J_s_diff[:, 2], 'J_s_II_diff': J_s_diff[:, 3], 'f_E_diff': f_diff[:, 0], 'f_I_diff': f_diff[:, 1], 'c_E_diff': c_diff[:, 0], 'c_I_diff': c_diff[:, 1]})
-
-    ##################### Correlate offset_th_diff with the combintation of the J_m_EE and J_m_IE, J_m_EI and J_m_II, etc. #####################
-
+    
     # combine the J_m_EE and J_m_IE, J_m_EI and J_m_II, J_s_EE and J_s_IE, J_s_EI and J_s_II and add them to the data
     data['J_m_E_diff'] = J_m_diff[:, 4]
     data['J_m_I_diff'] = J_m_diff[:, 5]
@@ -407,52 +405,57 @@ def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_lab
     data['J_s_I_diff'] = J_s_diff[:, 5]
     data['J_m_ratio_diff'] = J_m_diff[:, 6]
     data['J_s_ratio_diff'] = J_s_diff[:, 6]
-    offset_pars_corr = []
-    offset_staircase_pars_corr = []
-    if x_labels is None:
-        x_labels = ['J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff', 'f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
-    for i in range(len(x_labels)):
-        # Calculate the Pearson correlation coefficient and the p-value
-        corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], data[x_labels[i]])
-        offset_pars_corr.append({'corr': corr, 'p_value': p_value})
-        corr, p_value = scipy.stats.pearsonr(data['offset_staircase_diff'], data[x_labels[i]])
-        offset_staircase_pars_corr.append({'corr': corr, 'p_value': p_value})
-    
-    # Load MVPA_scores and correlate them with the offset threshold and the parameter differences (samples are the different trainings)
-    MVPA_scores = numpy.load(folder + '/MVPA_scores.npy') # num_trainings x layer x SGD_ind x ori_ind
-    if mesh_for_valid_offset:
-        MVPA_scores = MVPA_scores[mesh_offset_th,:,:,:]
-    MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
-    MVPA_offset_corr = []
-    for i in range(MVPA_scores_diff.shape[1]):
-        for j in range(MVPA_scores_diff.shape[2]):
-            corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], MVPA_scores_diff[:,i,j])
-            MVPA_offset_corr.append({'corr': corr, 'p_value': p_value})
-    MVPA_pars_corr = [] # (J_m_I,J_m_E,J_s_I,J_s_E,f_E,f_I,c_E,c_I) x ori_ind
-    for j in range(MVPA_scores_diff.shape[2]):
-        for i in range(MVPA_scores_diff.shape[1]):        
-            if i==0:
-                corr_m_J_I, p_val_m_J_I = scipy.stats.pearsonr(data['J_m_I_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_J_E, p_val_m_J_E = scipy.stats.pearsonr(data['J_m_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_f_E, p_val_m_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_f_I, p_val_m_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_c_E, p_val_m_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_m_c_I, p_val_m_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
-            if i==1:
-                corr_s_J_I, p_val_s_J_I = scipy.stats.pearsonr(data['J_s_I_diff'], MVPA_scores_diff[:,i,j])
-                corr_s_J_E, p_val_s_J_E = scipy.stats.pearsonr(data['J_s_E_diff'], MVPA_scores_diff[:,i,j])                
-                corr_s_f_E, p_val_s_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_s_f_I, p_val_s_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
-                corr_s_c_E, p_val_s_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
-                corr_s_c_I, p_val_s_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
-            
-        corr = [corr_m_J_E, corr_m_J_I, corr_s_J_E, corr_s_J_I, corr_m_f_E, corr_m_f_I, corr_m_c_E, corr_m_c_I, corr_s_f_E, corr_s_f_I, corr_s_c_E, corr_s_c_I]
-        p_value = [p_val_m_J_E, p_val_m_J_I, p_val_s_J_E, p_val_s_J_I, p_val_m_f_E, p_val_m_f_I, p_val_m_c_E, p_val_m_c_I, p_val_s_f_E, p_val_s_f_I, p_val_s_c_E, p_val_s_c_I]
-        MVPA_pars_corr.append({'corr': corr, 'p_value': p_value})
-    # combine MVPA_offset_corr and MVPA_pars_corr into a single list
-    MVPA_corrs = MVPA_offset_corr + MVPA_pars_corr
 
-    return offset_pars_corr, offset_staircase_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run
+    if data_only:
+        return data
+    else:
+        ##################### Correlate offset_th_diff with the combintation of the J_m and J_s, etc. #####################      
+        offset_pars_corr = []
+        offset_staircase_pars_corr = []
+        if x_labels is None:
+            x_labels = ['J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff', 'f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
+        for i in range(len(x_labels)):
+            # Calculate the Pearson correlation coefficient and the p-value
+            corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], data[x_labels[i]])
+            offset_pars_corr.append({'corr': corr, 'p_value': p_value})
+            corr, p_value = scipy.stats.pearsonr(data['offset_staircase_diff'], data[x_labels[i]])
+            offset_staircase_pars_corr.append({'corr': corr, 'p_value': p_value})
+        
+        # Load MVPA_scores and correlate them with the offset threshold and the parameter differences (samples are the different trainings)
+        MVPA_scores = numpy.load(folder + '/MVPA_scores.npy') # num_trainings x layer x SGD_ind x ori_ind
+        if mesh_for_valid_offset:
+            MVPA_scores = MVPA_scores[mesh_offset_th,:,:,:]
+        MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
+        MVPA_offset_corr = []
+        for i in range(MVPA_scores_diff.shape[1]):
+            for j in range(MVPA_scores_diff.shape[2]):
+                corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], MVPA_scores_diff[:,i,j])
+                MVPA_offset_corr.append({'corr': corr, 'p_value': p_value})
+        MVPA_pars_corr = [] # (J_m_I,J_m_E,J_s_I,J_s_E,f_E,f_I,c_E,c_I) x ori_ind
+        for j in range(MVPA_scores_diff.shape[2]):
+            for i in range(MVPA_scores_diff.shape[1]):        
+                if i==0:
+                    corr_m_J_I, p_val_m_J_I = scipy.stats.pearsonr(data['J_m_I_diff'], MVPA_scores_diff[:,i,j])
+                    corr_m_J_E, p_val_m_J_E = scipy.stats.pearsonr(data['J_m_E_diff'], MVPA_scores_diff[:,i,j])
+                    corr_m_f_E, p_val_m_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
+                    corr_m_f_I, p_val_m_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
+                    corr_m_c_E, p_val_m_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
+                    corr_m_c_I, p_val_m_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
+                if i==1:
+                    corr_s_J_I, p_val_s_J_I = scipy.stats.pearsonr(data['J_s_I_diff'], MVPA_scores_diff[:,i,j])
+                    corr_s_J_E, p_val_s_J_E = scipy.stats.pearsonr(data['J_s_E_diff'], MVPA_scores_diff[:,i,j])                
+                    corr_s_f_E, p_val_s_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
+                    corr_s_f_I, p_val_s_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
+                    corr_s_c_E, p_val_s_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
+                    corr_s_c_I, p_val_s_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
+                
+            corr = [corr_m_J_E, corr_m_J_I, corr_s_J_E, corr_s_J_I, corr_m_f_E, corr_m_f_I, corr_m_c_E, corr_m_c_I, corr_s_f_E, corr_s_f_I, corr_s_c_E, corr_s_c_I]
+            p_value = [p_val_m_J_E, p_val_m_J_I, p_val_s_J_E, p_val_s_J_I, p_val_m_f_E, p_val_m_f_I, p_val_m_c_E, p_val_m_c_I, p_val_s_f_E, p_val_s_f_I, p_val_s_c_E, p_val_s_c_I]
+            MVPA_pars_corr.append({'corr': corr, 'p_value': p_value})
+        # combine MVPA_offset_corr and MVPA_pars_corr into a single list
+        MVPA_corrs = MVPA_offset_corr + MVPA_pars_corr
+
+        return offset_pars_corr, offset_staircase_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run
 
 ############################## helper functions for MVPA and Mahal distance analysis ##############################
 

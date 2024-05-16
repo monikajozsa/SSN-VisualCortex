@@ -7,6 +7,7 @@ import numpy
 import sys
 import seaborn as sns
 import statsmodels.api as sm
+import scipy
 
 from analysis import rel_changes, tc_features, MVPA_param_offset_correlations
 
@@ -696,3 +697,79 @@ def plot_correlations(folder, num_training, num_time_inds=3):
     #save the plot
     plt.savefig(folder + '/MVPA_pars_corr.png')
     plt.close()
+
+
+def plot_corr_triangle(data,folder_to_save='',filename='corr_triangle.png'):
+    '''Plot a triangle with correlation plots in the middle of the edges of the triangle. Data is supposed to be a dictionary with keys corresponding to MVPA results and relative parameter changes and offset changes.'''
+    # Get keys and values
+    keys = data.keys()
+    labels = ['rel change in ' + keys[0], 'rel change in '+keys[1], 'rel change in ' + keys[2]]
+
+    # Create a figure
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    # Define positions of labels
+    left_bottom_text = [0,0]
+    right_bottom_text = [2,0]
+    top_text = [2*np.cos(np.pi/3), 2*np.sin(np.pi/3)]
+
+    # Define positions of correlation plots in the middle of the edges of the triangle
+    width = 0.7
+    height = 0.7
+    left_top_regplot = [(left_bottom_text[0] + top_text[0]) / 2 - width/2, (left_bottom_text[1] + top_text[1]) / 2- height/2, width, height]
+    right_top_regplot = [(right_bottom_text[0] + top_text[0]) / 2 - width/2, (right_bottom_text[1] + top_text[1]) / 2- height/2, width, height]
+    bottom_regplot = [(left_bottom_text[0] + right_bottom_text[0]) / 2 - width/2, (left_bottom_text[1] + right_bottom_text[1]) / 2- height/2, width, height]
+    
+    # Add node labels
+    buffer_x = 0.05
+    buffer_y = 0.1
+    fig.text(top_text[0],top_text[1], labels[0], ha='center', fontsize=35)
+    fig.text(left_bottom_text[0]-buffer_x, left_bottom_text[1]-buffer_y, labels[1], ha='center', fontsize=35)
+    fig.text(right_bottom_text[0]+buffer_x, right_bottom_text[1]-buffer_y, labels[2], ha='center', fontsize=35)
+
+    # Add lines connecting the nodes and the correlation plots (note that imput is x_data, y_data and not point1, point2)
+    line1_vec = [top_text[0]-left_bottom_text[0], top_text[1]-left_bottom_text[1]]
+    line2_vec = [top_text[0]-right_bottom_text[0], top_text[1]-right_bottom_text[1]]
+    line3_vec = [right_bottom_text[0]-left_bottom_text[0], right_bottom_text[1]-left_bottom_text[1]]
+    fig.add_artist(plt.Line2D([left_bottom_text[0], left_bottom_text[0]+line1_vec[0]/4], [left_bottom_text[1], left_bottom_text[1]+line1_vec[1]/4], lw=3, color='black'))
+    fig.add_artist(plt.Line2D([left_bottom_text[0]+3*line1_vec[0]/4, left_bottom_text[0]+line1_vec[0]], [left_bottom_text[1]+3*line1_vec[1]/4, left_bottom_text[1]+line1_vec[1]], lw=3, color='black'))
+    fig.add_artist(plt.Line2D([right_bottom_text[0], right_bottom_text[0]+line2_vec[0]/4], [right_bottom_text[1], right_bottom_text[1]+line2_vec[1]/4], lw=3, color='black'))
+    fig.add_artist(plt.Line2D([right_bottom_text[0]+3*line2_vec[0]/4, right_bottom_text[0]+line2_vec[0]], [right_bottom_text[1]+3*line2_vec[1]/4, right_bottom_text[1]+line2_vec[1]], lw=3, color='black'))
+    fig.add_artist(plt.Line2D([left_bottom_text[0], left_bottom_text[0]+line3_vec[0]/4], [left_bottom_text[1], left_bottom_text[1]+line3_vec[1]/4], lw=3, color='black'))
+    fig.add_artist(plt.Line2D([left_bottom_text[0]+3*line3_vec[0]/4, left_bottom_text[0]+line3_vec[0]], [left_bottom_text[1]+3*line3_vec[1]/4, left_bottom_text[1]+line3_vec[1]], lw=3, color='black'))
+
+    # Add subplots
+    ax_left_top = fig.add_axes(left_top_regplot)
+    ax_right_top = fig.add_axes(right_top_regplot)
+    ax_bottom = fig.add_axes(bottom_regplot)
+
+    # Plot the first correlation (MVPA vs dJm_ratio)
+    sns.regplot(ax=ax_left_top, x=keys[0], y=keys[1], data=data, scatter_kws={'s':10}, line_kws={'color':'orange'})
+    axes_format(ax_left_top, fs_ticks=30)
+    ax_left_top.set_xlabel('')
+    ax_left_top.set_ylabel('')
+    corr, p_val = scipy.stats.pearsonr(data[keys[0]], data[keys[1]])
+    ax_left_top.text(0.05, 0.05, f'r= {corr:.2f}, p= {p_val:.2f}', transform=ax_left_top.transAxes, fontsize=30)
+
+    # Plot the third correlation (dJm_ratio vs d_offset)
+    sns.regplot(ax=ax_bottom, x=keys[2], y=keys[1], data=data, scatter_kws={'s':10}, line_kws={'color':'orange'})
+    axes_format(ax_bottom, fs_ticks=30)
+    ax_bottom.set_xlabel('')
+    ax_bottom.set_ylabel('')
+    corr, p_val = scipy.stats.pearsonr(data[keys[2]], data[keys[1]])
+    ax_bottom.text(0.05, 0.05, f'r= {corr:.2f}, p= {p_val:.2f}', transform=ax_bottom.transAxes, fontsize=30)
+    
+    # Plot the second correlation (MVPA vs d_offset)
+    sns.regplot(ax=ax_right_top, x=keys[0], y=keys[2], data=data, scatter_kws={'s':10}, line_kws={'color':'orange'})
+    axes_format(ax_right_top, fs_ticks=30)
+    ax_right_top.set_xlabel('')
+    ax_right_top.set_ylabel('')
+    corr, p_val = scipy.stats.pearsonr(data[keys[0]], data[keys[2]])
+    ax_right_top.text(0.05, 0.05, f'r= {corr:.2f}, p= {p_val:.2f}', transform=ax_right_top.transAxes, fontsize=30)
+
+    # Remove unused axes
+    ax.axis('off')
+
+    # Save the figure
+    file_path = os.path.join(folder_to_save, filename)
+    plt.savefig(file_path, bbox_inches='tight')
