@@ -3,12 +3,13 @@
 import numpy
 import time
 import os
-'''
+from dataclasses import asdict
+
 from util_gabor import init_untrained_pars
 from util import save_code, load_parameters
 from training import train_ori_discr
 from analysis import tuning_curve
-from perturb_params import perturb_params
+from perturb_params import perturb_params, create_initial_parameters_df
 from parameters import (
     grid_pars,
     filter_pars,
@@ -26,9 +27,6 @@ from parameters import (
 if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
-# Setting train_only_flag to True will run an additional training without pretraining
-train_only_flag = False
-
 ########## Initialize orientation map and gabor filters ############
 
 # Save out initial offset and reference orientation
@@ -36,14 +34,17 @@ ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 
 # Save scripts into scripts folder and create figures and train_only folders
+train_only_flag = False # Setting train_only_flag to True will run an additional training without pretraining
 results_filename, final_folder_path = save_code(train_only_flag=train_only_flag)
 
 # Run num_training number of pretraining + training
 tc_ori_list = numpy.arange(0,180,2)
-num_training = 20
+num_training = 5
 starting_time_in_main= time.time()
+initial_parameters = None
 num_FailedRuns = 0
 i=0
+
 while i < num_training and num_FailedRuns < 20:
     numpy.random.seed(i+1)
 
@@ -72,6 +73,7 @@ while i < num_training and num_FailedRuns < 20:
     # Perturb readout_pars and trained_pars by percent % and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
     trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, orimap_filename=orimap_filename)
+    initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage2, untrained_pars.training_pars.eta)
     # Calculate and save tuning curves
     tc_prepre, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_prepre_filename, ori_vec=tc_ori_list)
     
@@ -138,15 +140,16 @@ while i < num_training and num_FailedRuns < 20:
         _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_pre_train_only_filename, ori_vec=tc_ori_list)
         trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename_train_only, iloc_ind = -1)
         _, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_train_only_filename, ori_vec=tc_ori_list)
-        
+    
+    # Save initial_parameters to csv
+    initial_parameters.to_csv(os.path.join(final_folder_path, 'initial_parameters.csv'), index=False)
+    
     i = i + 1
     print('runtime of {} pretraining + training run(s)'.format(i), time.time()-starting_time_in_main)
     print('number of failed runs = ', num_FailedRuns)
 
-'''
-
 ######### PLOT RESULTS ############
-
+'''
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_correlations, plot_corr_triangle
 from MVPA_Mahal_combined import MVPA_Mahal_from_csv
 from analysis import MVPA_param_offset_correlations
@@ -169,13 +172,11 @@ sigma_filter = 2
 #boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
 #plot_tc_features(final_folder_path, num_training, tc_ori_list)
 #plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
-MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
+#MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
 import pandas as pd
 folder_to_save=os.path.join(final_folder_path, 'figures')
 data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff
-data_rel_changes['offset_staircase_diff']=numpy.abs(data_rel_changes['offset_staircase_diff'])
-data_rel_changes['J_m_ratio_diff']=numpy.abs(data_rel_changes['J_m_ratio_diff'])
-data_rel_changes['J_s_ratio_diff']=numpy.abs(data_rel_changes['J_s_ratio_diff'])
+data_rel_changes['offset_staircase_diff']=-1*data_rel_changes['offset_staircase_diff']
 
 MVPA_scores = numpy.load(final_folder_path + '/MVPA_scores.npy') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
 data_sup_55 = pd.DataFrame({
@@ -202,7 +203,7 @@ data_mid_125 = pd.DataFrame({
     'offset': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
-
+'''
 '''
 ## Training only
 #final_folder_path_train_only = final_folder_path + '/train_only'

@@ -5,6 +5,7 @@ import jax.numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
+import pandas as pd
 
 from util import take_log, create_grating_training, sep_exponentiate, create_grating_pretraining
 from util_gabor import init_untrained_pars
@@ -172,3 +173,30 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
         print('accuracy of logistic regression before and after flipping the w_sig and b_sig', acc_mean, acc_mean_flipped)
 
     return readout_pars_opt
+
+
+def create_initial_parameters_df(initial_parameters, perturbed_parameters, perturbed_eta):
+    '''
+    This function creates or appens a dataframe with the initial parameters for the model. The dataframe includes the perturbed traine dparameters, and the perturbed learning rate eta.
+    '''
+    # Take log of the J and f parameters (if f_I, f_E are in the perturbed parameters)
+    J_2x2_m = sep_exponentiate(perturbed_parameters['log_J_2x2_m'])
+    J_2x2_s = sep_exponentiate(perturbed_parameters['log_J_2x2_s'])
+    # Create a dictionary with the new perturbed parameters
+    new_vals_dict = dict(J_m_EE=J_2x2_m[0,0], J_m_EI=J_2x2_m[1,0], J_m_IE=J_2x2_m[0,1], J_m_II=J_2x2_m[1,1],
+                        J_s_EE=J_2x2_s[0,0], J_s_EI=J_2x2_s[1,0], J_s_IE=J_2x2_s[0,1], J_s_II=J_2x2_s[1,1],
+                        eta=perturbed_eta)
+    if 'log_f_E' in perturbed_parameters:
+        new_vals_dict['f_E'] = np.exp(perturbed_parameters['log_f_E'])
+        new_vals_dict['f_I'] = np.exp(perturbed_parameters['log_f_I'])
+    if 'c_E' in perturbed_parameters:
+        new_vals_dict['c_E'] = perturbed_parameters['c_E']
+        new_vals_dict['c_I'] = perturbed_parameters['c_I']
+
+    # Create a dataframe with the initial parameters
+    if initial_parameters is None:
+        initial_parameters_df = pd.DataFrame(new_vals_dict, index=[0])
+    else:
+        initial_parameters_df = pd.concat([initial_parameters, pd.DataFrame(new_vals_dict, index=[0])])  
+    
+    return initial_parameters_df
