@@ -8,10 +8,12 @@ import pandas as pd
 import numpy
 import os
 import copy
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from util import create_grating_training, sep_exponentiate, sigmoid, create_grating_pretraining
-from SSN_classes import SSN_mid, SSN_sup
-from model import evaluate_model_response
+from training.SSN_classes import SSN_mid, SSN_sup
+from training.model import evaluate_model_response
 
 
 def train_ori_discr(

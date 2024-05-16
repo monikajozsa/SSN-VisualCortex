@@ -3,7 +3,6 @@ import jax.numpy as np
 import numpy
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
-import pandas as pd
 import os
 #import pingouin as pg
 
@@ -13,7 +12,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
-from analysis import filtered_model_response, mahal, LMI_Mahal_df
+from analysis_functions import filtered_model_response, mahal, LMI_Mahal_df
 
 
 ######### Calculate MVPA and Mahalanobis distance for before pretraining, after pretraining and after training #########

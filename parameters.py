@@ -20,9 +20,9 @@ class PreTrainPars:
     ''' minimum SGD step where accuracy check happens for the training task '''
     offset_threshold = 6
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
-    batch_size = 100
+    batch_size = 10
     ''' number of trials per SGD step during pretraining '''
-    SGD_steps = 500
+    SGD_steps = 50
     ''' maximum number of SGD steps during pretraining '''
 
 pretrain_pars = PreTrainPars()
@@ -33,9 +33,9 @@ pretrain_pars = PreTrainPars()
 class TrainingPars:
     eta: float = 5*10e-4
     '''learning rate - the maximum rate of parameter change in one SGD step'''
-    batch_size: int = 50
+    batch_size: int = 20
     '''number of trials per SGD step'''
-    SGD_steps: int = 1000
+    SGD_steps: int = 20
     '''number of SGD step'''
     validation_freq: int = 50  
     '''frequency of validation loss and accuracy calculation'''

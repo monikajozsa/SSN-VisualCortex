@@ -2,7 +2,6 @@ import jax
 import jax.numpy as np
 from jax import lax
 
-
 class _SSN_Base(object):
     def __init__(self, n, k, Ne, Ni, tau_vec=None, W=None):
         self.n = n

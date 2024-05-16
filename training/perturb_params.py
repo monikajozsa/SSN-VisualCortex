@@ -6,12 +6,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 import pandas as pd
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from util import take_log, create_grating_training, sep_exponentiate, create_grating_pretraining
 from util_gabor import init_untrained_pars
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response, vmap_evaluate_model_response
-from training import mean_training_task_acc_test
+from training_functions import mean_training_task_acc_test
 
 def perturb_params_supp(param_dict, percent = 0.1):
     '''Perturb all values in a dictionary by a percentage of their values. The perturbation is done by adding a uniformly sampled random value to the original value.'''

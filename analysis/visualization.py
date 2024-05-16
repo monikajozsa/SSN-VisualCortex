@@ -9,7 +9,7 @@ import seaborn as sns
 import statsmodels.api as sm
 import scipy
 
-from analysis import rel_changes, tc_features, MVPA_param_offset_correlations
+from analysis_functions import rel_changes, tc_features, MVPA_param_offset_correlations
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
 plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels

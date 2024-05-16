@@ -1,22 +1,19 @@
 import pandas as pd
-import os
 import jax.numpy as np
 import numpy
 import time
 import scipy
-from scipy import ndimage
 import jax
-from jax import vmap
 import matplotlib.pyplot as plt
-import seaborn as sns
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from model import evaluate_model_response, vmap_evaluate_model_response
-from util import sep_exponentiate
-from SSN_classes import SSN_mid, SSN_sup
-from util_gabor import BW_image_jit, BW_image_jit_noisy
-from training import mean_training_task_acc_test, offset_at_baseline_acc, generate_noise
-from util import load_parameters, create_grating_training
-from util_gabor import init_untrained_pars
+from training.model import evaluate_model_response, vmap_evaluate_model_response
+from training.SSN_classes import SSN_mid, SSN_sup
+from training.training_functions import mean_training_task_acc_test, offset_at_baseline_acc, generate_noise
+from util import load_parameters, sep_exponentiate #, create_grating_training
+from training.util_gabor import init_untrained_pars, BW_image_jit, BW_image_jit_noisy
 from parameters import (
     xy_distance,
     grid_pars,
@@ -24,7 +21,6 @@ from parameters import (
     stimuli_pars,
     readout_pars,
     ssn_pars,
-    trained_pars,
     conv_pars,
     training_pars,
     loss_pars,

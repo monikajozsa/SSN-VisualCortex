@@ -2,6 +2,8 @@
 import numpy
 import jax.numpy as np
 from jax import jit, lax, vmap
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from parameters import StimuliPars
 
