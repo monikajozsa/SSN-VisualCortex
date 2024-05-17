@@ -286,10 +286,9 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
     angle = ((ref_ori + jitter) - 90) / 180 * np.pi
 
     # Compute the spatial component of the grating
-    spatial_component = 2 * np.pi * spatial_freq * (y * np.sin(angle) + x * np.cos(angle))
-
+    spatial_component = np.cos(2 * np.pi * spatial_freq * (x * np.cos(angle) + y * np.sin(angle) ) + phases )
     # Generate the Gabor stimulus
-    gabor_sti = _GRAY * (1 + grating_contrast * np.cos(spatial_component + phases))
+    gabor_sti = _GRAY * (1 + grating_contrast * spatial_component)
 
     # Apply the mask, setting pixels outside to a neutral gray
     gabor_sti = np.where(mask, _GRAY, gabor_sti)
@@ -330,7 +329,7 @@ def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background
 
 
 #### Functions for gabor filters ####
-def gabor_filter(x_i, y_i,k,sigma_g,theta,gridsize_deg,degree_per_pixel,phase=0,conv_factor=None):
+def gabor_filter(x_i, y_i,k,sigma_g,angle,gridsize_deg,degree_per_pixel,phase=0,conv_factor=None):
     """
     Creates Gabor filters.
     Inputs:
@@ -349,7 +348,7 @@ def gabor_filter(x_i, y_i,k,sigma_g,theta,gridsize_deg,degree_per_pixel,phase=0,
         conv_factor = conv_factor
         x_i = x_i / conv_factor
         y_i = y_i / conv_factor
-    theta = theta * (np.pi / 180)
+    angle = angle * (np.pi / 180)
     N_pixels = int(gridsize_deg * 2 / degree_per_pixel) + 1
 
     # create image axis
@@ -370,14 +369,11 @@ def gabor_filter(x_i, y_i,k,sigma_g,theta,gridsize_deg,degree_per_pixel,phase=0,
     diff_y = y_axis - y_i.T
 
     # Calculate the spatial component of the Gabor filter
-    spatial = np.cos(k * np.pi * 2
-        * (diff_x * np.cos(theta) + diff_y * np.sin(theta))
-        + phase
-    )
+    spatial_component = np.cos(k * np.pi * 2 * (diff_x * np.cos(angle) + diff_y * np.sin(angle)) + phase)
     # Calculate the Gaussian component of the Gabor filter
     gaussian = np.exp(-0.5 * (diff_x**2 + diff_y**2) / sigma_g**2)
 
-    return np.array(gaussian * spatial[::-1])  # same convention as stimuli
+    return np.array(gaussian * spatial_component[::-1])  # same convention as stimuli
 
         
 def find_gabor_A(
@@ -449,21 +445,21 @@ def create_gabor_filters_ori_map(
     grid_pars
 ):
     """Create Gabor filters for each orientation in orimap."""
-    e_filters = []
+    filters = []
     if phases == 4:
-        e_filters_pi2 = []
+        filters_pi2 = []
 
     # Iterate over SSN map
     for i in range(ori_map.shape[0]):
         for j in range(ori_map.shape[1]):
             gabor = gabor_filter(grid_pars.x_map[i, j], grid_pars.y_map[i, j],filter_pars.k,filter_pars.sigma_g,ori_map[i, j],filter_pars.gridsize_deg,filter_pars.degree_per_pixel,0,filter_pars.conv_factor)
-            e_filters.append(gabor.ravel())
+            filters.append(gabor.ravel())
 
             if phases == 4:
                 gabor_2 = gabor_filter(grid_pars.x_map[i, j], grid_pars.y_map[i, j],filter_pars.k,filter_pars.sigma_g,ori_map[i, j],filter_pars.gridsize_deg,filter_pars.degree_per_pixel, np.pi/2, filter_pars.conv_factor)
-                e_filters_pi2.append(gabor_2.ravel())
+                filters_pi2.append(gabor_2.ravel())
 
-    e_filters_o = np.array(e_filters)
+    e_filters_o = np.array(filters)
     e_filters = filter_pars.gE_m * e_filters_o
     i_filters = filter_pars.gI_m * e_filters_o
 
@@ -472,7 +468,7 @@ def create_gabor_filters_ori_map(
     i_off_filters = -i_filters
 
     if phases == 4:
-        e_filters_o_pi2 = np.array(e_filters_pi2)
+        e_filters_o_pi2 = np.array(filters_pi2)
         e_filters_pi2 = filter_pars.gE_m * e_filters_o_pi2
         i_filters_pi2 = filter_pars.gI_m * e_filters_o_pi2
 

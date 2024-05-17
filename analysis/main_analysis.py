@@ -27,7 +27,7 @@ if not pretrain_pars.is_on:
 ########## Calculate and save tuning curves ############
 tc_ori_list = numpy.arange(0,180,2)
 num_training = 5
-final_folder_path = os.path.join('results','May16_v2')
+final_folder_path = os.path.join('results','Apr10_v1')
 start_time_in_main= time.time()
 for i in range(num_training):
     # Define file names

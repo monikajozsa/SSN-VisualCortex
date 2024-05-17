@@ -9,7 +9,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from training.model import evaluate_model_response, vmap_evaluate_model_response
+from training.model import evaluate_model_response, vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import mean_training_task_acc_test, offset_at_baseline_acc, generate_noise
 from util import load_parameters, sep_exponentiate #, create_grating_training
@@ -293,22 +293,34 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
     background = untrained_pars.BW_image_jax_inp[9]
     
     train_data = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
+    ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=untrained_pars.ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
+    '''
+    # Create train_data_phase_match, with dims number of orientations x number of middle layer cells x number of pixels in the image
+    # this train data generation will require a new function to match the phase of each middle layer cell
+    for i in range(num_ori):
+        vmap_evaluate_model_response_mid(ssn_mid, train_data_phase_match[i,:,:], untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    '''
+    # Investigate the difference between new and old responses!
+    new_rows_old = []
     for i in range(num_ori):
         ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=untrained_pars.ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
         _, _, [_,_], [_,_], [_,_,_,_], [r_mid_i, r_sup_i] = evaluate_model_response(ssn_mid, ssn_sup, train_data[i,:], untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
         if i==0:
-            responses_mid = numpy.zeros((num_ori,len(r_mid_i)))
-            responses_sup = numpy.zeros((num_ori,len(r_sup_i)))
-        responses_mid[i,:] = r_mid_i
-        responses_sup[i,:] = r_sup_i
+            responses_mid_old = numpy.zeros((num_ori,len(r_mid_i)))
+            responses_sup_old = numpy.zeros((num_ori,len(r_sup_i)))
+        responses_mid_old[i,:] = r_mid_i
+        responses_sup_old[i,:] = r_sup_i
     
         # Save responses into csv file
         if tuning_curves_filename is not None:
  
             # Concatenate the new data as additional rows
             new_row = numpy.concatenate((r_mid_i, r_sup_i), axis=0)
-            new_rows.append(new_row)
+            new_rows_old.append(new_row)
 
+    _, _, [_,_], [_,_], [_,_,_,_], [responses_mid, responses_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    # Save responses into csv file
+    new_rows=np.concatenate((responses_mid, responses_sup), axis=1)
     if tuning_curves_filename is not None:
         new_rows_df = pd.DataFrame(new_rows)
         if os.path.exists(tuning_curves_filename):
