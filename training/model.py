@@ -52,6 +52,47 @@ def evaluate_model_response(
 vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None))
 
 
+def evaluate_model_response_mid(
+    ssn_mid, stimuli, conv_pars, c_E, c_I, gabor_filters
+):
+    '''
+    Run individual stimulus through one layer model. 
+    
+    Inputs:
+     ssn_mid: middle layer class
+     stimuli: stimuli to pass through network
+     conv_pars: convergence parameters for ssn 
+     c_E, c_I: baseline inhibition for middle layer
+    
+    Outputs:
+     r_mid - fixed point of centre neurons in middle layer (default 5x5)
+     loss related terms (wrt to middle and superficial layer) :
+         - r_max_": loss minimising maximum rates
+         - avg_dx_": loss minimising number of steps taken during convergence 
+     max_(E/I)_(mid/sup): maximum rate for each type of neuron in each layer 
+     
+    '''
+    # Create vector using extrasynaptic constants
+    constant_vector = constant_to_vec(c_E=c_E, c_I=c_I, ssn=ssn_mid)
+
+    # Apply Gabor filters to stimuli to create input of middle layer
+    if stimuli.shape[0]==1:
+        # handling the case when there are no batches
+        input_mid = np.reshape(np.matmul(gabor_filters, np.transpose(stimuli)),len(constant_vector))
+    else:
+        input_mid = np.matmul(gabor_filters, stimuli)
+
+    # Rectify middle layer input before fix point calculation
+    SSN_mid_input = np.maximum(0, input_mid) + constant_vector
+
+    # Calculate steady state response of middle layer
+    r_mid, r_max_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
+
+    return r_mid, r_max_mid, avg_dx_mid, max_E_mid, max_I_mid, fp_mid
+
+vmap_evaluate_model_response_mid = vmap(evaluate_model_response_mid, in_axes = (None, 0, None, None, None, None))
+
+
 def obtain_fixed_point(
     ssn, ssn_input, conv_pars
 ):

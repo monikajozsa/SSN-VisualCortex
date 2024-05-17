@@ -225,6 +225,10 @@ class SSNPars:
     ''' relative strength of local parts of E projections in superficial layer '''
     p_local_m = [1.0, 1.0]
     ''' relative strength of local parts of E projections in middle layer '''
+    f_E: float = 1.11 
+    ''' Scaling constant for feedforwards connections to excitatory units in sup layer '''
+    f_I: float = 0.7
+    ''' Scaling constant for feedforwards connections to inhibitory units in sup layer '''
     
 ssn_pars = SSNPars()
 
@@ -232,10 +236,7 @@ ssn_pars = SSNPars()
 # Trained SSN parameters - f and c parameters can be moved between TrainedSSNPars and SSNPars
 @dataclass
 class TrainedSSNPars:
-    f_E: float = 1.11 
-    ''' Scaling constant for feedforwards connections to excitatory units in sup layer '''
-    f_I: float = 0.7
-    ''' Scaling constant for feedforwards connections to inhibitory units in sup layer '''
+    
     c_E: float = 5.0 
     ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
     c_I: float = 5.0 
