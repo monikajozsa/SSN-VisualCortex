@@ -255,6 +255,26 @@ def rel_changes(df, num_indices=3):
     return relative_changes, time_inds
 
 
+def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
+    
+    num_ori = len(ori_vec)
+    x = untrained_pars.BW_image_jax_inp[5]
+    y = untrained_pars.BW_image_jax_inp[6]
+    alpha_channel = untrained_pars.BW_image_jax_inp[7]
+    mask = untrained_pars.BW_image_jax_inp[8]
+    background = untrained_pars.BW_image_jax_inp[9]
+    
+    stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
+
+    # Apply Gabor filters to stimuli
+    gabor_output = numpy.zeros((num_ori, untrained_pars.gabor_filters.shape[0]))
+    for i in range(num_ori):
+        gabor_output[i,:] = np.transpose(np.matmul(untrained_pars.gabor_filters, np.transpose(stimuli[i,:])))
+
+    return gabor_output
+
+
+
 def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6)):
     '''
     Calculate responses of middle and superficial layers to different orientations.

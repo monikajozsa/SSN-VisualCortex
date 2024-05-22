@@ -25,6 +25,44 @@ from parameters import (
 if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
+########## Calculate and save gabor outputs ############
+import jax.numpy as np
+from analysis_functions import gabor_tuning
+import matplotlib.pyplot as plt
+tc_ori_list = numpy.arange(0,180,2)
+num_training = 5
+final_folder_path = os.path.join('results','May22_v1')
+for i in range(num_training):
+    # Define file names
+    results_filename = os.path.join(final_folder_path, f"results_{i}.csv")
+    orimap_filename = os.path.join(final_folder_path, f"orimap_{i}.npy")
+    #df = pd.read_csv(results_filename)
+    #SGD_step_inds = SGD_step_indices(df, 3)
+
+    # Load parameters and calculate (and save) tuning curves
+    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
+                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_filename)
+    gabor_outputs = gabor_tuning(untrained_pars, ori_vec=tc_ori_list)
+
+# first 81 are for E phase 0, next are for I phase 0, next 81 are for E phase pi/2, then I phase pi/2, then E phase pi, I phase pi, E phase 3pi/2 and I phase 3pi/2
+
+num_phases, num_loc = 4, 5
+fig, axs = plt.subplots(num_phases, num_loc, figsize=(5*num_loc, 5*num_phases))
+locs = numpy.random.randint(0,81,num_loc)
+phases = numpy.array([0,1,2,3])
+phase_label = ['0', 'pi/2', 'pi', '3pi/2']
+# E cells
+for i in phases:
+    for j in range(num_loc):
+        axs[i,j].plot(gabor_outputs[:,locs[j]+162*i])
+# I cells
+for i in phases:
+    for j in range(num_loc):
+        axs[i,j].plot(gabor_outputs[:,81+locs[j]+162*i])
+        axs[i,j].set_title(f'phase {phase_label[i]}, loc:{j}')
+plt.savefig('gabor_outputs')
+
+
 ########## Calculate and save tuning curves ############
 tc_ori_list = numpy.arange(0,180,2)
 num_training = 5
