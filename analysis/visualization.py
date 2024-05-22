@@ -68,7 +68,8 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     # Plot individual data points and connect them
     for i in range(2):
         group_data = offset_pre_post[i,:]
-        x_positions = numpy.random.normal(i, 0.04, size=len(group_data))
+        # let the position be i 
+        x_positions = [i for j in range(len(group_data))]
         ax.scatter(x_positions, group_data, color='black', alpha=0.7)  # Scatter plot of individual data points
         # Draw lines from bar to points
     for j in range(len(group_data)):
