@@ -1,11 +1,14 @@
-##### This script 
+##### This script is to analyze the results of the training of the middle layer only #####
 
 import os
 import pandas as pd
 import jax.numpy as np
 import statsmodels.api as sm
 import sys
+import numpy
+import time
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 
 from util import sep_exponentiate
 from training.SSN_classes import SSN_mid
@@ -534,12 +537,6 @@ def boxplots_from_csvs_mid_only(folder, save_folder, plot_filename = None, num_t
 
 
 ############### MAIN CODE ################
-import pandas as pd
-import numpy
-import time
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 numpy.random.seed(0)
 '''
 from training.util_gabor import init_untrained_pars

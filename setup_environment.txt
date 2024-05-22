@@ -16,13 +16,12 @@ conda install -c anaconda graphviz
 
 Seeting up venv on GPU desktop
 python -m venv SSN_venv
-SSN_venv\Scripts|activate
-pip install numpy pandas matplotlib
-pip install optax
+source SSN_VCenv/bins/activate
+pip install seaborn # installs numpy, matplotlib and pandas too
+pip install statsmodels # install scipy too
+pip install optax # installs jax and jaxlib too
+pip install -U jax[cuda12]
 pip install -U scikit-learn
-pip install statsmodels
-pip install seaborn
-pip install jax
 
 ---------------
 
