@@ -119,7 +119,7 @@ folder_to_save=os.path.join(final_folder_path, 'figures')
 data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff
 data_rel_changes['offset_staircase_diff']=-1*data_rel_changes['offset_staircase_diff']
 
-MVPA_scores = numpy.load(final_folder_path + '/MVPA_scores.npy') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
+MVPA_scores = numpy.load(final_folder_path + f'/sigmafilt_{sigma_filter}/MVPA_scores.npy') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
 data_sup_55 = pd.DataFrame({
     'MVPA': (MVPA_scores[:,0,-1,0]- MVPA_scores[:,0,-2,0])/MVPA_scores[:,0,-2,0],
     'JsI/JsE': data_rel_changes['J_s_ratio_diff'],

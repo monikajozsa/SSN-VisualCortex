@@ -277,11 +277,11 @@ def plot_Mahalanobis_dist(num_trainings, num_SGD_inds, mahal_train_control, maha
     fig, axs = plt.subplots(num_training_type, num_layers, figsize=(num_training_type*5, num_layers*5))
     # within a subplot, the two boxplots are for the trained and untrained orientation
     for training_type in range(num_training_type):
-        bp = axs[training_type,0].boxplot(np.transpose(mahal_diff_l0[:,training_type*2:training_type*2+2]), labels=labels ,patch_artist=True)
+        bp = axs[training_type,0].boxplot(mahal_diff_l0[:,training_type*2:training_type*2+2], labels=labels ,patch_artist=True)
         axs[training_type,0].set_title(f'{layer_labels[0]} layer, {training_type_text[training_type]}', fontsize=20)
         for box, color in zip(bp['boxes'], colors):
             box.set_facecolor(color)
-        bp = axs[training_type,1].boxplot(np.transpose(mahal_diff_l1[:,training_type*2:training_type*2+2]), labels=labels, patch_artist=True)
+        bp = axs[training_type,1].boxplot(mahal_diff_l1[:,training_type*2:training_type*2+2], labels=labels, patch_artist=True)
         axs[training_type,1].set_title(f'{layer_labels[1]} layer', fontsize=20)
         for box, color in zip(bp['boxes'], colors):
             box.set_facecolor(color)

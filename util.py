@@ -162,7 +162,7 @@ def leaky_relu(x, R_thresh, slope, height=0.15):
     return y
 
 
-def save_code(final_folder_path=None, train_only_flag=False):
+def save_code(final_folder_path=None, train_only_flag=False, note=None):
     '''
     This code is used to save code files to make results replicable.
     1) It copies specific code files into a folder called 'script'
@@ -181,6 +181,12 @@ def save_code(final_folder_path=None, train_only_flag=False):
         final_folder_path = f"{folder_name}{version}"
         # Create the folder for the results    
         os.makedirs(final_folder_path)
+
+    # Save note to final_folder_path as csv
+    if note is not None:
+        with open(os.path.join(final_folder_path, 'note.txt'), 'w') as f:
+            f.write(note)
+
     # Create a folder for the scripts and a folder for the figures
     script_folder = os.path.join(final_folder_path, 'scripts')
     if not os.path.exists(script_folder):
