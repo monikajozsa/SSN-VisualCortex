@@ -358,22 +358,22 @@ def gabor_filter(x_i, y_i,k,sigma_g,angle,gridsize_deg,degree_per_pixel,phase=0,
     ########## Construct filter as an attribute ##########
     
     # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
-    x_axis = np.reshape(x_axis, (N_pixels, 1))
-    x_i = np.repeat(x_i, N_pixels)
-    x_i = np.reshape(x_i, (N_pixels, 1))
-    diff_x = x_axis.T - x_i
+    x_axis2 = np.reshape(x_axis, (N_pixels, 1))
+    x_i2 = np.repeat(x_i, N_pixels)
+    x_i2 = np.reshape(x_i2, (1,N_pixels))
+    diff_x = x_axis2 - x_i2
 
-    y_axis = np.reshape(y_axis, (N_pixels, 1))
-    y_i = np.repeat(y_i, N_pixels)
-    y_i = np.reshape(y_i, (N_pixels, 1))
-    diff_y = y_axis - y_i.T
+    y_axis2 = np.reshape(y_axis, (1, N_pixels))
+    y_i2 = np.repeat(y_i, N_pixels)
+    y_i2 = np.reshape(y_i2, (N_pixels,1))
+    diff_y = y_axis2 - y_i2
 
-    # Calculate the spatial component of the Gabor filter
-    spatial_component = np.cos(k * np.pi * 2 * (diff_x * np.cos(angle) + diff_y * np.sin(angle)) + phase)
+    # Calculate the spatial component of the Gabor filter (same convention as stimuli)
+    spatial_component = np.cos(2 * np.pi * k  * (diff_x * np.cos(angle) + diff_y * np.sin(angle)) + phase)
     # Calculate the Gaussian component of the Gabor filter
     gaussian = np.exp(-0.5 * (diff_x**2 + diff_y**2) / sigma_g**2)
 
-    return np.array(gaussian * spatial_component[::-1])  # same convention as stimuli
+    return np.array(gaussian * spatial_component[::-1]) 
 
         
 def find_gabor_A(
