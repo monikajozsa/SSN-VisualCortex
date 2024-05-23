@@ -274,7 +274,6 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     return gabor_output
 
 
-
 def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6)):
     '''
     Calculate responses of middle and superficial layers to different orientations.
@@ -314,15 +313,31 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
     
     train_data = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
     ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=untrained_pars.ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
-    '''
+    _, _, [_,_], [_,_], [_,_,_,_], [responses_mid, responses_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    
     # Create train_data_phase_match, with dims number of orientations x number of middle layer cells x number of pixels in the image
     # this train data generation will require a new function to match the phase of each middle layer cell
-    for i in range(num_ori):
-        vmap_evaluate_model_response_mid(ssn_mid, train_data_phase_match[i,:,:], untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-    '''
-    _, _, [_,_], [_,_], [_,_,_,_], [responses_mid, responses_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    BW_image_jax_inp = untrained_pars.BW_image_jax_inp
+    saved_phase = float(BW_image_jax_inp[2])
+    responses_mid_matched_phase = numpy.zeros_like(responses_mid)
+    ori_map = untrained_pars.ssn_ori_map
+    k = untrained_pars.filter_pars.k
+    # first 81 are for E phase 0, next are for I phase 0, next 81 are for E phase pi/2, then I phase pi/2, then E phase pi, I phase pi, E phase 3pi/2 and I phase 3pi/2
+    start_time = time.time()
+    for i in range(responses_mid.shape[1]):
+        if numpy.mod(i,81) == 0:
+            print('Time elapsed for 81 middle cell response calculation:', time.time()-start_time)
+        # change the phase to match the spatial_component of the image with the spatial component of the middle layer cell
+        coord1 = numpy.mod(i,9)
+        coord2 = numpy.mod(i,81)//9
+        BW_image_jax_inp[2] = -2*numpy.pi*k*(grid_pars.x_map[coord1, coord2]*numpy.cos(ori_map[coord1,coord2])+ grid_pars.y_map[coord1, coord2]*numpy.sin(ori_map[coord1,coord2])) + numpy.mod(i,81)*numpy.pi/2
+        train_data_phase_match = BW_image_jit(BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
+        _, _, _, _, _, responses_mid_i = vmap_evaluate_model_response_mid(ssn_mid, train_data_phase_match, untrained_pars.conv_pars, c_E, c_I, untrained_pars.gabor_filters)
+        responses_mid_matched_phase[:,i] = responses_mid_i[:,i]
+    untrained_pars.BW_image_jax_inp[2] = saved_phase
+
     # Save responses into csv file
-    new_rows=np.concatenate((responses_mid, responses_sup), axis=1)
+    new_rows=np.concatenate((responses_mid_matched_phase, responses_sup), axis=1)
     if tuning_curves_filename is not None:
         new_rows_df = pd.DataFrame(new_rows)
         if os.path.exists(tuning_curves_filename):
