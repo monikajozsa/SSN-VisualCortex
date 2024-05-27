@@ -25,13 +25,14 @@ from parameters import (
 if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
-########## Calculate and save gabor outputs ############
 import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
 tc_ori_list = numpy.arange(0,180,2)
-num_training = 5
-final_folder_path = os.path.join('results','May22_v1')
+num_training = 10
+final_folder_path = os.path.join('results','May26_v0')
+########## Calculate and save gabor outputs ############
+'''
 for i in range(num_training):
     # Define file names
     results_filename = os.path.join(final_folder_path, f"results_{i}.csv")
@@ -61,12 +62,9 @@ for i in phases:
         axs[i,j].plot(gabor_outputs[:,81+locs[j]+162*i])
         axs[i,j].set_title(f'phase {phase_label[i]}, loc:{j}')
 plt.savefig('gabor_outputs')
-
-
+'''
+'''
 ########## Calculate and save tuning curves ############
-tc_ori_list = numpy.arange(0,180,2)
-num_training = 5
-final_folder_path = os.path.join('results','May21_v0')
 start_time_in_main= time.time()
 for i in range(num_training):
     # Define file names
@@ -88,7 +86,7 @@ for i in range(num_training):
     _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = SGD_step_inds[2], trained_pars_keys=trained_pars_stage2.keys())
     tc_post, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_filename, ori_vec=tc_ori_list)
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
-    
+'''
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_correlations, plot_corr_triangle
@@ -96,9 +94,6 @@ from MVPA_Mahal_combined import MVPA_Mahal_from_csv
 from analysis_functions import MVPA_param_offset_correlations
 
 start_time=time.time()
-final_folder_path=os.path.join('results','May21_v0')
-num_training = 5
-tc_ori_list = numpy.arange(0,180,2)
 tc_cells=[10,40,100,130,650,690,740,760]
 
 ## Pretraining + training
@@ -108,11 +103,11 @@ mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
 sigma_filter = 2
 
-plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
-boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
-plot_tc_features(final_folder_path, num_training, tc_ori_list)
-'''
-plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
+#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
+#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
+#plot_tc_features(final_folder_path, num_training, tc_ori_list)
+#plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')
+
 MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
 
 folder_to_save=os.path.join(final_folder_path, 'figures')
@@ -144,7 +139,7 @@ data_mid_125 = pd.DataFrame({
     'offset': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
-'''
+
 '''
 ## Training only
 #final_folder_path_train_only = final_folder_path + '/train_only'

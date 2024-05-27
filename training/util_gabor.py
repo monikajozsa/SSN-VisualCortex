@@ -309,17 +309,39 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
 
     return image
 
+def BW_image_full(BW_image_const_inp, x, y, ref_ori, jitter):
+    '''Do what BW_image_jax does but without the GRAY backgroung'''
+    _GRAY = 128.0
+    spatial_freq = BW_image_const_inp[0]
+    grating_contrast = BW_image_const_inp[1]
+    phases = BW_image_const_inp[2]
+
+    # Calculate the angle in radians, incorporating the orientation and jitter
+    angle = ((ref_ori + jitter) - 90) / 180 * np.pi
+
+    # Compute the spatial component of the grating # spatial_freq=0.05 default
+    spatial_component = np.cos(2 * np.pi * spatial_freq * (x * np.cos(angle) + y * np.sin(angle) ) + phases )
+    # Generate the Gabor stimulus
+    gabor_sti = _GRAY * (1 + grating_contrast * spatial_component)
+    
+    return gabor_sti.ravel()
+
 # Vectorize BW_image function to process batches
 BW_image_vmap = vmap(BW_image_jax, in_axes=(None,None,None,None,None,None,0,0))
+BW_image_full_vmap = vmap(BW_image_full, in_axes=(None,None,None,0,0))
 # Compile the vectorized functions for performance
 BW_image_jit = jit(BW_image_vmap, static_argnums=[0])
+BW_image_full_jit = jit(BW_image_full_vmap, static_argnums=[0])
 
-def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter):
+def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter, background_flag = True):
     """
     Calls BW_image_jit function and adds Gaussian noise to its output.
     """
     # Generate the images
-    images = BW_image_jit(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter)
+    if background_flag:
+        images = BW_image_jit(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter)
+    else:
+        images = BW_image_full_jit(BW_image_const_inp, x, y, ref_ori, jitter)
     # Add noise to the images
     if BW_image_const_inp[3]>0:
         noisy_images = images + np.array(numpy.random.normal(loc=0, scale=BW_image_const_inp[3], size=images.shape))
@@ -358,15 +380,26 @@ def gabor_filter(x_i, y_i,k,sigma_g,angle,gridsize_deg,degree_per_pixel,phase=0,
     ########## Construct filter as an attribute ##########
     
     # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
-    x_axis2 = np.reshape(x_axis, (N_pixels, 1))
-    x_i2 = np.repeat(x_i, N_pixels)
-    x_i2 = np.reshape(x_i2, (1,N_pixels))
-    diff_x = x_axis2 - x_i2
+    x_axis = np.reshape(x_axis, (N_pixels, 1))
+    x_i = np.repeat(x_i, N_pixels)
+    x_i = np.reshape(x_i, (N_pixels, 1))
+    diff_x = x_axis.T - x_i
 
-    y_axis2 = np.reshape(y_axis, (1, N_pixels))
-    y_i2 = np.repeat(y_i, N_pixels)
-    y_i2 = np.reshape(y_i2, (N_pixels,1))
-    diff_y = y_axis2 - y_i2
+    y_axis = np.reshape(y_axis, (N_pixels, 1))
+    y_i = np.repeat(y_i, N_pixels)
+    y_i = np.reshape(y_i, (N_pixels, 1))
+    diff_y = y_axis - y_i.T
+
+    # matching the stimuli convention
+    #x_axis2 = np.reshape(x_axis, (N_pixels, 1))
+    #x_i2 = np.repeat(x_i, N_pixels)
+    #x_i2 = np.reshape(x_i2, (1,N_pixels))
+    #diff_x = x_axis2 - x_i2
+
+    #y_axis2 = np.reshape(y_axis, (1, N_pixels))
+    #y_i2 = np.repeat(y_i, N_pixels)
+    #y_i2 = np.reshape(y_i2, (N_pixels,1))
+    #diff_y = y_axis2 - y_i2
 
     # Calculate the spatial component of the Gabor filter (same convention as stimuli)
     spatial_component = np.cos(2 * np.pi * k  * (diff_x * np.cos(angle) + diff_y * np.sin(angle)) + phase)

@@ -43,7 +43,6 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
     alpha_channel = BW_image_jit_inp_all[7]
     mask = BW_image_jit_inp_all[8]
     background = BW_image_jit_inp_all[9]
-    
     ref = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ref_ori_vec, jitter_vec)
     target = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, target_ori_vec, jitter_vec)
     data_dict['ref']=ref
@@ -76,15 +75,10 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     mask = swap_numbers == 1
 
     # Swap values where mask is True
-    # We'll use a temporary array to hold the values of num1 where the mask is True
-    temp_num1 = np.copy(num1[mask])
+    temp_num1 = np.copy(num1[mask]) # temporary array to hold the values of num1 where the mask is True
     num1[mask] = num2[mask]
     num2[mask] = temp_num1
     random_distance[mask] = -random_distance[mask]
-    
-    # Apply wrap-around logic
-    #num2[num2 > tot_angle] = num2[num2 > tot_angle] - tot_angle
-    #num2[num2 < 0] = num2[num2 < 0] + tot_angle
     
     return np.array(num1), np.array(num2), random_distance
 
