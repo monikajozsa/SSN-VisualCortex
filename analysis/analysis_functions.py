@@ -13,7 +13,7 @@ from training.model import evaluate_model_response, vmap_evaluate_model_response
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import mean_training_task_acc_test, offset_at_baseline_acc, generate_noise
 from util import load_parameters, sep_exponentiate #, create_grating_training
-from training.util_gabor import init_untrained_pars, BW_image_jit, BW_image_jit_noisy
+from training.util_gabor import init_untrained_pars, BW_image_jit, BW_image_jit_noisy, BW_image_jax_supp, BW_image_full_jit
 from parameters import (
     xy_distance,
     grid_pars,
@@ -315,41 +315,111 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
     ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=untrained_pars.ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
     _, _, [_,_], [_,_], [_,_,_,_], [responses_mid, responses_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
     
-    # Create train_data_phase_match, with dims number of orientations x number of middle layer cells x number of pixels in the image
-    # this train data generation will require a new function to match the phase of each middle layer cell
-    BW_image_jax_inp = untrained_pars.BW_image_jax_inp
-    saved_phase = float(BW_image_jax_inp[2])
+    # Redefine BW_image_jax_inp to have the right sized grating, not just the middle of the image
+    #grating_size = (untrained_pars.BW_image_jax_inp[9].shape[0]-1)//2
+    #x2, y2 = numpy.mgrid[-grating_size : grating_size + 1.0,-grating_size : grating_size + 1.0]
+    #x2 = np.array(x2)
+    #y2 = np.array(y2)
+    
+    #train_data2 = BW_image_full_jit(untrained_pars.BW_image_jax_inp[0:5], x2, y2, ori_vec, np.zeros(num_ori))
+    #_, _, [_,_], [_,_], [_,_,_,_], [responses_mid_full, responses_sup_full] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data2, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    
+    #tc_cells=[45,207,369,531]
+    #tc_cells=[40,202,364,526]
+    '''fig, axs = plt.subplots(1,2, figsize=(20, 20))
+    axs[0].imshow(np.reshape(train_data[6,:],(129,129)))
+    axs[0].set_title('Image with background')
+    axs[1].imshow(np.reshape(train_data2[6,:],(129,129)))
+    axs[1].set_title('Image without background')
+    plt.savefig('Images_bckg.png')
+    plt.close()
+    '''
+    '''
+    fig, axs = plt.subplots(2,2, figsize=(20, 20))
+    for j in range(4):
+        tuning_curve = numpy.zeros(num_ori)
+        for i in range(len(ori_vec)):
+            tuning_curve[i]=untrained_pars.gabor_filters[tc_cells[j],:]@train_data2[i,:]
+        axs[j//2,j%2].plot(ori_vec, tuning_curve)
+        axs[j//2,j%2].set_title(f'Phase {j*np.pi/2:.2f}')
+        axs[j//2,j%2].set_xlabel('Orientation')
+    plt.savefig('Gabor_output_no_bckg.png')
+    plt.close()
+    fig, axs = plt.subplots(2,2, figsize=(20, 20))
+    for j in range(4):
+        tuning_curve = numpy.zeros(num_ori)
+        axs[j//2,j%2].plot(ori_vec, responses_mid[:,tc_cells[j]])
+        axs[j//2,j%2].set_title(f'Phase {j*np.pi/2:.2f}')
+        axs[j//2,j%2].set_xlabel('Orientation')
+    plt.savefig('Tuning_curve_no_bckg.png')
+    # get the responses of the middle layer cells to the same orientations but with the phase of the stimuli matched to the phase of the middle layer cells
+    '''
+    '''
     responses_mid_matched_phase = numpy.zeros_like(responses_mid)
     ori_map = untrained_pars.ssn_ori_map
     k = untrained_pars.filter_pars.k
     # first 81 are for E phase 0, next are for I phase 0, next 81 are for E phase pi/2, then I phase pi/2, then E phase pi, I phase pi, E phase 3pi/2 and I phase 3pi/2
     start_time = time.time()
+    
     for i in range(responses_mid.shape[1]):
         if numpy.mod(i,81) == 0:
             print('Time elapsed for 81 middle cell response calculation:', time.time()-start_time)
         # change the phase to match the spatial_component of the image with the spatial component of the middle layer cell
-        coord1 = numpy.mod(i,9)
-        coord2 = numpy.mod(i,81)//9
-        BW_image_jax_inp[2] = -2*numpy.pi*k*(grid_pars.x_map[coord1, coord2]*numpy.cos(ori_map[coord1,coord2])+ grid_pars.y_map[coord1, coord2]*numpy.sin(ori_map[coord1,coord2])) + numpy.mod(i,81)*numpy.pi/2
-        train_data_phase_match = BW_image_jit(BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
+        coord1 = numpy.mod(i,81)//9
+        coord2 = numpy.mod(i,9)
+        matched_phase = float(-2*numpy.pi*k*(grid_pars.x_map[coord1, coord2]*numpy.cos(ori_map[coord1,coord2])+ grid_pars.y_map[coord1, coord2]*numpy.sin(ori_map[coord1,coord2])) - (i//81)*numpy.pi/2)
+        BW_image_jax_inp_phase_match = BW_image_jax_supp(stimuli_pars, matched_phase)
+        # Create train_data_phase_match, with dims number of orientations x number of pixels in the image
+        train_data_phase_match = BW_image_jit(BW_image_jax_inp_phase_match[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
         _, _, _, _, _, responses_mid_i = vmap_evaluate_model_response_mid(ssn_mid, train_data_phase_match, untrained_pars.conv_pars, c_E, c_I, untrained_pars.gabor_filters)
         responses_mid_matched_phase[:,i] = responses_mid_i[:,i]
-    untrained_pars.BW_image_jax_inp[2] = saved_phase
+        # plot train_data_phase_match, the untrained_pars.gabor_filters and their sum on a 3-subplot figure to check if the phase matching is correct
+        # as the gabor_filter index increases from i to i+1, the second coordinate is increased by 1 until it reaches 8 and then it is reset to 0 and the first coordinate is increased by 1
+        # as the gabor_filter index increases from i to i+1, the location is going down first and then to the right
+        # make a 5 x6 subplot where each subplot plots an image with the title of ori and gabor * image
+        
+        if i == 330:
+            # a fixed Gabor filter and oris as the ori_vec increases, titled with the Gabor output
+            fig, axs = plt.subplots(5,6, figsize=(30, 25))
+            axs_flatten = axs.flatten()
+            for sub_ind in range(30):
+                ori_ind = sub_ind * 3
+                axs_flatten[sub_ind].imshow(np.reshape(train_data_phase_match[ori_ind,:], (129,129))/np.max(train_data_phase_match[ori_ind,:]) + numpy.reshape(untrained_pars.gabor_filters[40,:], (129,129))/np.max(untrained_pars.gabor_filters[40,:]))
+                axs_flatten[sub_ind].set_title(f'Ori:{ori_vec[ori_ind]:.1f}, Gout:{untrained_pars.gabor_filters[40,:]@train_data_phase_match[ori_ind,:]:.2f}', fontsize=20)
 
+                plt.savefig('Images_and_Gabor_output.png')
+
+            stim_ori = ori_vec-90
+            stim_ori[stim_ori<0] = stim_ori[stim_ori<0]+180
+            ori_ind = np.argmin(np.abs(stim_ori-untrained_pars.ssn_ori_map[coord1,coord2]))
+            fig, axs = plt.subplots(2,4)
+            axs[0,0].imshow(numpy.reshape(train_data_phase_match[ori_ind,:], (129,129)))
+            axs[0,0].set_title('Phase-matched image')
+            axs[0,1].imshow(numpy.reshape(untrained_pars.gabor_filters[i,:], (129,129)))
+            axs[0,1].set_title('Gabor')
+            axs[0,2].imshow(numpy.reshape(train_data_phase_match[ori_ind,:], (129,129))/np.max(train_data_phase_match[ori_ind,:]) + numpy.reshape(untrained_pars.gabor_filters[i,:], (129,129))/np.max(untrained_pars.gabor_filters[i,:]))
+            axs[0,2].set_title('Sum')
+            axs[1,0].imshow(numpy.reshape(train_data[ori_ind,:], (129,129)))
+            axs[1,0].set_title('Original image')
+            axs[1,1].imshow(numpy.reshape(untrained_pars.gabor_filters[i,:], (129,129)))
+            axs[1,1].set_title('Gabor')
+            axs[1,2].imshow(numpy.reshape(train_data[ori_ind,:], (129,129))/np.max(train_data[ori_ind,:]) + numpy.reshape(untrained_pars.gabor_filters[i,:], (129,129))/np.max(untrained_pars.gabor_filters[i,:]))
+            axs[1,2].set_title('Sum')
+            axs[0,3].imshow(numpy.reshape(train_data_phase_match[ori_ind,:], (129,129)) - numpy.reshape(train_data[ori_ind,:], (129,129)), cmap='gray')
+            # add colorbar to the right
+            cbar = fig.colorbar(axs[0,3].imshow(numpy.reshape(train_data_phase_match[ori_ind,:], (129,129)) - numpy.reshape(train_data[ori_ind,:], (129,129)), cmap='gray'), ax=axs[0,3])
+            axs[0,3].set_title('Image diff')
+            #turn axes off for axs[1,3]
+            axs[1,3].axis('off')
+            plt.savefig(f'Gabor_inp_phase_match_pre_{i}.png')
+            plt.show()
+        '''
     # Save responses into csv file
-    new_rows=np.concatenate((responses_mid_matched_phase, responses_sup), axis=1)
+    new_rows=np.concatenate((responses_mid, responses_sup), axis=1)
     if tuning_curves_filename is not None:
         new_rows_df = pd.DataFrame(new_rows)
-        if os.path.exists(tuning_curves_filename):
-            # Read existing data and concatenate new data
-            existing_df = pd.read_csv(tuning_curves_filename)
-            df = pd.concat([existing_df, new_rows_df], axis=0)
-        else:
-            # If CSV does not exist, use new data as the DataFrame
-            df = new_rows_df
-
-        # Write the DataFrame to CSV file
-        df.to_csv(tuning_curves_filename, index=False)
+        # overwrite the file
+        new_rows_df.to_csv(tuning_curves_filename, mode='a', header=False, index=False)
 
     untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
 
