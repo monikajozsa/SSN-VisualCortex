@@ -36,13 +36,13 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, orim
        
     # Perturb parameters under conditions for J_mid and convergence of the differential equations of the model
     i=0
-    cond1 = False
-    cond2 = False
-    cond3 = False
-    cond4 = False
-    cond5 = False
+    cond1 = False # parameter inequality on Jm
+    cond2 = False # parameter inequality on Jm and g
+    cond6 = False # ensuring non-divergence of the SSNs
+    cond3 = False # ensuring convergence of the SSNs
+    cond4 = False # limiting max firing rate
 
-    while not (cond1 and cond2 and cond3 and cond4 and cond5):
+    while not (cond1 and cond2 and cond3.all() and cond4 and cond5 and cond6):
         perturbed_pars = perturb_params_supp(trained_pars_dict, percent)
         cond1 = np.abs(perturbed_pars['J_2x2_m'][0,0]*perturbed_pars['J_2x2_m'][1,1])*1.1 < np.abs(perturbed_pars['J_2x2_m'][1,0]*perturbed_pars['J_2x2_m'][0,1])
         cond2 = np.abs(perturbed_pars['J_2x2_m'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < np.abs(perturbed_pars['J_2x2_m'][1,1]*untrained_pars.filter_pars.gE_m)
@@ -50,7 +50,8 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, orim
         # Calculate model response to check the convergence of the differential equations
         ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=perturbed_pars['J_2x2_m'])
         ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=perturbed_pars['J_2x2_s'], p_local=untrained_pars.ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
-        train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=1, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
+        train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp) 
+        pretrain_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
         if 'c_E' in perturbed_pars:
             c_E = perturbed_pars['c_E']
             c_I = perturbed_pars['c_I']
@@ -63,10 +64,12 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, orim
         else:
             f_E = untrained_pars.ssn_pars.f_E
             f_I = untrained_pars.ssn_pars.f_I
-        r_ref,_, [_, _], [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-        cond3 = not numpy.any(numpy.isnan(r_ref))
-        cond4 = avg_dx_mid + avg_dx_sup < 50
-        cond5 = min([max_E_mid, max_I_mid, max_E_sup, max_I_sup])>10 and max([max_E_mid, max_I_mid, max_E_sup, max_I_sup])<101
+        r_train,_, [_, _], [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+        r_pretrain,_, [_, _], [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+        cond3 = avg_dx_mid + avg_dx_sup < 50
+        cond4 = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])>5 and max([float(np.max(max_E_mid)), float(np.max(max_I_mid)), float(np.max(max_E_sup)), float(np.max(max_I_sup))])<101
+        cond5 = not numpy.any(np.isnan(r_pretrain))
+        cond6 = not numpy.any(np.isnan(r_train))
         if i>50:
             print(" ########### Perturbed parameters violate conditions even after 50 sampling. ###########")
             break
@@ -76,6 +79,7 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, orim
                 untrained_pars =  init_untrained_pars(untrained_pars.grid_pars, untrained_pars.stimuli_pars, untrained_pars.filter_pars, untrained_pars.ssn_pars, untrained_pars.conv_pars, 
                     untrained_pars.loss_pars, untrained_pars.training_pars, untrained_pars.pretrain_pars, readout_pars, orimap_filename)
             i = i+1
+            print('Perturbed parameters', i , 'times',[bool(cond1),bool(cond2),bool(cond3.all()),cond4,cond5,cond6])
 
     # Take log of the J and f parameters (if f_I, f_E are in the perturbed parameters)
     perturbed_pars_log = dict(

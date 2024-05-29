@@ -7,6 +7,7 @@ import os
 import shutil
 from datetime import datetime
 import pandas as pd
+import re
 
 from training.util_gabor import BW_image_jit_noisy
 
@@ -181,6 +182,14 @@ def save_code(final_folder_path=None, train_only_flag=False, note=None):
         final_folder_path = f"{folder_name}{version}"
         # Create the folder for the results    
         os.makedirs(final_folder_path)
+    else:
+        # version is after '_v' in final_folder_path
+        match = re.search('_v', final_folder_path)
+        if match:
+            # Extract the number from the match object
+            version = final_folder_path[match.endpos-1:]
+        else:
+            version = 0
 
     # Save note to final_folder_path as csv
     if note is not None:
