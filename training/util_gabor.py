@@ -161,7 +161,7 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 
 
 def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, file_name = None, orimap_loaded=None, regen_extended_orimap=False):
+                 loss_pars, training_pars, pretrain_pars, readout_pars, file_to_save = None, orimap_loaded=None, regen_extended_orimap=False):
     """
     Define untrained_pars with a randomly generated or given orientation map.
     """
@@ -188,7 +188,7 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_par
                 print('############## After 50 attempts the randomly generated maps did not pass the uniformity test ##############')
                 break
     
-    gabor_filters, A, A2 = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars)
+    gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars)
     
     oris = ssn_ori_map.ravel()[:, None]
     ori_dist = cosdiff_ring(oris - oris.T, 180)
@@ -199,8 +199,8 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_par
                  readout_pars)
     
     # Save orimap if file_name is specified
-    if file_name is not None:
-        numpy.save(file_name, ssn_ori_map)
+    if file_to_save is not None:
+        numpy.save(file_to_save, ssn_ori_map)
 
     return untrained_pars
 
@@ -470,8 +470,56 @@ def find_gabor_A(
 
     return A
 
-
 def create_gabor_filters_ori_map(
+    ori_map,
+    num_phases,
+    filter_pars,
+    grid_pars
+):
+    """Create Gabor filters for each orientation and phase in orimap."""
+    phases = np.linspace(0, np.pi, num_phases//2, endpoint=False)
+    grid_size_1D = ori_map.shape[0]
+    grid_size_2D = grid_size_1D*grid_size_1D
+    image_size = int(((filter_pars.gridsize_deg*grid_size_1D**2)//2)**2)
+    gabors_all = numpy.zeros((grid_size_2D*num_phases*2, image_size))
+
+    # Iterate over SSN map
+    gabors_list = []
+    for phases_ind in range(len(phases)):
+        phase = phases[phases_ind]
+        A = find_gabor_A(
+                    k=filter_pars.k,
+                    sigma_g=filter_pars.sigma_g,
+                    gridsize_deg=filter_pars.gridsize_deg,
+                    degree_per_pixel=filter_pars.degree_per_pixel,
+                    indices=ori_map.ravel(),
+                    phase=phase
+                )
+        for i in range(grid_size_1D):
+            for j in range(grid_size_1D):
+                gabor = gabor_filter(
+                    grid_pars.x_map[i, j], 
+                    grid_pars.y_map[i, j],
+                    filter_pars.k,
+                    filter_pars.sigma_g,
+                    ori_map[i, j],
+                    filter_pars.gridsize_deg,
+                    filter_pars.degree_per_pixel,
+                    phase,
+                    filter_pars.conv_factor
+                )                
+                gabors_list.append(A * gabor.ravel()) # E filters
+    gabors_np = np.array(gabors_list)
+    gabors_demean = gabors_np - np.mean(gabors_np, axis=1)[:, None]
+    k=len(phases)
+    gabors_all[0:k*grid_size_2D,:] = filter_pars.gE_m*gabors_demean # E filters phase 0 and pi/2
+    gabors_all[k*grid_size_2D:(2*k)*grid_size_2D,:] = - filter_pars.gE_m*gabors_demean # E filters with opposite phases
+    gabors_all[2*k*grid_size_2D:(3*k)*grid_size_2D,:] = filter_pars.gI_m*gabors_demean # I filters phase 0 and pi/2
+    gabors_all[3*k*grid_size_2D:4*k*grid_size_2D,:] = - filter_pars.gI_m*gabors_demean # I filters with opposite phases
+
+    return np.array(gabors_all)
+
+def create_gabor_filters_ori_map_old(
     ori_map,
     phases,
     filter_pars,
@@ -508,23 +556,6 @@ def create_gabor_filters_ori_map(
         # create filters with phase equal to -pi/2
         e_off_filters_pi2 = -e_filters_pi2
         i_off_filters_pi2 = -i_filters_pi2
-        SSN_filters = np.vstack(
-            [
-                e_filters,
-                i_filters,
-                e_filters_pi2,
-                i_filters_pi2,
-                e_off_filters,
-                i_off_filters,
-                e_off_filters_pi2,
-                i_off_filters_pi2,
-            ]
-        )
-
-    else:
-        SSN_filters = np.vstack(
-            [e_filters, i_filters, e_off_filters, i_off_filters]
-        )
 
     # Normalise Gabor filters
     A = find_gabor_A(
@@ -535,8 +566,7 @@ def create_gabor_filters_ori_map(
                 indices=np.sort(ori_map.ravel()),
                 phase=0
             )
-    SSN_filters = SSN_filters * A
-
+    
     if phases == 4:
         A2 = find_gabor_A(
             k=filter_pars.k,
@@ -550,16 +580,18 @@ def create_gabor_filters_ori_map(
         SSN_filters = np.vstack(
             [
                 e_filters * A,
-                i_filters * A,
                 e_filters_pi2 * A2,
-                i_filters_pi2 * A2,
                 e_off_filters * A,
-                i_off_filters * A,
                 e_off_filters_pi2 * A2,
+                i_filters * A,                
+                i_filters_pi2 * A2,                
+                i_off_filters * A,                
                 i_off_filters_pi2 * A2,
             ]
         )
-
+    else:
+        SSN_filters = np.vstack([e_filters, i_filters, e_off_filters, i_off_filters])
+        SSN_filters = SSN_filters * A
     # remove mean so that input to constant grating is 0
     gabor_filters = SSN_filters - np.mean(SSN_filters, axis=1)[:, None]
 
