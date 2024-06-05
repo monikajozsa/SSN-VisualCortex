@@ -267,10 +267,13 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
 
     # Apply Gabor filters to stimuli
-    gabor_output = numpy.zeros((num_ori, untrained_pars.gabor_filters.shape[0]))
-    for i in range(num_ori):
-        gabor_output[i,:] = np.transpose(np.matmul(untrained_pars.gabor_filters, np.transpose(stimuli[i,:])))
-
+    gabor_output = numpy.zeros((num_ori, untrained_pars.gabor_filters.shape[0],untrained_pars.gabor_filters.shape[1],untrained_pars.gabor_filters.shape[2]))
+    for ori in range(num_ori):
+        for grid_ind in range(untrained_pars.gabor_filters.shape[0]):
+            for phase_ind in range(untrained_pars.gabor_filters.shape[1]):
+                gabor_output[ori,grid_ind,phase_ind,0] = untrained_pars.gabor_filters[grid_ind,phase_ind,0,:]@(stimuli[ori,:].T) # E cells
+                gabor_output[ori,grid_ind,phase_ind,1] = untrained_pars.gabor_filters[grid_ind,phase_ind,1,:]@(stimuli[ori,:].T) # I cells
+    
     return gabor_output
 
 

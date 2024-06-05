@@ -56,6 +56,7 @@ for i in range(1):
 ####### Plotting gabor outputs ########
 # first 4x81 are for E phase 0, pi/2, pi, 3pi/2 next are the same for I cells
 num_phases, num_loc = 4, 81
+'''
 for i in range(num_phases):
     fig, axs = plt.subplots(9, 9, figsize=(5*9, 5*9))
     phases = numpy.array([0,1,2,3])
@@ -63,21 +64,24 @@ for i in range(num_phases):
     for loc1 in range(9):
         for loc2 in range(9):
             # E cells
-            axs[loc1,loc2].plot(gabor_outputs[:,i*81+loc1+9*loc2])
+            axs[loc1,loc2].plot(gabor_outputs[:,loc1+9*loc2,i,0])
             # I cells
-            axs[loc1,loc2].plot(gabor_outputs[:,4*81+i*81+loc1+9*loc2])
+            axs[loc1,loc2].plot(gabor_outputs[:,loc1+9*loc2,i,1])
             axs[loc1,loc2].set_title(f'phase {phase_label[i]}, loc:{loc1,loc2}')
     plt.savefig(f'gabor_outputs_phase_{i}.png')
     plt.close()
-
+'''
+#(grid_size_2D, num_phases, 2, image_size)
 for i in range(num_phases):
     fig, axs = plt.subplots(9, 9, figsize=(5*9, 5*9))
     phases = numpy.array([0,1,2,3])
     phase_label = ['0', 'pi/2', 'pi', '3pi/2']
+    #vmax_val= np.max(np.abs(gabors[0:81,0,0,:]))
+    #vmin_val= -vmax_val
     for loc1 in range(9):
         for loc2 in range(9):# when loc 2 is 4, the phase seems to be consistent, otherwise, it is not!
-            # E cells
-            axs[loc1,loc2].imshow(np.reshape(gabors[i*81+loc1+9*loc2,:],(129,129)))
+            # E cells            
+            axs[loc1,loc2].imshow(np.reshape(gabors[loc1+9*loc2,i,0,:],(129,129)))#, cmap='seismic')#, vmin=vmin_val, vmax=vmax_val)
             axs[loc1,loc2].set_title(f'phase {phase_label[i]}, loc:{loc1,loc2}')
     plt.savefig(f'gabors_phase_{i}.png')
     plt.close()
