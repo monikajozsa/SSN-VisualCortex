@@ -256,23 +256,45 @@ def rel_changes(df, num_indices=3):
 
 
 def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
-    
+    gabor_filters = untrained_pars.gabor_filters
     num_ori = len(ori_vec)
-    x = untrained_pars.BW_image_jax_inp[5]
-    y = untrained_pars.BW_image_jax_inp[6]
-    alpha_channel = untrained_pars.BW_image_jax_inp[7]
-    mask = untrained_pars.BW_image_jax_inp[8]
-    background = untrained_pars.BW_image_jax_inp[9]
+    #x = untrained_pars.BW_image_jax_inp[5]
+    #y = untrained_pars.BW_image_jax_inp[6]
+    #alpha_channel = untrained_pars.BW_image_jax_inp[7]
+    #mask = untrained_pars.BW_image_jax_inp[8]
+    #background = untrained_pars.BW_image_jax_inp[9]
     
-    stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
+    #stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
 
+    # Full image version with no background
+    x, y = numpy.mgrid[
+        -64 : 64 + 1.0,
+        -64 : 64 + 1.0,
+    ]
+    x = np.array(x)
+    y = np.array(y)
+    stimuli = BW_image_full_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, ori_vec, np.zeros(num_ori))
     # Apply Gabor filters to stimuli
-    gabor_output = numpy.zeros((num_ori, untrained_pars.gabor_filters.shape[0],untrained_pars.gabor_filters.shape[1],untrained_pars.gabor_filters.shape[2]))
+    gabor_output = numpy.zeros((num_ori, gabor_filters.shape[0],gabor_filters.shape[1],gabor_filters.shape[2]))
     for ori in range(num_ori):
-        for grid_ind in range(untrained_pars.gabor_filters.shape[0]):
-            for phase_ind in range(untrained_pars.gabor_filters.shape[1]):
-                gabor_output[ori,grid_ind,phase_ind,0] = untrained_pars.gabor_filters[grid_ind,phase_ind,0,:]@(stimuli[ori,:].T) # E cells
-                gabor_output[ori,grid_ind,phase_ind,1] = untrained_pars.gabor_filters[grid_ind,phase_ind,1,:]@(stimuli[ori,:].T) # I cells
+        for grid_ind in range(gabor_filters.shape[0]):
+            for phase_ind in range(gabor_filters.shape[1]):
+                gabor_output[ori,grid_ind,phase_ind,0] = gabor_filters[grid_ind,phase_ind,0,:]@(stimuli[ori,:].T) # E cells
+                gabor_output[ori,grid_ind,phase_ind,1] = gabor_filters[grid_ind,phase_ind,1,:]@(stimuli[ori,:].T) # I cells
+    
+    # Testing by visualizing
+    plt.close()
+    plt.plot(np.mean(stimuli,axis=1))
+    plt.show()
+
+    fig, axs = plt.subplots(5, 10, figsize=(5*10, 5*9))
+    axs_flat = axs.flatten()
+    gabor_test = 2*np.reshape(gabor_filters[0,0,0,:]/(max(gabor_filters[0,0,0,:])-min(gabor_filters[0,0,0,:]))+min(gabor_filters[0,0,0,:]), (129,129))
+    for ori in range(49):
+        stim_ori = np.reshape(stimuli[ori,:]/(max(stimuli[ori,:])-min(stimuli[ori,:]))+min(gabor_filters[0,0,0,:]),(129,129))
+        axs_flat[ori].imshow(stim_ori + gabor_test)
+    axs_flat[89].plot(gabor_output[:,0,0,0])
+    plt.savefig('tests/FullImages_and_Gabors.png')
     
     return gabor_output
 

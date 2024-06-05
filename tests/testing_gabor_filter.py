@@ -68,9 +68,9 @@ for i in range(num_phases):
             # I cells
             axs[loc1,loc2].plot(gabor_outputs[:,loc1+9*loc2,i,1])
             axs[loc1,loc2].set_title(f'phase {phase_label[i]}, loc:{loc1,loc2}')
-    plt.savefig(f'gabor_outputs_phase_{i}.png')
+    plt.savefig(f'tests/gabor_outputs_phase_{i}_shift_each.png')
     plt.close()
-'''
+
 #(grid_size_2D, num_phases, 2, image_size)
 for i in range(num_phases):
     fig, axs = plt.subplots(9, 9, figsize=(5*9, 5*9))
@@ -83,9 +83,9 @@ for i in range(num_phases):
             # E cells            
             axs[loc1,loc2].imshow(np.reshape(gabors[loc1+9*loc2,i,0,:],(129,129)))#, cmap='seismic')#, vmin=vmin_val, vmax=vmax_val)
             axs[loc1,loc2].set_title(f'phase {phase_label[i]}, loc:{loc1,loc2}')
-    plt.savefig(f'gabors_phase_{i}.png')
+    plt.savefig(f'tests/gabors_phase_{i}_shift_each.png')
     plt.close()
-
+'''
 '''
 fig, axs = plt.subplots(8, 6, figsize=(5*3, 5*8))
 for i in range(8):

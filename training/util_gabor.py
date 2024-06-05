@@ -387,23 +387,18 @@ def gabor_filter(x_i, y_i,k,sigma_g,angle,gridsize_deg,degree_per_pixel,phase=0,
     y_2D = np.repeat(y_1D, N_pixels, axis=0)
     diff_y = y_2D - y_i
 
-    # matching the stimuli convention
-    #x_axis2 = np.reshape(x_axis, (N_pixels, 1))
-    #x_i2 = np.repeat(x_i, N_pixels)
-    #x_i2 = np.reshape(x_i2, (1,N_pixels))
-    #diff_x = x_axis2 - x_i2
-
-    #y_axis2 = np.reshape(y_axis, (1, N_pixels))
-    #y_i2 = np.repeat(y_i, N_pixels)
-    #y_i2 = np.reshape(y_i2, (N_pixels,1))
-    #diff_y = y_axis2 - y_i2
-
     # Calculate the spatial component of the Gabor filter (same convention as stimuli)
     spatial_component = np.cos(2 * np.pi * k  * (diff_x * np.cos(angle) + diff_y * np.sin(angle)) + phase)
     # Calculate the Gaussian component of the Gabor filter
     gaussian = np.exp(-0.5 * (diff_x**2 + diff_y**2) / sigma_g**2)
-
-    return np.array(gaussian * spatial_component[::-1]) 
+    '''fig, axs = plt.subplots(1, 2, figsize=(5*2, 5*1))
+    spatial_component2 = np.cos(2 * np.pi * k  * (x_2D * np.cos(angle) + y_2D * np.sin(angle)) + phase)
+    gaussian2 = np.exp(-0.5 * (x_2D**2 + y_2D**2) / sigma_g**2)
+    axs[1].imshow(spatial_component2+gaussian2)
+    axs[0].imshow(spatial_component+gaussian)
+    plt.savefig('tests/gaussian_spatial_shift.png')'''
+    gabor_filter= np.array(gaussian * spatial_component)
+    return  gabor_filter #np.array(gaussian * spatial_component[::-1]) 
 
         
 def find_gabor_A(
@@ -496,8 +491,8 @@ def create_gabor_filters_ori_map(
         for i in range(grid_size_1D):
             for j in range(grid_size_1D):
                 gabor = gabor_filter(
-                    0,#grid_pars.x_map[0, 0], 
-                    0,#grid_pars.y_map[0, 0],
+                    grid_pars.x_map[i, j], 
+                    grid_pars.y_map[i, j],
                     filter_pars.k,
                     filter_pars.sigma_g,
                     ori_map[i, j],
@@ -508,10 +503,6 @@ def create_gabor_filters_ori_map(
                 )                
                 gabors_demean[i+grid_size_1D*j,phases_ind,:] = A * (gabor.ravel()-np.mean(gabor)) # E filters
     
-    #gabors_all[0:k*grid_size_2D,:] = filter_pars.gE_m*gabors_demean # E filters phase 0 and pi/2
-    #gabors_all[k*grid_size_2D:(2*k)*grid_size_2D,:] = - filter_pars.gE_m*gabors_demean # E filters with opposite phases
-    #gabors_all[2*k*grid_size_2D:(3*k)*grid_size_2D,:] = filter_pars.gI_m*gabors_demean # I filters phase 0 and pi/2
-    #gabors_all[3*k*grid_size_2D:4*k*grid_size_2D,:] = - filter_pars.gI_m*gabors_demean # I filters with opposite phases
     gabors_all[:,0:k,0,:] = filter_pars.gE_m*gabors_demean # E filters phase 0 and pi/2
     gabors_all[:,k:2*k,0,:] = - filter_pars.gE_m*gabors_demean # E filters with opposite phases
     gabors_all[:,0:k,1,:] = filter_pars.gI_m*gabors_demean # I filters phase 0 and pi/2
