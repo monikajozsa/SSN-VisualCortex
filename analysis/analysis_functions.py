@@ -267,12 +267,17 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     #stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
 
     # Full image version with no background
-    x, y = numpy.mgrid[
-        -64 : 64 + 1.0,
-        -64 : 64 + 1.0,
-    ]
-    x = np.array(x)
-    y = np.array(y)
+    N_pixels = int(untrained_pars.filter_pars.gridsize_deg * 2 / untrained_pars.filter_pars.degree_per_pixel) + 1
+    x_1D = np.linspace(-untrained_pars.filter_pars.gridsize_deg, untrained_pars.filter_pars.gridsize_deg, N_pixels, endpoint=True)
+    x_1D = np.reshape(x_1D, (N_pixels,1))
+    y_1D = np.linspace(-untrained_pars.filter_pars.gridsize_deg, untrained_pars.filter_pars.gridsize_deg, N_pixels, endpoint=True)
+    y_1D = np.reshape(y_1D, (1,N_pixels))
+
+    ########## Construct filter as an attribute ##########    
+    # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
+    x = np.repeat(x_1D, N_pixels, axis=1)
+    y = np.repeat(y_1D, N_pixels, axis=0)
+    
     stimuli = BW_image_full_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, ori_vec, np.zeros(num_ori))
     # Apply Gabor filters to stimuli
     gabor_output = numpy.zeros((num_ori, gabor_filters.shape[0],gabor_filters.shape[1],gabor_filters.shape[2]))
@@ -284,6 +289,7 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     
     # Testing by visualizing
     plt.close()
+    plt.clf()
     plt.plot(np.mean(stimuli,axis=1))
     plt.show()
 
@@ -293,7 +299,7 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     for ori in range(49):
         stim_ori = np.reshape(stimuli[ori,:]/(max(stimuli[ori,:])-min(stimuli[ori,:]))+min(gabor_filters[0,0,0,:]),(129,129))
         axs_flat[ori].imshow(stim_ori + gabor_test)
-    axs_flat[89].plot(gabor_output[:,0,0,0])
+    axs_flat[49].plot(gabor_output[:,0,0,0])
     plt.savefig('tests/FullImages_and_Gabors.png')
     
     return gabor_output
