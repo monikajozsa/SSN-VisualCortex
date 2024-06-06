@@ -217,9 +217,9 @@ def BW_image_jax_supp(stimuli_pars, phase=0.0):
     pixel_per_degree = 1 / degree_per_pixel
     smooth_sd = pixel_per_degree / 6
     grating_size = round(stimuli_pars.outer_radius * pixel_per_degree)
-    size = int(stimuli_pars.gridsize_deg * 2 * pixel_per_degree) + 1
-    spatial_freq = stimuli_pars.k * degree_per_pixel 
-    
+    gridsize_deg = stimuli_pars.gridsize_deg
+    size = int(stimuli_pars.gridsize_deg  * 2 * pixel_per_degree) + 1
+    '''
     # Generate a 2D grid of coordinates
     x, y = numpy.mgrid[
         -grating_size : grating_size + 1.0,
@@ -227,12 +227,25 @@ def BW_image_jax_supp(stimuli_pars, phase=0.0):
     ]
     x_jax = np.array(x)
     y_jax = np.array(y)
-
-    # Calculate the distance from the center for each pixel
+    '''
+    # following the same pattern as in gabor filter generation
+    N_pixels = grating_size*2+1
+    x_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
+    x_1D = np.reshape(x_1D, (N_pixels,1))
+    y_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
+    y_1D = np.reshape(y_1D, (1,N_pixels))
+    x_jax= np.repeat(x_1D, N_pixels, axis=1)    
+    y_jax = np.repeat(y_1D, N_pixels, axis=0)
+    
+    ##### Calculating alpha_channel_jax, mask_bool and background_jax #####
+    x, y = numpy.mgrid[
+        -grating_size : grating_size + 1.0,
+        -grating_size : grating_size + 1.0,
+    ]
     edge_control_dist = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
     edge_control = numpy.divide(edge_control_dist, pixel_per_degree)
 
-    # Create a matrix (alpha_channel) that is 255 (white) within the inner_radius and exponentially fades to 0 as the radius increases
+    # Define a matrix (alpha_channel) that is 255 (white) within the inner_radius and exponentially fades to 0 as the radius increases
     overrado = edge_control > stimuli_pars.inner_radius
     d = grating_size * 2 + 1
     annulus = numpy.ones((d, d))
@@ -241,7 +254,7 @@ def BW_image_jax_supp(stimuli_pars, phase=0.0):
     alpha_channel = annulus.reshape(d,d) * _WHITE
     alpha_channel_jax = np.array(alpha_channel)
 
-    # Create a boolean mask for outside the grating size - this will be used to set pixels outside the grating size to _GRAY
+    # Define a boolean mask for outside the grating size - this will be used to set pixels outside the grating size to _GRAY
     mask = (edge_control_dist > grating_size).reshape((2 * int(grating_size) + 1,2 * int(grating_size) + 1))
     mask_bool = np.array(mask, dtype=bool)
 
@@ -251,11 +264,11 @@ def BW_image_jax_supp(stimuli_pars, phase=0.0):
     bbox_width = np.abs(center_y - grating_size)
     start_indices = (int(bbox_height), int(bbox_width))
 
-    # Create gray background
+    # Define gray background
     background_jax = np.full((size, size), _GRAY, dtype=np.float32)
 
-    # Create a constant input for BW_image_jax
-    BW_image_const_inp = (spatial_freq, stimuli_pars.grating_contrast, phase, stimuli_pars.std, start_indices, x_jax, y_jax, alpha_channel_jax, mask_bool, background_jax)
+    # Define input for BW_image_jax or 
+    BW_image_const_inp = (stimuli_pars.k, stimuli_pars.grating_contrast, phase, stimuli_pars.std, start_indices, x_jax, y_jax, alpha_channel_jax, mask_bool, background_jax)
     
     return BW_image_const_inp
 
@@ -277,7 +290,7 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
     - images: The final images
     """
     _GRAY = 128.0
-    spatial_freq = BW_image_const_inp[0]
+    k = BW_image_const_inp[0]
     grating_contrast = BW_image_const_inp[1]
     phases = BW_image_const_inp[2]
     start_indices = BW_image_const_inp[4]
@@ -286,7 +299,8 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
     angle = ((ref_ori + jitter) - 90) / 180 * np.pi
 
     # Compute the spatial component of the grating
-    spatial_component = np.cos(2 * np.pi * spatial_freq * (x * np.cos(angle) + y * np.sin(angle) ) + phases )
+    spatial_component = np.cos(2 * np.pi * k * (x * np.cos(angle) + y * np.sin(angle) ) + phases )
+    
     # Generate the Gabor stimulus
     gabor_sti = _GRAY * (1 + grating_contrast * spatial_component)
 
@@ -304,15 +318,12 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
     # Update the background image with result_roi
     combined_image = lax.dynamic_update_slice(background, result_roi, start_indices)
 
-    # Flatten and scale the image; the scaling is historical and may not be necessary
-    image = 3 * combined_image.ravel()
-
-    return image
+    return combined_image.ravel()
 
 def BW_image_full(BW_image_const_inp, x, y, ref_ori, jitter):
     '''Do what BW_image_jax does but without the GRAY backgroung'''
     _GRAY = 128.0
-    spatial_freq = BW_image_const_inp[0]
+    k = BW_image_const_inp[0]
     grating_contrast = BW_image_const_inp[1]
     phases = BW_image_const_inp[2]
 
@@ -320,7 +331,7 @@ def BW_image_full(BW_image_const_inp, x, y, ref_ori, jitter):
     angle = ((ref_ori + jitter) - 90) / 180 * np.pi
 
     # Compute the spatial component of the grating # spatial_freq=0.05 default
-    spatial_component = np.cos(2 * np.pi * spatial_freq * (x * np.cos(angle) + y * np.sin(angle) ) + phases )
+    spatial_component = np.cos(2 * np.pi * k *(x * np.cos(angle) + y * np.sin(angle) ) + phases )
     # Generate the Gabor stimulus
     gabor_sti = _GRAY * (1 + grating_contrast * spatial_component)
     
