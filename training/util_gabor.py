@@ -189,19 +189,7 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_par
                 break
     
     gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, flatten=True)
-    '''
-    # testing the gabor output - should be below 100 - not quite because we do not do phase matching in find_gabor_A?
-    ori=45
-    BW_image_jit_inp_all = BW_image_jax_supp(stimuli_pars, phase = 0)
-    x = BW_image_jit_inp_all[5]
-    y = BW_image_jit_inp_all[6]
-    alpha_channel = BW_image_jit_inp_all[7]
-    mask = BW_image_jit_inp_all[8]
-    background = BW_image_jit_inp_all[9]
-
-    test_stimuli = BW_image_jax(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori, 0)
-    gabor_filters[0,:] @ test_stimuli
-    '''
+    
     oris = ssn_ori_map.ravel()[:, None]
     ori_dist = cosdiff_ring(oris - oris.T, 180)
     
@@ -218,61 +206,46 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_par
 
 
 ###### Functions for grating generation ###### ***
-def BW_image_jax_supp(stimuli_pars, phase=0.0):
+def BW_image_jax_supp(stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=False):
     """
     This function supports BW_image_jax (that generates grating images) by calculating variables that do not need to be recalculated in the training loop. 
     """     
-    _BLACK = 0
     _WHITE = 255
-    _GRAY = round((_WHITE + _BLACK) / 2)
     degree_per_pixel = stimuli_pars.degree_per_pixel
     pixel_per_degree = 1 / degree_per_pixel
     smooth_sd = pixel_per_degree / 6
-    grating_size = round(stimuli_pars.outer_radius * pixel_per_degree)
-    gridsize_deg = stimuli_pars.gridsize_deg
-    size = int(stimuli_pars.gridsize_deg  * 2 * pixel_per_degree) + 1
     
-    # following the same pattern as in gabor filter generation
-    N_pixels = grating_size*2+1
-    x_jax, y_jax = calculate_shifted_coords_mm(gridsize_deg, N_pixels)
+    # Getting image coordinates
+    x_jax, y_jax, N_pixs = calculate_shifted_coords_mm(stimuli_pars, x0, y0)
     
     ##### Calculating alpha_channel_jax, mask_bool and background_jax #####
-    x, y = numpy.mgrid[
-        -grating_size : grating_size + 1.0,
-        -grating_size : grating_size + 1.0,
-    ]
+    x = np.round(2 * x_jax /(stimuli_pars.magnif_factor * degree_per_pixel))
+    y = np.round(2 * y_jax /(stimuli_pars.magnif_factor * degree_per_pixel))
     edge_control_dist = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
     edge_control = numpy.divide(edge_control_dist, pixel_per_degree)
-
     # Define a matrix (alpha_channel) that is 255 (white) within the inner_radius and exponentially fades to 0 as the radius increases
     overrado = edge_control > stimuli_pars.inner_radius
-    d = grating_size * 2 + 1
-    annulus = numpy.ones((d, d))
-    exponent_part = -1 * ((edge_control[overrado] - stimuli_pars.inner_radius) * pixel_per_degree) ** 2 / (2 * (smooth_sd**2))
-    annulus[overrado] *= numpy.exp(exponent_part)
-    alpha_channel = annulus.reshape(d,d) * _WHITE
+    annulus = numpy.ones((N_pixs, N_pixs))
+    if not full_grating:
+        exponent_part = -1 * ((edge_control[overrado] - stimuli_pars.inner_radius) * pixel_per_degree) ** 2 / (2 * (smooth_sd**2))
+        annulus[overrado] *= numpy.exp(exponent_part)
+    alpha_channel = annulus.reshape(N_pixs,N_pixs) * _WHITE
     alpha_channel_jax = np.array(alpha_channel)
 
     # Define a boolean mask for outside the grating size - this will be used to set pixels outside the grating size to _GRAY
-    mask = (edge_control_dist > grating_size).reshape((2 * int(grating_size) + 1,2 * int(grating_size) + 1))
+    if not full_grating:
+        mask = (edge_control_dist > (N_pixs-1)//2).reshape((N_pixs,N_pixs))
+    else:
+        mask = np.zeros_like(alpha_channel_jax) # if we want full gratings with no masking with the background
     mask_bool = np.array(mask, dtype=bool)
 
-    # Define indices for bounding box
-    center_x, center_y = size // 2, size // 2
-    bbox_height = np.abs(center_x - grating_size)
-    bbox_width = np.abs(center_y - grating_size)
-    start_indices = (int(bbox_height), int(bbox_width))
-
-    # Define gray background
-    background_jax = np.full((size, size), _GRAY, dtype=np.float32)
-
     # Define input for BW_image_jax or 
-    BW_image_const_inp = (stimuli_pars.k, stimuli_pars.grating_contrast, phase, stimuli_pars.std, start_indices, x_jax, y_jax, alpha_channel_jax, mask_bool, background_jax)
+    BW_image_const_inp = (stimuli_pars.k, stimuli_pars.grating_contrast, phase, stimuli_pars.std, x_jax, y_jax, alpha_channel_jax, mask_bool)
     
     return BW_image_const_inp
 
 
-def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter):
+def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, jitter):
     """
     Creates grating images.
     
@@ -281,7 +254,6 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
     - x, y: Meshgrid arrays for spatial coordinates.
     - alpha_channel: Alpha channel for blending.
     - mask: Binary mask for the stimulus.
-    - background: Background image.
     - ref_ori: Reference orientation for the Gabor stimulus.
     - jitter: Orientation jitter.
     
@@ -292,7 +264,6 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
     k = BW_image_const_inp[0]
     grating_contrast = BW_image_const_inp[1]
     phases = BW_image_const_inp[2]
-    start_indices = BW_image_const_inp[4]
       
     # Calculate the angle in radians, incorporating the orientation and jitter
     angle = ((ref_ori + jitter) - 90) / 180 * np.pi
@@ -307,18 +278,16 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
     gabor_sti = np.where(mask, _GRAY, gabor_sti)
 
     # Blend the Gabor stimulus with the alpha channel in ROI
-    if gabor_sti.shape[0]+2*start_indices[0]==background.shape[0]: # this is true for regular call of the function but not true for find_gabor_A, when gabor_sti is 257x257 and not 121x121
-        result_roi = np.floor(alpha_channel / 256 * gabor_sti + (1.0 - alpha_channel / 256) * _GRAY)
-    else:
-        alpha_channel_resized = alpha_channel[start_indices[0]:-start_indices[0],start_indices[1]:-start_indices[1]] 
-        gabor_sti_resized = gabor_sti[start_indices[0]:-start_indices[0],start_indices[1]:-start_indices[1]] 
-        result_roi = np.floor(alpha_channel_resized / 256 * gabor_sti_resized + (1.0 - alpha_channel_resized / 256) * _GRAY)
-    
-    # Update the background image with result_roi
-    combined_image = lax.dynamic_update_slice(background, result_roi, start_indices)
+    final_image = np.floor(alpha_channel / 256 * gabor_sti + (1.0 - alpha_channel / 256) * _GRAY)
 
-    return 3*combined_image.ravel()
+    return final_image.ravel()
+# Vectorize BW_image function to process batches
+BW_image_vmap = vmap(BW_image_jax, in_axes=(None,None,None,None,None,0,0))
 
+# Compile the vectorized functions for performance
+BW_image_jit = jit(BW_image_vmap, static_argnums=[0])
+
+"""
 def BW_image_full(BW_image_const_inp, x, y, ref_ori, jitter):
     '''Do what BW_image_jax does but without the GRAY backgroung'''
     _GRAY = 128.0
@@ -335,23 +304,18 @@ def BW_image_full(BW_image_const_inp, x, y, ref_ori, jitter):
     gabor_sti = _GRAY * (1 + grating_contrast * spatial_component)
     
     return 3*gabor_sti.ravel()
-
-# Vectorize BW_image function to process batches
-BW_image_vmap = vmap(BW_image_jax, in_axes=(None,None,None,None,None,None,0,0))
 BW_image_full_vmap = vmap(BW_image_full, in_axes=(None,None,None,0,0))
-# Compile the vectorized functions for performance
-BW_image_jit = jit(BW_image_vmap, static_argnums=[0])
 BW_image_full_jit = jit(BW_image_full_vmap, static_argnums=[0])
+"""
 
-def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter, background_flag = True):
+
+def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter):
     """
     Calls BW_image_jit function and adds Gaussian noise to its output.
     """
     # Generate the images
-    if background_flag:
-        images = BW_image_jit(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter)
-    else:
-        images = BW_image_full_jit(BW_image_const_inp, x, y, ref_ori, jitter)
+    images = BW_image_jit(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_ori, jitter)
+    
     # Add noise to the images
     if BW_image_const_inp[3]>0:
         noisy_images = images + np.array(numpy.random.normal(loc=0, scale=BW_image_const_inp[3], size=images.shape))
@@ -362,8 +326,12 @@ def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background
 
 #### Functions for gabor filters ####
 
-def calculate_shifted_coords_mm(gridsize_deg, N_pixels, x_i=0, y_i=0):
+def calculate_shifted_coords_mm(class_pars, x0=0, y0=0):
     # create image axis
+    gridsize_deg = class_pars.gridsize_deg
+    magnif_factor = class_pars.magnif_factor
+    degree_per_pixel = class_pars.degree_per_pixel
+    N_pixels = int(magnif_factor * gridsize_deg / degree_per_pixel) + 1
     x_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
     x_1D = np.reshape(x_1D, (N_pixels, 1))
     y_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
@@ -371,14 +339,14 @@ def calculate_shifted_coords_mm(gridsize_deg, N_pixels, x_i=0, y_i=0):
 
     # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
     x_2D = np.repeat(x_1D, N_pixels, axis=1)
-    diff_x = x_2D - x_i
+    diff_x = x_2D - x0
 
     y_2D = np.repeat(y_1D, N_pixels, axis=0)
-    diff_y = y_2D - y_i
+    diff_y = y_2D - y0
 
-    return diff_x, diff_y
+    return diff_x, diff_y, N_pixels
 
-def gabor_filter(x_i, y_i,filter_pars,angle,phase=0):
+def gabor_filter(x0, y0,filter_pars,angle,phase=0):
     """
     Creates Gabor filters.
     Inputs:
@@ -389,17 +357,13 @@ def gabor_filter(x_i, y_i,filter_pars,angle,phase=0):
     """
     k = filter_pars.k
     sigma_g = filter_pars.sigma_g
-    gridsize_deg = filter_pars.gridsize_deg
-    degree_per_pixel = filter_pars.degree_per_pixel
     magnif_factor=filter_pars.magnif_factor
     # convert to mm from degrees and radian from degree
-    x_i = x_i / magnif_factor
-    y_i = y_i / magnif_factor
+    x0 = x0 / magnif_factor
+    y0 = y0 / magnif_factor
     angle = angle * (np.pi / 180)
-    # calculate the number of pixels by converting gridsize_deg to pixels
-    N_pixels = int(magnif_factor * gridsize_deg / degree_per_pixel) + 1
 
-    diff_x, diff_y = calculate_shifted_coords_mm(gridsize_deg, N_pixels, x_i, y_i)
+    diff_x, diff_y, _ = calculate_shifted_coords_mm(filter_pars, x0, y0)
 
     # Calculate the spatial component of the Gabor filter (same convention as stimuli)
     spatial_component = np.cos(2 * np.pi * k  * (diff_x * np.cos(angle) + diff_y * np.sin(angle)) + phase)
@@ -430,8 +394,6 @@ def find_gabor_A(
     Output:
         A: value of constant so that contrast = 100
     """
-    k = filter_pars.k
-    gridsize_deg = filter_pars.gridsize_deg
     all_A = []
     # handling the scalar case
     if isinstance(oris, (int, float, numpy.integer, numpy.float16, numpy.float32)):
@@ -443,32 +405,23 @@ def find_gabor_A(
         # extract original parameters
         #grating_size = round(local_stimuli_pars.outer_radius / local_stimuli_pars.degree_per_pixel)
         #N_pixels = int(grating_size*2+1)
-        local_stimuli_pars.gridsize_deg = gridsize_deg
-        local_stimuli_pars.k = k
-        local_stimuli_pars.outer_radius = gridsize_deg * 2
-        local_stimuli_pars.inner_radius = gridsize_deg * 2
-        local_stimuli_pars.grating_contrast = 0.99
+        #local_stimuli_pars.gridsize_deg = gridsize_deg
+        #local_stimuli_pars.k = k
+        #local_stimuli_pars.outer_radius = gridsize_deg * 2
+        #local_stimuli_pars.inner_radius = gridsize_deg * 2
+        #local_stimuli_pars.grating_contrast = 0.99
         local_stimuli_pars.jitter_val = 0
         local_stimuli_pars.std = 0
         local_stimuli_pars.ref_ori = ori
         
         # generate test stimuli at ori orientation
         BW_image_jit_inp_all = BW_image_jax_supp(local_stimuli_pars, phase = phase)
-        x = BW_image_jit_inp_all[5]
-        y = BW_image_jit_inp_all[6]
-        ''' This is how x and y are calculated within BW_image_jax_supp
-        x_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
-        x_1D = np.reshape(x_1D, (N_pixels,1))
-        y_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
-        y_1D = np.reshape(y_1D, (1,N_pixels))
-        x = np.repeat(x_1D, N_pixels, axis=1)    
-        y = np.repeat(y_1D, N_pixels, axis=0)
-        '''
-        alpha_channel = BW_image_jit_inp_all[7]
-        mask = BW_image_jit_inp_all[8]
-        background = BW_image_jit_inp_all[9] # this is the only 129 x 129, all x, y, alpha_channel, mask are 257x257 and this makes test_stimuli the right size
+        x = BW_image_jit_inp_all[4]
+        y = BW_image_jit_inp_all[5]
+        alpha_channel = BW_image_jit_inp_all[6]
+        mask = BW_image_jit_inp_all[7]
         
-        test_stimuli = BW_image_jax(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori, 0) #BW_image_full(BW_image_jit_inp_all[0:5], x, y,  ori, 0)#
+        test_stimuli = BW_image_jax(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, ori, 0) #BW_image_full(BW_image_jit_inp_all[0:5], x, y,  ori, 0)#
         
         # Generate Gabor filter at orientation
         gabor = gabor_filter(0, 0,filter_pars,ori,phase=phase)

@@ -163,6 +163,8 @@ class StimuliPars:
     ''' edge length in degrees - visual field, same as grid_pars.gridsize_deg '''
     degree_per_pixel = filter_pars.degree_per_pixel  
     ''' convert degree to number of pixels (129 x 129), note that this is not an independent parameter and could be calculated from other parameters '''
+    magnif_factor: float = grid_pars.magnif_factor
+    ''' converts deg to mm (mm/deg), same as magnification factor '''
     ref_ori: float = 55.0 
     ''' reference orientation of the stimulus in degree '''
     offset: float = 4.0 

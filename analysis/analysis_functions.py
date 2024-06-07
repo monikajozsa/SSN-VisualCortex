@@ -13,7 +13,7 @@ from training.model import evaluate_model_response, vmap_evaluate_model_response
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import mean_training_task_acc_test, offset_at_baseline_acc, generate_noise
 from util import load_parameters, sep_exponentiate #, create_grating_training
-from training.util_gabor import init_untrained_pars, BW_image_jit, BW_image_jit_noisy, BW_image_jax_supp, BW_image_full_jit
+from training.util_gabor import init_untrained_pars, BW_image_jit, BW_image_jit_noisy, BW_image_jax_supp
 from parameters import (
     xy_distance,
     grid_pars,
@@ -258,28 +258,16 @@ def rel_changes(df, num_indices=3):
 def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     gabor_filters = untrained_pars.gabor_filters
     num_ori = len(ori_vec)
-    #x = untrained_pars.BW_image_jax_inp[5]
-    #y = untrained_pars.BW_image_jax_inp[6]
-    #alpha_channel = untrained_pars.BW_image_jax_inp[7]
-    #mask = untrained_pars.BW_image_jax_inp[8]
-    #background = untrained_pars.BW_image_jax_inp[9]
-    
-    #stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
+    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=True) # *** this will be in the for loop and x0 and y0 will change according to the untrained_pars.grid_pars.x_map, y_map!
 
     # Full image version with no background
-    N_pixels = int(untrained_pars.filter_pars.gridsize_deg * 2 / untrained_pars.filter_pars.degree_per_pixel) + 1
-    x_1D = np.linspace(-untrained_pars.filter_pars.gridsize_deg, untrained_pars.filter_pars.gridsize_deg, N_pixels, endpoint=True)
-    x_1D = np.reshape(x_1D, (N_pixels,1))
-    y_1D = np.linspace(-untrained_pars.filter_pars.gridsize_deg, untrained_pars.filter_pars.gridsize_deg, N_pixels, endpoint=True)
-    y_1D = np.reshape(y_1D, (1,N_pixels))
-
-    ########## Construct filter as an attribute ##########    
-    # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
-    x = np.repeat(x_1D, N_pixels, axis=1)
-    y = np.repeat(y_1D, N_pixels, axis=0)
+    x = BW_image_jax_inp[4]
+    y = BW_image_jax_inp[5]
+    alpha_channel = BW_image_jax_inp[6]
+    mask = BW_image_jax_inp[7]
     if len(gabor_filters.shape)==2:
         gabor_filters = np.reshape(gabor_filters, (untrained_pars.grid_pars.gridsize_Nx **2,untrained_pars.ssn_pars.phases,2,-1)) # the third dimension 2 is for I and E cells, the last dim is the image size
-    stimuli = BW_image_full_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, ori_vec, np.zeros(num_ori))
+    stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori))
     # Apply Gabor filters to stimuli
 
     gabor_output = numpy.zeros((num_ori, gabor_filters.shape[0],gabor_filters.shape[1],gabor_filters.shape[2]))
@@ -298,7 +286,7 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     fig, axs = plt.subplots(5, 10, figsize=(5*10, 5*9))
     axs_flat = axs.flatten()
     gabor_test = 2*np.reshape(gabor_filters[0,0,0,:]/(max(gabor_filters[0,0,0,:])-min(gabor_filters[0,0,0,:]))+min(gabor_filters[0,0,0,:]), (129,129))
-    for ori in range(49):
+    for ori in range(10):
         stim_ori = np.reshape(stimuli[ori,:]/(max(stimuli[ori,:])-min(stimuli[ori,:]))+min(gabor_filters[0,0,0,:]),(129,129))
         axs_flat[ori].imshow(stim_ori + gabor_test)
     axs_flat[49].plot(gabor_output[:,0,0,0])
