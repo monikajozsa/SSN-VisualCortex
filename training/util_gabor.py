@@ -216,12 +216,12 @@ def BW_image_jax_supp(stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=False)
     smooth_sd = pixel_per_degree / 6
     
     # Getting image coordinates
-    x_jax, y_jax, N_pixs = calculate_shifted_coords_mm(stimuli_pars, x0, y0)
+    x_mm, y_mm, N_pixs = calculate_shifted_coords_mm(stimuli_pars, x0, y0)
     
     ##### Calculating alpha_channel_jax, mask_bool and background_jax #####
-    x = np.round(2 * x_jax /(stimuli_pars.magnif_factor * degree_per_pixel))
-    y = np.round(2 * y_jax /(stimuli_pars.magnif_factor * degree_per_pixel))
-    edge_control_dist = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
+    x_pix = np.round(2 * x_mm /(stimuli_pars.magnif_factor * degree_per_pixel))
+    y_pix = np.round(2 * y_mm /(stimuli_pars.magnif_factor * degree_per_pixel))
+    edge_control_dist = numpy.sqrt(numpy.power(x_pix, 2) + numpy.power(y_pix, 2))
     edge_control = numpy.divide(edge_control_dist, pixel_per_degree)
     # Define a matrix (alpha_channel) that is 255 (white) within the inner_radius and exponentially fades to 0 as the radius increases
     overrado = edge_control > stimuli_pars.inner_radius
@@ -240,7 +240,7 @@ def BW_image_jax_supp(stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=False)
     mask_bool = np.array(mask, dtype=bool)
 
     # Define input for BW_image_jax or 
-    BW_image_const_inp = (stimuli_pars.k, stimuli_pars.grating_contrast, phase, stimuli_pars.std, x_jax, y_jax, alpha_channel_jax, mask_bool)
+    BW_image_const_inp = (stimuli_pars.k, stimuli_pars.grating_contrast, phase, stimuli_pars.std, x_mm, y_mm, alpha_channel_jax, mask_bool)
     
     return BW_image_const_inp
 
@@ -263,14 +263,14 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, jitter)
     _GRAY = 128.0
     k = BW_image_const_inp[0]
     grating_contrast = BW_image_const_inp[1]
-    phases = BW_image_const_inp[2]
+    phase = BW_image_const_inp[2]
       
     # Calculate the angle in radians, incorporating the orientation and jitter
     angle = ((ref_ori + jitter) - 90) / 180 * np.pi
 
     # Compute the spatial component of the grating
-    spatial_component = np.cos(2 * np.pi * k * (x * np.cos(angle) + y * np.sin(angle) ) + phases )
-    
+    spatial_component = np.cos(2 * np.pi * k * (x * np.cos(angle) + y * np.sin(angle) ) + phase )
+    #print('image phase:', 2 * np.pi * k * (np.cos(angle) * x[0,0] + np.sin(angle) * y[0,0]) + phase, 'for angle', angle, 'and phase', phase)
     # Generate the Gabor stimulus
     gabor_sti = _GRAY * (1 + grating_contrast * spatial_component)
 
@@ -337,6 +337,10 @@ def calculate_shifted_coords_mm(class_pars, x0=0, y0=0):
     y_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
     y_1D = np.reshape(y_1D, (1, N_pixels))
 
+    # convert to mm from degrees and radian from degree
+    x0 = x0 / class_pars.magnif_factor
+    y0 = y0 / class_pars.magnif_factor
+
     # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
     x_2D = np.repeat(x_1D, N_pixels, axis=1)
     diff_x = x_2D - x0
@@ -359,14 +363,13 @@ def gabor_filter(x0, y0,filter_pars,angle,phase=0):
     sigma_g = filter_pars.sigma_g
     magnif_factor=filter_pars.magnif_factor
     # convert to mm from degrees and radian from degree
-    x0 = x0 / magnif_factor
-    y0 = y0 / magnif_factor
     angle = angle * (np.pi / 180)
 
     diff_x, diff_y, _ = calculate_shifted_coords_mm(filter_pars, x0, y0)
 
     # Calculate the spatial component of the Gabor filter (same convention as stimuli)
     spatial_component = np.cos(2 * np.pi * k  * (diff_x * np.cos(angle) + diff_y * np.sin(angle)) + phase)
+    #print('gabor phase:', 2 * np.pi * k * (np.cos(angle) * diff_x[0,0] + np.sin(angle) * diff_y[0,0]) + phase, 'for angle', angle, 'and phase', phase)
     # Calculate the Gaussian component of the Gabor filter
     gaussian = np.exp(-0.5 * (diff_x**2 + diff_y**2) / sigma_g**2)
     '''fig, axs = plt.subplots(1, 2, figsize=(5*2, 5*1))
@@ -376,6 +379,7 @@ def gabor_filter(x0, y0,filter_pars,angle,phase=0):
     axs[0].imshow(spatial_component+gaussian)
     plt.savefig('tests/gaussian_spatial_shift.png')'''
     gabor_filter= np.array(gaussian * spatial_component)
+
     return  gabor_filter #np.array(gaussian * spatial_component[::-1]) 
 
 

@@ -70,8 +70,8 @@ for i in range(num_phases):
             axs[loc1,loc2].set_title(f'phase {phase_label[i]}, loc:{loc1,loc2}')
     plt.savefig(f'tests/gabor_outputs_phase_{i}_shift_each.png')
     plt.close()
-
-#(grid_size_2D, num_phases, 2, image_size)
+print(time.time()-start_time)
+# Gabor filter dimensions: (grid_size_2D, num_phases, 2, image_size)
 for i in range(num_phases):
     fig, axs = plt.subplots(9, 9, figsize=(5*9, 5*9))
     phases = numpy.array([0,1,2,3])
@@ -85,29 +85,94 @@ for i in range(num_phases):
             axs[loc1,loc2].set_title(f'phase {phase_label[i]}, loc:{loc1,loc2}')
     plt.savefig(f'tests/gabors_phase_{i}_shift_each.png')
     plt.close()
-
+print(time.time()-start_time)
 '''
-fig, axs = plt.subplots(8, 6, figsize=(5*3, 5*8))
-for i in range(8):
-    gabors_old_0=gabors_old[0]
-    gabors_0=gabors[81*i,:]
-    gabors_0=np.reshape(gabors_0,(129,129))
-    gabors_old_0=np.reshape(gabors_old_0[81*i,:],(129,129))
-    axs[i,0].imshow(gabors_old_0)
-    axs[i,0].set_title('with old code')
-    axs[i,1].imshow(gabors_0)
-    axs[i,1].set_title('with new code')
-    axs[i,2].imshow(gabors_0-gabors_old_0)
-    axs[i,2].set_title(f'tot rel diff: {np.sum(np.abs(gabors_0-gabors_old_0))/np.sum(np.abs(gabors_old_0)):.5f}')
-    gabors_old_21=gabors_old[0]
-    gabors_21=gabors[81*i+21,:]
-    gabors_21=np.reshape(gabors_21,(129,129))
-    gabors_old_21=np.reshape(gabors_old_21[81*i+21,:],(129,129))
-    axs[i,3].imshow(gabors_old_21)
-    axs[i,3].set_title('with old code')
-    axs[i,4].imshow(gabors_21)
-    axs[i,4].set_title('with new code')
-    axs[i,5].imshow(gabors_21-gabors_old_21)
-    axs[i,5].set_title(f'tot rel diff: {np.sum(np.abs(gabors_21-gabors_old_21))/np.sum(np.abs(gabors_old_21)):.5f}')
-plt.savefig('gabors_0_21.png')
+# The gabor_tuning function used for plotting
+def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
+    gabor_filters = untrained_pars.gabor_filters
+    num_ori = len(ori_vec)
+    # Getting the 'blank' alpha_channel and mask for a full image version stimuli with no background
+    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=True) 
+    alpha_channel = BW_image_jax_inp[6]
+    mask = BW_image_jax_inp[7]
+    if len(gabor_filters.shape)==2:
+        gabor_filters = np.reshape(gabor_filters, (untrained_pars.grid_pars.gridsize_Nx **2,untrained_pars.ssn_pars.phases,2,-1)) # the third dimension 2 is for I and E cells, the last dim is the image size
+    
+    # testing the matching of the gabor filters and the stimuli that gives max output
+    plt.close()
+    plt.clf()
+    last_gabor_filter = gabor_filters[-1,-1,0,:]
+    fig, axs = plt.subplots(3, 4, figsize=(5*10, 5*9))
+    axs_flat = axs.flatten()
+    for grid_ind in range(gabor_filters.shape[0]):
+        for phase_ind in range(gabor_filters.shape[1]):
+            i = grid_ind % untrained_pars.grid_pars.gridsize_Nx
+            j = grid_ind // untrained_pars.grid_pars.gridsize_Nx
+            x0 = untrained_pars.grid_pars.x_map[i,j]
+            y0 = untrained_pars.grid_pars.y_map[i,j]
+            BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0=x0, y0=y0, phase=phase_ind * np.pi/2, full_grating=True)
+            x = BW_image_jax_inp[4]
+            y = BW_image_jax_inp[5]
+            ori_from_gabor = untrained_pars.ssn_ori_map[i,j]+90
+            gabor_filter = gabor_filters[grid_ind,phase_ind,0,:]
+            gabor_test = 2*np.reshape(gabor_filter/(max(gabor_filter)-min(gabor_filter))+min(gabor_filter), (129,129))
+            stimuli_max_output = BW_image_jax(BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ref_ori=ori_from_gabor, jitter=0)
+            if grid_ind is in [0,30,60]:
+                col_ind = grid_ind//30
+                axs_flat[phase_ind+4*col_ind].imshow(gabor_test + np.reshape(stimuli_max_output/(max(stimuli_max_output)-min(stimuli_max_output))+min(last_gabor_filter),(129,129)))
+        # give a title to all the subplots
+        plt.suptitle('Max output stimuli of Gabor filters')
+        plt.savefig('tests/testing_max_output_phase.png')
+    
+    # Initialize the gabor output array
+    gabor_output = numpy.zeros((num_ori, gabor_filters.shape[0],gabor_filters.shape[1],gabor_filters.shape[2]))
+    time_start = time.time()
+    for grid_ind in range(gabor_filters.shape[0]):
+        grid_ind_x = grid_ind//untrained_pars.grid_pars.gridsize_Nx
+        grid_ind_y = grid_ind%untrained_pars.grid_pars.gridsize_Nx
+        x0 = untrained_pars.grid_pars.x_map[grid_ind_x, grid_ind_y]
+        y0 = untrained_pars.grid_pars.y_map[grid_ind_x, grid_ind_y]
+        for phase_ind in range(gabor_filters.shape[1]):
+            phase = phase_ind * np.pi/2
+            BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0=x0, y0=y0, phase=phase, full_grating=True)
+            x = BW_image_jax_inp[4]
+            y = BW_image_jax_inp[5]
+            stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori))
+            for ori in range(num_ori):
+                gabor_output[ori,grid_ind,phase_ind,0] = gabor_filters[grid_ind,phase_ind,0,:]@(stimuli[ori,:].T) # E cells
+                gabor_output[ori,grid_ind,phase_ind,1] = gabor_filters[grid_ind,phase_ind,1,:]@(stimuli[ori,:].T) # I cells
+    print('Time elapsed for gabor_output calculation:', time.time()-time_start)
+    
+    # Testing by visualizing the last Gabor filter and a few stimuli
+    plt.close()
+    plt.clf()
+    last_gabor_filter = gabor_filters[-1,0,0,:]
+    phase = 0
+    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0=x0, y0=y0, phase=phase, full_grating=True)
+    x = BW_image_jax_inp[4]
+    y = BW_image_jax_inp[5]
+    stimuli = BW_image_jit(untrained_pars.BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori))
+    fig, axs = plt.subplots(3, 4, figsize=(5*10, 5*9))
+    axs_flat = axs.flatten()
+    gabor_test = 2*np.reshape(last_gabor_filter/(max(last_gabor_filter)-min(last_gabor_filter))+min(last_gabor_filter), (129,129))
+    for i in range(10):
+        ori = i*5
+        stim_ori = np.reshape(stimuli[ori,:]/(max(stimuli[ori,:])-min(stimuli[ori,:]))+min(last_gabor_filter),(129,129))
+        axs_flat[i].imshow(stim_ori + gabor_test)
+
+    x0 = untrained_pars.grid_pars.x_map[-1, -1]
+    y0 = untrained_pars.grid_pars.y_map[-1, -1]
+    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0=x0, y0=y0, phase=0, full_grating=True)
+    x = BW_image_jax_inp[4]
+    y = BW_image_jax_inp[5]
+    ori_from_gabor = -untrained_pars.ssn_ori_map[-1,-1]
+    stimuli_max_output = BW_image_jax(BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_from_gabor, 0)
+    axs_flat[10].imshow(gabor_test + np.reshape(stimuli_max_output/(max(stimuli_max_output)-min(stimuli_max_output))+min(last_gabor_filter),(129,129)))
+    axs_flat[10].set_title('Max output stimuli', fontsize=50)
+    axs_flat[1].set_title('Example stimuli for the output', fontsize=50)
+    axs_flat[11].plot(gabor_output[:,-1,0,0])
+    plt.suptitle('Output of last Gabor with 0 phase', fontsize=70)
+    plt.savefig('tests/FullImages_and_Gabors.png')
+    
+    return gabor_output
 '''
