@@ -217,7 +217,7 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_par
     return untrained_pars
 
 
-###### Functions for grating generation ######
+###### Functions for grating generation ###### ***
 def BW_image_jax_supp(stimuli_pars, phase=0.0):
     """
     This function supports BW_image_jax (that generates grating images) by calculating variables that do not need to be recalculated in the training loop. 
@@ -234,12 +234,7 @@ def BW_image_jax_supp(stimuli_pars, phase=0.0):
     
     # following the same pattern as in gabor filter generation
     N_pixels = grating_size*2+1
-    x_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
-    x_1D = np.reshape(x_1D, (N_pixels,1))
-    y_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
-    y_1D = np.reshape(y_1D, (1,N_pixels))
-    x_jax= np.repeat(x_1D, N_pixels, axis=1)    
-    y_jax = np.repeat(y_1D, N_pixels, axis=0)
+    x_jax, y_jax = calculate_shifted_coords_mm(gridsize_deg, N_pixels)
     
     ##### Calculating alpha_channel_jax, mask_bool and background_jax #####
     x, y = numpy.mgrid[
@@ -366,32 +361,13 @@ def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, background
 
 
 #### Functions for gabor filters ####
-def gabor_filter(x_i, y_i,k,sigma_g,angle,gridsize_deg,degree_per_pixel,phase=0,conv_factor=None):
-    """
-    Creates Gabor filters.
-    Inputs:
-        x_i, y_i: centre of the filter
-        k: spatial frequency in cycles/degrees (radians)
-        sigma_g: variance of Gaussian function
-        theta: orientation map
-        gridsize_deg: extent of the filter in degrees
-        degree_per_pixel: resolution in degrees per pixel
-        phase: phase of the Gabor filter (default is 0)
-        conv_factor: conversion factor from degrees to mm
-    """
 
-    # convert to mm from degrees
-    if conv_factor:
-        x_i = x_i / conv_factor
-        y_i = y_i / conv_factor
-    angle = angle * (np.pi / 180)
-    N_pixels = int(gridsize_deg * 2 / degree_per_pixel) + 1
-
+def calculate_shifted_coords_mm(gridsize_deg, N_pixels, x_i=0, y_i=0):
     # create image axis
     x_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
-    x_1D = np.reshape(x_1D, (N_pixels,1))
+    x_1D = np.reshape(x_1D, (N_pixels, 1))
     y_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
-    y_1D = np.reshape(y_1D, (1,N_pixels))
+    y_1D = np.reshape(y_1D, (1, N_pixels))
 
     # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
     x_2D = np.repeat(x_1D, N_pixels, axis=1)
@@ -399,6 +375,31 @@ def gabor_filter(x_i, y_i,k,sigma_g,angle,gridsize_deg,degree_per_pixel,phase=0,
 
     y_2D = np.repeat(y_1D, N_pixels, axis=0)
     diff_y = y_2D - y_i
+
+    return diff_x, diff_y
+
+def gabor_filter(x_i, y_i,filter_pars,angle,phase=0):
+    """
+    Creates Gabor filters.
+    Inputs:
+        x_i, y_i: centre of the filter
+        filter_pars: filter parameters including spatial frequency in cycles/degrees (radians) and other conversion constants
+        angle: orientation of the Gabor filter
+        phase: phase of the Gabor filter (default is 0)
+    """
+    k = filter_pars.k
+    sigma_g = filter_pars.sigma_g
+    gridsize_deg = filter_pars.gridsize_deg
+    degree_per_pixel = filter_pars.degree_per_pixel
+    magnif_factor=filter_pars.magnif_factor
+    # convert to mm from degrees and radian from degree
+    x_i = x_i / magnif_factor
+    y_i = y_i / magnif_factor
+    angle = angle * (np.pi / 180)
+    # calculate the number of pixels by converting gridsize_deg to pixels
+    N_pixels = int(magnif_factor * gridsize_deg / degree_per_pixel) + 1
+
+    diff_x, diff_y = calculate_shifted_coords_mm(gridsize_deg, N_pixels, x_i, y_i)
 
     # Calculate the spatial component of the Gabor filter (same convention as stimuli)
     spatial_component = np.cos(2 * np.pi * k  * (diff_x * np.cos(angle) + diff_y * np.sin(angle)) + phase)
@@ -413,13 +414,11 @@ def gabor_filter(x_i, y_i,k,sigma_g,angle,gridsize_deg,degree_per_pixel,phase=0,
     gabor_filter= np.array(gaussian * spatial_component)
     return  gabor_filter #np.array(gaussian * spatial_component[::-1]) 
 
+
         
 def find_gabor_A(
-    k,
-    sigma_g,
-    gridsize_deg,
-    degree_per_pixel,
-    indices,
+    filter_pars,
+    oris,
     phase=0
 ):
     """
@@ -431,10 +430,14 @@ def find_gabor_A(
     Output:
         A: value of constant so that contrast = 100
     """
+    k = filter_pars.k
+    gridsize_deg = filter_pars.gridsize_deg
     all_A = []
+    # handling the scalar case
+    if isinstance(oris, (int, float, numpy.integer, numpy.float16, numpy.float32)):
+        oris = [oris]
 
-    for ori in indices:
-        
+    for ori in oris: 
         # create local_stimui_pars to pass it to BW_Gratings
         local_stimuli_pars = StimuliPars()
         # extract original parameters
@@ -444,7 +447,6 @@ def find_gabor_A(
         local_stimuli_pars.k = k
         local_stimuli_pars.outer_radius = gridsize_deg * 2
         local_stimuli_pars.inner_radius = gridsize_deg * 2
-        local_stimuli_pars.degree_per_pixel = degree_per_pixel
         local_stimuli_pars.grating_contrast = 0.99
         local_stimuli_pars.jitter_val = 0
         local_stimuli_pars.std = 0
@@ -469,7 +471,7 @@ def find_gabor_A(
         test_stimuli = BW_image_jax(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori, 0) #BW_image_full(BW_image_jit_inp_all[0:5], x, y,  ori, 0)#
         
         # Generate Gabor filter at orientation
-        gabor = gabor_filter(0, 0,k,sigma_g,ori,gridsize_deg,degree_per_pixel,phase=phase)
+        gabor = gabor_filter(0, 0,filter_pars,ori,phase=phase)
         mean_removed_filter = gabor - gabor.mean()
         
         # multiply filter and stimuli
@@ -506,27 +508,13 @@ def create_gabor_filters_ori_map(
     gabors_demean = numpy.zeros((grid_size_2D, k, image_size))
     for phases_ind in range(len(phases)):
         phase = phases[phases_ind]
-        A = find_gabor_A(
-                    k=filter_pars.k,
-                    sigma_g=filter_pars.sigma_g,
-                    gridsize_deg=filter_pars.gridsize_deg,
-                    degree_per_pixel=filter_pars.degree_per_pixel,
-                    indices=ori_map.ravel(),
+        A = find_gabor_A(filter_pars,
+                    oris=ori_map[4,4], # change! - we only do it for the middle 
                     phase=phase
                 )
         for i in range(grid_size_1D):
             for j in range(grid_size_1D):
-                gabor = gabor_filter(
-                    grid_pars.x_map[i, j], 
-                    grid_pars.y_map[i, j],
-                    filter_pars.k,
-                    filter_pars.sigma_g,
-                    ori_map[i, j],
-                    filter_pars.gridsize_deg,
-                    filter_pars.degree_per_pixel,
-                    phase,
-                    filter_pars.conv_factor
-                )                
+                gabor = gabor_filter(grid_pars.x_map[i, j], grid_pars.y_map[i, j], filter_pars, ori_map[i, j], phase)                
                 gabors_demean[i+grid_size_1D*j,phases_ind,:] = A * (gabor.ravel()-np.mean(gabor)) # E filters
     gabors_all[:,0:k,0,:] = filter_pars.gE_m*gabors_demean # E filters phase 0 and pi/2
     gabors_all[:,k:2*k,0,:] = - filter_pars.gE_m*gabors_demean # E filters with opposite phases
@@ -535,81 +523,3 @@ def create_gabor_filters_ori_map(
     if flatten: # flatten the first three dimensions of gabors_all
         gabors_all = gabors_all.reshape((grid_size_2D*num_phases*2, image_size))
     return np.array(gabors_all)
-
-def create_gabor_filters_ori_map_old(
-    ori_map,
-    phases,
-    filter_pars,
-    grid_pars
-):
-    """Create Gabor filters for each orientation in orimap."""
-    filters = []
-    if phases == 4:
-        filters_pi2 = []
-
-    # Iterate over SSN map
-    for i in range(ori_map.shape[0]):
-        for j in range(ori_map.shape[1]):
-            gabor = gabor_filter(grid_pars.x_map[i, j], grid_pars.y_map[i, j],filter_pars.k,filter_pars.sigma_g,ori_map[i, j],filter_pars.gridsize_deg,filter_pars.degree_per_pixel,0,filter_pars.conv_factor)
-            filters.append(gabor.ravel())
-
-            if phases == 4:
-                gabor_2 = gabor_filter(grid_pars.x_map[i, j], grid_pars.y_map[i, j],filter_pars.k,filter_pars.sigma_g,ori_map[i, j],filter_pars.gridsize_deg,filter_pars.degree_per_pixel, np.pi/2, filter_pars.conv_factor)
-                filters_pi2.append(gabor_2.ravel())
-
-    e_filters_o = np.array(filters)
-    e_filters = filter_pars.gE_m * e_filters_o
-    i_filters = filter_pars.gI_m * e_filters_o
-
-    # create filters with phase equal to pi
-    e_off_filters = -e_filters
-    i_off_filters = -i_filters
-
-    if phases == 4:
-        e_filters_o_pi2 = np.array(filters_pi2)
-        e_filters_pi2 = filter_pars.gE_m * e_filters_o_pi2
-        i_filters_pi2 = filter_pars.gI_m * e_filters_o_pi2
-
-        # create filters with phase equal to -pi/2
-        e_off_filters_pi2 = -e_filters_pi2
-        i_off_filters_pi2 = -i_filters_pi2
-
-    # Normalise Gabor filters
-    A = find_gabor_A(
-                k=filter_pars.k,
-                sigma_g=filter_pars.sigma_g,
-                gridsize_deg=filter_pars.gridsize_deg,
-                degree_per_pixel=filter_pars.degree_per_pixel,
-                indices=np.sort(ori_map.ravel()),
-                phase=0
-            )
-    
-    if phases == 4:
-        A2 = find_gabor_A(
-            k=filter_pars.k,
-            sigma_g=filter_pars.sigma_g,
-            gridsize_deg=filter_pars.gridsize_deg,
-            degree_per_pixel=filter_pars.degree_per_pixel,
-            indices=np.sort(ori_map.ravel()),
-            phase=np.pi / 2
-        )
-
-        SSN_filters = np.vstack(
-            [
-                e_filters * A,
-                e_filters_pi2 * A2,
-                e_off_filters * A,
-                e_off_filters_pi2 * A2,
-                i_filters * A,                
-                i_filters_pi2 * A2,                
-                i_off_filters * A,                
-                i_off_filters_pi2 * A2,
-            ]
-        )
-    else:
-        SSN_filters = np.vstack([e_filters, i_filters, e_off_filters, i_off_filters])
-        SSN_filters = SSN_filters * A
-    # remove mean so that input to constant grating is 0
-    gabor_filters = SSN_filters - np.mean(SSN_filters, axis=1)[:, None]
-
-    return gabor_filters, A, A2

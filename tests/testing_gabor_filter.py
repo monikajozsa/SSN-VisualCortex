@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 numpy.random.seed(0)
 
-from training.util_gabor import init_untrained_pars, create_gabor_filters_ori_map, create_gabor_filters_ori_map_old
+from training.util_gabor import init_untrained_pars, create_gabor_filters_ori_map
 from analysis.analysis_functions import tuning_curve, SGD_step_indices
 from util import load_parameters
 from parameters import (

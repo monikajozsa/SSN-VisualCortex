@@ -129,7 +129,7 @@ grid_pars = GridPars()
 class FilterPars:
     sigma_g: float = 0.27
     ''' std of the Gaussian of the Gabor filters '''
-    conv_factor: float = 2.0
+    magnif_factor: float = grid_pars.magnif_factor
     ''' converts deg to mm (mm/deg), same as magnification factor '''
     k: float = 1.0
     ''' scaling parameter for the spacial frequency of the Gabor filter '''
