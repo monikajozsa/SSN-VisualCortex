@@ -277,9 +277,11 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
     x = np.repeat(x_1D, N_pixels, axis=1)
     y = np.repeat(y_1D, N_pixels, axis=0)
-    
+    if len(gabor_filters.shape)==2:
+        gabor_filters = np.reshape(gabor_filters, (untrained_pars.grid_pars.gridsize_Nx **2,untrained_pars.ssn_pars.phases,2,-1)) # the third dimension 2 is for I and E cells, the last dim is the image size
     stimuli = BW_image_full_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, ori_vec, np.zeros(num_ori))
     # Apply Gabor filters to stimuli
+
     gabor_output = numpy.zeros((num_ori, gabor_filters.shape[0],gabor_filters.shape[1],gabor_filters.shape[2]))
     for ori in range(num_ori):
         for grid_ind in range(gabor_filters.shape[0]):
@@ -879,117 +881,6 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
                 plt.savefig(f'{folder}/figures/filt_resp_{run_ind}_{layer}_{sigma_filter}.png')
     return output, SGD_step_inds
 
-"""
-def filtered_model_response_task(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=False, sigma_filter = 1, gridsize_Nx=9):
-    '''Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)'''
-    file_name = f"{folder}/results_{run_ind}.csv"
-    loaded_orimap = load_orientation_map(folder, run_ind)
-
-    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                    loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
-    df = pd.read_csv(file_name)
-    SGD_step_inds = SGD_step_indices(df, num_SGD_inds)
-
-    # Iterate overs SGD_step indices (default is before and after training)
-    for step_ind in SGD_step_inds:
-        # Load parameters from csv for given epoch
-        _, trained_pars_stage2, _ = load_parameters(file_name, iloc_ind = step_ind)
-        J_2x2_m = sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
-        J_2x2_s = sep_exponentiate(trained_pars_stage2['log_J_2x2_s'])
-        c_E = trained_pars_stage2['c_E']
-        c_I = trained_pars_stage2['c_I']
-        f_E = np.exp(trained_pars_stage2['log_f_E'])
-        f_I = np.exp(trained_pars_stage2['log_f_I'])
-        
-        # Iterate over the orientations
-        for ori in ori_list:
-            # Select orientation from list
-            untrained_pars.stimuli_pars.ref_ori = ori
-
-            # Generate data
-            test_gratings = create_grating_training(untrained_pars.stimuli_pars, num_noisy_trials,untrained_pars.BW_image_jax_inp)
-           
-            label = test_gratings['label']
-            # Create middle and superficial SSN layers *** this is something that would be great to call from outside the SGD loop and only refresh the params that change (and what rely on them such as W)
-            kappa_pre = untrained_pars.ssn_pars.kappa_pre
-            kappa_post = untrained_pars.ssn_pars.kappa_post
-            p_local_s = untrained_pars.ssn_pars.p_local_s
-            s_2x2 = untrained_pars.ssn_pars.s_2x2_s
-            sigma_oris = untrained_pars.ssn_pars.sigma_oris
-            ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
-            ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
-    
-            # Calculate fixed point for data
-            _, _, [_, _], [_, _], [_, _, _, _], [r_mid_ref, r_sup_ref] = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_gratings['ref'], untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-            _, _, [_, _], [_, _], [_, _, _, _], [r_mid_target, r_sup_target] = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_gratings['target'], untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-
-            # Add noise to the responses
-            if r_noise:
-                noise_mid_ref = generate_noise(num_noisy_trials, length = r_mid_ref.shape[1], num_readout_noise = untrained_pars.num_readout_noise)
-                noise_mid_target = generate_noise(num_noisy_trials, length = r_mid_target.shape[1], num_readout_noise = untrained_pars.num_readout_noise)
-                r_mid_ref_noisy = r_mid_ref + noise_mid_ref*np.sqrt(jax.nn.softplus(r_mid_ref))
-                r_mid_target_noisy = r_mid_target + noise_mid_target*np.sqrt(jax.nn.softplus(r_mid_target))
-                noise_sup_ref = generate_noise(num_noisy_trials, length = r_sup_ref.shape[1], num_readout_noise = untrained_pars.num_readout_noise)
-                noise_sup_target = generate_noise(num_noisy_trials, length = r_sup_target.shape[1], num_readout_noise = untrained_pars.num_readout_noise)
-                r_sup_ref_noisy = r_sup_ref + noise_sup_ref*np.sqrt(jax.nn.softplus(r_sup_ref))
-                r_sup_target_noisy = r_sup_target + noise_sup_target*np.sqrt(jax.nn.softplus(r_sup_target))
-            else:
-                r_mid_ref_noisy = r_mid_ref 
-                r_mid_target_noisy = r_mid_target
-                r_sup_ref_noisy = r_sup_ref 
-                r_sup_target_noisy = r_sup_target
-
-            # Smooth responses for each celltype, layer and stimulus type (ref or target) separately with Gaussian filter
-            filtered_r_mid_ref_EI= smooth_data(r_mid_ref_noisy,gridsize_Nx,sigma_filter)  #n_noisy_trials x 648
-            filtered_r_mid_ref_E = vmap_select_type_mid(filtered_r_mid_ref_EI,'E')
-            filtered_r_mid_ref_I = vmap_select_type_mid(filtered_r_mid_ref_EI,'I')
-            filtered_r_mid_ref = np.sum(0.8*filtered_r_mid_ref_E + 0.2 *filtered_r_mid_ref_I, axis=-1) # sum up along phases - should it be sum of squares?
-            filtered_r_mid_target_EI= smooth_data(r_mid_target_noisy,gridsize_Nx,sigma_filter)  #n_noisy_trials x 648
-            filtered_r_mid_target_E = vmap_select_type_mid(filtered_r_mid_target_EI,'E')
-            filtered_r_mid_target_I = vmap_select_type_mid(filtered_r_mid_target_EI,'I')
-            filtered_r_mid_target = np.sum(0.8*filtered_r_mid_target_E + 0.2 *filtered_r_mid_target_I, axis=-1) # order of summing up phases and mixing I-E matters if we change to sum of squares!
-
-            filtered_r_sup_ref_EI = smooth_data(r_sup_ref_noisy,gridsize_Nx,sigma_filter)
-            if filtered_r_sup_ref_EI.ndim == 3:
-                filtered_r_sup_ref_E = filtered_r_sup_ref_EI[:,:,0]
-                filtered_r_sup_ref_I = filtered_r_sup_ref_EI[:,:,1]
-            if filtered_r_sup_ref_EI.ndim == 4:
-                filtered_r_sup_ref_E = filtered_r_sup_ref_EI[:,:,:,0]
-                filtered_r_sup_ref_I = filtered_r_sup_ref_EI[:,:,:,1]
-            filtered_r_sup_ref = 0.8*filtered_r_sup_ref_E + 0.2 *filtered_r_sup_ref_I
-            filtered_r_sup_target_EI = smooth_data(r_sup_target_noisy,gridsize_Nx,sigma_filter)
-            if filtered_r_sup_target_EI.ndim == 3:
-                filtered_r_sup_target_E = filtered_r_sup_target_EI[:,:,0]
-                filtered_r_sup_target_I = filtered_r_sup_target_EI[:,:,1]
-            if filtered_r_sup_target_EI.ndim == 4:
-                filtered_r_sup_target_E = filtered_r_sup_target_EI[:,:,:,0]
-                filtered_r_sup_target_I = filtered_r_sup_target_EI[:,:,:,1]
-            filtered_r_sup_target = 0.8*filtered_r_sup_target_E + 0.2 *filtered_r_sup_target_I
-
-            # Concatenate along orientation responses
-            if ori == ori_list[0] and step_ind==SGD_step_inds[0]:
-                filtered_r_mid_ref_df = filtered_r_mid_ref
-                filtered_r_mid_target_df = filtered_r_mid_target
-                filtered_r_sup_ref_df = filtered_r_sup_ref
-                filtered_r_sup_target_df = filtered_r_sup_target
-
-                ori_df = np.repeat(ori, num_noisy_trials)
-                step_df = np.repeat(step_ind, num_noisy_trials)
-                labels = label
-            else:
-                filtered_r_mid_ref_df = np.concatenate((filtered_r_mid_ref_df, filtered_r_mid_ref))
-                filtered_r_mid_target_df = np.concatenate((filtered_r_mid_target_df, filtered_r_mid_target))
-                filtered_r_sup_ref_df = np.concatenate((filtered_r_sup_ref_df, filtered_r_sup_ref))
-                filtered_r_sup_target_df = np.concatenate((filtered_r_sup_target_df, filtered_r_sup_target))
-                ori_df = np.concatenate((ori_df, np.repeat(ori, num_noisy_trials)))
-                step_df = np.concatenate((step_df, np.repeat(step_ind, num_noisy_trials)))
-                labels = np.concatenate((labels, label))
-
-    # Define output dictionary with keys: ori, SGD_step, r_mid_ref, r_mid_target, r_sup_ref, r_sup_target, labels
-    output = dict(ori = ori_df, SGD_step = step_df, r_mid_ref = filtered_r_mid_ref_df, r_mid_target = filtered_r_mid_target_df, r_sup_ref = filtered_r_sup_ref_df , r_sup_target = filtered_r_sup_target_df , labels = labels)
-
-    return output, SGD_step_inds
-"""
 
 def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio):
     '''

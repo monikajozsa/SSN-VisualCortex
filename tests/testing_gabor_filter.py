@@ -49,14 +49,14 @@ for i in range(1):
     #gabors_old = create_gabor_filters_ori_map_old(orimap_loaded,num_phases,filter_pars,grid_pars)
     #print(time.time()-start_time)
     start_time = time.time()
-    gabors = create_gabor_filters_ori_map(orimap_loaded,num_phases,filter_pars,grid_pars)
+    gabors = create_gabor_filters_ori_map(orimap_loaded,num_phases,filter_pars,grid_pars, flatten=False)
     print(time.time()-start_time)
     gabor_outputs = gabor_tuning(untrained_pars, ori_vec=tc_ori_list)
 
 ####### Plotting gabor outputs ########
 # first 4x81 are for E phase 0, pi/2, pi, 3pi/2 next are the same for I cells
 num_phases, num_loc = 4, 81
-'''
+
 for i in range(num_phases):
     fig, axs = plt.subplots(9, 9, figsize=(5*9, 5*9))
     phases = numpy.array([0,1,2,3])
@@ -85,7 +85,7 @@ for i in range(num_phases):
             axs[loc1,loc2].set_title(f'phase {phase_label[i]}, loc:{loc1,loc2}')
     plt.savefig(f'tests/gabors_phase_{i}_shift_each.png')
     plt.close()
-'''
+
 '''
 fig, axs = plt.subplots(8, 6, figsize=(5*3, 5*8))
 for i in range(8):

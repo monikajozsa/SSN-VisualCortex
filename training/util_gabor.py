@@ -188,8 +188,20 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_par
                 print('############## After 50 attempts the randomly generated maps did not pass the uniformity test ##############')
                 break
     
-    gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars)
-    
+    gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, flatten=True)
+    '''
+    # testing the gabor output - should be below 100 - not quite because we do not do phase matching in find_gabor_A?
+    ori=45
+    BW_image_jit_inp_all = BW_image_jax_supp(stimuli_pars, phase = 0)
+    x = BW_image_jit_inp_all[5]
+    y = BW_image_jit_inp_all[6]
+    alpha_channel = BW_image_jit_inp_all[7]
+    mask = BW_image_jit_inp_all[8]
+    background = BW_image_jit_inp_all[9]
+
+    test_stimuli = BW_image_jax(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori, 0)
+    gabor_filters[0,:] @ test_stimuli
+    '''
     oris = ssn_ori_map.ravel()[:, None]
     ori_dist = cosdiff_ring(oris - oris.T, 180)
     
@@ -219,15 +231,7 @@ def BW_image_jax_supp(stimuli_pars, phase=0.0):
     grating_size = round(stimuli_pars.outer_radius * pixel_per_degree)
     gridsize_deg = stimuli_pars.gridsize_deg
     size = int(stimuli_pars.gridsize_deg  * 2 * pixel_per_degree) + 1
-    '''
-    # Generate a 2D grid of coordinates
-    x, y = numpy.mgrid[
-        -grating_size : grating_size + 1.0,
-        -grating_size : grating_size + 1.0,
-    ]
-    x_jax = np.array(x)
-    y_jax = np.array(y)
-    '''
+    
     # following the same pattern as in gabor filter generation
     N_pixels = grating_size*2+1
     x_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
@@ -318,7 +322,7 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, background, ref_
     # Update the background image with result_roi
     combined_image = lax.dynamic_update_slice(background, result_roi, start_indices)
 
-    return combined_image.ravel()
+    return 3*combined_image.ravel()
 
 def BW_image_full(BW_image_const_inp, x, y, ref_ori, jitter):
     '''Do what BW_image_jax does but without the GRAY backgroung'''
@@ -335,7 +339,7 @@ def BW_image_full(BW_image_const_inp, x, y, ref_ori, jitter):
     # Generate the Gabor stimulus
     gabor_sti = _GRAY * (1 + grating_contrast * spatial_component)
     
-    return gabor_sti.ravel()
+    return 3*gabor_sti.ravel()
 
 # Vectorize BW_image function to process batches
 BW_image_vmap = vmap(BW_image_jax, in_axes=(None,None,None,None,None,None,0,0))
@@ -389,8 +393,6 @@ def gabor_filter(x_i, y_i,k,sigma_g,angle,gridsize_deg,degree_per_pixel,phase=0,
     y_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
     y_1D = np.reshape(y_1D, (1,N_pixels))
 
-    ########## Construct filter as an attribute ##########
-    
     # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
     x_2D = np.repeat(x_1D, N_pixels, axis=1)
     diff_x = x_2D - x_i
@@ -432,8 +434,12 @@ def find_gabor_A(
     all_A = []
 
     for ori in indices:
+        
         # create local_stimui_pars to pass it to BW_Gratings
         local_stimuli_pars = StimuliPars()
+        # extract original parameters
+        #grating_size = round(local_stimuli_pars.outer_radius / local_stimuli_pars.degree_per_pixel)
+        #N_pixels = int(grating_size*2+1)
         local_stimuli_pars.gridsize_deg = gridsize_deg
         local_stimuli_pars.k = k
         local_stimuli_pars.outer_radius = gridsize_deg * 2
@@ -443,16 +449,24 @@ def find_gabor_A(
         local_stimuli_pars.jitter_val = 0
         local_stimuli_pars.std = 0
         local_stimuli_pars.ref_ori = ori
-
+        
         # generate test stimuli at ori orientation
         BW_image_jit_inp_all = BW_image_jax_supp(local_stimuli_pars, phase = phase)
         x = BW_image_jit_inp_all[5]
         y = BW_image_jit_inp_all[6]
+        ''' This is how x and y are calculated within BW_image_jax_supp
+        x_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
+        x_1D = np.reshape(x_1D, (N_pixels,1))
+        y_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
+        y_1D = np.reshape(y_1D, (1,N_pixels))
+        x = np.repeat(x_1D, N_pixels, axis=1)    
+        y = np.repeat(y_1D, N_pixels, axis=0)
+        '''
         alpha_channel = BW_image_jit_inp_all[7]
         mask = BW_image_jit_inp_all[8]
-        background = BW_image_jit_inp_all[9]
+        background = BW_image_jit_inp_all[9] # this is the only 129 x 129, all x, y, alpha_channel, mask are 257x257 and this makes test_stimuli the right size
         
-        test_stimuli = BW_image_jax(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori, 0)
+        test_stimuli = BW_image_jax(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori, 0) #BW_image_full(BW_image_jit_inp_all[0:5], x, y,  ori, 0)#
         
         # Generate Gabor filter at orientation
         gabor = gabor_filter(0, 0,k,sigma_g,ori,gridsize_deg,degree_per_pixel,phase=phase)
@@ -477,7 +491,8 @@ def create_gabor_filters_ori_map(
     ori_map,
     num_phases,
     filter_pars,
-    grid_pars
+    grid_pars, 
+    flatten=False
 ):
     """Create Gabor filters for each orientation and phase in orimap."""
     k=int(num_phases//2)
@@ -513,12 +528,12 @@ def create_gabor_filters_ori_map(
                     filter_pars.conv_factor
                 )                
                 gabors_demean[i+grid_size_1D*j,phases_ind,:] = A * (gabor.ravel()-np.mean(gabor)) # E filters
-    
     gabors_all[:,0:k,0,:] = filter_pars.gE_m*gabors_demean # E filters phase 0 and pi/2
     gabors_all[:,k:2*k,0,:] = - filter_pars.gE_m*gabors_demean # E filters with opposite phases
     gabors_all[:,0:k,1,:] = filter_pars.gI_m*gabors_demean # I filters phase 0 and pi/2
     gabors_all[:,k:2*k,1,:] = - filter_pars.gI_m*gabors_demean # I filters with opposite phases
-
+    if flatten: # flatten the first three dimensions of gabors_all
+        gabors_all = gabors_all.reshape((grid_size_2D*num_phases*2, image_size))
     return np.array(gabors_all)
 
 def create_gabor_filters_ori_map_old(

@@ -32,7 +32,7 @@ def evaluate_model_response(
         input_mid = np.reshape(np.matmul(gabor_filters, np.transpose(stimuli)),len(constant_vector))
     else:
         input_mid = np.matmul(gabor_filters, stimuli)
-
+    input_mid = input_mid.ravel() # this might not work with jit
     # Rectify middle layer input before fix point calculation
     SSN_mid_input = np.maximum(0, input_mid) + constant_vector
 
