@@ -39,12 +39,13 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
 
     # Create reference and target gratings
     ref_ori_vec = np.ones(batch_size)*ref_ori
-    x = BW_image_jit_inp_all[4]
-    y = BW_image_jit_inp_all[5]
-    alpha_channel = BW_image_jit_inp_all[6]
-    mask = BW_image_jit_inp_all[7]
-    ref = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ref_ori_vec, jitter_vec)
-    target = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, target_ori_vec, jitter_vec)
+    x = BW_image_jit_inp_all[5]
+    y = BW_image_jit_inp_all[6]
+    alpha_channel = BW_image_jit_inp_all[7]
+    mask = BW_image_jit_inp_all[8]
+    background = BW_image_jit_inp_all[9]
+    ref = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ref_ori_vec, jitter_vec)
+    target = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, target_ori_vec, jitter_vec)
     data_dict['ref']=ref
     data_dict['target']=target
     data_dict['label']=labels
@@ -96,14 +97,15 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
     # Randomize orientations for stimulus 1 and stimulus 2
     ori1, ori2, ori1_minus_ori2 = generate_random_pairs(min_value=pretrain_pars.ref_ori_int[0], max_value=pretrain_pars.ref_ori_int[1], min_distance=pretrain_pars.ori_dist_int[0], max_distance=pretrain_pars.ori_dist_int[1], batch_size=batch_size, numRnd_ori1=numRnd_ori1)
 
-    x = BW_image_jit_inp_all[4]
-    y = BW_image_jit_inp_all[5]
-    alpha_channel = BW_image_jit_inp_all[6]
-    mask = BW_image_jit_inp_all[7]
+    x = BW_image_jit_inp_all[5]
+    y = BW_image_jit_inp_all[6]
+    alpha_channel = BW_image_jit_inp_all[7]
+    mask = BW_image_jit_inp_all[8]
+    background = BW_image_jit_inp_all[9]
     
     # Generate noisy stimulus1 and stimulus2 with no jitter
-    stim1 = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ori1, jitter=np.zeros_like(ori1))
-    stim2 = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ori2, jitter=np.zeros_like(ori1))
+    stim1 = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori1, jitter=np.zeros_like(ori1))
+    stim2 = BW_image_jit_noisy(BW_image_jit_inp_all[0:5], x, y, alpha_channel, mask, background, ori2, jitter=np.zeros_like(ori1))
     data_dict['ref']=stim1
     data_dict['target']=stim2
 

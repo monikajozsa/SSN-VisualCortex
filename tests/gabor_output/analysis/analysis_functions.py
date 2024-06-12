@@ -285,6 +285,63 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
                 gabor_output[ori,phase_ind,1,grid_ind] = gabor_filters[phase_ind,1,grid_ind,:]@(stimuli[ori,:].T) # I cells
     print('Time elapsed for gabor_output calculation:', time.time()-time_start)
      
+
+    time_start = time.time()
+    fig, axs = plt.subplots(5, 5, figsize=(25, 25))
+    axs_flat = axs.flatten()
+    phase_ind=0
+    gabor_filter_plot = gabor_filters[phase_ind,0,0,:]
+    phase = phase_ind * np.pi/2
+    gabor_test = 2*np.reshape(gabor_filter_plot/(gabor_filter_plot)-min(gabor_filter_plot)+min(gabor_filter_plot), (129,129))
+    ori_ind_step = num_ori/23
+    x0 = untrained_pars.grid_pars.x_map[0, 0]
+    y0 = untrained_pars.grid_pars.y_map[0, 0]
+    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0=x0, y0=y0, phase=-phase, full_grating=True)
+    x = BW_image_jax_inp[4]
+    y = BW_image_jax_inp[5]
+    stimuli = BW_image_vmap(BW_image_jax_inp, x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori)) 
+    for axs_ind in range(24):
+        ori_ind = min(num_ori-1,int(axs_ind * ori_ind_step))
+        stim_ori = np.reshape(stimuli[ori_ind,:]/(max(stimuli[ori_ind,:])-min(stimuli[ori_ind,:]))+min(gabor_filter_plot),(129,129))
+        axs_flat[axs_ind].imshow(stim_ori + gabor_test)
+        axs_flat[axs_ind].set_title(ori_vec[ori_ind])
+    axs_flat[24].plot(gabor_output[:,phase_ind,0,0])
+    plt.savefig('tests/gabor_output/FullImages_and_Gabors_0.png')
+    print('Time elapsed for FullImages_and_Gabors generation:', time.time()-time_start)
+
+
+    time_start = time.time()
+    fig, axs = plt.subplots(5, 5, figsize=(25, 25))
+    axs_flat = axs.flatten()
+    phase_ind=1
+    gabor_filter_plot = gabor_filters[phase_ind,0,0,:]
+    phase = phase_ind * np.pi/2
+    gabor_test = 2*np.reshape(gabor_filter_plot/(gabor_filter_plot)-min(gabor_filter_plot)+min(gabor_filter_plot), (129,129))
+    ori_ind_step = num_ori/23
+    x0 = untrained_pars.grid_pars.x_map[0, 0]
+    y0 = untrained_pars.grid_pars.y_map[0, 0]
+    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0=x0, y0=y0, phase=-phase, full_grating=True)
+    x = BW_image_jax_inp[4]
+    y = BW_image_jax_inp[5]
+    stimuli = BW_image_vmap(BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori)) 
+    for axs_ind in range(24):
+        ori_ind = min(num_ori-1,int(axs_ind * ori_ind_step))
+        stim_ori = np.reshape(stimuli[ori_ind,:]/(max(stimuli[ori_ind,:])-min(stimuli[ori_ind,:]))+min(gabor_filter_plot),(129,129))
+        axs_flat[axs_ind].imshow(stim_ori + gabor_test)
+        axs_flat[axs_ind].set_title(ori_vec[ori_ind])
+    axs_flat[24].plot(gabor_output[:,phase_ind,0,0])
+    plt.savefig('tests/gabor_output/FullImages_and_Gabors_90.png')
+    print('Time elapsed for FullImages_and_Gabors generation:', time.time()-time_start)
+    
+    
+    time_start = time.time()
+    plt.clf()
+    for axs_ind in range(24):
+        ori_ind = int(axs_ind * ori_ind_step)
+        stim_ori = np.reshape(stimuli[ori_ind,:],(129,129))
+        plt.imshow(stim_ori, alpha=0.2)
+    plt.savefig('tests/gabor_output/stim_rotation.png')
+    print('Time elapsed for stim_rotation generation:', time.time()-time_start)
     return gabor_output
 
 

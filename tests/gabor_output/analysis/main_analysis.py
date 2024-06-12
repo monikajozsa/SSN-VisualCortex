@@ -29,9 +29,8 @@ import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
 tc_ori_list = numpy.arange(0,180,2)
-num_training = 2
+num_training = 1
 final_folder_path = os.path.join('results','Apr10_v1')
-
 
 ########## Calculate and save tuning curves ############
 start_time_in_main= time.time()
@@ -77,7 +76,6 @@ sigma_filter = 2
 plot_tc_features(final_folder_path, num_training, tc_ori_list)
 plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')
 
-'''
 MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
 
 folder_to_save=os.path.join(final_folder_path, 'figures')
@@ -109,7 +107,7 @@ data_mid_125 = pd.DataFrame({
     'offset': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
-'''
+
 '''
 ## Training only
 #final_folder_path_train_only = final_folder_path + '/train_only'
