@@ -353,16 +353,31 @@ def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_
                     responses_sup_phase_match[:,sup_cell_ind]=responses_sup[:,sup_cell_ind]
                     responses_sup_phase_match[:,grid_size+sup_cell_ind]=responses_sup[:,grid_size+sup_cell_ind]
 
-    # Save responses into csv file
-    new_rows=np.concatenate((responses_mid_phase_match, responses_sup_phase_match), axis=1)
+    # Save responses into csv file - overwrite the file if it already exists
     if tuning_curves_filename is not None:
+        new_rows=np.concatenate((responses_mid_phase_match, responses_sup_phase_match), axis=1)
         new_rows_df = pd.DataFrame(new_rows)
-        # overwrite the file
         new_rows_df.to_csv(tuning_curves_filename, mode='w', header=False, index=False)
 
     untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
 
     return responses_sup, responses_mid
+
+# Define a 2D tuning curve function that changes the contrast
+def tuning_curve_2D(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6), contrast_vec = np.arange(0.4999,1,0.1)):
+    saved_contrast = float(untrained_pars.stimuli_pars.contrast)
+
+    responses_sup_2D = []
+    responses_mid_2D = []
+    for contrast in contrast_vec:
+        untrained_pars.stimuli_pars.contrast = contrast
+        responses_sup, responses_mid = tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6))
+        responses_sup_2D.append(responses_sup)
+        responses_mid_2D.append(responses_mid)
+    
+    untrained_pars.stimuli_pars.contrast = saved_contrast
+    
+    return responses_sup_2D, responses_mid_2D
 
 
 def tc_slope(tuning_curve, x_axis, x1, x2, normalised=False):

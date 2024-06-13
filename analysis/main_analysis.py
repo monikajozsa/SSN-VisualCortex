@@ -32,7 +32,7 @@ tc_ori_list = numpy.arange(0,180,2)
 num_training = 50
 final_folder_path = os.path.join('results','Apr10_v1')
 
-'''
+
 ########## Calculate and save tuning curves ############
 start_time_in_main= time.time()
 for i in range(2,num_training):
@@ -42,12 +42,13 @@ for i in range(2,num_training):
     tc_postpre_filename = os.path.join(final_folder_path, f"tc_postpre_{i}.csv")
     tc_post_filename = os.path.join(final_folder_path, f"tc_post_{i}.csv")
     orimap_filename = os.path.join(final_folder_path, f"orimap_{i}.npy")
+    orimap_loaded = numpy.load(orimap_filename)
     df = pd.read_csv(results_filename)
     SGD_step_inds = SGD_step_indices(df, 3)
 
     # Load parameters and calculate (and save) tuning curves
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_filename)
+                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=orimap_loaded)
     trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = SGD_step_inds[0])
     tc_prepre, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_prepre_filename, ori_vec=tc_ori_list)   
     trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = SGD_step_inds[1], trained_pars_keys=trained_pars_stage2.keys())
@@ -55,7 +56,7 @@ for i in range(2,num_training):
     _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = SGD_step_inds[2], trained_pars_keys=trained_pars_stage2.keys())
     tc_post, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_filename, ori_vec=tc_ori_list)
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
-'''
+
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
