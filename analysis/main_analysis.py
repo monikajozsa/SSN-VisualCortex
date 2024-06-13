@@ -29,13 +29,13 @@ import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
 tc_ori_list = numpy.arange(0,180,2)
-num_training = 2
+num_training = 50
 final_folder_path = os.path.join('results','Apr10_v1')
 
-
+'''
 ########## Calculate and save tuning curves ############
 start_time_in_main= time.time()
-for i in range(num_training):
+for i in range(2,num_training):
     # Define file names
     results_filename = os.path.join(final_folder_path, f"results_{i}.csv")
     tc_prepre_filename = os.path.join(final_folder_path, f"tc_prepre_{i}.csv")
@@ -55,7 +55,7 @@ for i in range(num_training):
     _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = SGD_step_inds[2], trained_pars_keys=trained_pars_stage2.keys())
     tc_post, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_filename, ori_vec=tc_ori_list)
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
-
+'''
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
@@ -75,7 +75,7 @@ sigma_filter = 2
 #plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
 #boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
 plot_tc_features(final_folder_path, num_training, tc_ori_list)
-plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')
+#plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')
 
 '''
 MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)

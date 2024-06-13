@@ -18,6 +18,8 @@ class PreTrainPars:
     ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
     min_acc_check_ind = 10
     ''' minimum SGD step where accuracy check happens for the training task '''
+    min_stop_ind = 200
+    ''' minimum SGD step where pretraining can stop '''
     offset_threshold = 7
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
     batch_size = 100

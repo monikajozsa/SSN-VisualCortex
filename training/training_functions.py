@@ -186,10 +186,10 @@ def train_ori_discr(
                     print('Baseline acc is achieved at offset:', offset_at_bl_acc, ' for step ', SGD_step)
 
                     # Stop pretraining: break out from SGD_step loop and stages loop (using a flag)
-                    if len(offsets_th)>1: # we stop pretraining even if the training task is solved for the pretraining
-                        pretrain_stop_flag = all(np.array(offsets_th[-2:]) < pretrain_offset_threshold)
+                    if len(offsets_th)>1 and SGD_step > untrained_pars.pretrain_pars.min_stop_ind:
+                            pretrain_stop_flag = all(np.array(offsets_th[-2:]) < pretrain_offset_threshold)
                     if pretrain_stop_flag:
-                        print('Desired accuracy achieved during pretraining.')
+                        print('Stopping pretraining: desired accuracy achieved for training task.')
                         first_stage_final_step = SGD_step
                         break
                     

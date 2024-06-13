@@ -265,14 +265,15 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
 
 
     ############## Plots about changes before vs after training and pretraining and training only (per layer and per centered or all) ##############
-                
+             
     # Define indices for each group of cells
     E_sup = 648+numpy.linspace(0, 80, 81).astype(int) 
     I_sup = 648+numpy.linspace(81, 161, 81).astype(int) 
-    E_mid = numpy.linspace(0, 647, 648).round().reshape(8, 81, -1)[0:9:2].ravel().astype(int) 
-    I_mid = numpy.linspace(0, 647, 648).round().reshape(8, 81, -1)[1:9:2].ravel().astype(int) 
+    E_mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
+    E_mid = E_mid_array[:,0,:].ravel().astype(int)
+    I_mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
+    I_mid = I_mid_array[:,1,:].ravel().astype(int)
     indices = [E_sup, I_sup, E_mid, I_mid]
-
     #E_sup_centre = 648+numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
     #I_sup_centre = (E_sup_centre+81).astype(int)
     #E_mid_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
@@ -288,78 +289,115 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
     for j in range(0,len(colors)):
         patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
 
-    if pre_post_scatter_flag:
-        
-        # Plot slope
-        if train_only_str=='':
-            fig, axs = plt.subplots(4, 4, figsize=(15, 20)) 
-            for j in range(len(indices)):
-                title = 'Slope pretraining ' + labels[j]
-                plot_pre_post_scatter(axs[j,0], data['norm_slope_prepre'] , data['norm_slope_postpre'] ,  data['orientations_prepre'],  indices[j],num_training, title = title,colors=colors)
+    #############################################################################
+    ########### Scatter plot coloring based on preferred orientation ############
+    #############################################################################
+    if train_only_str=='':
+        fig, axs = plt.subplots(4, 4, figsize=(15, 20)) 
+        for j in range(len(indices)):
+            title = 'Slope pretraining ' + labels[j]
+            plot_pre_post_scatter(axs[j,0], data['norm_slope_prepre'] , data['norm_slope_postpre'] ,  data['orientations_prepre'],  indices[j],num_training, title = title,colors=colors)
 
-                title = 'Slope training, ' + labels[j]
-                plot_pre_post_scatter(axs[j,1], data['norm_slope_postpre'] , data['norm_slope_post'] ,  data['orientations_postpre'], indices[j],num_training, title = title,colors=colors)
+            title = 'Slope training, ' + labels[j]
+            plot_pre_post_scatter(axs[j,1], data['norm_slope_postpre'] , data['norm_slope_post'] ,  data['orientations_postpre'], indices[j],num_training, title = title,colors=colors)
 
-                title = 'Fwhm pretraining ' + labels[j]
-                plot_pre_post_scatter(axs[j,2],  data['fwhm_prepre'] ,  data['fwhm_postpre'] ,  data['orientations_prepre'], indices[j], num_training, title = title,colors=colors)
+            title = 'Fwhm pretraining ' + labels[j]
+            plot_pre_post_scatter(axs[j,2],  data['fwhm_prepre'] ,  data['fwhm_postpre'] ,  data['orientations_prepre'], indices[j], num_training, title = title,colors=colors)
 
-                title = 'Fwhm training, ' + labels[j] 
-                plot_pre_post_scatter(axs[j,3], data['fwhm_postpre'] , data['fwhm_post'] ,data['orientations_postpre'], indices[j], num_training,title = title,colors=colors)
-            axs[j,3].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
-        else:
-            fig, axs = plt.subplots(4, 2, figsize=(10, 20)) 
-            for j in range(len(indices)):    
-                title = 'Slope training_only ' + labels[j]
-                plot_pre_post_scatter(axs[j,0],  data['norm_slope_train_only_pre'] , data['norm_slope_train_only_post'] , data['orientations_train_only_pre'], indices[j], num_training, title = title,colors=colors)
-
-                title = 'Fwhm training_only ' + labels[j] 
-                plot_pre_post_scatter(axs[j,1],  data['fwhm_train_only_pre'] , data['fwhm_train_only_post'] ,data['orientations_train_only_pre'], indices[j], num_training, title = title,colors=colors)
-            axs[j,1].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
-        plt.tight_layout()
-        if results_dir[-4:]=='only':
-            fig.savefig(os.path.dirname(results_dir) + "/figures/tc_features" + train_only_str +".png")
-        else:
-            fig.savefig(results_dir + "/figures/tc_features" + train_only_str +".png")
-        plt.close()
-
-    # Plots for CCN abstract
+            title = 'Fwhm training, ' + labels[j] 
+            plot_pre_post_scatter(axs[j,3], data['fwhm_postpre'] , data['fwhm_post'] ,data['orientations_postpre'], indices[j], num_training,title = title,colors=colors)
+        axs[j,3].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
     else:
-        colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
-        fs_text = 40
-        fs_ticks = 30
-        ############# Plot fwhm before vs after training for E_sup and E_mid #############
-        fig, axs = plt.subplots(2, 2, figsize=(16, 16))
-        for j in [0,2]:            
-            # add a little jitter to x and y to avoid overlapping points
-            x = numpy.random.normal(0, 0.3, data['fwhm_prepre'].shape) + data['fwhm_prepre']
-            y = numpy.random.normal(0, 0.3, data['fwhm_post'].shape) + data['fwhm_post']
+        fig, axs = plt.subplots(4, 2, figsize=(10, 20)) 
+        for j in range(len(indices)):    
+            title = 'Slope training_only ' + labels[j]
+            plot_pre_post_scatter(axs[j,0],  data['norm_slope_train_only_pre'] , data['norm_slope_train_only_post'] , data['orientations_train_only_pre'], indices[j], num_training, title = title,colors=colors)
 
-            plot_pre_post_scatter(axs[abs((2-j))//2,1], x , y ,data['orientations_postpre'], indices[j], num_training, '', colors=None)
-            # Format axes
-            axes_format(axs[abs((2-j))//2,1], fs_ticks)
-        axs[0,1].set_title('Full width \n at half maximum (deg.)', fontsize=fs_text)
-        axs[0,1].set_xlabel('')
-        axs[1,1].set_xlabel('Pre FWHM', fontsize=fs_text, labelpad=20)
-        axs[1,1].set_ylabel('Post FWHM', fontsize=fs_text)
-        axs[0,1].set_ylabel('Post FWHM', fontsize=fs_text)
+            title = 'Fwhm training_only ' + labels[j] 
+            plot_pre_post_scatter(axs[j,1],  data['fwhm_train_only_pre'] , data['fwhm_train_only_post'] ,data['orientations_train_only_pre'], indices[j], num_training, title = title,colors=colors)
+        axs[j,1].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
+    plt.tight_layout()
+    if results_dir[-4:]=='only':
+        fig.savefig(os.path.dirname(results_dir) + "/figures/tc_features" + train_only_str +".png")
+    else:
+        fig.savefig(results_dir + "/figures/tc_features_prefori" + train_only_str +".png")
+    plt.clf()
+    plt.close()
+
+    #############################################################################
+    ############# Same scatter plot but coloring based on cell type #############
+    #############################################################################
+    phase_colors_E = [ 'darkblue', 'blue', 'darkgreen', 'green']
+    phase_colors_I = [ 'darkred', 'red', 'orange', 'yellow']
+    colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
+    fs_text = 40
+    fs_ticks = 30
+    # Plot fwhm before vs after training for E_sup and E_mid #
+    fig, axs = plt.subplots(2, 2, figsize=(25, 25))
+    for j in [0,2]:            
+        # add a little jitter to x and y to avoid overlapping points
+        x = numpy.random.normal(0, 0.3, data['fwhm_prepre'].shape) + data['fwhm_prepre']
+        y = numpy.random.normal(0, 0.3, data['fwhm_post'].shape) + data['fwhm_post']
+        ax = axs[abs((2-j))//2,1]
+        if j==2:
+            for phase_ind in range(4):
+                indices_phase_E = I_mid_array[phase_ind,0,:]
+                indices_phase_I = I_mid_array[phase_ind,1,:]
+                ax.scatter(x[:,indices_phase_E], y[:,indices_phase_E], s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
+                ax.scatter(x[:,indices_phase_I], y[:,indices_phase_I], s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
+        else:
+            ax.scatter(x[:,I_sup], y[:,I_sup], s=30, alpha=0.5, color='blue')
+            ax.scatter(x[:,E_sup], y[:,E_sup], s=30, alpha=0.5, color='red')
+        xpoints = ypoints = ax.get_xlim()
+        ax.plot(xpoints, ypoints, color='black', linewidth=2)
+        ax.set_xlabel('Pre training')
+        ax.set_ylabel('Post training')
         
-        ############# Plot orientation vs slope #############
-        # Add slope difference before and after training to the data dictionary
-        data['slope_diff'] = data['norm_slope_post'] - data['norm_slope_prepre']
-        
-        # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
-        for j in [0,2]:
-            #axes_flat[j].scatter(data['orientations_prepre'][:,indices[j]], (data['norm_slope_post'][:,indices[j]]-data['norm_slope_prepre'][:,indices[j]]), s=20, alpha=0.7)
-            
-            # Define x and y values for the scatter plot
-            x= data['orientations_prepre'][:,indices[j]].flatten()
-            #shift x to have 0 in its center (with circular orientation) and 180 at the end and apply the same shift to the slope_diff
-            x = numpy.where(x>90, x-180, x)
-            y= data['slope_diff'][:,indices[j]].flatten()
-            lowess = sm.nonparametric.lowess(y, x, frac=0.15)  # Example with frac=0.2 for more local averaging
-            axs[abs((2-j)) // 2,0].scatter(x, y, s=15, alpha=0.7)
-            axs[abs((2-j)) // 2,0].plot(lowess[:, 0], lowess[:, 1], color='black', linewidth=3)
-            axes_format(axs[abs((2-j)) // 2,0], fs_ticks)
+        # Format axes
+        axes_format(axs[abs((2-j))//2,1], fs_ticks)
+    axs[0,1].set_title('Full width \n at half maximum (deg.)', fontsize=fs_text)
+    axs[0,1].set_xlabel('')
+    axs[1,1].set_xlabel('Pre FWHM', fontsize=fs_text, labelpad=20)
+    axs[1,1].set_ylabel('Post FWHM', fontsize=fs_text)
+    axs[0,1].set_ylabel('Post FWHM', fontsize=fs_text)
+    
+    # Plot orientation vs slope #
+    # Add slope difference before and after training to the data dictionary
+    data['slope_diff'] = data['norm_slope_post'] - data['norm_slope_prepre']
+    
+    # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
+    for j in [0,2]:
+        #axes_flat[j].scatter(data['orientations_prepre'][:,indices[j]], (data['norm_slope_post'][:,indices[j]]-data['norm_slope_prepre'][:,indices[j]]), s=20, alpha=0.7)
+        if j==2:
+            # Scatter plots with added colors to the different cell categories
+            for phase_ind in range(4):
+                indices_phase_E = E_mid_array[phase_ind,0,:]
+                indices_phase_I = I_mid_array[phase_ind,1,:]
+                y_E= data['slope_diff'][:,indices_phase_E].flatten()
+                x_E= data['orientations_prepre'][:,indices_phase_E].flatten()
+                x_E = numpy.where(x_E>90, x_E-180, x_E)
+                y_I= data['slope_diff'][:,indices_phase_I].flatten()
+                x_I= data['orientations_prepre'][:,indices_phase_I].flatten()
+                x_I = numpy.where(x_I>90, x_I-180, x_I)
+                axs[abs((2-j)) // 2,0].scatter(x_E, y_E, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
+                axs[abs((2-j)) // 2,0].scatter(x_I, y_I, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
+        else:
+            x_E= data['orientations_prepre'][:,E_sup].flatten()
+            x_E = numpy.where(x_E>90, x_E-180, x_E)
+            y_E= data['slope_diff'][:,E_sup].flatten()
+            x_I= data['orientations_prepre'][:,I_sup].flatten()
+            x_I = numpy.where(x_I>90, x_I-180, x_I)
+            y_I= data['slope_diff'][:,I_sup].flatten()
+            axs[abs((2-j)) // 2,0].scatter(x_E, y_E, s=30, alpha=0.7, color='red')
+            axs[abs((2-j)) // 2,0].scatter(x_I, y_I, s=30, alpha=0.7, color='blue')
+        # Define x and y values for the line plot
+        x= data['orientations_prepre'][:,indices[j]].flatten()
+        #shift x to have 0 in its center (with circular orientation) and 180 at the end and apply the same shift to the slope_diff
+        x = numpy.where(x>90, x-180, x)
+        y= data['slope_diff'][:,indices[j]].flatten()
+        lowess = sm.nonparametric.lowess(y, x, frac=0.15)  # Example with frac=0.2 for more local averaging
+        axs[abs((2-j)) // 2,0].plot(lowess[:, 0], lowess[:, 1], color='black', linewidth=3)
+        axes_format(axs[abs((2-j)) // 2,0], fs_ticks)
             
         axs[0,0].set_title('Tuning curve slope \n at trained orientation', fontsize=fs_text)
         axs[0,0].set_xlabel('')
@@ -367,7 +405,7 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
         axs[1,0].set_ylabel(r'$\Delta$ slope', fontsize=fs_text)
         axs[0,0].set_ylabel(r'$\Delta$ slope', fontsize=fs_text)
         plt.tight_layout(w_pad=10, h_pad=7)
-        fig.savefig(results_dir + "/figures/tc_features" + train_only_str +".png", bbox_inches='tight')
+        fig.savefig(results_dir + "/figures/tc_features_type" + train_only_str +".png", bbox_inches='tight')
         plt.close()
 
 def axes_format(axs, fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=True, ytick_flag=True):
