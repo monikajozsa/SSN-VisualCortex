@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 numpy.random.seed(0)
 
 from training.util_gabor import init_untrained_pars
-from analysis_functions import tuning_curve, SGD_step_indices
+from analysis_functions import tuning_curve, SGD_step_indices, tuning_curve_v2
 from util import load_parameters
 from parameters import (
     grid_pars,
@@ -29,18 +29,29 @@ import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
 tc_ori_list = numpy.arange(0,180,2)
-num_training = 50
+num_training = 2
 final_folder_path = os.path.join('results','Apr10_v1')
-
 
 ########## Calculate and save tuning curves ############
 start_time_in_main= time.time()
-for i in range(2,num_training):
+tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
+tc_header = []
+tc_header.append('run_index')
+tc_header.append('training_stage')
+for i in range(grid_pars.gridsize_Nx**2):
+    for phase_ind in range(ssn_pars.phases):
+        for type_ind in range(2):
+            cell_id = 1000*(i+1) + 100*phase_ind  + 10*type_ind 
+            tc_header.append(str(cell_id))
+# Superficial layer cells
+for type_ind in range(2):
+    for i in range(grid_pars.gridsize_Nx**2):
+        cell_id = 1000*(i+1) + 10*type_ind +1
+        tc_header.append(str(cell_id))
+
+for i in range(0,num_training):
     # Define file names
     results_filename = os.path.join(final_folder_path, f"results_{i}.csv")
-    tc_prepre_filename = os.path.join(final_folder_path, f"tc_prepre_{i}.csv")
-    tc_postpre_filename = os.path.join(final_folder_path, f"tc_postpre_{i}.csv")
-    tc_post_filename = os.path.join(final_folder_path, f"tc_post_{i}.csv")
     orimap_filename = os.path.join(final_folder_path, f"orimap_{i}.npy")
     orimap_loaded = numpy.load(orimap_filename)
     df = pd.read_csv(results_filename)
@@ -50,13 +61,14 @@ for i in range(2,num_training):
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=orimap_loaded)
     trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = SGD_step_inds[0])
-    tc_prepre, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_prepre_filename, ori_vec=tc_ori_list)   
+    tc_prepre, _ = tuning_curve_v2(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=0, run_index=i, header=tc_header)
     trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = SGD_step_inds[1], trained_pars_keys=trained_pars_stage2.keys())
-    tc_postpre, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_postpre_filename, ori_vec=tc_ori_list)
+    tc_postpre, _ = tuning_curve_v2(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=1, run_index=i, header=tc_header)
     _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = SGD_step_inds[2], trained_pars_keys=trained_pars_stage2.keys())
-    tc_post, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_post_filename, ori_vec=tc_ori_list)
+    tc_post, _ = tuning_curve_v2(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=2, run_index=i, header=tc_header)
+    tc_header = False
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
-
+'''
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
@@ -77,7 +89,7 @@ sigma_filter = 2
 #boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
 plot_tc_features(final_folder_path, num_training, tc_ori_list)
 #plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')
-
+'''
 '''
 MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
 

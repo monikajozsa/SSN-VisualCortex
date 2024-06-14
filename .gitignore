@@ -5,6 +5,7 @@ Profiles/
 results/
 __pycache__/
 *.png
+*.zip
 stim_data_dict.pkl
 *.db
 *.db-journal

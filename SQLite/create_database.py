@@ -51,14 +51,14 @@ for i in range(9):
     for j in range(9):
         for phase_ind in range(4):
             for type_ind in range(2):
-                cursor.execute('''INSERT INTO cell_info (grid_row, grid_col, phase, type, cell_id) VALUES (?,?,?,?,?)''',
+                cursor.execute('''INSERT INTO cell_info (grid_row, grid_col, phase, cell_type, cell_id) VALUES (?,?,?,?,?)''',
                                (i,j,phase_ind,types[type_ind],cell_ind))
                 cell_ind += 1
 # Superficial layer cells
 for type_ind in range(2):
     for i in range(9):
         for j in range(9):        
-            cursor.execute('''INSERT INTO cell_info (grid_row, grid_col, phase, type, cell_id) VALUES (?,?,?,?,?)''',
+            cursor.execute('''INSERT INTO cell_info (grid_row, grid_col, phase, cell_type, cell_id) VALUES (?,?,?,?,?)''',
                             (i,j,0,types[type_ind],cell_ind))
             cell_ind += 1
 conn.commit()
@@ -128,19 +128,18 @@ for run_ind in range(num_runs):
     for stage in range(3):
         csv_file_path = os.path.join(final_folder_path, f"tc_{stage_str[stage]}_{run_ind}.csv")
         df = pd.read_csv(csv_file_path, header=None)
-        oris = numpy.arange(0, 180, 180/df.shape[0])
 
         for ori_ind in range(df.shape[0]):
-            ori = oris[ori_ind]
             for cell_ind in range(df.shape[1]):
                 # Collect data for a single row
-                row_table = (cell_ind, ori_ind, stage, run_ind, df.iloc[ori_ind, cell_ind], ori)
+                row_table = (cell_ind, ori_ind, stage, run_ind, df.iloc[ori_ind, cell_ind])
                 rows_to_insert.append(row_table)
 
     # Insert all collected rows in a single batch
-    cursor.executemany('''INSERT INTO tuning_curves (cell_id, ori_ind, training_stage, init_index, tc_value, orientation)
-        VALUES (?, ?, ?, ?, ?, ?)''', rows_to_insert)
+    cursor.executemany('''INSERT INTO tuning_curves (cell_id, ori_ind, training_stage, init_index, tc_value)
+        VALUES (?, ?, ?, ?, ?)''', rows_to_insert)
     print('finished tuning_curves for run and stage', run_ind, ' in time:', time.time()-start_time)
+conn.commit()
 
 ##### check the tables #####
 # orientation map
@@ -152,20 +151,19 @@ for ori in oris[0:min(4,num_runs)]:
     i += 1
 
 # cell_info
-cursor.execute('''SELECT * from cell_info WHERE id == 0''')
+cursor.execute('''SELECT * from cell_info WHERE cell_id == 0''')
 cell0 = cursor.fetchall()
 print(f'cell 0 properties:',cell0)
 
 # training_results
-#cursor.execute('''SELECT * from training_results WHERE SGD_step == 0 and init_index == 0 and var_name LIKE 'J%' ''')
-#step0_J = cursor.fetchall()
-#print(f'J params at step 0:',step0_J)
+cursor.execute('''SELECT * from training_results WHERE SGD_step == 0 and init_index == 0 and var_name LIKE 'J%' ''')
+step0_J = cursor.fetchall()
+print(f'J params at step 0:',step0_J)
 
 # tuning curves
-cursor.execute('''SELECT * from training_results WHERE cell_id == 0 and init_index == 0 and ori_ind == 0 ''')
+cursor.execute('''SELECT * from tuning_curves WHERE cell_id == 0 and init_index == 0 and ori_ind == 0 ''')
 tc_example = cursor.fetchall()
 print(f'tc value for cell 0, run 0, ori 0:',tc_example)
 
-# Commit the changes and close the connection
-#conn.commit()
+# Close the connection
 conn.close()

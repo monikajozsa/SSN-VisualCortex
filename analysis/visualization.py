@@ -327,8 +327,8 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
     #############################################################################
     ############# Same scatter plot but coloring based on cell type #############
     #############################################################################
-    phase_colors_E = [ 'darkblue', 'blue', 'darkgreen', 'green']
-    phase_colors_I = [ 'darkred', 'red', 'orange', 'yellow']
+    phase_colors_E = [ 'blue', 'green', 'blue', 'green']
+    phase_colors_I = [ 'red', 'yellow', 'red', 'yellow']
     colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
     fs_text = 40
     fs_ticks = 30
