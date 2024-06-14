@@ -35,12 +35,12 @@ offset_saved = float(stimuli_pars.offset)
 
 # Save scripts into scripts folder and create figures and train_only folders
 train_only_flag = False # Setting train_only_flag to True will run an additional training without pretraining
-perturb_level=0.1
+perturb_level=0.3
 note=f'Perturbation: {perturb_level}, J baseline: {trained_pars.J_2x2_m.ravel()}, '
 results_filename, final_folder_path = save_code(train_only_flag=train_only_flag, note=note)
 
 # Run num_training number of pretraining + training
-num_training = 10
+num_training = 2
 starting_time_in_main= time.time()
 initial_parameters = None
 num_FailedRuns = 0
@@ -58,17 +58,16 @@ while i < num_training and num_FailedRuns < 20:
     # Create file names
     results_filename = os.path.join(final_folder_path, f"results_{i}.csv")
     results_filename_train_only = os.path.join(final_folder_path, 'train_only', f"results_train_only{i}.csv")
-    orimap_filename = os.path.join(final_folder_path, f"orimap_{i}.npy")
 
     # Initialize untrained parameters (calculate gabor filters, orientation map related variables)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_filename)
+                 loss_pars, training_pars, pretrain_pars, readout_pars, i, folder_to_save=final_folder_path)
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
 
     # Perturb readout_pars and trained_pars by percent % and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
-    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, trained_pars, untrained_pars, percent=perturb_level, orimap_filename=orimap_filename)
+    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, trained_pars, untrained_pars, percent=perturb_level)
     initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage2, untrained_pars.training_pars.eta)
     
     # Run pre-training

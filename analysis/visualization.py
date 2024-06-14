@@ -158,7 +158,7 @@ def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save,train_only_s
                 selected_mid_col_inds = numpy.array(tc_cells[:int(len(tc_cells)/2)])-1
                 selected_sup_col_inds = numpy.array(tc_cells[int(len(tc_cells)/2):])-1
             fig, axes = plt.subplots(nrows=num_runs_plotted, ncols=num_rnd_cells, figsize=(5*num_rnd_cells, 5*num_runs_plotted))
-        num_oris = tc_0.shape[0]
+        num_oris = tc_1.shape[0]
         # Plot tuning curves
         for cell_ind in range(int(num_rnd_cells/2)):
             if num_runs_plotted==1:

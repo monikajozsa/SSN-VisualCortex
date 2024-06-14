@@ -2,6 +2,7 @@
 import numpy
 import jax.numpy as np
 from jax import jit, lax, vmap
+import pandas as pd
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -161,7 +162,7 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 
 
 def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, file_to_save = None, orimap_loaded=None, regen_extended_orimap=False):
+                 loss_pars, training_pars, pretrain_pars, readout_pars, run_ind = 0, orimap_loaded=None, regen_extended_orimap=False, folder_to_save=None):
     """
     Define untrained_pars with a randomly generated or given orientation map.
     """
@@ -199,9 +200,25 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_par
                  readout_pars)
     
     # Save orimap if file_name is specified
-    if file_to_save is not None:
-        numpy.save(file_to_save, ssn_ori_map)
+    if folder_to_save is not None:
+        # ravel ssn_ori_map and add run_ind as a first element
+        ssn_ori_map = ssn_ori_map.ravel()
+        ssn_ori_map = numpy.insert(ssn_ori_map, 0, run_ind)
 
+        # add header as the header of the file if run_ind == 0
+        if run_ind == 0:
+            orimap_header = []
+            orimap_header.append('run_index')
+            # Grid points
+            for i in range(grid_pars.gridsize_Nx**2):
+                orimap_header.append(str(i))
+        else:
+            orimap_header = False
+
+        # Save the orimap to a csv file
+        ssn_ori_map_df = pd.DataFrame(ssn_ori_map.reshape(1, -1))
+        ssn_ori_map_df.to_csv(folder_to_save + '/orimap.csv', mode='a', header=orimap_header, index=False, float_format='%.4f')
+        print('Saved orimap to ' + folder_to_save + '/orimap.csv')
     return untrained_pars
 
 

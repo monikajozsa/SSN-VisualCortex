@@ -78,8 +78,7 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
         file_name = file_pattern.format(i) + '.csv'
         if offset_calc:
             # Load the orimap file and define the untrained parameters
-            orimap_filename = folder + '/orimap_{}.npy'.format(i)
-            loaded_orimap =  numpy.load(orimap_filename)
+            loaded_orimap =  load_orientation_map(folder, i)
             untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                             loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
             untrained_pars.pretrain_pars.is_on = False        
@@ -288,83 +287,7 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     return gabor_output
 
 
-def tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6)):
-    '''
-    Calculate responses of middle and superficial layers to different orientations.
-    '''
-    ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
-    if 'log_J_2x2_m' in trained_pars:
-        J_2x2_m = sep_exponentiate(trained_pars['log_J_2x2_m'])
-        J_2x2_s = sep_exponentiate(trained_pars['log_J_2x2_s'])
-    if 'J_2x2_m' in trained_pars:
-        J_2x2_m = trained_pars['J_2x2_m']
-        J_2x2_s = trained_pars['J_2x2_s']
-    if 'c_E' in trained_pars:
-        c_E = trained_pars['c_E']
-        c_I = trained_pars['c_I']
-    else:
-        c_E = untrained_pars.ssn_pars.c_E
-        c_I = untrained_pars.ssn_pars.c_I        
-    if 'log_f_E' in trained_pars:  
-        f_E = np.exp(trained_pars['log_f_E'])
-        f_I = np.exp(trained_pars['log_f_I'])
-    elif 'f_E' in trained_pars:
-        f_E = trained_pars['f_E']
-        f_I = trained_pars['f_I']
-    else:
-        f_E = untrained_pars.ssn_pars.f_E
-        f_I = untrained_pars.ssn_pars.f_I
-    
-    ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
-    
-    num_ori = len(ori_vec)
-    new_rows = []
-    x_map = untrained_pars.grid_pars.x_map
-    y_map = untrained_pars.grid_pars.y_map
-    ssn_pars = untrained_pars.ssn_pars
-    grid_size = x_map.shape[0]*x_map.shape[1]
-    responses_mid_phase_match = numpy.zeros((len(ori_vec),grid_size*ssn_pars.phases*2))
-    responses_sup_phase_match = numpy.zeros((len(ori_vec),grid_size*2))
-    for i in range(x_map.shape[0]):
-        for j in range(x_map.shape[1]):
-            x0 = x_map[i, j]
-            y0 = y_map[i, j]
-            for phase_ind in range(ssn_pars.phases):
-                # Generate stimulus
-                phase = phase_ind * np.pi/2
-                BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0=x0, y0=y0, phase=phase, full_grating=True)
-                x = BW_image_jax_inp[4]
-                y = BW_image_jax_inp[5]
-                alpha_channel = BW_image_jax_inp[6]
-                mask = BW_image_jax_inp[7]
-                stimuli = BW_image_vmap(BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori))
-                # Calculate model response for middle layer cells and save it to responses_mid_phase_match
-                _, _, _, _, _, responses_mid = vmap_evaluate_model_response_mid(ssn_mid, stimuli, untrained_pars.conv_pars, c_E, c_I, untrained_pars.gabor_filters)
-                mid_cell_ind_E = phase_ind*2*grid_size + i*x_map.shape[0]+j
-                mid_cell_ind_I = phase_ind*2*grid_size + i*x_map.shape[0]+j+grid_size
-                responses_mid_phase_match[:,mid_cell_ind_E]=responses_mid[:,mid_cell_ind_E] # E cell
-                responses_mid_phase_match[:,mid_cell_ind_I]=responses_mid[:,mid_cell_ind_I] # I cell
-                # Calculate model response for superficial layer cells and save it to responses_sup_phase_match
-                if phase_ind==0:
-                    # Superficial layer response per grid point
-                    ssn_sup=SSN_sup(ssn_pars=ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=ssn_pars.s_2x2_s, sigma_oris = ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
-                    _, _, [_, _], [_, _], [_, _, _, _], [fp_mid, responses_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-                    sup_cell_ind = i*x_map.shape[0]+j
-                    responses_sup_phase_match[:,sup_cell_ind]=responses_sup[:,sup_cell_ind]
-                    responses_sup_phase_match[:,grid_size+sup_cell_ind]=responses_sup[:,grid_size+sup_cell_ind]
-
-    # Save responses into csv file - overwrite the file if it already exists
-    if tuning_curves_filename is not None:
-        new_rows=np.concatenate((responses_mid_phase_match, responses_sup_phase_match), axis=1)
-        new_rows_df = pd.DataFrame(new_rows)
-        new_rows_df.to_csv(tuning_curves_filename, mode='w', header=False, index=False)
-
-    untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
-
-    return responses_sup, responses_mid
-
-
-def tuning_curve_v2(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(0,180,6), training_stage=1, run_index=0, header = False):
+def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(0,180,6), training_stage=1, run_index=0, header = False):
     '''
     Calculate responses of middle and superficial layers to different orientations.
     '''
@@ -647,8 +570,12 @@ def smooth_data(X, gridsize_Nx, sigma = 1):
 
 def load_orientation_map(folder, run_ind):
     '''Loads the orientation map from the folder for the training indexed by run_ind.'''
-    orimap_filename = os.path.join(folder, f"orimap_{run_ind}.npy")
-    orimap = np.load(orimap_filename)
+    orimap_filename = os.path.join(folder, f"orimap.csv")
+    orimaps = pd.read_csv(orimap_filename)
+
+    mesh_run = orimaps['run_index']==run_ind
+    orimap = orimaps[mesh_run][1:]
+
     return orimap
 
 
@@ -750,9 +677,6 @@ def mahal(X,Y):
     # Subtract the mean from X
     m = np.mean(X, axis=0)
     X_demean = X - m
-
-    # Create a matrix M by repeating m for ry rows
-    #M = np.tile(m, (ry, 1))
 
     # Perform QR decomposition on C
     Q, R = np.linalg.qr(X_demean, mode='reduced')

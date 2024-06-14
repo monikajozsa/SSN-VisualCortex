@@ -27,7 +27,7 @@ def perturb_params_supp(param_dict, percent = 0.1):
     return param_perturbed
 
 
-def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, orimap_filename=None, logistic_regr=True):
+def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, logistic_regr=True):
     # define the parameters to perturb
     trained_pars_dict = dict(J_2x2_m=trained_pars.J_2x2_m, J_2x2_s=trained_pars.J_2x2_s)
     for key, value in vars(trained_pars).items():
@@ -38,11 +38,12 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, orim
     i=0
     cond1 = False # parameter inequality on Jm
     cond2 = False # parameter inequality on Jm and g
-    cond6 = False # ensuring non-divergence of the SSNs
     cond3 = False # ensuring convergence of the SSNs
     cond4 = False # limiting max firing rate
+    cond5 = False # testing not NaN pretraining task response
+    cond6 = False # testing not NaN training task response
 
-    while not (cond1 and cond2 and cond3.all() and cond4 and cond5 and cond6):
+    while not (cond1 and cond2 and cond3 and cond4 and cond5 and cond6):
         perturbed_pars = perturb_params_supp(trained_pars_dict, percent)
         cond1 = np.abs(perturbed_pars['J_2x2_m'][0,0]*perturbed_pars['J_2x2_m'][1,1])*1.1 < np.abs(perturbed_pars['J_2x2_m'][1,0]*perturbed_pars['J_2x2_m'][0,1])
         cond2 = np.abs(perturbed_pars['J_2x2_m'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < np.abs(perturbed_pars['J_2x2_m'][1,1]*untrained_pars.filter_pars.gE_m)
@@ -66,20 +67,16 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, orim
             f_I = untrained_pars.ssn_pars.f_I
         r_train,_, [_, _], [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
         r_pretrain,_, [_, _], [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-        cond3 = avg_dx_mid + avg_dx_sup < 50
-        cond4 = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])>5 and max([float(np.max(max_E_mid)), float(np.max(max_I_mid)), float(np.max(max_E_sup)), float(np.max(max_I_sup))])<101
+        cond3 = bool((avg_dx_mid + avg_dx_sup < 50).all())
+        cond4 = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])>5 and max([float(np.max(max_E_mid)), float(np.max(max_I_mid)), float(np.max(max_E_sup)), float(np.max(max_I_sup))])<151
         cond5 = not numpy.any(np.isnan(r_pretrain))
         cond6 = not numpy.any(np.isnan(r_train))
         if i>50:
             print(" ########### Perturbed parameters violate conditions even after 50 sampling. ###########")
             break
         else:
-            if orimap_filename is not None:
-                # regenerate orimap
-                untrained_pars =  init_untrained_pars(untrained_pars.grid_pars, untrained_pars.stimuli_pars, untrained_pars.filter_pars, untrained_pars.ssn_pars, untrained_pars.conv_pars, 
-                    untrained_pars.loss_pars, untrained_pars.training_pars, untrained_pars.pretrain_pars, readout_pars, orimap_filename)
             i = i+1
-            print('Perturbed parameters', i , 'times',[bool(cond1),bool(cond2),bool(cond3.all()),cond4,cond5,cond6])
+            print('Perturbed parameters', i , 'times',[bool(cond1),bool(cond2),cond3,cond4,cond5,cond6])
 
     # Take log of the J and f parameters (if f_I, f_E are in the perturbed parameters)
     perturbed_pars_log = dict(

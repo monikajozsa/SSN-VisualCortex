@@ -18,13 +18,13 @@ class PreTrainPars:
     ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
     min_acc_check_ind = 10
     ''' minimum SGD step where accuracy check happens for the training task '''
-    min_stop_ind = 200
+    min_stop_ind = 10
     ''' minimum SGD step where pretraining can stop '''
-    offset_threshold = 7
+    offset_threshold = 6
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
     batch_size = 100
     ''' number of trials per SGD step during pretraining '''
-    SGD_steps = 500
+    SGD_steps = 50
     ''' maximum number of SGD steps during pretraining '''
 
 pretrain_pars = PreTrainPars()
@@ -37,9 +37,9 @@ class TrainingPars:
     '''learning rate - the maximum rate of parameter change in one SGD step'''
     batch_size: int = 50
     '''number of trials per SGD step'''
-    SGD_steps: int = 1000
+    SGD_steps: int = 50
     '''number of SGD step'''
-    validation_freq: int = 50  
+    validation_freq: int = 10  
     '''frequency of validation loss and accuracy calculation'''
     first_stage_acc_th: float = 0.55
     '''accuracy threshold for early stopping criterium for the first stage of training'''
@@ -244,9 +244,10 @@ class TrainedSSNPars:
     ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
     c_I: float = 5.0 
     ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
-    J_2x2_s = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774#(np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774) #(np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774)
+    # original sup: [[4.4, -1.66], [5, -1.24]], mid: [[1.9, -1.0], [3.6, -1.7]] 
+    J_2x2_s = np.array([[4.4, -1.66], [5, -1.24]])
     ''' relative strength of weights of different pre/post cell-type in middle layer '''
-    J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774#(np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774) #
+    J_2x2_m = np.array([[1.9, -1.0], [3.6, -1.7]] )
     ''' relative strength of weights of different pre/post cell-type in superficial layer '''
     
 trained_pars = TrainedSSNPars()
