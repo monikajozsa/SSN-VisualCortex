@@ -6,6 +6,6 @@ results/
 __pycache__/
 *.png
 *.zip
-stim_data_dict.pkl
+*.pkl
 *.db
 *.db-journal

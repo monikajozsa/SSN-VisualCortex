@@ -442,36 +442,19 @@ def tuning_curve_v2(untrained_pars, trained_pars, filename=None, ori_vec=np.aran
         responses_combined=np.concatenate((responses_mid_phase_match, responses_sup_phase_match), axis=1)
         new_rows = numpy.concatenate((run_index_vec, training_stage_vec, responses_combined), axis=1)
         new_rows_df = pd.DataFrame(new_rows)
-        new_rows_df.to_csv(filename, mode='a', header=header, index=False)
+        new_rows_df.to_csv(filename, mode='a', header=header, index=False, float_format='%.4f')
 
     untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
 
     return responses_sup, responses_mid
 
 
-# Define a 2D tuning curve function that changes the contrast
-def tuning_curve_2D(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6), contrast_vec = np.arange(0.4999,1,0.1)):
-    saved_contrast = float(untrained_pars.stimuli_pars.contrast)
-
-    responses_sup_2D = []
-    responses_mid_2D = []
-    for contrast in contrast_vec:
-        untrained_pars.stimuli_pars.contrast = contrast
-        responses_sup, responses_mid = tuning_curve(untrained_pars, trained_pars, tuning_curves_filename=None, ori_vec=np.arange(0,180,6))
-        responses_sup_2D.append(responses_sup)
-        responses_mid_2D.append(responses_mid)
-    
-    untrained_pars.stimuli_pars.contrast = saved_contrast
-    
-    return responses_sup_2D, responses_mid_2D
-
-
-def tc_slope(tuning_curve, x_axis, x1, x2, normalised=False):
+def tc_slope(tuning_curve, x_axis, x1, x2, normalise=False):
     """
-    Calculates slope of normalized tuning_curve between points x1 and x2. tuning_curve is given at x_axis points.
+    Calculates slope of (normalized if normalise=True) tuning_curve between points x1 and x2. tuning_curve is given at x_axis points.
     """
     #Remove baseline if normalising
-    if normalised == True:
+    if normalise == True:
         tuning_curve = (tuning_curve - tuning_curve.min()) / tuning_curve.max()
     
     #Find indices corresponding to desired x values
@@ -485,21 +468,23 @@ def tc_slope(tuning_curve, x_axis, x1, x2, normalised=False):
 
 
 def full_width_half_max(vector, d_theta):
-    
-    #Remove baseline
+    """
+    Calculate width of tuning curve at half-maximum. This method does not work when tuning curve has multiple bumps!
+    """
+    # Remove baseline, calculate half-max
     vector = vector-vector.min()
     half_height = vector.max()/2
-    points_above = len(vector[vector>half_height])
 
+    # Get the number of points above half-max and multiply it by the delta angle to get width in angle
+    points_above = len(vector[vector>half_height])
     distance = d_theta * points_above
     
     return distance
 
 
-def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
+def tc_features(tuning_curve, ori_list=numpy.arange(0,180,6), expand_dims=False):
     
     # Tuning curve of given cell indices
-    tuning_curve = numpy.array(pd.read_csv(file_name))
     num_cells = tuning_curve.shape[1]
     
     # Find preferred orientation and center it at 55
@@ -515,7 +500,7 @@ def tc_features(file_name, ori_list=numpy.arange(0,180,6), expand_dims=False):
     # Norm slope
     avg_slope_vec =numpy.zeros(num_cells) 
     for i in range(num_cells):
-        avg_slope_vec[i] = tc_slope(tuning_curve[:, i], x_axis = ori_list, x1 = 52, x2 = 58, normalised =False)
+        avg_slope_vec[i] = tc_slope(tuning_curve[:, i], x_axis = ori_list, x1 = 52, x2 = 58, normalise =False)
     if expand_dims:
         avg_slope_vec = numpy.expand_dims(avg_slope_vec, axis=0)
         full_width_half_max_vec = numpy.expand_dims(full_width_half_max_vec, axis=0)

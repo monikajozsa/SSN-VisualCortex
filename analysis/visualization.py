@@ -121,27 +121,34 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     plt.close()
 
 
-def plot_tuning_curves(folder_path,tc_cells,num_runs,folder_to_save,train_only_str='', seed=0):
+def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save,train_only_str='', seed=0):
+
+    if train_only_str=='':
+        tc_filename = results_dir + f'/tuning_curves.csv'
+    else:
+        tc_filename = results_dir + f'/tuning_curves_train_only.csv'
+    tuning_curves = numpy.array(pd.read_csv(tc_filename))
+
     numpy.random.seed(seed)
     num_mid_cells = 648
     num_sup_cells = 164
     num_runs_plotted = min(5,num_runs)
-    tc_post_pretrain = folder_path + '/tc_postpre_0.csv'
+    tc_post_pretrain = results_dir + '/tc_postpre_0.csv'
     pretrain_ison = os.path.exists(tc_post_pretrain)
-    for j in range(num_runs_plotted):
+    for i in range(num_runs_plotted):
+        mesh_i = tuning_curves[:,0]==i
+        tuning_curve_i = tuning_curves[mesh_i,1:]
         if pretrain_ison:
-            tc_pre_pretrain = os.path.join(folder_path,f'tc_' + train_only_str + f'prepre_{j}.csv')
-            df_tc_pre_pretrain = pd.read_csv(tc_pre_pretrain, header=0)
-            tc_post_pretrain =os.path.join(folder_path,f'tc_' + train_only_str + f'postpre_{j}.csv')
-            df_tc_post_pretrain = pd.read_csv(tc_post_pretrain, header=0)
-        else:
-            tc_pre_train = folder_path + f'/tc_train_only_pre_{j}.csv'
-            df_tc_pre_pretrain = pd.read_csv(tc_pre_train, header=0)
-        tc_post_train =os.path.join(folder_path,f'tc_' + train_only_str + f'post_{j}.csv')
-        df_tc_post_train = pd.read_csv(tc_post_train, header=0)
+            mesh_stage_0 = tuning_curve_i[:,0]==0
+            tc_0 = tuning_curve_i[mesh_stage_0,1:]
+
+        mesh_stage_1 = tuning_curve_i[:,0]==1
+        tc_1 = tuning_curve_i[mesh_stage_1,1:]
+        mesh_stage_2 = tuning_curve_i[:,0]==2
+        tc_2 = tuning_curve_i[mesh_stage_2,1:]
 
         # Select num_rnd_cells randomly selected cells to plot from both middle and superficial layer cells
-        if j==0:
+        if i==0:
             if isinstance(tc_cells,int):
                 num_rnd_cells=tc_cells
                 selected_mid_col_inds = numpy.random.randint(0, num_mid_cells, size=int(num_rnd_cells/2), replace=False)
@@ -151,32 +158,32 @@ def plot_tuning_curves(folder_path,tc_cells,num_runs,folder_to_save,train_only_s
                 selected_mid_col_inds = numpy.array(tc_cells[:int(len(tc_cells)/2)])-1
                 selected_sup_col_inds = numpy.array(tc_cells[int(len(tc_cells)/2):])-1
             fig, axes = plt.subplots(nrows=num_runs_plotted, ncols=num_rnd_cells, figsize=(5*num_rnd_cells, 5*num_runs_plotted))
-        num_oris = df_tc_pre_pretrain.shape[0]
+        num_oris = tc_0.shape[0]
         # Plot tuning curves
-        for i in range(int(num_rnd_cells/2)):
+        for cell_ind in range(int(num_rnd_cells/2)):
             if num_runs_plotted==1:
-                ax1=axes[i]
-                ax2=axes[int(num_rnd_cells/2)+i]
+                ax1=axes[cell_ind]
+                ax2=axes[int(num_rnd_cells/2)+cell_ind]
             else:
-                ax1=axes[j,i]
-                ax2=axes[j,int(num_rnd_cells/2)+i]
-            ax1.plot(range(num_oris), df_tc_pre_pretrain.iloc[:,selected_mid_col_inds[i]], label='initial',linewidth=2)
-            ax2.plot(range(num_oris), df_tc_pre_pretrain.iloc[:,selected_sup_col_inds[i]], label='initial',linewidth=2)
+                ax1=axes[i,cell_ind]
+                ax2=axes[i,int(num_rnd_cells/2)+cell_ind]
             if pretrain_ison:
-                ax1.plot(range(num_oris), df_tc_post_pretrain.iloc[:,selected_mid_col_inds[i]], label='post-pretraining',linewidth=2)
-                ax2.plot(range(num_oris), df_tc_post_pretrain.iloc[:,selected_sup_col_inds[i]], label='post-pretraining',linewidth=2)
-            ax1.plot(range(num_oris), df_tc_post_train.iloc[:,selected_mid_col_inds[i]], label='post-training',linewidth=2)
-            ax2.plot(range(num_oris), df_tc_post_train.iloc[:,selected_sup_col_inds[i]], label='post-training',linewidth=2)
+                ax1.plot(range(num_oris), tc_0[:,selected_mid_col_inds[cell_ind]], label='initial',linewidth=2)
+                ax2.plot(range(num_oris), tc_0[:,selected_sup_col_inds[cell_ind]], label='initial',linewidth=2)
+            ax1.plot(range(num_oris), tc_1[:,selected_mid_col_inds[cell_ind]], label='post-pretraining',linewidth=2)
+            ax2.plot(range(num_oris), tc_1[:,selected_sup_col_inds[cell_ind]], label='post-pretraining',linewidth=2)
+            ax1.plot(range(num_oris), tc_2[:,selected_mid_col_inds[cell_ind]], label='post-training',linewidth=2)
+            ax2.plot(range(num_oris), tc_2[:,selected_sup_col_inds[cell_ind]], label='post-training',linewidth=2)
             
-            ax1.set_title(f'Middle layer cell {i}', fontsize=20)
-            ax2.set_title(f'Superficial layer, cell {i}', fontsize=20)
+            ax1.set_title(f'Middle layer cell {cell_ind}', fontsize=20)
+            ax2.set_title(f'Superficial layer, cell {cell_ind}', fontsize=20)
     ax2.legend(loc='upper left', fontsize=20)
     
     # Save plot
     if folder_to_save is not None:
         fig.savefig(os.path.join(folder_to_save,'tc_' + train_only_str + 'fig.png'))
     else:
-        fig.savefig(os.path.join(folder_path,'tc_' + train_only_str + 'fig.png'))
+        fig.savefig(os.path.join(results_dir,'tc_' + train_only_str + 'fig.png'))
     plt.close()
 
 
@@ -209,59 +216,58 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
     ax.set_title(title)
   
 
-def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre_post_scatter_flag=False):
+def plot_tc_features(results_dir, num_training, ori_list, train_only_str=''):
 
     # Initialize dictionaries to store the data arrays
     if train_only_str=='':
         data = {
-            'norm_slope_prepre': [],
-            'norm_slope_postpre': [],
-            'norm_slope_post': [],
-            'fwhm_prepre': [],
-            'fwhm_postpre': [],
-            'fwhm_post': [],
-            'orientations_prepre': [],
-            'orientations_postpre': [],
-            'orientations_post': [],
+            'norm_slope_0': [],
+            'norm_slope_1': [],
+            'norm_slope_2': [],
+            'fwhm_0': [],
+            'fwhm_1': [],
+            'fwhm_2': [],
+            'preforis_0': [],
+            'preforis_1': [],
+            'preforis_2': [],
         }
     else:
             data = {
-            'norm_slope_train_only_pre': [],
-            'norm_slope_train_only_post': [],
-            'fwhm_train_only_pre': [],
-            'fwhm_train_only_post': [],
-            'orientations_train_only_pre': [],
-            'orientations_train_only_post': []
+            'norm_slope_train_only_0': [],
+            'norm_slope_train_only_2': [],
+            'fwhm_train_only_0': [],
+            'fwhm_train_only_2': [],
+            'preforis_train_only_0': [],
+            'preforis_train_only_2': []
         }
+            
+    # Load data from file
+    if train_only_str=='':
+        tc_filename = results_dir + f'/tuning_curves.csv'
+    else:
+        tc_filename = results_dir + f'/tuning_curves_train_only.csv'
+    tuning_curves = numpy.array(pd.read_csv(tc_filename))
 
+    # Loop through each training and stage within training (pre pretraining, post pretrainig and post training)
     for i in range(num_training):
-        # File names associated with each data type
-        if train_only_str=='':
-            file_names = {
-                'prepre': results_dir + f'/tc_prepre_{i}.csv',
-                'postpre':  results_dir + f'/tc_postpre_{i}.csv',
-                'post': results_dir + f'/tc_post_{i}.csv'
-            }
-        else:
-            file_names = {
-                'train_only_pre': results_dir + f'/tc_train_only_pre_{i}.csv',
-                'train_only_post': results_dir + f'/tc_train_only_post_{i}.csv'
-            }
+        mesh_i = tuning_curves[:,0]==i
+        tuning_curves_i = tuning_curves[mesh_i,1:]
+        for training_stage in range(3):
+            mesh_stage = tuning_curves_i[:,0]==training_stage
 
-        # Loop through each file name to process and store data
-        for key, file_name in file_names.items():
-            # Load data from file
-            slope, fwhm, orientations = tc_features(file_name, ori_list=ori_list, expand_dims=True)
+            # Calculate features for the current tuning curve: slope of normalized tuning_curve
+            tuning_curve = tuning_curves_i[mesh_stage,1:]
+            slope, fwhm, orientations = tc_features(tuning_curve, ori_list=ori_list, expand_dims=True)
             
             # Save features: if first iteration, initialize; else, concatenate
             if  i==0:
-                data[f'norm_slope_{key}'] = slope
-                data[f'fwhm_{key}'] = fwhm
-                data[f'orientations_{key}'] = orientations
+                data[f'norm_slope_{training_stage}'] = slope
+                data[f'fwhm_{training_stage}'] = fwhm
+                data[f'preforis_{training_stage}'] = orientations
             else:
-                data[f'norm_slope_{key}'] = numpy.concatenate((data[f'norm_slope_{key}'], slope), axis=0)
-                data[f'fwhm_{key}'] = numpy.concatenate((data[f'fwhm_{key}'], fwhm), axis=0)
-                data[f'orientations_{key}'] = numpy.concatenate((data[f'orientations_{key}'], orientations), axis=0)
+                data[f'norm_slope_{training_stage}'] = numpy.concatenate((data[f'norm_slope_{training_stage}'], slope), axis=0)
+                data[f'fwhm_{training_stage}'] = numpy.concatenate((data[f'fwhm_{training_stage}'], fwhm), axis=0)
+                data[f'preforis_{training_stage}'] = numpy.concatenate((data[f'preforis_{training_stage}'], orientations), axis=0)
 
 
     ############## Plots about changes before vs after training and pretraining and training only (per layer and per centered or all) ##############
@@ -290,122 +296,90 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str='', pre
         patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
 
     #############################################################################
-    ########### Scatter plot coloring based on preferred orientation ############
+    ######### Schoups-style scatter plots - coloring based on cell type #########
     #############################################################################
-    if train_only_str=='':
-        fig, axs = plt.subplots(4, 4, figsize=(15, 20)) 
-        for j in range(len(indices)):
-            title = 'Slope pretraining ' + labels[j]
-            plot_pre_post_scatter(axs[j,0], data['norm_slope_prepre'] , data['norm_slope_postpre'] ,  data['orientations_prepre'],  indices[j],num_training, title = title,colors=colors)
-
-            title = 'Slope training, ' + labels[j]
-            plot_pre_post_scatter(axs[j,1], data['norm_slope_postpre'] , data['norm_slope_post'] ,  data['orientations_postpre'], indices[j],num_training, title = title,colors=colors)
-
-            title = 'Fwhm pretraining ' + labels[j]
-            plot_pre_post_scatter(axs[j,2],  data['fwhm_prepre'] ,  data['fwhm_postpre'] ,  data['orientations_prepre'], indices[j], num_training, title = title,colors=colors)
-
-            title = 'Fwhm training, ' + labels[j] 
-            plot_pre_post_scatter(axs[j,3], data['fwhm_postpre'] , data['fwhm_post'] ,data['orientations_postpre'], indices[j], num_training,title = title,colors=colors)
-        axs[j,3].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
-    else:
-        fig, axs = plt.subplots(4, 2, figsize=(10, 20)) 
-        for j in range(len(indices)):    
-            title = 'Slope training_only ' + labels[j]
-            plot_pre_post_scatter(axs[j,0],  data['norm_slope_train_only_pre'] , data['norm_slope_train_only_post'] , data['orientations_train_only_pre'], indices[j], num_training, title = title,colors=colors)
-
-            title = 'Fwhm training_only ' + labels[j] 
-            plot_pre_post_scatter(axs[j,1],  data['fwhm_train_only_pre'] , data['fwhm_train_only_post'] ,data['orientations_train_only_pre'], indices[j], num_training, title = title,colors=colors)
-        axs[j,1].legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 1), title='Pref ori - train ori')
-    plt.tight_layout()
-    if results_dir[-4:]=='only':
-        fig.savefig(os.path.dirname(results_dir) + "/figures/tc_features" + train_only_str +".png")
-    else:
-        fig.savefig(results_dir + "/figures/tc_features_prefori" + train_only_str +".png")
-    plt.clf()
-    plt.close()
-
-    #############################################################################
-    ############# Same scatter plot but coloring based on cell type #############
-    #############################################################################
-    phase_colors_E = [ 'blue', 'green', 'blue', 'green']
-    phase_colors_I = [ 'red', 'yellow', 'red', 'yellow']
+    phase_colors_E = [ 'blue', 'green', 'darkblue', 'darkgreen']
+    phase_colors_I = [ 'red', 'yellow', 'darkred', 'orange']
     colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
     fs_text = 40
     fs_ticks = 30
-    # Plot fwhm before vs after training for E_sup and E_mid #
-    fig, axs = plt.subplots(2, 2, figsize=(25, 25))
-    for j in [0,2]:            
-        # add a little jitter to x and y to avoid overlapping points
-        x = numpy.random.normal(0, 0.3, data['fwhm_prepre'].shape) + data['fwhm_prepre']
-        y = numpy.random.normal(0, 0.3, data['fwhm_post'].shape) + data['fwhm_post']
-        ax = axs[abs((2-j))//2,1]
-        if j==2:
-            for phase_ind in range(4):
-                indices_phase_E = I_mid_array[phase_ind,0,:]
-                indices_phase_I = I_mid_array[phase_ind,1,:]
-                ax.scatter(x[:,indices_phase_E], y[:,indices_phase_E], s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
-                ax.scatter(x[:,indices_phase_I], y[:,indices_phase_I], s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
-        else:
-            ax.scatter(x[:,I_sup], y[:,I_sup], s=30, alpha=0.5, color='blue')
-            ax.scatter(x[:,E_sup], y[:,E_sup], s=30, alpha=0.5, color='red')
-        xpoints = ypoints = ax.get_xlim()
-        ax.plot(xpoints, ypoints, color='black', linewidth=2)
-        ax.set_xlabel('Pre training')
-        ax.set_ylabel('Post training')
-        
-        # Format axes
-        axes_format(axs[abs((2-j))//2,1], fs_ticks)
-    axs[0,1].set_title('Full width \n at half maximum (deg.)', fontsize=fs_text)
-    axs[0,1].set_xlabel('')
-    axs[1,1].set_xlabel('Pre FWHM', fontsize=fs_text, labelpad=20)
-    axs[1,1].set_ylabel('Post FWHM', fontsize=fs_text)
-    axs[0,1].set_ylabel('Post FWHM', fontsize=fs_text)
-    
-    # Plot orientation vs slope #
-    # Add slope difference before and after training to the data dictionary
-    data['slope_diff'] = data['norm_slope_post'] - data['norm_slope_prepre']
     
     # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
-    for j in [0,2]:
-        #axes_flat[j].scatter(data['orientations_prepre'][:,indices[j]], (data['norm_slope_post'][:,indices[j]]-data['norm_slope_prepre'][:,indices[j]]), s=20, alpha=0.7)
-        if j==2:
-            # Scatter plots with added colors to the different cell categories
-            for phase_ind in range(4):
-                indices_phase_E = E_mid_array[phase_ind,0,:]
-                indices_phase_I = I_mid_array[phase_ind,1,:]
-                y_E= data['slope_diff'][:,indices_phase_E].flatten()
-                x_E= data['orientations_prepre'][:,indices_phase_E].flatten()
-                x_E = numpy.where(x_E>90, x_E-180, x_E)
-                y_I= data['slope_diff'][:,indices_phase_I].flatten()
-                x_I= data['orientations_prepre'][:,indices_phase_I].flatten()
-                x_I = numpy.where(x_I>90, x_I-180, x_I)
-                axs[abs((2-j)) // 2,0].scatter(x_E, y_E, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
-                axs[abs((2-j)) // 2,0].scatter(x_I, y_I, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
-        else:
-            x_E= data['orientations_prepre'][:,E_sup].flatten()
-            x_E = numpy.where(x_E>90, x_E-180, x_E)
-            y_E= data['slope_diff'][:,E_sup].flatten()
-            x_I= data['orientations_prepre'][:,I_sup].flatten()
-            x_I = numpy.where(x_I>90, x_I-180, x_I)
-            y_I= data['slope_diff'][:,I_sup].flatten()
-            axs[abs((2-j)) // 2,0].scatter(x_E, y_E, s=30, alpha=0.7, color='red')
-            axs[abs((2-j)) // 2,0].scatter(x_I, y_I, s=30, alpha=0.7, color='blue')
-        # Define x and y values for the line plot
-        x= data['orientations_prepre'][:,indices[j]].flatten()
-        #shift x to have 0 in its center (with circular orientation) and 180 at the end and apply the same shift to the slope_diff
-        x = numpy.where(x>90, x-180, x)
-        y= data['slope_diff'][:,indices[j]].flatten()
-        lowess = sm.nonparametric.lowess(y, x, frac=0.15)  # Example with frac=0.2 for more local averaging
-        axs[abs((2-j)) // 2,0].plot(lowess[:, 0], lowess[:, 1], color='black', linewidth=3)
-        axes_format(axs[abs((2-j)) // 2,0], fs_ticks)
+    for stage in range(2):
+        fig, axs = plt.subplots(2, 2, figsize=(25, 25))
+        for j in [0,2]:            
+            ##### Plot fwhm before vs after training for E_sup and E_mid #####
+            # add a little jitter to x and y to avoid overlapping points
+            x = numpy.random.normal(0, 0.3, data[f'fwhm_{stage}'].shape) + data[f'fwhm_{stage}']
+            y = numpy.random.normal(0, 0.3, data[f'fwhm_{stage+1}'].shape) + data[f'fwhm_{stage+1}']
+            ax = axs[abs((2-j))//2,1]
+            if j==2:
+                for phase_ind in range(4):
+                    indices_phase_E = I_mid_array[phase_ind,0,:]
+                    indices_phase_I = I_mid_array[phase_ind,1,:]
+                    ax.scatter(x[:,indices_phase_E], y[:,indices_phase_E], s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
+                    ax.scatter(x[:,indices_phase_I], y[:,indices_phase_I], s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
+            else:
+                ax.scatter(x[:,I_sup], y[:,I_sup], s=30, alpha=0.5, color='blue')
+                ax.scatter(x[:,E_sup], y[:,E_sup], s=30, alpha=0.5, color='red')
+            xpoints = ypoints = ax.get_xlim()
+            ax.plot(xpoints, ypoints, color='black', linewidth=2)
+            ax.set_xlabel('Pre training')
+            ax.set_ylabel('Post training')
             
+            # Format axes
+            axes_format(axs[abs((2-j))//2,1], fs_ticks)
+            
+            ##### Plot orientation vs slope #####
+            data[f'slope_diff_{stage}'] = data[f'norm_slope_{stage+1}'] - data[f'norm_slope_{stage}']
+            if j==2:
+                # Scatter plots with added colors to the different cell categories
+                for phase_ind in range(4):
+                    indices_phase_E = E_mid_array[phase_ind,0,:]
+                    indices_phase_I = I_mid_array[phase_ind,1,:]
+                    y_E= data[f'slope_diff_{stage}'][:,indices_phase_E].flatten()
+                    x_E= data[f'preforis_{stage}'][:,indices_phase_E].flatten()
+                    x_E = numpy.where(x_E>90, x_E-180, x_E)
+                    y_I= data[f'slope_diff_{stage}'][:,indices_phase_I].flatten()
+                    x_I= data[f'preforis_{stage}'][:,indices_phase_I].flatten()
+                    x_I = numpy.where(x_I>90, x_I-180, x_I)
+                    axs[abs((2-j)) // 2,0].scatter(x_E, y_E, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
+                    axs[abs((2-j)) // 2,0].scatter(x_I, y_I, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
+            else:
+                x_E= data[f'preforis_{stage}'][:,E_sup].flatten()
+                x_E = numpy.where(x_E>90, x_E-180, x_E)
+                y_E= data[f'slope_diff_{stage}'][:,E_sup].flatten()
+                x_I= data[f'preforis_{stage}'][:,I_sup].flatten()
+                x_I = numpy.where(x_I>90, x_I-180, x_I)
+                y_I= data[f'slope_diff_{stage}'][:,I_sup].flatten()
+                axs[abs((2-j)) // 2,0].scatter(x_E, y_E, s=30, alpha=0.7, color='red')
+                axs[abs((2-j)) // 2,0].scatter(x_I, y_I, s=30, alpha=0.7, color='blue')
+            # Line plots: define x and y values and shift x to have 0 in its center
+            x_E= data[f'preforis_{stage}'][:,indices[j]].flatten()
+            x_E = numpy.where(x_E>90, x_E-180, x_E)
+            y_E= data[f'slope_diff_{stage}'][:,indices[j]].flatten()
+            lowess_E = sm.nonparametric.lowess(y_E, x_E, frac=0.15)  # Example with frac=0.2 for more local averaging
+            x_I= data[f'preforis_{stage}'][:,indices[j+1]].flatten()
+            x_I = numpy.where(x_I>90, x_I-180, x_I)
+            y_I= data[f'slope_diff_{stage}'][:,indices[j+1]].flatten()
+            lowess_I = sm.nonparametric.lowess(y_I, x_I, frac=0.15)
+            axs[abs((2-j)) // 2,0].plot(lowess_E[:, 0], lowess_E[:, 1], color='red', linewidth=4)
+            axs[abs((2-j)) // 2,0].plot(lowess_I[:, 0], lowess_I[:, 1], color='blue', linewidth=4)
+            axes_format(axs[abs((2-j)) // 2,0], fs_ticks)
+        
+        axs[0,1].set_title('Full width \n at half maximum (deg.)', fontsize=fs_text)
+        axs[0,1].set_xlabel('')
+        axs[1,1].set_xlabel('Pre FWHM', fontsize=fs_text, labelpad=20)
+        axs[1,1].set_ylabel('Post FWHM', fontsize=fs_text)
+        axs[0,1].set_ylabel('Post FWHM', fontsize=fs_text)
+
         axs[0,0].set_title('Tuning curve slope \n at trained orientation', fontsize=fs_text)
         axs[0,0].set_xlabel('')
         axs[1,0].set_xlabel('pref. ori - trained ori', fontsize=fs_text, labelpad=20)
         axs[1,0].set_ylabel(r'$\Delta$ slope', fontsize=fs_text)
         axs[0,0].set_ylabel(r'$\Delta$ slope', fontsize=fs_text)
         plt.tight_layout(w_pad=10, h_pad=7)
-        fig.savefig(results_dir + "/figures/tc_features_type" + train_only_str +".png", bbox_inches='tight')
+        fig.savefig(results_dir + f"/figures/tc_features_{stage}" + train_only_str +".png", bbox_inches='tight')
         plt.close()
 
 def axes_format(axs, fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=True, ytick_flag=True):

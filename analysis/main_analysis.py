@@ -62,13 +62,14 @@ for i in range(0,num_training):
                  loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=orimap_loaded)
     trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = SGD_step_inds[0])
     tc_prepre, _ = tuning_curve_v2(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=0, run_index=i, header=tc_header)
-    trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = SGD_step_inds[1], trained_pars_keys=trained_pars_stage2.keys())
-    tc_postpre, _ = tuning_curve_v2(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=1, run_index=i, header=tc_header)
-    _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = SGD_step_inds[2], trained_pars_keys=trained_pars_stage2.keys())
-    tc_post, _ = tuning_curve_v2(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=2, run_index=i, header=tc_header)
     tc_header = False
+    trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = SGD_step_inds[1], trained_pars_keys=trained_pars_stage2.keys())
+    tc_postpre, _ = tuning_curve_v2(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=1, run_index=i)
+    _, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = SGD_step_inds[2], trained_pars_keys=trained_pars_stage2.keys())
+    tc_post, _ = tuning_curve_v2(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=2, run_index=i)
+    
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
-'''
+
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
@@ -87,9 +88,9 @@ sigma_filter = 2
 
 #plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)#, starting_run=10)
 #boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
-plot_tc_features(final_folder_path, num_training, tc_ori_list)
-#plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')
-'''
+#plot_tc_features(final_folder_path, num_training, tc_ori_list)
+plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')
+
 '''
 MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
 
