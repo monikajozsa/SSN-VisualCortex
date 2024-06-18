@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from training.model import evaluate_model_response, vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import mean_training_task_acc_test, offset_at_baseline_acc, generate_noise
-from util import load_parameters, sep_exponentiate #, create_grating_training
+from util import load_parameters, sep_exponentiate, filter_for_run #, create_grating_training
 from training.util_gabor import init_untrained_pars, BW_image_jit, BW_image_jit_noisy, BW_image_jax_supp, BW_image_vmap
 from parameters import (
     xy_distance,
@@ -30,17 +30,11 @@ from parameters import (
 
 ############## Analysis functions ##########
 
-def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_calc=True, mesh_for_valid_offset=True):
+def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=True, mesh_for_valid_offset=True):
     '''read CSV files and calculate the correlation between the changes of accuracy and J (J_II and J_EI are summed up and J_EE and J_IE are summed up) for each file'''
-    
-    # Check if num_trainings is None and calculate the number of result files in the folder
-    if num_trainings is None:
-        num_trainings = 0
-        for filename in os.listdir(folder):
-            if filename.endswith('.csv') and filename.startswith('result'):
-                num_trainings += 1
 
-    file_pattern = folder + '/results_{}'
+    filepath = folder + '/results.csv'
+    df = pd.read_csv(filepath)
 
     # Initialize the arrays to store the results in
     num_rows = num_trainings*max(1,(num_indices-2))
@@ -74,33 +68,30 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
     
     ref_ori_saved = float(stimuli_pars.ref_ori)
     for i in range(num_trainings):
-        # Construct the file name
-        file_name = file_pattern.format(i) + '.csv'
         if offset_calc:
             # Load the orimap file and define the untrained parameters
             loaded_orimap =  load_orientation_map(folder, i)
             untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                             loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
             untrained_pars.pretrain_pars.is_on = False        
+        # Filter the df for the ith run
+        df_i = filter_for_run(df, i)
         
-        # Read the file
-        df = pd.read_csv(file_name)
-
         # Calculate the J differences (J_m_EE	J_m_EI	J_m_IE	J_m_II	J_s_EE	J_s_EI	J_s_IE	J_s_II) at start and end of training
-        relative_changes, time_inds = rel_changes(df, num_indices)
+        relative_changes, time_inds = rel_changes(df_i, num_indices)
         training_start = time_inds[1]
-        J_m_EE = df['J_m_EE']
-        J_m_IE = df['J_m_IE']
-        J_s_EE = df['J_s_EE']
-        J_s_IE = df['J_s_IE']
-        J_m_EI = [numpy.abs(df['J_m_EI'][i]) for i in range(len(df['J_m_EI']))]
-        J_m_II = [numpy.abs(df['J_m_II'][i]) for i in range(len(df['J_m_II']))]
-        J_s_EI = [numpy.abs(df['J_s_EI'][i]) for i in range(len(df['J_s_EI']))]
-        J_s_II = [numpy.abs(df['J_s_II'][i]) for i in range(len(df['J_s_II']))]
+        J_m_EE = df_i['J_m_EE']
+        J_m_IE = df_i['J_m_IE']
+        J_s_EE = df_i['J_s_EE']
+        J_s_IE = df_i['J_s_IE']
+        J_m_EI = [numpy.abs(df_i['J_m_EI'][i]) for i in range(len(df_i['J_m_EI']))]
+        J_m_II = [numpy.abs(df_i['J_m_II'][i]) for i in range(len(df_i['J_m_II']))]
+        J_s_EI = [numpy.abs(df_i['J_s_EI'][i]) for i in range(len(df_i['J_s_EI']))]
+        J_s_II = [numpy.abs(df_i['J_s_II'][i]) for i in range(len(df_i['J_s_II']))]
 
         if offset_calc:
             # Calculate the offset threshold before training (repeat as many times as the number of indices-2)
-            trained_pars_stage1, trained_pars_stage2, _ = load_parameters(file_name, iloc_ind = training_start)
+            trained_pars_stage1, trained_pars_stage2, _ = load_parameters(df_i, iloc_ind = training_start)
             acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec, sample_size = 1 )
             offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
             offset_th[sample_ind : sample_ind + max(1,num_indices-2),0] = numpy.repeat(offset_temp, max(1,num_indices-2))
@@ -138,7 +129,7 @@ def rel_changes_from_csvs(folder, num_trainings=None, num_indices = 3, offset_ca
                     
             if offset_calc:
                 # Calculate the offset threshold after training
-                trained_pars_stage1, trained_pars_stage2, _ = load_parameters(file_name, iloc_ind = training_end)
+                trained_pars_stage1, trained_pars_stage2, _ = load_parameters(df_i, iloc_ind = training_end)
                 acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
                 offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
                 offset_th[sample_ind,1] = offset_temp
@@ -699,21 +690,23 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)
     '''
 
-    file_name = f"{folder}/results_{run_ind}.csv"
-    loaded_orimap = load_orientation_map(folder, run_ind)
     grid_pars.gridsize_Nx = mvpa_pars.gridsize_Nx
     readout_pars.readout_grid_size = mvpa_pars.readout_grid_size
     grid_pars.gridsize_mm = float(grid_pars.gridsize_mm) * mvpa_pars.size_conv_factor
     grid_pars.xy_dist, grid_pars.x_map, grid_pars.y_map = xy_distance(grid_pars.gridsize_Nx, grid_pars.gridsize_mm)
+
+    file_name = f"{folder}/results.csv"
+    loaded_orimap = load_orientation_map(folder, run_ind)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                     loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
     df = pd.read_csv(file_name)
-    SGD_step_inds = SGD_step_indices(df, num_SGD_inds)
+    df_run = filter_for_run(df,run_ind)
+    SGD_step_inds = SGD_step_indices(df_run, num_SGD_inds)
 
     # Iterate overs SGD_step indices (default is before and after training)
     for step_ind in SGD_step_inds:
         # Load parameters from csv for given epoch
-        _, trained_pars_stage2, _ = load_parameters(file_name, iloc_ind = step_ind)
+        _, trained_pars_stage2, _ = load_parameters(df_run, iloc_ind = step_ind)
         J_2x2_m = sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
         J_2x2_s = sep_exponentiate(trained_pars_stage2['log_J_2x2_s'])
         c_E = trained_pars_stage2['c_E']

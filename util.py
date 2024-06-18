@@ -225,10 +225,9 @@ def save_code(final_folder_path=None, train_only_flag=False, note=None):
     return results_filename, final_folder_path
 
 
-def load_parameters(file_path, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['log_J_2x2_m', 'log_J_2x2_s', 'c_E', 'c_I', 'log_f_E', 'log_f_I']):
+def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['log_J_2x2_m', 'log_J_2x2_s', 'c_E', 'c_I', 'log_f_E', 'log_f_I']):
 
     # Get the last row of the given csv file
-    df = pd.read_csv(file_path)
     selected_row = df.iloc[int(iloc_ind)]
 
     # Extract stage 1 parameters from df
@@ -258,3 +257,13 @@ def load_parameters(file_path, readout_grid_size=5, iloc_ind=-1, trained_pars_ke
     offset_last = offsets[len(offsets)-1]
 
     return pars_stage1, pars_stage2, offset_last
+
+
+def filter_for_run(df,run_index):
+    mesh_i = df['run_index'] == run_index
+    df_i = df[mesh_i]
+    df_i = df_i.drop(columns=['run_index'])
+    df_i = df_i.reset_index(drop=True)
+
+    return df_i
+

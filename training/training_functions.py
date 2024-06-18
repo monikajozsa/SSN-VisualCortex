@@ -23,7 +23,8 @@ def train_ori_discr(
     threshold = 0.75,
     offset_step = 0.25,
     results_filename=None,
-    jit_on=True
+    jit_on=True,
+    run_index = 0
 ):
     """
     Trains a two-layer SSN network model in a pretraining and a training stage. It first trains the SSN layer parameters and the readout parameters for a general orientation discrimination task. Then, it further trains the SSN layer parameters for a fine orientation discrimination task.
@@ -276,10 +277,9 @@ def train_ori_discr(
         offsets_th = None
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps)
         
-    # Create DataFrame and save the DataFrame to a CSV file
-        
+    # Create DataFrame and save the DataFrame to a CSV file        
     df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets, offsets_th)
-
+    df.insert(0, 'run_index', run_index) # insert run index as the first column 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
         df.to_csv(results_filename, mode='a', header=not file_exists, index=False)

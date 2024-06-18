@@ -1,13 +1,14 @@
 # This code runs pretraining for a general and training for a fine orientation discrimination task with a two-layer neural network model, where each layer is an SSN.
 
 import numpy
+import pandas as pd
 import time
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from util_gabor import init_untrained_pars
-from util import save_code, load_parameters
+from util import save_code, load_parameters, filter_for_run
 from training_functions import train_ori_discr
 from perturb_params import perturb_params, create_initial_parameters_df
 from parameters import (
@@ -77,7 +78,8 @@ while i < num_training and num_FailedRuns < 20:
             untrained_pars,
             results_filename=results_filename,
             jit_on=True,
-            offset_step = 0.1
+            offset_step = 0.1,
+            run_index = i
         )
     
     # Handle the case when pretraining failed (possible reason can be the divergence of ssn diff equations)
@@ -91,7 +93,9 @@ while i < num_training and num_FailedRuns < 20:
     # Set pretraining flag to False
     untrained_pars.pretrain_pars.is_on = False
     # Load the last parameters from the pretraining
-    trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(results_filename, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_stage2.keys())
+    df = pd.read_csv(results_filename)
+    df_i = filter_for_run(df, i)
+    trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(df_i, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_stage2.keys())
     # Set the offset to the offset, where a threshold accuracy is achieved with the parameters from the last SGD step (loaded as offset_last)
     untrained_pars.stimuli_pars.offset = min(offset_last,10)
     # Run training
@@ -101,13 +105,14 @@ while i < num_training and num_FailedRuns < 20:
             untrained_pars,
             results_filename=results_filename,
             jit_on=True,
-            offset_step=0.1
+            offset_step=0.1,
+            run_index = i
         )
     
     ########## TRAINING ONLY with the same initialization and orimap ##########
     if train_only_flag:
         # Load the first parameters that pretraining started with
-        trained_pars_stage1, trained_pars_stage2, _ = load_parameters(results_filename, iloc_ind = 0)
+        trained_pars_stage1, trained_pars_stage2, _ = load_parameters(df_i, iloc_ind = 0)
         # Set the offset to the original offset that pretraining started with
         untrained_pars.stimuli_pars.offset = offset_saved
         # Set the reference orientation to the original one that pretraining started with
@@ -119,7 +124,8 @@ while i < num_training and num_FailedRuns < 20:
                 trained_pars_stage2,
                 untrained_pars,
                 results_filename=results_filename_train_only,
-                jit_on=True
+                jit_on=True,
+                run_index = i
             )
         
     # Save initial_parameters to csv

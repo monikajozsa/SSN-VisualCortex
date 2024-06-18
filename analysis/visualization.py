@@ -10,46 +10,40 @@ import statsmodels.api as sm
 import scipy
 
 from analysis_functions import rel_changes, tc_features, MVPA_param_offset_correlations
+from util import filter_for_run
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
 plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels
 
 ########### Plotting functions ##############
-def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds = 3, num_training = None):
+def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds = 3, num_training = 1):
     # List to store relative changes from each file
     relative_changes_at_time_inds = []
     
     # Iterate through each file in the directory
     numFiles = 0
-    for filename in os.listdir(folder):
-        if num_training is not None and numFiles > (num_training-1):
-            break
-        if filename.endswith('.csv') and filename.startswith('result'):
-            numFiles = numFiles + 1
-            filepath = os.path.join(folder, filename)
-            # Read CSV file
-            df = pd.read_csv(filepath)
-            # Calculate relative change
-            relative_changes, time_inds = rel_changes(df, num_time_inds)
-            start_time_ind = 1 if num_time_inds > 2 else 0
-            relative_changes = relative_changes*100
-            relative_changes_at_time_inds.append(relative_changes)
-            if numFiles==1:
-                # offset at time_inds[0] and at time_inds[i] handled as new row for each i
-                offset_pre_post_temp = [[df['offset'][time_inds[start_time_ind]] ,df['offset'][time_inds[i] ]] for i in range(start_time_ind+1,num_time_inds)]
-                if not numpy.isnan(numpy.array(offset_pre_post_temp)).any():
-                    offset_pre_post = numpy.array(offset_pre_post_temp)
-                else:
-                    numFiles = numFiles - 1
-            else:
-                offset_pre_and_post_temp = [[df['offset'][time_inds[start_time_ind]] ,df['offset'][time_inds[i] ]] for i in range(start_time_ind+1,num_time_inds)]
-                # skip if there is a nan value
-                if not numpy.isnan(offset_pre_and_post_temp).any():
-                    offset_pre_post = numpy.vstack((offset_pre_post,offset_pre_and_post_temp))
-                else:
-                    numFiles = numFiles - 1
+    for i in range(num_training):
+        filepath = os.path.join(folder, 'results.csv')
+        # Read CSV file
+        df = pd.read_csv(filepath)
+        df_i = filter_for_run(df,i)
+        # Calculate relative change
+        relative_changes, time_inds = rel_changes(df_i, num_time_inds)
+        start_time_ind = 1 if num_time_inds > 2 else 0
+        relative_changes = relative_changes*100
+        relative_changes_at_time_inds.append(relative_changes)
     
-    # Plotting bar plots of offset before and after given time indices
+        offset_pre_post_temp = [[df_i['offset'][time_inds[start_time_ind]] ,df_i['offset'][time_inds[i] ]] for i in range(start_time_ind+1,num_time_inds)]
+        if not numpy.isnan(numpy.array(offset_pre_post_temp)).any():
+            if numFiles==0:
+                offset_pre_post = numpy.array(offset_pre_post_temp)
+            else:
+                offset_pre_post = numpy.vstack((offset_pre_post,offset_pre_post_temp))
+            numFiles = numFiles + 1
+        else:
+            numFiles = numFiles - 1
+        
+    ################# Plotting bar plots of offset before and after given time indices #################
     offset_pre_post = offset_pre_post.T
     means = np.mean(offset_pre_post, axis=1)
 
@@ -93,7 +87,6 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     
     relative_changes_at_time_inds = numpy.array(relative_changes_at_time_inds)
     group_start_ind = [0,4,8,12] # putting together Jm, Js, c, f
-    #titles= ['Jm changes, {} runs'.format(numFiles),'Js changes, {} runs'.format(numFiles),'c changes, {} runs'.format(numFiles), 'f changes, {} runs'.format(numFiles)]
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
     c_f_box_colors = ['#8B4513', '#800080', '#FF8C00',  '#006400']
     if np.sum(np.abs(relative_changes[:,0])) >0:
@@ -109,8 +102,6 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
                         box.set_facecolor(color)
                 axes_flat[j*num_groups+i].axhline(y=0, color='black', linestyle='--')
                 axes_format(axes_flat[j*num_groups+i], fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=False)
-                #axes_flat[j*num_groups+i].set_title(titles[i])
-                #axes_flat[j*num_groups+i].set_ylabel('rel change in %')
         
     plt.tight_layout()
     
@@ -298,8 +289,8 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str=''):
     #############################################################################
     ######### Schoups-style scatter plots - coloring based on cell type #########
     #############################################################################
-    phase_colors_E = [ 'blue', 'green', 'darkblue', 'darkgreen']
-    phase_colors_I = [ 'red', 'yellow', 'darkred', 'orange']
+    phase_colors_E = [ 'red', 'yellow', 'darkred', 'orange']
+    phase_colors_I = [ 'blue', 'green', 'darkblue', 'darkgreen']
     colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
     fs_text = 40
     fs_ticks = 30
@@ -403,11 +394,8 @@ def axes_format(axs, fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtic
     axs.tick_params(axis='both', which='major', labelsize=fs_ticks, width=tick_width, length=tick_length)
 
 
-def plot_results_from_csv(
-    results_filename,
-    fig_filename=None):
-    # Read the CSV file into a Pandas DataFrame
-    df = pd.read_csv(results_filename, header=0)
+def plot_results_from_csv(df,fig_filename=None):
+    
     N=len(df[df.columns[0]])
     # Create a subplot with 4 rows and 3 columns
     fig, axes = plt.subplots(nrows=4, ncols=3, figsize=(35, 45))
@@ -576,20 +564,16 @@ def plot_results_from_csvs(folder_path, num_runs=3, num_rnd_cells=5, folder_to_s
         sys.path.append(folder_path)
 
     # Plot loss, accuracy and trained parameters
+    results_filename = os.path.join(folder_path,f'results.csv')
+    df = pd.read_csv(results_filename)
     for j in range(starting_run,num_runs):
-        results_filename = os.path.join(folder_path,f'results_{j}.csv')
         if folder_to_save is not None:
-            results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}.png')
+            results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}')
         else:
-            results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}.png')
-        if not os.path.exists(results_filename):
-            results_filename = os.path.join(folder_path,f'results_train_only{j}.csv')
-            if folder_to_save is not None:
-                results_fig_filename = os.path.join(folder_to_save,f'resultsfig_train_only{j}.png')
-            else:
-                results_fig_filename = os.path.join(folder_path,f'resultsfig_train_only{j}.png')
+            results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}')
         if not os.path.exists(results_fig_filename):
-            plot_results_from_csv(results_filename,results_fig_filename)
+            df_j = filter_for_run(df,j)
+            plot_results_from_csv(df_j,results_fig_filename)
 
 ################### CORRELATION ANALYSIS ###################
 
