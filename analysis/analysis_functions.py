@@ -571,10 +571,13 @@ def smooth_data(X, gridsize_Nx, sigma = 1):
 def load_orientation_map(folder, run_ind):
     '''Loads the orientation map from the folder for the training indexed by run_ind.'''
     orimap_filename = os.path.join(folder, f"orimap.csv")
-    orimaps = pd.read_csv(orimap_filename)
-
-    mesh_run = orimaps['run_index']==run_ind
-    orimap = orimaps[mesh_run][1:]
+    if not os.path.exists(orimap_filename):
+        orimap_filename = os.path.join(folder, f"orimap_{run_ind}.npy")
+        orimap = np.load(orimap_filename)
+    else:
+        orimaps = pd.read_csv(orimap_filename)
+        mesh_run = orimaps['run_index']==run_ind
+        orimap = orimaps[mesh_run][1:]
 
     return orimap
 

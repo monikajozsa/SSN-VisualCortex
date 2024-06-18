@@ -284,7 +284,10 @@ def plot_Mahalanobis_dist(num_trainings, num_SGD_inds, mahal_train_control, maha
         axs[training_type,0].set_title(f'{layer_labels[0]} layer, {training_type_text[training_type]}', fontsize=20)
         for box, color in zip(bp['boxes'], colors):
             box.set_facecolor(color)
-        bp = axs[training_type,1].boxplot(mahal_diff_l1[:,training_type*2:training_type*2+2], labels=labels, patch_artist=True)
+        try:
+            bp = axs[training_type,1].boxplot(mahal_diff_l1[:,training_type*2:training_type*2+2], labels=labels, patch_artist=True)
+        except:
+            bp = axs[training_type,1].boxplot(mahal_diff_l1[:,training_type*2:training_type*2+2].T, labels=labels, patch_artist=True)
         axs[training_type,1].set_title(f'{layer_labels[1]} layer', fontsize=20)
         for box, color in zip(bp['boxes'], colors):
             box.set_facecolor(color)
