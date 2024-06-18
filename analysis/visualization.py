@@ -237,17 +237,21 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str=''):
         tc_filename = results_dir + f'/tuning_curves.csv'
     else:
         tc_filename = results_dir + f'/tuning_curves_train_only.csv'
-    tuning_curves = numpy.array(pd.read_csv(tc_filename))
+    tuning_curves = pd.read_csv(tc_filename)
 
     # Loop through each training and stage within training (pre pretraining, post pretrainig and post training)
     for i in range(num_training):
-        mesh_i = tuning_curves[:,0]==i
-        tuning_curves_i = tuning_curves[mesh_i,1:]
-        for training_stage in range(3):
-            mesh_stage = tuning_curves_i[:,0]==training_stage
+        # Filter tuning curves for the current run
+        tuning_curves_i = filter_for_run(tuning_curves,i)
+        tuning_curves_i['training_stage'] = pd.to_numeric(tuning_curves_i['training_stage'], errors='coerce')
+        for training_stage in range(3):      
+            # Filter tuning curves for the current training stage      
+            mesh_stage = tuning_curves_i['training_stage']==training_stage
+            tuning_curve = tuning_curves_i[mesh_stage]
+            tuning_curve = tuning_curve.drop(columns=['training_stage'])
+            tuning_curve = tuning_curve.to_numpy()
 
             # Calculate features for the current tuning curve: slope of normalized tuning_curve
-            tuning_curve = tuning_curves_i[mesh_stage,1:]
             slope, fwhm, orientations = tc_features(tuning_curve, ori_list=ori_list, expand_dims=True)
             
             # Save features: if first iteration, initialize; else, concatenate

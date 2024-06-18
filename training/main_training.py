@@ -33,20 +33,21 @@ if not pretrain_pars.is_on:
 # Save out initial offset and reference orientation
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
-
-# Save scripts into scripts folder and create figures and train_only folders
 train_only_flag = False # Setting train_only_flag to True will run an additional training without pretraining
 perturb_level=0.3
-note=f'Perturbation: {perturb_level}, J baseline: {trained_pars.J_2x2_m.ravel()}, '
-results_filename, final_folder_path = save_code(train_only_flag=train_only_flag, note=note)
-
-# Run num_training number of pretraining + training
 num_training = 2
 starting_time_in_main= time.time()
 initial_parameters = None
+
+# Save scripts into scripts folder and create figures and train_only folders
+note=f'Perturbation: {perturb_level}, J baseline: {trained_pars.J_2x2_m.ravel()}, '
+results_filename, final_folder_path = save_code(train_only_flag=train_only_flag, note=note)
+if train_only_flag:
+    results_filename_train_only = os.path.join(final_folder_path, 'train_only', "results_train_only.csv")
+
+# Run num_training number of pretraining + training
 num_FailedRuns = 0
 i=0
-
 while i < num_training and num_FailedRuns < 20:
     numpy.random.seed(i+1)
 
@@ -55,10 +56,6 @@ while i < num_training and num_FailedRuns < 20:
     # Set offset and reference orientation to their initial values
     stimuli_pars.offset=offset_saved
     stimuli_pars.ref_ori=ref_ori_saved
-
-    # Create file names
-    results_filename = os.path.join(final_folder_path, f"results_{i}.csv")
-    results_filename_train_only = os.path.join(final_folder_path, 'train_only', f"results_train_only{i}.csv")
 
     # Initialize untrained parameters (calculate gabor filters, orientation map related variables)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 

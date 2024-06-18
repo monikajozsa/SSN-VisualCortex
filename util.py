@@ -220,7 +220,7 @@ def save_code(final_folder_path=None, train_only_flag=False, note=None):
     print(f"Script files copied successfully to: {script_folder}")
 
     # return path (inclusing filename) to save results into
-    results_filename = os.path.join(final_folder_path,f"{current_date}_v{version}_results.csv")
+    results_filename = os.path.join(final_folder_path,"results.csv")
 
     return results_filename, final_folder_path
 
@@ -260,6 +260,7 @@ def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['lo
 
 
 def filter_for_run(df,run_index):
+    df['run_index'] = pd.to_numeric(df['run_index'], errors='coerce')
     mesh_i = df['run_index'] == run_index
     df_i = df[mesh_i]
     df_i = df_i.drop(columns=['run_index'])

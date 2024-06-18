@@ -8,7 +8,7 @@ numpy.random.seed(0)
 
 from training.util_gabor import init_untrained_pars
 from analysis_functions import tuning_curve, SGD_step_indices, tuning_curve
-from util import load_parameters
+from util import load_parameters, filter_for_run
 from parameters import (
     grid_pars,
     filter_pars,
@@ -28,9 +28,9 @@ if not pretrain_pars.is_on:
 import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
-tc_ori_list = numpy.arange(0,180,2)
+tc_ori_list = numpy.arange(0,180,6)
 num_training = 2
-final_folder_path = os.path.join('results','Jun18_v2')
+final_folder_path = os.path.join('results','Jun18_v0')
 
 
 start_time_in_main= time.time()
@@ -41,6 +41,7 @@ orimap_loaded = pd.read_csv(orimap_filename)
 df = pd.read_csv(results_filename)
 
 ########## Calculate and save tuning curves ############
+
 tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
 tc_header = []
 tc_header.append('run_index')
@@ -61,8 +62,7 @@ for type_ind in range(2):
 for i in range(0,num_training):
     mesh_i = orimap_loaded['run_index']==i
     orimap_i = orimap_loaded[mesh_i][1:]
-    mesh_i = df['run_index']==i
-    df_i = df[mesh_i][1:]
+    df_i = filter_for_run(df, i)
     SGD_step_inds = SGD_step_indices(df_i, 3)
 
     # Load parameters and calculate (and save) tuning curves
@@ -74,7 +74,7 @@ for i in range(0,num_training):
     trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(df_i, iloc_ind = SGD_step_inds[1], trained_pars_keys=trained_pars_stage2.keys())
     tc_postpre, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=1, run_index=i)
     _, trained_pars_stage2, _ = load_parameters(df_i, iloc_ind = SGD_step_inds[2], trained_pars_keys=trained_pars_stage2.keys())
-    tc_post, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=2)
+    tc_post, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=2, run_index=i)
     
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
 
