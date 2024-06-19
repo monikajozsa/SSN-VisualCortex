@@ -29,9 +29,8 @@ import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
 tc_ori_list = numpy.arange(0,180,6)
-num_training = 2
-final_folder_path = os.path.join('results','Jun18_v0')
-
+num_training = 1
+final_folder_path = os.path.join('results','Jun19_v0')
 
 start_time_in_main= time.time()
 
@@ -57,7 +56,7 @@ for type_ind in range(2):
     for i in range(grid_pars.gridsize_Nx**2):
         cell_id = 1000*(i+1) + 10*type_ind +1
         tc_header.append(str(cell_id))
-
+'''
 # Loop over the different runs
 for i in range(0,num_training):
     mesh_i = orimap_loaded['run_index']==i
@@ -77,7 +76,7 @@ for i in range(0,num_training):
     tc_post, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=2, run_index=i)
     
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
-
+'''
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
@@ -95,6 +94,7 @@ num_SGD_inds = 3
 sigma_filter = 2
 
 plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+'''
 boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
 plot_tc_features(final_folder_path, num_training, tc_ori_list)
 plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')
@@ -130,3 +130,4 @@ data_mid_125 = pd.DataFrame({
     'offset': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
+'''

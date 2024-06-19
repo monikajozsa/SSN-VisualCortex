@@ -102,7 +102,7 @@ def train_ori_discr(
             # STOCHASTIC GRADIENT DESCENT LOOP
             for SGD_step in range(numSGD_steps):
                 # i) Calculate model loss, accuracy, gradient
-                train_loss, train_loss_all, train_acc, _, _, train_max_rate, grad = loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad)
+                train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad)
                 if jax.numpy.isnan(train_loss):
                     return None, None
                 
@@ -120,6 +120,7 @@ def train_ori_discr(
                     train_losses_all.append(train_loss_all.ravel())
                     train_accs.append(train_acc)
                     train_max_rates.append(train_max_rate)
+                    train_mean_rates.append(train_mean_rate)
                     if pretrain_on:
                         stages.append(stage-1)
                     else:
@@ -128,6 +129,7 @@ def train_ori_discr(
                     train_losses_all=[train_loss_all.ravel()]
                     train_accs=[train_acc]
                     train_max_rates=[train_max_rate]
+                    train_mean_rates=[train_mean_rate]
                     if pretrain_on:
                         stages=[stage-1]
                     else:
@@ -278,7 +280,7 @@ def train_ori_discr(
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps)
         
     # Create DataFrame and save the DataFrame to a CSV file        
-    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets, offsets_th)
+    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets, offsets_th)
     df.insert(0, 'run_index', run_index) # insert run index as the first column 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
@@ -317,7 +319,7 @@ def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars
         train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp)
 
     # Calculate gradient, loss and accuracy
-    [loss, [all_losses, accuracy, sig_input, sig_output, max_rates]], grad = training_loss_val_and_grad(
+    [loss, [all_losses, accuracy, sig_input, sig_output, max_rates, mean_rates]], grad = training_loss_val_and_grad(
         trained_pars_dict,
         readout_pars_dict,
         untrained_pars,
@@ -326,7 +328,7 @@ def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars
         noise_target,
         jit_on
     )
-    return loss, all_losses, accuracy, sig_input, sig_output, max_rates, grad
+    return loss, all_losses, accuracy, sig_input, sig_output, max_rates, mean_rates, grad
 
 
 def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target): 
@@ -380,8 +382,8 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
     #Run reference and targetthrough two layer model
-    r_ref, _, [r_max_ref_mid, r_max_ref_sup], [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-    r_target, _, [r_max_target_mid, r_max_target_sup], [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    r_ref, _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup],_ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    r_target,_, [avg_dx_target_mid, avg_dx_target_sup], _, _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
 
     if pretraining:
         # Readout is from all neurons in sup layer
@@ -404,14 +406,25 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     loss_readout = binary_crossentropy_loss(train_data['label'], sig_output)
     pred_label = np.round(sig_output)
     # ii) Calculate other loss terms
+    # Loss for max mean rates deviation from baseline
+    Rmax_E = untrained_pars.loss_pars.Rmax_E
+    Rmax_I = untrained_pars.loss_pars.Rmax_I
+    Rmean_E = untrained_pars.loss_pars.Rmean_E
+    Rmean_I = untrained_pars.loss_pars.Rmean_I
+    max_E_mid, max_I_mid, max_E_sup, max_I_sup
+    loss_rmax_mid= np.mean(np.maximum(0, (max_E_mid/Rmax_E - 1)) + np.maximum(0, (max_I_mid/Rmax_I - 1)))
+    loss_rmax_sup = np.mean(np.maximum(0, (max_E_sup/Rmax_E - 1)) + np.maximum(0, (max_I_sup/Rmax_I - 1)))
+    loss_r_max = loss_pars.lambda_r_max*(loss_rmax_mid+loss_rmax_sup) #older version used leaky relu: lossr_max = leaky_relu(max_E, R_thresh = Rmax_E, slope = 1/Rmax_E) + leaky_relu(max_I, R_thresh = Rmax_I, slope = 1/Rmax_I)
+    loss_rmean_mid = np.mean((mean_E_mid/Rmean_E - 1) ** 2 + (mean_I_mid/Rmean_I - 1) ** 2)
+    loss_rmean_sup = np.mean((mean_E_sup/Rmean_E - 1) ** 2 + (mean_I_sup/Rmean_I - 1) ** 2)
+    loss_r_mean = loss_pars.lambda_r_mean*(loss_rmean_mid + loss_rmean_sup)
     loss_dx_max = loss_pars.lambda_dx*np.mean(np.array([avg_dx_ref_mid, avg_dx_target_mid, avg_dx_ref_sup, avg_dx_target_sup])**2)
-    loss_r_max =  loss_pars.lambda_r_max*np.mean(np.array([r_max_ref_mid, r_max_target_mid, r_max_ref_sup, r_max_target_sup]))
     loss_w = loss_pars.lambda_w*(np.linalg.norm(w_sig)**2)
     loss_b = loss_pars.lambda_b*(b_sig**2)   
-    loss = loss_readout + loss_w + loss_b +  loss_dx_max + loss_r_max
-    all_losses = np.vstack((loss_readout, loss_dx_max, loss_r_max, loss_w, loss_b, loss))
+    loss = loss_readout + loss_w + loss_b +  loss_dx_max + loss_r_max + loss_r_mean
+    all_losses = np.vstack((loss_readout, loss_dx_max, loss_r_max, loss_r_mean, loss_w, loss_b, loss))
     
-    return loss, all_losses, pred_label, sig_input, sig_output,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup]
+    return loss, all_losses, pred_label, sig_input, sig_output,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup]
 
 # Parallelize orientation discrimination task and jit the parallelized function
 vmap_ori_discrimination = vmap(loss_ori_discr, in_axes = (None, None, None, {'ref':0, 'target':0, 'label':0}, 0, 0) )
@@ -436,9 +449,9 @@ def batch_loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, t
     """
     #Run orientation discrimination task
     if jit_on:
-        total_loss, all_losses, pred_label, sig_input, sig_output, max_rates = jit_ori_discrimination(trained_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target)
+        total_loss, all_losses, pred_label, sig_input, sig_output, max_rates, mean_rates = jit_ori_discrimination(trained_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target)
     else:
-        total_loss, all_losses, pred_label, sig_input, sig_output, max_rates = vmap_ori_discrimination(trained_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target)
+        total_loss, all_losses, pred_label, sig_input, sig_output, max_rates, mean_rates = vmap_ori_discrimination(trained_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target)
     
     # Average total loss within a batch (across trials)
     loss= np.mean(total_loss)
@@ -446,13 +459,16 @@ def batch_loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, t
     # Average individual losses within a batch (accross trials)
     all_losses = np.mean(all_losses, axis = 0)
     
-    #Find maximum rates  within a batch (across trials)
+    # Find maximum rates  within a batch (across trials)
     max_rates = [item.max() for item in max_rates]
+
+    # Calculate mean rates within a batch (across trials)
+    mean_rates = [item.mean() for item in mean_rates]
     
     # Calculate the proportion of labels that are predicted well (within a batch) 
     true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])
 
-    return loss, [all_losses, true_accuracy, sig_input, sig_output, max_rates]
+    return loss, [all_losses, true_accuracy, sig_input, sig_output, max_rates, mean_rates]
 
 
 ############### Other supporting functions ###############
@@ -517,9 +533,9 @@ def training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars,
     
     # Calculate loss and accuracy
     if loss_functioon_mid_only is not None:
-        loss, [_, acc, _, _, _] = loss_functioon_mid_only(trained_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
+        loss, [_, acc, _, _, _, _] = loss_functioon_mid_only(trained_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
     else:
-        loss, [_, acc, _, _, _] = batch_loss_ori_discr(trained_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
+        loss, [_, acc, _, _, _, _] = batch_loss_ori_discr(trained_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
 
     # Restore the original values of jitter, std and offset
     untrained_pars.pretrain_pars.is_on = pretrain_is_on_saved
@@ -584,7 +600,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
 
 ####### Function for creating DataFrame
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets=None, offsets_at_bl_acc=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets=None, offsets_at_bl_acc=None):
     ''' This function collects different variables from training results into a dataframe.'''
     # Create an empty DataFrame and initialize it with stages, SGD steps, and training accuracies
     df = pd.DataFrame({
@@ -594,6 +610,7 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     })
 
     train_max_rates = np.vstack(np.asarray(train_max_rates))
+    train_mean_rates = np.vstack(np.asarray(train_mean_rates))
     w_sigs = np.stack(w_sigs)
     log_J_2x2_m = np.stack(log_J_2x2_m)
     log_J_2x2_s = np.stack(log_J_2x2_s)
@@ -604,7 +621,7 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     df.loc[step_indices['val_SGD_steps'], 'val_acc'] = val_accs
 
     # Add different types of training and validation losses to df
-    loss_names = ['loss_binary_cross_entr', 'loss_dx_max', 'loss_r_max', 'loss_w_sig', 'loss_b_sig', 'loss_all']
+    loss_names = ['loss_binary_cross_entr', 'loss_dx_max', 'loss_r_max', 'loss_r_mean', 'loss_w_sig', 'loss_b_sig', 'loss_all']
     for i in range(len(train_losses_all[0])):
         df[loss_names[i]]=train_losses_all[:,i]
     
@@ -615,6 +632,11 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     max_rates_names = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup']
     for i in range(len(train_max_rates[0])):
         df[max_rates_names[i]]=train_max_rates[:,i]
+
+    # Add mean rates data to df
+    mean_rates_names = ['meanr_E_mid', 'meanr_I_mid', 'meanr_E_sup', 'meanr_I_sup']
+    for i in range(len(train_mean_rates[0])):
+        df[mean_rates_names[i]]=train_mean_rates[:,i]
     
     # Add parameters that are trained in two stages during training and in one stage during pretraining
     max_stages = max(1,max(stages))

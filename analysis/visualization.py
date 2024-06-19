@@ -402,7 +402,7 @@ def plot_results_from_csv(df,fig_filename=None):
     
     N=len(df[df.columns[0]])
     # Create a subplot with 4 rows and 3 columns
-    fig, axes = plt.subplots(nrows=4, ncols=3, figsize=(35, 45))
+    fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(45, 35))
 
     # Plot accuracy and losses
     for column in df.columns:
@@ -418,131 +418,158 @@ def plot_results_from_csv(df,fig_filename=None):
 
     for column in df.columns:
         if 'loss_' in column and 'val_loss' not in column:
-            axes[1,0].plot(range(N), df[column], label=column, alpha=0.6)
+            axes[0,1].plot(range(N), df[column], label=column, alpha=0.6)
         if 'val_loss' in column:
-            axes[1,0].scatter(range(N), df[column], marker='o', s=50)
-    axes[1,0].legend(loc='upper right')
-    axes[1,0].set_title('Loss', fontsize=20)
-    axes[1,0].set_xlabel('SGD steps', fontsize=20)
+            axes[0,1].scatter(range(N), df[column], marker='o', s=50)
+    axes[0,1].legend(loc='upper right')
+    axes[0,1].set_title('Loss', fontsize=20)
+    axes[0,1].set_xlabel('SGD steps', fontsize=20)
 
     # BARPLOTS about relative changes
-    categories_params = ['Jm_EE', 'Jm_IE', 'Jm_EI', 'Jm_II', 'Js_EE', 'Js_IE', 'Js_EI', 'Js_II']
-    categories_metrics = [ 'c_E', 'c_I', 'f_E', 'f_I', 'acc', 'offset', 'rm_E', 'rm_I', 'rs_E','rs_I']
+    categories_J = ['Jm_EE', 'Jm_IE', 'Jm_EI', 'Jm_II', 'Js_EE', 'Js_IE', 'Js_EI', 'Js_II']
+    categories_metrics = [ 'acc', 'offset']
+    categories_r = [ 'rm_E', 'rm_I', 'rs_E','rs_I']
+    categories_cf = ['c_E', 'c_I', 'f_E', 'f_I']
     rel_par_changes,_ = rel_changes(df) # 0 is pretraining and 1 is training in the second dimensions
-    for i_train_pretrain in range(2):
-        values_params = 100 * rel_par_changes[0:8,i_train_pretrain]
-        values_metrics = 100 * rel_par_changes[8:18,i_train_pretrain]
+    pretrain_train_ind=1
+    values_J = 100 * rel_par_changes[0:8,pretrain_train_ind]
+    values_cf = 100 * rel_par_changes[8:12,pretrain_train_ind]
+    values_metrics = 100 * rel_par_changes[12:14,pretrain_train_ind]
+    values_r = 100 * rel_par_changes[14:19,pretrain_train_ind]
 
-        # Choosing colors for each bar
-        colors_params = ['tab:red', 'tab:orange', 'tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:blue']
-        colors_metrics = [ 'tab:red', 'tab:blue', 'tab:red', 'tab:blue', 'tab:green', 'tab:brown', 'tab:red', 'tab:blue', 'tab:red', 'tab:blue']
+    # Choosing colors for each bar
+    colors_J = ['tab:red', 'tab:orange', 'tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:blue']
+    colors_cf = ['tab:red', 'tab:blue', 'tab:red', 'tab:blue']
+    colors_metrics = [ 'tab:green', 'tab:brown']
+    colors_r = ['tab:red', 'tab:blue', 'tab:red', 'tab:blue']
 
-        # Creating the bar plot
-        row_i = 2+i_train_pretrain
-        bars_params = axes[row_i,1].bar(categories_params, values_params, color=colors_params)
-        bars_metrics = axes[row_i,2].bar(categories_metrics, values_metrics, color=colors_metrics)
+    # Creating the bar plot
+    bars_metrics = axes[0,3].bar(categories_metrics, values_metrics, color=colors_metrics)
+    bars_r = axes[1,3].bar(categories_r, values_r, color=colors_r)
+    bars_params = axes[2,2].bar(categories_J, values_J, color=colors_J)    
+    bars_cf = axes[2,3].bar(categories_cf, values_cf, color=colors_cf)    
 
-        # Annotating each bar with its value for bars_params
-        for bar in bars_params:
-            yval = bar.get_height()
-            # Adjust text position for positive values to be inside the bar
-            if abs(yval) > 2:
-                if yval > 0:
-                    text_position = yval - 0.1*max(abs(values_params))
-                else:
-                    text_position = yval + 0.05*max(abs(values_params))
+    # Annotating each bar with its value for bars_params
+    for bar in bars_params:
+        yval = bar.get_height()
+        # Adjust text position for positive values to be inside the bar
+        if abs(yval) > 2:
+            if yval > 0:
+                text_position = yval - 0.1*max(abs(values_J))
             else:
-                text_position = yval
-            axes[row_i,1].text(bar.get_x() + bar.get_width() / 2, text_position, f'{yval:.2f}', ha='center', va='bottom', fontsize=20)
-        for bar in bars_metrics:
-            yval = bar.get_height()
-            if abs(yval) > 2:
-                if yval > 0:
-                    text_position = yval - 0.2*max(abs(values_params))
-                else:
-                    text_position = yval + 0.05*max(abs(values_params))
+                text_position = yval + 0.05*max(abs(values_J))
+        else:
+            text_position = yval
+        axes[2,2].text(bar.get_x() + bar.get_width() / 2, text_position, f'{yval:.2f}', ha='center', va='bottom', fontsize=20)
+    for bar in bars_cf:
+        yval = bar.get_height()
+        if abs(yval) > 2:
+            if yval > 0:
+                text_position = yval - 0.1*max(abs(values_cf))
             else:
-                text_position = yval
-            axes[row_i,2].text(bar.get_x() + bar.get_width() / 2, text_position, f'{yval:.2f}', ha='center', va='bottom', fontsize=20)
+                text_position = yval + 0.05*max(abs(values_cf))
+        else:
+            text_position = yval
+        axes[2,3].text(bar.get_x() + bar.get_width() / 2, text_position, f'{yval:.2f}', ha='center', va='bottom', fontsize=20)
+    for bar in bars_r:
+        yval = bar.get_height()
+        if abs(yval) > 2:
+            if yval > 0:
+                text_position = yval - 0.1*max(abs(values_r))
+            else:
+                text_position = yval + 0.05*max(abs(values_r))
+        else:
+            text_position = yval
+        axes[1,3].text(bar.get_x() + bar.get_width() / 2, text_position, f'{yval:.2f}', ha='center', va='bottom', fontsize=20)
+    for bar in bars_metrics:
+        yval = bar.get_height()
+        if abs(yval) > 2:
+            if yval > 0:
+                text_position = yval - 0.2*max(abs(values_J))
+            else:
+                text_position = yval + 0.05*max(abs(values_J))
+        else:
+            text_position = yval
+        axes[0,3].text(bar.get_x() + bar.get_width() / 2, text_position, f'{yval:.2f}', ha='center', va='bottom', fontsize=20)
 
         # Adding labels and titles
-        axes[row_i,1].set_ylabel('relative change %', fontsize=20)
-        axes[row_i,2].set_ylabel('relative change %', fontsize=20)
-        if i_train_pretrain==0:
-            axes[row_i,1].set_title('Rel changes in J before and after pretraining', fontsize=20)
-            axes[row_i,2].set_title('Other rel changes before and after pretraining', fontsize=20)
+        axes[0,3].set_ylabel('relative change %', fontsize=20)
+        axes[1,3].set_ylabel('relative change %', fontsize=20)
+        axes[2,2].set_ylabel('relative change %', fontsize=20)
+        axes[2,3].set_ylabel('relative change %', fontsize=20)
+        if pretrain_train_ind==0:
+            axes[2,2].set_title('Rel changes in J before and after pretraining', fontsize=20)
+            axes[2,3].set_title('Other rel changes before and after pretraining', fontsize=20)
         else:
-            axes[row_i,1].set_title('Rel changes in J before and after training', fontsize=20)
-            axes[row_i,2].set_title('Other rel changes before and after training', fontsize=20)
-        axes[row_i,2].axvline(x=3.5, color='black', linestyle='--')
+            axes[2,2].set_title('Rel changes in J before and after training', fontsize=20)
+            axes[2,3].set_title('Other rel changes before and after training', fontsize=20)
     
     ################
     num_pretraining_steps= sum(df['stage'] == 0)
     for column in df.columns:
         if 'offset' in column:
-            axes[2,0].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*5, label='stopping threshold', alpha=0.6, c='tab:brown')
-            axes[2,0].scatter(range(num_pretraining_steps), df[column][0:num_pretraining_steps], label='offsets at bl acc', marker='o', s=50, c='tab:brown')
-            axes[2,0].grid(color='gray', linestyle='-', linewidth=0.5)
-            axes[2,0].set_title('Offset with accuracy 0.749', fontsize=20)
-            axes[2,0].set_ylabel('degrees', fontsize=20)
-            axes[2,0].set_xlabel('SGD steps', fontsize=20)
-            axes[2,0].set_ylim(0, 50)
-            if num_pretraining_steps==0:#if there was no pretraining
-                axes[3,0].plot(range(N), df[column], label='offset', c='tab:brown')
-                axes[3,0].grid(color='gray', linestyle='-', linewidth=0.5)
-                axes[3,0].set_ylim(0, max(df[column])+1)
-                axes[3,0].set_title('Offset during staircase training', fontsize=20)
-            else:
-                axes[3,0].plot(range(num_pretraining_steps,N), df[column][num_pretraining_steps:N], label='offset', c='tab:brown')
-                axes[3,0].grid(color='gray', linestyle='-', linewidth=0.5)
-                axes[3,0].set_ylim(0, max(df[column][num_pretraining_steps:N])+1)
-                axes[3,0].set_title('Offset during staircase training', fontsize=20)
-            axes[3,0].set_ylabel('degrees', fontsize=20)
-            axes[3,0].set_xlabel('SGD steps', fontsize=20)            
+            axes[0,2].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*6, label='stopping threshold', alpha=0.6, c='tab:brown')
+            axes[0,2].scatter(range(N), df[column], label='offset', marker='o', s=50, c='tab:brown')
+            axes[0,2].grid(color='gray', linestyle='-', linewidth=0.5)
+            axes[0,2].set_title('Offset', fontsize=20)
+            axes[0,2].set_ylabel('degrees', fontsize=20)
+            axes[0,2].set_xlabel('SGD steps', fontsize=20)
+            axes[0,2].set_ylim(0, max(df[column])+1)
     
-    #Plot changes in sigmoid weights and bias of the sigmoid layer
-    axes[1,1].plot(range(N), df['b_sig'], label='b_sig', linestyle='--', linewidth = 3)
-    axes[1,1].set_xlabel('SGD steps', fontsize=20)
+    # Plot changes in sigmoid weights and bias of the sigmoid layer
+    axes[1,2].plot(range(N), df['b_sig'], label='b_sig', linestyle='--', linewidth = 3)
+    axes[1,2].set_xlabel('SGD steps', fontsize=20)
     i=0
     for column in df.columns:
         if 'w_sig_' in column and i<10:
-            axes[1,1].plot(range(N), df[column], label=column)
+            axes[1,2].plot(range(N), df[column], label=column)
             i = i+1
-    axes[1,1].set_title('Readout bias and weights', fontsize=20)
-    axes[1,1].legend(loc='lower right')
+    axes[1,2].set_title('Readout bias and weights', fontsize=20)
+    axes[1,2].legend(loc='lower right')
 
     # Plot changes in J_m and J_s
-    axes[0,2].plot(range(N), df['J_m_EE'], label='J_m_EE', linestyle='--', c='tab:red',linewidth=3)
-    axes[0,2].plot(range(N), df['J_m_IE'], label='J_m_IE', linestyle='--', c='tab:orange',linewidth=3)
-    axes[0,2].plot(range(N), df['J_m_II'], label='J_m_II', linestyle='--', c='tab:blue',linewidth=3)
-    axes[0,2].plot(range(N), df['J_m_EI'], label='J_m_EI', linestyle='--', c='tab:green',linewidth=3)
+    axes[2,0].plot(range(N), df['J_m_EE'], label='J_m_EE', linestyle='--', c='tab:red',linewidth=3)
+    axes[2,0].plot(range(N), df['J_m_IE'], label='J_m_IE', linestyle='--', c='tab:orange',linewidth=3)
+    axes[2,0].plot(range(N), df['J_m_II'], label='J_m_II', linestyle='--', c='tab:blue',linewidth=3)
+    axes[2,0].plot(range(N), df['J_m_EI'], label='J_m_EI', linestyle='--', c='tab:green',linewidth=3)
     
-    axes[0,2].plot(range(N), df['J_s_EE'], label='J_s_EE', c='tab:red',linewidth=3)
-    axes[0,2].plot(range(N), df['J_s_IE'], label='J_s_IE', c='tab:orange',linewidth=3)
-    axes[0,2].plot(range(N), df['J_s_II'], label='J_s_II', c='tab:blue',linewidth=3)
-    axes[0,2].plot(range(N), df['J_s_EI'], label='J_s_EI', c='tab:green',linewidth=3)
-    axes[0,2].legend(loc="upper left", fontsize=20)
-    axes[0,2].set_title('J in middle and superficial layers', fontsize=20)
-    axes[0,2].set_xlabel('SGD steps', fontsize=20)
+    axes[2,0].plot(range(N), df['J_s_EE'], label='J_s_EE', c='tab:red',linewidth=3)
+    axes[2,0].plot(range(N), df['J_s_IE'], label='J_s_IE', c='tab:orange',linewidth=3)
+    axes[2,0].plot(range(N), df['J_s_II'], label='J_s_II', c='tab:blue',linewidth=3)
+    axes[2,0].plot(range(N), df['J_s_EI'], label='J_s_EI', c='tab:green',linewidth=3)
+    axes[2,0].legend(loc="upper left", fontsize=20)
+    axes[2,0].set_title('J in middle and superficial layers', fontsize=20)
+    axes[2,0].set_xlabel('SGD steps', fontsize=20)
 
     # Plot maximum rates
     colors = ["tab:blue", "tab:red"]
-    axes[0,1].plot(range(N), df['maxr_E_mid'], label='maxr_E_mid', c=colors[1], linestyle=':')
-    axes[0,1].plot(range(N), df['maxr_I_mid'], label='maxr_I_mid', c=colors[0], linestyle=':')
-    axes[0,1].plot(range(N), df['maxr_E_sup'], label='maxr_E_sup', c=colors[1])
-    axes[0,1].plot(range(N), df['maxr_I_sup'], label='maxr_I_sup', c=colors[0])
-    axes[0,1].legend(loc="upper left", fontsize=20)
-    axes[0,1].set_title('Maximum rates', fontsize=20)
-    axes[0,1].set_xlabel('SGD steps', fontsize=20)
+    axes[1,0].plot(range(N), df['maxr_E_mid'], label='maxr_E_mid', c=colors[1], linestyle=':')
+    axes[1,0].plot(range(N), df['maxr_I_mid'], label='maxr_I_mid', c=colors[0], linestyle=':')
+    axes[1,0].plot(range(N), df['maxr_E_sup'], label='maxr_E_sup', c=colors[1])
+    axes[1,0].plot(range(N), df['maxr_I_sup'], label='maxr_I_sup', c=colors[0])
+    axes[1,0].legend(loc="upper left", fontsize=20)
+    axes[1,0].set_title('Maximum rates', fontsize=20)
+    axes[1,0].set_xlabel('SGD steps', fontsize=20)
+
+    # Plot mean rates
+    colors = ["tab:blue", "tab:red"]
+    if 'meanr_E_mid' in df.columns:
+        axes[1,1].plot(range(N), df['meanr_E_mid'], label='meanr_E_mid', c=colors[1], linestyle=':')
+        axes[1,1].plot(range(N), df['meanr_I_mid'], label='meanr_I_mid', c=colors[0], linestyle=':')
+        axes[1,1].plot(range(N), df['meanr_E_sup'], label='meanr_E_sup', c=colors[1])
+        axes[1,1].plot(range(N), df['meanr_I_sup'], label='meanr_I_sup', c=colors[0])
+        axes[1,1].legend(loc="upper left", fontsize=20)
+        axes[1,1].set_title('Mean rates', fontsize=20)
+        axes[1,1].set_xlabel('SGD steps', fontsize=20)
 
     #Plot changes in baseline inhibition and excitation and feedforward weights (second stage of the training)
-    axes[1,2].plot(range(N), df['c_E'], label='c_E',c='tab:red',linewidth=3)
-    axes[1,2].plot(range(N), df['c_I'], label='c_I',c='tab:blue',linewidth=3)
+    axes[2,1].plot(range(N), df['c_E'], label='c_E',c='tab:red',linewidth=3)
+    axes[2,1].plot(range(N), df['c_I'], label='c_I',c='tab:blue',linewidth=3)
 
     #Plot feedforward weights from middle to superficial layer (second stage of the training)
-    axes[1,2].plot(range(N), df['f_E'], label='f_E', linestyle='--',c='tab:red',linewidth=3)
-    axes[1,2].plot(range(N), df['f_I'], label='f_I', linestyle='--',c='tab:blue',linewidth=3)
-    axes[1,2].set_title('c: constant inputs, f: weights between mid and sup layers', fontsize=20)
+    axes[2,1].plot(range(N), df['f_E'], label='f_E', linestyle='--',c='tab:red',linewidth=3)
+    axes[2,1].plot(range(N), df['f_I'], label='f_I', linestyle='--',c='tab:blue',linewidth=3)
+    axes[2,1].set_title('c: constant inputs, f: weights between mid and sup layers', fontsize=20)
 
     for i in range(1, len(df['stage'])):
         if df['stage'][i] != df['stage'][i-1]:
@@ -552,8 +579,10 @@ def plot_results_from_csv(df,fig_filename=None):
             axes[1,0].axvline(x=i, color='black', linestyle='--')
             axes[1,1].axvline(x=i, color='black', linestyle='--')
             axes[1,2].axvline(x=i, color='black', linestyle='--')
-    for i in range(4):
-        for j in range(3):
+            axes[2,0].axvline(x=i, color='black', linestyle='--')
+            axes[2,1].axvline(x=i, color='black', linestyle='--')
+    for i in range(3):
+        for j in range(4):
             axes[i,j].tick_params(axis='both', which='major', labelsize=18)  # Set tick font size
             axes[i,j].legend(fontsize=20)
 

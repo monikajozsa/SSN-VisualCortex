@@ -18,13 +18,13 @@ class PreTrainPars:
     ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
     min_acc_check_ind = 10
     ''' minimum SGD step where accuracy check happens for the training task '''
-    min_stop_ind = 10
+    min_stop_ind = 200
     ''' minimum SGD step where pretraining can stop '''
     offset_threshold = 6
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
     batch_size = 100
     ''' number of trials per SGD step during pretraining '''
-    SGD_steps = 50
+    SGD_steps = 200
     ''' maximum number of SGD steps during pretraining '''
 
 pretrain_pars = PreTrainPars()
@@ -33,11 +33,11 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta: float = 3*10e-4
+    eta: float = 2*10e-4
     '''learning rate - the maximum rate of parameter change in one SGD step'''
     batch_size: int = 50
     '''number of trials per SGD step'''
-    SGD_steps: int = 50
+    SGD_steps: int = 200
     '''number of SGD step'''
     validation_freq: int = 10  
     '''frequency of validation loss and accuracy calculation'''
@@ -56,10 +56,6 @@ class ConvPars:
     '''Convergence tolerance of SSN'''
     Tmax: float = 250.0
     '''Maximum number of steps to be taken during convergence of SSN'''
-    Rmax_E: float = 40
-    '''Maximum firing rate for E neurons - rates above this are penalised'''
-    Rmax_I: float = 80
-    '''Maximum firing rate for I neurons - rates above this are penalised '''
 
 conv_pars = ConvPars()
 
@@ -69,12 +65,22 @@ conv_pars = ConvPars()
 class LossPars:
     lambda_dx: float = 1
     ''' Constant for loss with respect to convergence of Euler function'''
-    lambda_r_max: float = 1
-    ''' Constant for loss with respect to maximum rates in the network'''
     lambda_w: float = 1
     ''' Constant for L2 regularizer of sigmoid layer weights'''
     lambda_b: float = 1
     ''' Constant for L2 regulazier of sigmoid layer bias '''
+    lambda_r_max: float = 2
+    ''' Constant for loss with respect to maximum rates in the network'''
+    lambda_r_mean: float = 0.5
+    ''' Constant for loss with respect to maximum rates in the network'''
+    Rmax_E: float = 40
+    '''Maximum firing rate for E neurons - rates above this are penalised'''
+    Rmax_I: float = 80
+    '''Maximum firing rate for I neurons - rates above this are penalised '''
+    Rmean_E: float = 25
+    '''Mean firing rate for E neurons - rates deviating from this are penalised'''
+    Rmean_I: float = 50
+    '''Mean firing rate for I neurons - rates deviating from this are penalised '''
 
 loss_pars = LossPars()
 

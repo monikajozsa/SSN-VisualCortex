@@ -38,17 +38,17 @@ def evaluate_model_response(
     SSN_mid_input = np.maximum(0, input_mid) + constant_vector
 
     # Calculate steady state response of middle layer
-    r_mid, r_max_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
+    r_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
 
     # Create input to (I and E neurons in) superficial layer
     sup_input_ref = np.hstack([r_mid * f_E, r_mid * f_I]) + constant_vector_sup
 
     # Calculate steady state response of superficial layer
-    r_sup, r_max_sup, avg_dx_sup, fp_sup, max_E_sup, max_I_sup = superficial_layer_fixed_point(
+    r_sup, avg_dx_sup, fp_sup, max_E_sup, max_I_sup, mean_E_sup, mean_I_sup = superficial_layer_fixed_point(
         ssn_sup, sup_input_ref, conv_pars, return_fp=True
     )
 
-    return r_sup, r_mid, [r_max_mid, r_max_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [fp_mid, fp_sup]
+    return r_sup, r_mid, [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup], [fp_mid, fp_sup]
 
 vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None))
 
@@ -87,9 +87,9 @@ def evaluate_model_response_mid(
     SSN_mid_input = np.maximum(0, input_mid) + constant_vector
 
     # Calculate steady state response of middle layer
-    r_mid, r_max_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
+    r_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
 
-    return r_mid, r_max_mid, avg_dx_mid, max_E_mid, max_I_mid, fp_mid
+    return r_mid, avg_dx_mid, max_E_mid, max_I_mid, fp_mid, mean_E_mid, mean_I_mid
 
 vmap_evaluate_model_response_mid = vmap(evaluate_model_response_mid, in_axes = (None, 0, None, None, None, None))
 
@@ -119,60 +119,54 @@ def middle_layer_fixed_point(
     ssn,
     ssn_input,
     conv_pars,
-    Rmax_E=40,
-    Rmax_I=80,
     return_fp=False,
 ):    
+    # Calculate layer response and SSN convergence level
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
     
+    # Define excitatory and inhibitory cell indices and responses
     map_numbers_E = np.arange(1, 2 * ssn.phases, 2) # 1,3,5,7
     map_numbers_I = np.arange(2, 2 * ssn.phases + 1, 2) # 2,4,6,8
-    
     fp_E=ssn.select_type(fp, map_numbers_E)
     fp_I=ssn.select_type(fp, map_numbers = map_numbers_I)
  
     #Define output as sum of E neurons
     layer_output = np.sum(fp_E, axis=0)
     
-    #Find maximum rates
-    max_E =  np.max(fp_E)
-    max_I = np.max(fp_I)
+    #Find maximum and mean rates
+    maxr_E =  np.max(fp_E)
+    maxr_I = np.max(fp_I)
+    meanr_E =  np.mean(fp_E)
+    meanr_I = np.mean(fp_I)
 
-    #Loss for high rates
-    r_max = np.maximum(0, (max_E/Rmax_E - 1)) + np.maximum(0, (max_I/Rmax_I - 1))
-    #r_max = leaky_relu(max_E, R_thresh = Rmax_E, slope = 1/Rmax_E) + leaky_relu(max_I, R_thresh = Rmax_I, slope = 1/Rmax_I)
-    
     if return_fp ==True:
-            return layer_output, r_max, avg_dx, fp, max_E, max_I
+        return layer_output, avg_dx, fp, maxr_E, maxr_I,  meanr_E, meanr_I
     else:
-        return layer_output, r_max, avg_dx
+        return layer_output, avg_dx
 
 
 def superficial_layer_fixed_point(
     ssn,
     ssn_input,
     conv_pars,
-    Rmax_E=40,
-    Rmax_I=80,
     return_fp=False,
 ):    
+    # Calculate layer response and SSN convergence level
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
-     
-    #Define output as sum of E neurons
+
+    # Define output as sum of E neurons
     layer_output = fp[: ssn.Ne]
     
-    #Find maximum rates
-    max_E =  np.max(fp[: ssn.Ne])
-    max_I = np.max(fp[ssn.Ne:-1])
+    #Find maximum and mean rates
+    maxr_E =  np.max(fp[: ssn.Ne])
+    maxr_I = np.max(fp[ssn.Ne:-1])
+    meanr_E = np.mean(fp[: ssn.Ne])
+    meanr_I = np.mean(fp[ssn.Ne:-1])
 
-    #Loss for high rates
-    r_max = np.maximum(0, (max_E/Rmax_E - 1)) + np.maximum(0, (max_I/Rmax_I - 1))
-    #r_max = leaky_relu(max_E, R_thresh = Rmax_E, slope = 1/Rmax_E) + leaky_relu(max_I, R_thresh = Rmax_I, slope = 1/Rmax_I)
-    
     if return_fp ==True:
-            return layer_output, r_max, avg_dx, fp, max_E, max_I
+        return layer_output, avg_dx, fp, maxr_E, maxr_I, meanr_E, meanr_I
     else:
-        return layer_output, r_max, avg_dx
+        return layer_output, avg_dx
 
 
 def constant_to_vec(c_E, c_I, ssn, sup=False):

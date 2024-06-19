@@ -65,8 +65,8 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, logi
         else:
             f_E = untrained_pars.ssn_pars.f_E
             f_I = untrained_pars.ssn_pars.f_I
-        r_train,_, [_, _], [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-        r_pretrain,_, [_, _], [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+        r_train,_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+        r_pretrain,_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
         cond3 = bool((avg_dx_mid + avg_dx_sup < 50).all())
         cond4 = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])>5 and max([float(np.max(max_E_mid)), float(np.max(max_I_mid)), float(np.max(max_E_sup)), float(np.max(max_I_sup))])<151
         cond5 = not numpy.any(np.isnan(r_pretrain))
@@ -140,8 +140,8 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
     # Run reference and target through two layer model
-    r_ref, _, [_, _], [_, _],[_, _, _, _], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-    r_target, _, [_, _], [_, _], _, _= vmap_evaluate_model_response(ssn_mid, ssn_sup, data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    r_ref, _, _,_, _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    r_target, _, _, _, _, _= vmap_evaluate_model_response(ssn_mid, ssn_sup, data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
 
     X = r_ref-r_target
     y = data['label']

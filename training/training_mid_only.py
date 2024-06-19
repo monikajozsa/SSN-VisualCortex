@@ -504,7 +504,7 @@ def perturb_params_mid(readout_pars, trained_pars, untrained_pars, percent=0.1, 
         else:
             c_E = untrained_pars.ssn_pars.c_E
             c_I = untrained_pars.ssn_pars.c_I
-        r_ref, _, avg_dx_mid, max_E_mid, max_I_mid, _ = vmap_evaluate_model_response_mid(ssn_mid, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, untrained_pars.gabor_filters)
+        r_ref, avg_dx_mid, max_E_mid, max_I_mid, _,_,_ = vmap_evaluate_model_response_mid(ssn_mid, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, untrained_pars.gabor_filters)
         cond3 = not numpy.any(numpy.isnan(r_ref))
         cond4 = avg_dx_mid  < 50
         cond5 = min([max_E_mid, max_I_mid])>10 and max([max_E_mid, max_I_mid])<101
@@ -560,8 +560,8 @@ def readout_pars_from_regr_mid(readout_pars, trained_pars_dict, untrained_pars, 
     ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
     
     # Run reference and target through two layer model
-    r_ref, _, _, _, _, _  = vmap_evaluate_model_response_mid(ssn_mid, data['ref'], conv_pars, c_E, c_I,  untrained_pars.gabor_filters)
-    r_target, _, _, _, _, _= vmap_evaluate_model_response_mid(ssn_mid, data['target'], conv_pars, c_E, c_I, untrained_pars.gabor_filters)
+    r_ref, _, _, _, _, _, _  = vmap_evaluate_model_response_mid(ssn_mid, data['ref'], conv_pars, c_E, c_I,  untrained_pars.gabor_filters)
+    r_target, _, _, _, _, _, _= vmap_evaluate_model_response_mid(ssn_mid, data['target'], conv_pars, c_E, c_I, untrained_pars.gabor_filters)
 
     X = r_ref-r_target
     y = data['label']

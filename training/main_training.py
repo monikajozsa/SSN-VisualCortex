@@ -35,12 +35,12 @@ ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 train_only_flag = False # Setting train_only_flag to True will run an additional training without pretraining
 perturb_level=0.3
-num_training = 2
+num_training = 1
 starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder and create figures and train_only folders
-note=f'Perturbation: {perturb_level}, J baseline: {trained_pars.J_2x2_m.ravel()}, '
+note=f'Adjusting lambdas, lrmax=2, lrmean=0.5, Perturbation: {perturb_level}, J baseline: {trained_pars.J_2x2_m.ravel()}, '
 results_filename, final_folder_path = save_code(train_only_flag=train_only_flag, note=note)
 if train_only_flag:
     results_filename_train_only = os.path.join(final_folder_path, 'train_only', "results_train_only.csv")
