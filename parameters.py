@@ -258,6 +258,20 @@ class TrainedSSNPars:
     
 trained_pars = TrainedSSNPars()
 
+class PerturbPars:
+    perturb_level = 0.3
+    ''' level of perturbation of the trained parameters '''
+    J_range = np.array([1.1, 3.3])
+    ''' range of the perturbed inhibitory weights, excitatory range is twice as large ([2.2, 6.6]) '''
+    c_range = np.array([3, 7])
+    ''' range of the perturbed c parameters '''
+    f_range = np.array([0.7, 1.2])
+    ''' range of the perturbed f parameters '''
+    g_range = np.array([0.22, 0.66])
+    ''' range of the perturbed g parameters '''
+    eta_range = np.array([1e-4, 1e-3])
+
+perturb_pars = PerturbPars()
 
 class MVPA_pars:
     gridsize_Nx = 9

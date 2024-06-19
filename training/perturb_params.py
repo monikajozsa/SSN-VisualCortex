@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 import pandas as pd
+import time
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -15,7 +16,7 @@ from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response, vmap_evaluate_model_response
 from training_functions import mean_training_task_acc_test
 
-def perturb_params_supp(param_dict, percent = 0.1):
+def perturb_params_supp_old(param_dict, percent = 0.1):
     '''Perturb all values in a dictionary by a percentage of their values. The perturbation is done by adding a uniformly sampled random value to the original value.'''
     param_perturbed = copy.deepcopy(param_dict)
     for key, param_array in param_dict.items():
@@ -26,79 +27,103 @@ def perturb_params_supp(param_dict, percent = 0.1):
         param_perturbed[key] = param_array + percent * param_array * random_mtx
     return param_perturbed
 
+def perturb_params_supp(param_dict, perturb_pars):
+    '''Perturb all values in a dictionary by a percentage of their values. The perturbation is done by adding a uniformly sampled random value to the original value.'''
+    param_perturbed = copy.deepcopy(param_dict)
+    attributes = dir(perturb_pars)
+    
+    for key, param_array in param_dict.items():
+        matching_attributes = [attr for attr in attributes if attr.startswith(key[0])]
+        param_range = getattr(perturb_pars, matching_attributes[0])
+        if type(param_array) == float:
+            random_sample = random.uniform(low=param_range[0], high=param_range[1])
+            param_perturbed[key] = random_sample
+        else:
+            # handling the J_2x2_m and J_2x2_s matrices
+            random_sample = random.uniform(low=param_range[0], high=param_range[1], size=param_array.shape)
+            JEE = 2*random_sample[0,0]
+            JEI = -random_sample[0,1]
+            JIE = 2*random_sample[1,0]
+            JII = -random_sample[1,0]
+            param_perturbed[key] = np.array([[JEE, JEI],[JIE, JII]])
+            #np.array([[4.4, -1.66], [5, -1.24]])
+        
+    return param_perturbed
 
-def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, logistic_regr=True):
+
+def perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars, logistic_regr=True, trained_pars_dict=None, start_time=time.time()):
     # define the parameters to perturb
-    trained_pars_dict = dict(J_2x2_m=trained_pars.J_2x2_m, J_2x2_s=trained_pars.J_2x2_s)
-    for key, value in vars(trained_pars).items():
-        if key == 'c_E' or key == 'c_I' or key == 'f_E' or key == 'f_I':
-            trained_pars_dict[key] = value
-       
+    if trained_pars_dict is None:
+        trained_pars_dict = dict(J_2x2_m=trained_pars.J_2x2_m, J_2x2_s=trained_pars.J_2x2_s)
+        for key, value in vars(trained_pars).items():
+            if key == 'c_E' or key == 'c_I' or key == 'f_E' or key == 'f_I':
+                trained_pars_dict[key] = value
+        
     # Perturb parameters under conditions for J_mid and convergence of the differential equations of the model
     i=0
+    j=0
     cond1 = False # parameter inequality on Jm
-    cond2 = False # parameter inequality on Jm and g
-    cond3 = False # ensuring convergence of the SSNs
-    cond4 = False # limiting max firing rate
-    cond5 = False # testing not NaN pretraining task response
-    cond6 = False # testing not NaN training task response
+    cond2 = False # parameter inequality on Jm and gE, gI
 
-    while not (cond1 and cond2 and cond3 and cond4 and cond5 and cond6):
-        perturbed_pars = perturb_params_supp(trained_pars_dict, percent)
+    while not (cond1 and cond2):
+        perturbed_pars = perturb_params_supp(trained_pars_dict, perturb_pars)
         cond1 = np.abs(perturbed_pars['J_2x2_m'][0,0]*perturbed_pars['J_2x2_m'][1,1])*1.1 < np.abs(perturbed_pars['J_2x2_m'][1,0]*perturbed_pars['J_2x2_m'][0,1])
-        cond2 = np.abs(perturbed_pars['J_2x2_m'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < np.abs(perturbed_pars['J_2x2_m'][1,1]*untrained_pars.filter_pars.gE_m)
-        
-        # Calculate model response to check the convergence of the differential equations
-        ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=perturbed_pars['J_2x2_m'])
-        ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=perturbed_pars['J_2x2_s'], p_local=untrained_pars.ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
-        train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp) 
-        pretrain_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
-        if 'c_E' in perturbed_pars:
-            c_E = perturbed_pars['c_E']
-            c_I = perturbed_pars['c_I']
-        else:
-            c_E = untrained_pars.ssn_pars.c_E
-            c_I = untrained_pars.ssn_pars.c_I
-        if 'f_E' in perturbed_pars:
-            f_E = perturbed_pars['f_E']
-            f_I = perturbed_pars['f_I']
-        else:
-            f_E = untrained_pars.ssn_pars.f_E
-            f_I = untrained_pars.ssn_pars.f_I
-        r_train,_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-        r_pretrain,_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-        cond3 = bool((avg_dx_mid + avg_dx_sup < 50).all())
-        cond4 = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])>5 and max([float(np.max(max_E_mid)), float(np.max(max_I_mid)), float(np.max(max_E_sup)), float(np.max(max_I_sup))])<151
-        cond5 = not numpy.any(np.isnan(r_pretrain))
-        cond6 = not numpy.any(np.isnan(r_train))
-        if i>50:
-            print(" ########### Perturbed parameters violate conditions even after 50 sampling. ###########")
-            break
-        else:
-            i = i+1
-            print('Perturbed parameters', i , 'times',[bool(cond1),bool(cond2),cond3,cond4,cond5,cond6])
-
-    # Take log of the J and f parameters (if f_I, f_E are in the perturbed parameters)
-    perturbed_pars_log = dict(
-        log_J_2x2_m= take_log(perturbed_pars['J_2x2_m']),
-        log_J_2x2_s= take_log(perturbed_pars['J_2x2_s']))
-    for key, vale in perturbed_pars.items():
-        if key=='c_E' or key=='c_I':
-            perturbed_pars_log[key] = vale
-        elif key=='f_E' or key=='f_I':
-            perturbed_pars_log['log_'+key] = np.log(vale)
-
-    # Optimize readout parameters by using log-linear regression
-    if logistic_regr:
-        pars_stage1 = readout_pars_from_regr(readout_pars, perturbed_pars_log, untrained_pars)
-    else:
-        pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
-    pars_stage1['w_sig'] = (pars_stage1['w_sig'] / np.std(pars_stage1['w_sig']) ) * 0.25 / int(np.sqrt(len(pars_stage1['w_sig']))) # get the same std as before - see param
-
-    # Perturb learning rate
-    untrained_pars.training_pars.eta = untrained_pars.training_pars.eta + percent * untrained_pars.training_pars.eta * random.uniform(-1, 1)
+        cond2 = np.abs(perturbed_pars['J_2x2_m'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < np.abs(perturbed_pars['J_2x2_m'][1,1]*untrained_pars.filter_pars.gE_m)   
+        i = i+1
     
-    return pars_stage1, perturbed_pars_log, untrained_pars
+    # Calculate model response to check the convergence of the differential equations
+    ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=perturbed_pars['J_2x2_m'])
+    ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=perturbed_pars['J_2x2_s'], p_local=untrained_pars.ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = untrained_pars.stimuli_pars.ref_ori)
+    train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp) 
+    pretrain_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
+    if 'c_E' in perturbed_pars:
+        c_E = perturbed_pars['c_E']
+        c_I = perturbed_pars['c_I']
+    else:
+        c_E = untrained_pars.ssn_pars.c_E
+        c_I = untrained_pars.ssn_pars.c_I
+    if 'f_E' in perturbed_pars:
+        f_E = perturbed_pars['f_E']
+        f_I = perturbed_pars['f_I']
+    else:
+        f_E = untrained_pars.ssn_pars.f_E
+        f_I = untrained_pars.ssn_pars.f_I
+    r_train,_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    r_pretrain,_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    cond3 = bool((avg_dx_mid + avg_dx_sup < 50).all())
+    cond4 = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])>5 and max([float(np.max(max_E_mid)), float(np.max(max_I_mid)), float(np.max(max_E_sup)), float(np.max(max_I_sup))])<151
+    cond5 = not numpy.any(np.isnan(r_pretrain))
+    cond6 = not numpy.any(np.isnan(r_train))
+    if not (cond3 and cond4 and cond5 and cond6):
+        if j>50:
+            print(" ########### Perturbed parameters violate conditions even after 50 sampling. ###########")
+        else:
+            j = j+i
+            print(f'Perturbed parameters {j} times',[bool(cond1),bool(cond2),cond3,cond4,cond5,cond6])
+            perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars, logistic_regr, trained_pars_dict, start_time)
+    else:
+        print('Parameters found that satisfy conditions in time', time.time()-start_time)
+        # Take log of the J and f parameters (if f_I, f_E are in the perturbed parameters)
+        perturbed_pars_log = dict(
+            log_J_2x2_m= take_log(perturbed_pars['J_2x2_m']),
+            log_J_2x2_s= take_log(perturbed_pars['J_2x2_s']))
+        for key, vale in perturbed_pars.items():
+            if key=='c_E' or key=='c_I':
+                perturbed_pars_log[key] = vale
+            elif key=='f_E' or key=='f_I':
+                perturbed_pars_log['log_'+key] = np.log(vale)
+
+        # Optimize readout parameters by using log-linear regression
+        if logistic_regr:
+            pars_stage1 = readout_pars_from_regr(readout_pars, perturbed_pars_log, untrained_pars)
+        else:
+            pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
+        pars_stage1['w_sig'] = (pars_stage1['w_sig'] / np.std(pars_stage1['w_sig']) ) * 0.25 / int(np.sqrt(len(pars_stage1['w_sig']))) # get the same std as before - see param
+
+        # Perturb learning rate
+        untrained_pars.training_pars.eta = random.uniform(perturb_pars.eta_range[0], perturb_pars.eta_range[1])
+        
+        return pars_stage1, perturbed_pars_log, untrained_pars
 
 
 def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=1000):
