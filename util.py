@@ -1,7 +1,5 @@
 import jax
 import jax.numpy as np
-import matplotlib
-matplotlib.use('Agg')
 import numpy
 import os
 import shutil

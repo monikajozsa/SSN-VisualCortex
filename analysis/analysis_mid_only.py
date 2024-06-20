@@ -80,7 +80,7 @@ def tuning_curve_mid_only(untrained_pars, trained_pars, tuning_curves_filename=N
     background = untrained_pars.BW_image_jax_inp[9]
     
     train_data = BW_image_jit(untrained_pars.BW_image_jax_inp[0:5], x, y, alpha_channel, mask, background, ori_vec, np.zeros(num_ori))
-    _, _, _, _, _, responses_mid = vmap_evaluate_model_response_mid(ssn_mid, train_data, conv_pars, c_E, c_I, untrained_pars.gabor_filters)
+    _, responses_mid, _, _, _, _, _ = vmap_evaluate_model_response_mid(ssn_mid, train_data, conv_pars, c_E, c_I, untrained_pars.gabor_filters)
     
     # Save responses into csv file
     new_rows=responses_mid

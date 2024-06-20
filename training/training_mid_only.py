@@ -312,8 +312,8 @@ def loss_ori_discr_mid(trained_pars_dict, readout_pars_dict, untrained_pars, tra
     #Run reference and targetthrough two layer model
     ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
     
-    r_ref, r_max_ref_mid, avg_dx_ref_mid, max_E_mid, max_I_mid, _ = evaluate_model_response_mid(ssn_mid, train_data['ref'], conv_pars, c_E, c_I, untrained_pars.gabor_filters)
-    r_target, r_max_target_mid, avg_dx_target_mid, max_E_mid, max_I_mid, _= evaluate_model_response_mid(ssn_mid, train_data['target'], conv_pars, c_E, c_I, untrained_pars.gabor_filters)
+    r_ref, _, avg_dx_ref_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = evaluate_model_response_mid(ssn_mid, train_data['ref'], conv_pars, c_E, c_I, untrained_pars.gabor_filters)
+    r_target, _, _, _, _, _, _= evaluate_model_response_mid(ssn_mid, train_data['target'], conv_pars, c_E, c_I, untrained_pars.gabor_filters)
 
     if pretraining:
         # Readout is from all neurons in middle layer
@@ -336,14 +336,21 @@ def loss_ori_discr_mid(trained_pars_dict, readout_pars_dict, untrained_pars, tra
     loss_readout = binary_crossentropy_loss(train_data['label'], sig_output)
     pred_label = np.round(sig_output)
     # ii) Calculate other loss terms
-    loss_dx_max = loss_pars.lambda_dx*np.mean(np.array([avg_dx_ref_mid, avg_dx_target_mid])**2)
-    loss_r_max =  loss_pars.lambda_r_max*np.mean(np.array([r_max_ref_mid, r_max_target_mid]))
+    Rmax_E = untrained_pars.loss_pars.Rmax_E
+    Rmax_I = untrained_pars.loss_pars.Rmax_I
+    Rmean_E = untrained_pars.loss_pars.Rmean_E
+    Rmean_I = untrained_pars.loss_pars.Rmean_I
+    loss_rmax= np.mean(np.maximum(0, (max_E_mid/Rmax_E - 1)) + np.maximum(0, (max_I_mid/Rmax_I - 1)))
+    loss_r_max = loss_pars.lambda_r_max*(loss_rmax) #older version used leaky relu: lossr_max = leaky_relu(max_E, R_thresh = Rmax_E, slope = 1/Rmax_E) + leaky_relu(max_I, R_thresh = Rmax_I, slope = 1/Rmax_I)
+    loss_rmean = np.mean((mean_E_mid/Rmean_E - 1) ** 2 + (mean_I_mid/Rmean_I - 1) ** 2)
+    loss_r_mean = loss_pars.lambda_r_mean*(loss_rmean)
+    loss_dx_max = loss_pars.lambda_dx*np.mean(np.array([avg_dx_ref_mid])**2)
     loss_w = loss_pars.lambda_w*(np.linalg.norm(w_sig)**2)
     loss_b = loss_pars.lambda_b*(b_sig**2)   
-    loss = loss_readout + loss_w + loss_b +  loss_dx_max + loss_r_max
-    all_losses = np.vstack((loss_readout, loss_dx_max, loss_r_max, loss_w, loss_b, loss))
+    loss = loss_readout + loss_w + loss_b +  loss_dx_max + loss_r_max + loss_r_mean
+    all_losses = np.vstack((loss_readout, loss_dx_max, loss_r_max, loss_r_mean, loss_w, loss_b, loss))
     
-    return loss, all_losses, pred_label, sig_input, sig_output,  [max_E_mid, max_I_mid]
+    return loss, all_losses, pred_label, sig_input, sig_output, [max_E_mid, max_I_mid]
 
 # Parallelize orientation discrimination task and jit the parallelized function
 vmap_ori_discr_mid = vmap(loss_ori_discr_mid, in_axes = (None, None, None, {'ref':0, 'target':0, 'label':0}, 0, 0) )
@@ -504,7 +511,7 @@ def perturb_params_mid(readout_pars, trained_pars, untrained_pars, percent=0.1, 
         else:
             c_E = untrained_pars.ssn_pars.c_E
             c_I = untrained_pars.ssn_pars.c_I
-        r_ref, avg_dx_mid, max_E_mid, max_I_mid, _,_,_ = vmap_evaluate_model_response_mid(ssn_mid, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, untrained_pars.gabor_filters)
+        r_ref,_ , avg_dx_mid, max_E_mid, max_I_mid, _,_ = vmap_evaluate_model_response_mid(ssn_mid, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, untrained_pars.gabor_filters)
         cond3 = not numpy.any(numpy.isnan(r_ref))
         cond4 = avg_dx_mid  < 50
         cond5 = min([max_E_mid, max_I_mid])>10 and max([max_E_mid, max_I_mid])<101
@@ -560,8 +567,8 @@ def readout_pars_from_regr_mid(readout_pars, trained_pars_dict, untrained_pars, 
     ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
     
     # Run reference and target through two layer model
-    r_ref, _, _, _, _, _, _  = vmap_evaluate_model_response_mid(ssn_mid, data['ref'], conv_pars, c_E, c_I,  untrained_pars.gabor_filters)
-    r_target, _, _, _, _, _, _= vmap_evaluate_model_response_mid(ssn_mid, data['target'], conv_pars, c_E, c_I, untrained_pars.gabor_filters)
+    [r_ref, _], _, _, _, _ = vmap_evaluate_model_response_mid(ssn_mid, data['ref'], conv_pars, c_E, c_I,  untrained_pars.gabor_filters)
+    [r_target, _], _, _, _, _= vmap_evaluate_model_response_mid(ssn_mid, data['target'], conv_pars, c_E, c_I, untrained_pars.gabor_filters)
 
     X = r_ref-r_target
     y = data['label']

@@ -114,7 +114,7 @@ class _SSN_Base(object):
 class SSN_sup(_SSN_Base):
     _Lring = 180
 
-    def __init__(self, ssn_pars, grid_pars, J_2x2, p_local, oris, sigma_oris =None, s_2x2 = None, ori_dist=None, train_ori = None, kappa_post = None, kappa_pre = None, **kwargs):
+    def __init__(self, ssn_pars, grid_pars, J_2x2, p_local, oris, sigma_oris =None, s_2x2 = None, ori_dist=None,  **kwargs):
         Ni = Ne = grid_pars.gridsize_Nx**2
         n=ssn_pars.n
         self.k=ssn_pars.k
@@ -129,20 +129,13 @@ class SSN_sup(_SSN_Base):
 
         self.grid_pars = grid_pars
         self.p_local = p_local
-        self.train_ori = train_ori
 
         self.s_2x2 = s_2x2
         self.sigma_oris = sigma_oris
-     
-        if kappa_pre==None:
-            kappa_pre = np.asarray([ 0.0, 0.0])
-            kappa_post = kappa_pre
    
         xy_dist = grid_pars.xy_dist
         cosdiff_ring = lambda d_x, L: np.sqrt(2 * (1 - np.cos(d_x * 2 * np.pi/L))) * L / 2/ np.pi
-        trained_ori_dist = cosdiff_ring(oris - self.train_ori, SSN_sup._Lring)
-        self.trained_ori_dist = trained_ori_dist.squeeze()
-        self.W = self.make_W(J_2x2, xy_dist, ori_dist, kappa_pre, kappa_post)
+        self.W = self.make_W(J_2x2, xy_dist, ori_dist)
 
     @property
     def neuron_params(self):
@@ -150,7 +143,7 @@ class SSN_sup(_SSN_Base):
                     tauE=self.tau_vec[0], tauI=self.tau_vec[self.Ne])
     
         
-    def make_W(self, J_2x2, xy_dist, ori_dist, kappa_pre, kappa_post, MinSyn=1e-4, CellWiseNormalized=False):
+    def make_W(self, J_2x2, xy_dist, ori_dist, MinSyn=1e-4, CellWiseNormalized=False):
             """
             make the full recurrent connectivity matrix W
             Input:
@@ -164,12 +157,9 @@ class SSN_sup(_SSN_Base):
             s_2x2 = self.s_2x2
             sigma_oris = self.sigma_oris
             p_local = self.p_local
-            trained_ori_dist = self.trained_ori_dist
             
-            #Reshape sigma_oris, kappa pre and kappa post
+            #Reshape sigma_oris
             sigma_oris = sigma_oris * np.ones((2,2))
-            kappa_pre = kappa_pre * np.ones((2,2))
-            kappa_post = kappa_post * np.ones((2,2))
             
             if np.isscalar(s_2x2):
                 s_2x2 = s_2x2 * np.ones((2,2))
@@ -186,9 +176,9 @@ class SSN_sup(_SSN_Base):
             for a in range(2):
                 for b in range(2):                    
                     if b == 0: # E projections
-                        W = np.exp(-xy_dist/s_2x2[a,b] -ori_dist**2/(2*sigma_oris[a,b]**2) - kappa_post[a,b]*trained_ori_dist[:, None]**2/2 /45**2  -kappa_pre[a,b]*trained_ori_dist[None,:]**2/2/45**2 )                        
+                        W = np.exp(-xy_dist/s_2x2[a,b] -ori_dist**2/(2*sigma_oris[a,b]**2))                        
                     elif b == 1: # I projections 
-                        W = np.exp(-xy_dist**2/(2*s_2x2[a,b]**2) -ori_dist**2/(2*sigma_oris[a,b]**2) -kappa_post[a,b] * trained_ori_dist[:, None]**2/2/45**2  -kappa_pre[a,b]*trained_ori_dist[None,:]**2/2/45**2)
+                        W = np.exp(-xy_dist**2/(2*s_2x2[a,b]**2) -ori_dist**2/(2*sigma_oris[a,b]**2))
 
                     # sparsify (set small weights to zero)
                     W = np.where(W < MinSyn, 0, W)

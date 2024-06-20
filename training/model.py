@@ -38,17 +38,17 @@ def evaluate_model_response(
     SSN_mid_input = np.maximum(0, input_mid) + constant_vector
 
     # Calculate steady state response of middle layer
-    r_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
+    r_mid, fp_mid, avg_dx_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
 
     # Create input to (I and E neurons in) superficial layer
     sup_input_ref = np.hstack([r_mid * f_E, r_mid * f_I]) + constant_vector_sup
 
     # Calculate steady state response of superficial layer
-    r_sup, avg_dx_sup, fp_sup, max_E_sup, max_I_sup, mean_E_sup, mean_I_sup = superficial_layer_fixed_point(
+    r_sup, fp_sup, avg_dx_sup, max_E_sup, max_I_sup, mean_E_sup, mean_I_sup = superficial_layer_fixed_point(
         ssn_sup, sup_input_ref, conv_pars, return_fp=True
     )
 
-    return r_sup, r_mid, [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup], [fp_mid, fp_sup]
+    return [r_sup, r_mid], [fp_mid, fp_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup]
 
 vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None))
 
@@ -87,9 +87,9 @@ def evaluate_model_response_mid(
     SSN_mid_input = np.maximum(0, input_mid) + constant_vector
 
     # Calculate steady state response of middle layer
-    r_mid, avg_dx_mid, fp_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
+    r_mid, fp_mid, avg_dx_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
 
-    return r_mid, avg_dx_mid, max_E_mid, max_I_mid, fp_mid, mean_E_mid, mean_I_mid
+    return r_mid, fp_mid, avg_dx_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid
 
 vmap_evaluate_model_response_mid = vmap(evaluate_model_response_mid, in_axes = (None, 0, None, None, None, None))
 
@@ -140,7 +140,7 @@ def middle_layer_fixed_point(
     meanr_I = np.mean(fp_I)
 
     if return_fp ==True:
-        return layer_output, avg_dx, fp, maxr_E, maxr_I,  meanr_E, meanr_I
+        return layer_output, fp, avg_dx, maxr_E, maxr_I,  meanr_E, meanr_I
     else:
         return layer_output, avg_dx
 
@@ -164,7 +164,7 @@ def superficial_layer_fixed_point(
     meanr_I = np.mean(fp[ssn.Ne:-1])
 
     if return_fp ==True:
-        return layer_output, avg_dx, fp, maxr_E, maxr_I, meanr_E, meanr_I
+        return layer_output, fp, avg_dx,  maxr_E, maxr_I, meanr_E, meanr_I
     else:
         return layer_output, avg_dx
 

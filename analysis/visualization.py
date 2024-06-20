@@ -420,7 +420,7 @@ def plot_results_from_csv(df,fig_filename=None):
         if 'loss_' in column and 'val_loss' not in column:
             axes[0,1].plot(range(N), df[column], label=column, alpha=0.6)
         if 'val_loss' in column:
-            axes[0,1].scatter(range(N), df[column], marker='o', s=50)
+            axes[0,1].scatter(range(N), df[column], label='val_loss', marker='o', s=50)
     axes[0,1].legend(loc='upper right')
     axes[0,1].set_title('Loss', fontsize=20)
     axes[0,1].set_xlabel('SGD steps', fontsize=20)

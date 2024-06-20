@@ -332,7 +332,7 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
                 mask = BW_image_jax_inp[7]
                 stimuli = BW_image_vmap(BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori))
                 # Calculate model response for middle layer cells and save it to responses_mid_phase_match
-                _, _, _, _, _, responses_mid = vmap_evaluate_model_response_mid(ssn_mid, stimuli, untrained_pars.conv_pars, c_E, c_I, untrained_pars.gabor_filters)
+                _, responses_mid,_, _, _,  _, _ = vmap_evaluate_model_response_mid(ssn_mid, stimuli, untrained_pars.conv_pars, c_E, c_I, untrained_pars.gabor_filters)
                 mid_cell_ind_E = phase_ind*2*grid_size + i*x_map.shape[0]+j
                 mid_cell_ind_I = phase_ind*2*grid_size + i*x_map.shape[0]+j+grid_size
                 responses_mid_phase_match[:,mid_cell_ind_E]=responses_mid[:,mid_cell_ind_E] # E cell
@@ -340,8 +340,8 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
                 # Calculate model response for superficial layer cells and save it to responses_sup_phase_match
                 if phase_ind==0:
                     # Superficial layer response per grid point
-                    ssn_sup=SSN_sup(ssn_pars=ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=ssn_pars.s_2x2_s, sigma_oris = ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ref_ori_saved) # *** is it ok that I use the ref_ori_saved?
-                    _, _, [_, _], [_, _], [_, _, _, _], [fp_mid, responses_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+                    ssn_sup=SSN_sup(ssn_pars=ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=ssn_pars.s_2x2_s, sigma_oris = ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist)
+                    _, [_, responses_sup],_, _, _, = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
                     sup_cell_ind = i*x_map.shape[0]+j
                     responses_sup_phase_match[:,sup_cell_ind]=responses_sup[:,sup_cell_ind]
                     responses_sup_phase_match[:,grid_size+sup_cell_ind]=responses_sup[:,grid_size+sup_cell_ind]
@@ -586,16 +586,14 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     test_grating = BW_image_jit_noisy(untrained_pars.BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, jitter_vec)
     
     # Create middle and superficial SSN layers *** this is something that would be great to call from outside the SGD loop and only refresh the params that change (and what rely on them such as W)
-    kappa_pre = untrained_pars.ssn_pars.kappa_pre
-    kappa_post = untrained_pars.ssn_pars.kappa_post
     p_local_s = untrained_pars.ssn_pars.p_local_s
     s_2x2 = untrained_pars.ssn_pars.s_2x2_s
     sigma_oris = untrained_pars.ssn_pars.sigma_oris
     ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
-    ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
+    ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist)
 
     # Calculate fixed point for data    
-    _, _, [_, _], [_, _], [_, _, _, _], [r_mid, r_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    _, [r_mid, r_sup], _,  _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
 
     return r_mid, r_sup
 

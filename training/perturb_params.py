@@ -51,7 +51,7 @@ def perturb_params_supp(param_dict, perturb_pars):
     return param_perturbed
 
 
-def perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars, logistic_regr=True, trained_pars_dict=None, start_time=time.time()):
+def perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars, logistic_regr=True, trained_pars_dict=None, num_init=0, start_time=time.time()):
     # define the parameters to perturb
     if trained_pars_dict is None:
         trained_pars_dict = dict(J_2x2_m=trained_pars.J_2x2_m, J_2x2_s=trained_pars.J_2x2_s)
@@ -61,7 +61,6 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars, log
         
     # Perturb parameters under conditions for J_mid and convergence of the differential equations of the model
     i=0
-    j=0
     cond1 = False # parameter inequality on Jm
     cond2 = False # parameter inequality on Jm and gE, gI
 
@@ -88,21 +87,21 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars, log
     else:
         f_E = untrained_pars.ssn_pars.f_E
         f_I = untrained_pars.ssn_pars.f_I
-    r_train,_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-    r_pretrain,_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    [r_train,_],_ , [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    [r_pretrain,_],_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
     cond3 = bool((avg_dx_mid + avg_dx_sup < 50).all())
     cond4 = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])>5 and max([float(np.max(max_E_mid)), float(np.max(max_I_mid)), float(np.max(max_E_sup)), float(np.max(max_I_sup))])<151
     cond5 = not numpy.any(np.isnan(r_pretrain))
     cond6 = not numpy.any(np.isnan(r_train))
     if not (cond3 and cond4 and cond5 and cond6):
-        if j>50:
-            print(" ########### Perturbed parameters violate conditions even after 50 sampling. ###########")
+        if num_init>200:
+            print(" ########### Perturbed parameters violate conditions even after 200 sampling. ###########")
         else:
-            j = j+i
-            print(f'Perturbed parameters {j} times',[bool(cond1),bool(cond2),cond3,cond4,cond5,cond6])
-            perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars, logistic_regr, trained_pars_dict, start_time)
+            num_init = num_init+i
+            print(f'Perturbed parameters {num_init} times',[bool(cond1),bool(cond2),cond3,cond4,cond5,cond6])
+            pars_stage1, perturbed_pars_log, untrained_pars = perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars, logistic_regr, trained_pars_dict, num_init, start_time)
     else:
-        print('Parameters found that satisfy conditions in time', time.time()-start_time)
+        print(f'Parameters found that satisfy conditions in {time.time() - start_time:.2f} seconds')
         # Take log of the J and f parameters (if f_I, f_E are in the perturbed parameters)
         perturbed_pars_log = dict(
             log_J_2x2_m= take_log(perturbed_pars['J_2x2_m']),
@@ -123,7 +122,7 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars, log
         # Perturb learning rate
         untrained_pars.training_pars.eta = random.uniform(perturb_pars.eta_range[0], perturb_pars.eta_range[1])
         
-        return pars_stage1, perturbed_pars_log, untrained_pars
+    return pars_stage1, perturbed_pars_log, untrained_pars
 
 
 def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=1000):
@@ -165,8 +164,8 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist, train_ori = ref_ori, kappa_post = kappa_post, kappa_pre = kappa_pre)
     
     # Run reference and target through two layer model
-    r_ref, _, _,_, _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-    r_target, _, _, _, _, _= vmap_evaluate_model_response(ssn_mid, ssn_sup, data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    [r_ref, _], _,_, _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    [r_target, _], _, _, _, _= vmap_evaluate_model_response(ssn_mid, ssn_sup, data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
 
     X = r_ref-r_target
     y = data['label']
@@ -180,7 +179,7 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     print('accuracy of logistic regression', accuracy)
     
     # Set the readout parameters based on the results of the logistic regression
-    readout_pars_opt = {key: None for key in vars(readout_pars)}
+    readout_pars_opt = {'b_sig': 0, 'w_sig': np.zeros(len(X[0]))}
     readout_pars_opt['b_sig'] = float(log_reg.intercept_)
     w_sig = log_reg.coef_.T
     w_sig = w_sig.squeeze()
@@ -198,7 +197,7 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
         readout_pars_opt['w_sig'] = -w_sig
         readout_pars_opt['b_sig'] = -readout_pars_opt['b_sig']
         acc_mean_flipped, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_opt, untrained_pars, True, test_offset_vec)
-        print('accuracy of logistic regression before and after flipping the w_sig and b_sig', acc_mean, acc_mean_flipped)
+        print('accuracy of logistic regression before and after flipping the w_sig and b_sig', np.mean(acc_mean), np.mean(acc_mean_flipped))
 
     return readout_pars_opt
 

@@ -18,13 +18,13 @@ class PreTrainPars:
     ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
     min_acc_check_ind = 10
     ''' minimum SGD step where accuracy check happens for the training task '''
-    min_stop_ind = 200
+    min_stop_ind = 80
     ''' minimum SGD step where pretraining can stop '''
     offset_threshold = 6
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
-    batch_size = 100
+    batch_size = 50
     ''' number of trials per SGD step during pretraining '''
-    SGD_steps = 200
+    SGD_steps = 100
     ''' maximum number of SGD steps during pretraining '''
 
 pretrain_pars = PreTrainPars()
@@ -33,11 +33,11 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta: float = 2*10e-4
+    eta: float = 1e-4
     '''learning rate - the maximum rate of parameter change in one SGD step'''
     batch_size: int = 50
     '''number of trials per SGD step'''
-    SGD_steps: int = 200
+    SGD_steps: int = 100
     '''number of SGD step'''
     validation_freq: int = 10  
     '''frequency of validation loss and accuracy calculation'''
@@ -69,9 +69,9 @@ class LossPars:
     ''' Constant for L2 regularizer of sigmoid layer weights'''
     lambda_b: float = 1
     ''' Constant for L2 regulazier of sigmoid layer bias '''
-    lambda_r_max: float = 2
+    lambda_r_max: float = 1
     ''' Constant for loss with respect to maximum rates in the network'''
-    lambda_r_mean: float = 0.5
+    lambda_r_mean: float = 0.1
     ''' Constant for loss with respect to maximum rates in the network'''
     Rmax_E: float = 40
     '''Maximum firing rate for E neurons - rates above this are penalised'''
@@ -225,10 +225,6 @@ class SSNPars:
     ''' number of inh. and exc. neurons (with different Gabor filt.) per grid point in middle layer (has to be an even integer) '''
     sigma_oris = np.asarray([90.0, 90.0])
     ''' range of weights in terms of preferred orientation difference (in degree) '''
-    kappa_pre = np.asarray([0.0, 0.0])
-    ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
-    kappa_post = np.asarray([0.0, 0.0])
-    ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
     s_2x2_s = np.array([[0.2, 0.09], [0.4, 0.09]])
     ''' ranges of weights between different pre/post cell-type '''
     p_local_s = [0.4, 0.7]
@@ -239,7 +235,7 @@ class SSNPars:
 ssn_pars = SSNPars()
 
 
-# Trained SSN parameters - f and c parameters can be moved between TrainedSSNPars and SSNPars
+# Trained SSN parameters - f and c parameters can be moved between TrainedSSNPars and SSNPars deoending on whether we want to train (and perturb) them or not
 @dataclass
 class TrainedSSNPars:
     f_E: float = 1.11 
