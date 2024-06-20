@@ -207,36 +207,20 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
     ax.set_title(title)
   
 
-def plot_tc_features(results_dir, num_training, ori_list, train_only_str=''):
+def plot_tc_features(results_dir, num_training, ori_list):
 
     # Initialize dictionaries to store the data arrays
-    if train_only_str=='':
-        data = {
-            'norm_slope_0': [],
-            'norm_slope_1': [],
-            'norm_slope_2': [],
-            'fwhm_0': [],
-            'fwhm_1': [],
-            'fwhm_2': [],
-            'preforis_0': [],
-            'preforis_1': [],
-            'preforis_2': [],
-        }
-    else:
-            data = {
-            'norm_slope_train_only_0': [],
-            'norm_slope_train_only_2': [],
-            'fwhm_train_only_0': [],
-            'fwhm_train_only_2': [],
-            'preforis_train_only_0': [],
-            'preforis_train_only_2': []
-        }
+    data = {
+        'norm_slope_train_only_0': [],
+        'norm_slope_train_only_2': [],
+        'fwhm_train_only_0': [],
+        'fwhm_train_only_2': [],
+        'preforis_train_only_0': [],
+        'preforis_train_only_2': []
+    }
             
     # Load data from file
-    if train_only_str=='':
-        tc_filename = results_dir + f'/tuning_curves.csv'
-    else:
-        tc_filename = results_dir + f'/tuning_curves_train_only.csv'
+    tc_filename = results_dir + f'/tuning_curves_train_only.csv'
     tuning_curves = pd.read_csv(tc_filename)
 
     # Loop through each training and stage within training (pre pretraining, post pretrainig and post training)
@@ -299,7 +283,7 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str=''):
     fs_text = 40
     fs_ticks = 30
     
-    # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
+    ###### 
     for stage in range(2):
         fig, axs = plt.subplots(2, 2, figsize=(25, 25))
         for j in [0,2]:            
@@ -374,7 +358,7 @@ def plot_tc_features(results_dir, num_training, ori_list, train_only_str=''):
         axs[1,0].set_ylabel(r'$\Delta$ slope', fontsize=fs_text)
         axs[0,0].set_ylabel(r'$\Delta$ slope', fontsize=fs_text)
         plt.tight_layout(w_pad=10, h_pad=7)
-        fig.savefig(results_dir + f"/figures/tc_features_{stage}" + train_only_str +".png", bbox_inches='tight')
+        fig.savefig(results_dir + f"/figures/tc_features_{stage}.png", bbox_inches='tight')
         plt.close()
 
 def axes_format(axs, fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=True, ytick_flag=True):

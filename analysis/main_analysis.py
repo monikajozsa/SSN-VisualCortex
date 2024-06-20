@@ -30,7 +30,7 @@ from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
 tc_ori_list = numpy.arange(0,180,6)
 num_training = 1
-final_folder_path = os.path.join('results','Jun19_v22')
+final_folder_path = os.path.join('results','Jun20_v2')
 
 start_time_in_main= time.time()
 
@@ -43,20 +43,21 @@ df = pd.read_csv(results_filename)
 # Define the filename for the tuning curves 
 tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
 # Define the header for the tuning curves
-tc_header = []
-tc_header.append('run_index')
-tc_header.append('training_stage')
-# Headers for middle layer cells
-for i in range(grid_pars.gridsize_Nx**2):
-    for phase_ind in range(ssn_pars.phases):
-        for type_ind in range(2):
-            cell_id = 1000*(i+1) + 100*phase_ind  + 10*type_ind 
-            tc_header.append(str(cell_id))
+tc_headers = []
+tc_headers.append('run_index')
+tc_headers.append('training_stage')
+# Headers for middle layer cells - order matches the gabor filter but the rest of the code need to be check for cell ordering! especially select type functions
+type_str = ['_E_','_I_']
+for phase_ind in range(ssn_pars.phases):
+    for type_ind in range(2):
+        for i in range(grid_pars.gridsize_Nx**2):
+            tc_header = 'G'+ str(i+1) + type_str[type_ind] + 'Ph' + str(phase_ind) + '_M'
+            tc_headers.append(tc_header)
 # Header for superficial layer cells
 for type_ind in range(2):
     for i in range(grid_pars.gridsize_Nx**2):
-        cell_id = 1000*(i+1) + 10*type_ind +1
-        tc_header.append(str(cell_id))
+        tc_header = 'G'+str(i+1) + type_str[type_ind] +'S'
+        tc_headers.append(tc_header)
 # Define the trained parameter keys
 trained_pars_keys = ['log_J_2x2_m', 'log_J_2x2_s']
 if 'c_E' in df.columns:
@@ -77,8 +78,8 @@ for i in range(0,num_training):
     # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
     for stage in range(3):
         trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(df_i, iloc_ind = SGD_step_inds[stage], trained_pars_keys=trained_pars_keys)
-        tc_prepre, _ = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_header)
-        tc_header = False
+        tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_headers)
+        tc_headers = False
         
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
 
@@ -98,9 +99,9 @@ mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
 sigma_filter = 2
 
-#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
 
-#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
+boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
 plot_tc_features(final_folder_path, num_training, tc_ori_list)
 
 plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')

@@ -396,13 +396,13 @@ def find_gabor_A(
         oris = oris.ravel()
 
     for ori in oris: 
-        # create local_stimui_pars to pass it to BW_Gratings
+        # Create local_stimui_pars to pass it to BW_Gratings
         local_stimuli_pars = StimuliPars()
         local_stimuli_pars.jitter_val = 0
         local_stimuli_pars.std = 0
         local_stimuli_pars.ref_ori = ori
         
-        # generate test stimuli at ori orientation
+        # Generate test stimuli at ori orientation
         BW_image_jit_inp_all = BW_image_jax_supp(local_stimuli_pars, phase = phase)
         x = BW_image_jit_inp_all[4]
         y = BW_image_jit_inp_all[5]
@@ -413,20 +413,17 @@ def find_gabor_A(
         
         # Generate Gabor filter at orientation
         gabor = gabor_filter(0, 0,filter_pars,ori,phase=phase)
-        #gabor_scaled = gabor * max(test_stimuli)/ max(gabor.ravel())
-        #import matplotlib.pyplot as plt
-        #plt.imshow(np.reshape(test_stimuli,(129,129))+np.reshape(3*gabor_scaled,(129,129)))
-        #plt.savefig('tests/find_A_test.png')
 
+        # Remove mean
         mean_removed_filter = gabor - gabor.mean()
         
-        # multiply filter and stimuli
+        # Multiply filter and stimuli
         output_gabor = mean_removed_filter.ravel() @ test_stimuli
 
-        # create list of output_gabors
+        # Create list of output_gabors
         all_output_gabor.append(output_gabor)
 
-    # find max value of all_output_gabor and define A to scale it to 100*local_stimuli_pars.grating_contrast
+    # Find max value of all_output_gabor and define A to scale it to 100*local_stimuli_pars.grating_contrast
     A = 100*local_stimuli_pars.grating_contrast / np.mean(np.array(all_output_gabor))
 
     return A
