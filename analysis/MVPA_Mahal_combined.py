@@ -1,6 +1,7 @@
 import time
 import jax.numpy as np
 import numpy
+import pandas as pd
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import os
@@ -358,18 +359,24 @@ def plot_Mahal_LMI_hists(df_LMI, df_mahal, folder, num_SGD_inds):
     plt.close()
 
 
-def MVPA_Mahal_from_csv(folder, num_training, num_SGD_inds=2, sigma_filter=5, r_noise=True, plot_flag=False):
+def MVPA_Mahal_from_csv(folder, num_training, num_SGD_inds=2, sigma_filter=5, r_noise=True, plot_flag=False, recalc = True):
     ''' Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer'''
-    MVPA_scores, df_mahal, df_LMI, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain = MVPA_Mahal_analysis(folder,num_training, num_SGD_inds, r_noise = r_noise, sigma_filter=sigma_filter, plot_flag=plot_flag)
-    
     # save the output into folder_to_save as npy files
     folder_to_save = folder + f'/sigmafilt_{sigma_filter}'
     # create the folder if it does not exist
     if not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)
-    numpy.save(folder_to_save +'/MVPA_scores.npy', MVPA_scores)    
-    df_mahal.to_csv(folder_to_save + '/df_mahal.csv', index=False)
-    df_LMI.to_csv(folder_to_save + '/df_LMI.csv', index=False)
+    
+    if recalc:
+        MVPA_scores, df_mahal, df_LMI, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain = MVPA_Mahal_analysis(folder,num_training, num_SGD_inds, r_noise = r_noise, sigma_filter=sigma_filter, plot_flag=plot_flag)
+    
+        numpy.save(folder_to_save +'/MVPA_scores.npy', MVPA_scores)    
+        df_mahal.to_csv(folder_to_save + '/df_mahal.csv', index=False)
+        df_LMI.to_csv(folder_to_save + '/df_LMI.csv', index=False)
+    else:
+        MVPA_scores = numpy.load(folder_to_save +'/MVPA_scores.npy')
+        df_mahal = pd.read_csv(folder_to_save + '/df_mahal.csv')
+        df_LMI = pd.read_csv(folder_to_save + '/df_LMI.csv')
     
     print('Pre-pre, pre and post training for 55~0, sup layer:',[np.mean(MVPA_scores[:,0,0,0]),np.mean(MVPA_scores[:,0,1,0]),np.mean(MVPA_scores[:,0,-1,0])])
     print('Pre-pre, pre and post training for 55~0, mid layer:',[np.mean(MVPA_scores[:,1,0,0]),np.mean(MVPA_scores[:,1,1,0]),np.mean(MVPA_scores[:,1,-1,0])])

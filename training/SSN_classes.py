@@ -200,29 +200,23 @@ class SSN_sup(_SSN_Base):
             
             W = np.block(Wblks)
             return W
-            
-    def vec2map(self, vec):
-        assert vec.ndim == 1
-        Nx = self.grid_pars.gridsize_Nx
-        if len(vec) == self.Ne:
-            map = np.reshape(vec, (Nx, Nx))
-        elif len(vec) == self.N:
-            map = (np.reshape(vec[:self.Ne], (Nx, Nx)),
-                   np.reshape(vec[self.Ne:], (Nx, Nx)))
-        return map
 
 
     def select_type(self, vec, select='E'):    
         assert vec.ndim == 1
-        maps = self.vec2map(vec)
+        Nx = self.grid_pars.gridsize_Nx
+        # reshape vector into matrix form
+        if len(vec) == self.Ne:
+            maps = np.reshape(vec, (Nx, Nx))
+        elif len(vec) == self.N:
+            maps = (np.reshape(vec[:self.Ne], (Nx, Nx)),
+                   np.reshape(vec[self.Ne:], (Nx, Nx)))
 
         if select=='E': # second half
-            output = maps[0]
+            return maps[0]
         if select =='I': # first half
-            output = maps[1]
+            return maps[1]
 
-        return output
-    
 
 class SSN_mid(_SSN_Base):
     _Lring = 180
@@ -271,7 +265,7 @@ class SSN_mid(_SSN_Base):
         )
     
     def select_type(self, vec, map_numbers):
-        # Calculate start and end indices for each map_number
+        # Calculate start and end indices for each map_number (corresponding to a phase)
         start_indices = (map_numbers - 1) * self.Nc
         
         out = []

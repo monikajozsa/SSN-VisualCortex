@@ -396,14 +396,10 @@ def full_width_half_max(vector, d_theta):
     return distance
 
 
-def tc_features(tuning_curve, ori_list=numpy.arange(0,180,6), expand_dims=False):
+def tc_features(tuning_curve, ori_list=numpy.arange(0,180,6), expand_dims=False, ori_to_center_slope=[55, 125]):
     
     # Tuning curve of given cell indices
     num_cells = tuning_curve.shape[1]
-    
-    # Find preferred orientation and center it at 55
-    pref_ori = ori_list[np.argmax(tuning_curve, axis = 0)]
-    norm_pref_ori = pref_ori -55
 
     # Full width half height
     full_width_half_max_vec = numpy.zeros(num_cells) 
@@ -411,16 +407,21 @@ def tc_features(tuning_curve, ori_list=numpy.arange(0,180,6), expand_dims=False)
     for i in range(0, num_cells):
         full_width_half_max_vec[i] = full_width_half_max(tuning_curve[:,i], d_theta = d_theta)
 
+    # Preferred orientation
+    pref_ori = ori_list[np.argmax(tuning_curve, axis = 0)]
+
     # Norm slope
-    avg_slope_vec =numpy.zeros(num_cells) 
+    avg_slope_vec =numpy.zeros((num_cells, len(ori_to_center_slope)))
     for i in range(num_cells):
-        avg_slope_vec[i] = tc_slope(tuning_curve[:, i], x_axis = ori_list, x1 = 52, x2 = 58, normalise =False)
+        for j in range(len(ori_to_center_slope)):
+            ori_ctr = ori_to_center_slope[j]
+            avg_slope_vec[i,j] = tc_slope(tuning_curve[:, i], x_axis = ori_list, x1 = ori_ctr-3, x2 = ori_ctr+3, normalise =False)
     if expand_dims:
         avg_slope_vec = numpy.expand_dims(avg_slope_vec, axis=0)
         full_width_half_max_vec = numpy.expand_dims(full_width_half_max_vec, axis=0)
-        norm_pref_ori = numpy.expand_dims(norm_pref_ori, axis=0)
+        pref_ori = numpy.expand_dims(pref_ori, axis=0)
 
-    return avg_slope_vec, full_width_half_max_vec, norm_pref_ori
+    return avg_slope_vec, full_width_half_max_vec, pref_ori
 
 
 def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None, mesh_for_valid_offset=True, data_only=False):

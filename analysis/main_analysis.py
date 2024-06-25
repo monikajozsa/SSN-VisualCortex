@@ -28,9 +28,9 @@ if not pretrain_pars.is_on:
 import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
-tc_ori_list = numpy.arange(0,180,6)
-num_training = 1
-final_folder_path = os.path.join('results','Jun19_v22')
+tc_ori_list = numpy.arange(0,180,2)
+num_training = 4
+final_folder_path = os.path.join('results','Apr10_v1_NOhori')
 
 start_time_in_main= time.time()
 
@@ -39,6 +39,7 @@ orimap_filename = os.path.join(final_folder_path, f"orimap.csv")
 orimap_loaded = pd.read_csv(orimap_filename)
 df = pd.read_csv(results_filename)
 
+'''
 ########## Calculate and save tuning curves ############
 # Define the filename for the tuning curves 
 tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
@@ -81,7 +82,7 @@ for i in range(0,num_training):
         tc_header = False
         
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
-
+'''
 ######### PLOT RESULTS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
@@ -98,14 +99,15 @@ mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
 sigma_filter = 2
 
-#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
 
-#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
-plot_tc_features(final_folder_path, num_training, tc_ori_list)
-
-plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save, train_only_str='')
+boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
+#time_start = time.time()
+#plot_tc_features(final_folder_path, num_training, tc_ori_list)
+#print(f'Finished plotting tuning curve features in {time.time()-time_start} seconds')
+#plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
 '''
-MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True)
+MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True, recalc=False)
 
 folder_to_save=os.path.join(final_folder_path, 'figures')
 data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff

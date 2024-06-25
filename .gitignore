@@ -4,6 +4,7 @@ old_code/
 Profiles/
 results/
 __pycache__/
+Apr 10 scripts/
 *.png
 *.zip
 *.pkl
