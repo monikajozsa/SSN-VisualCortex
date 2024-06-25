@@ -367,13 +367,10 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
 
     J_2x2_m = sep_exponentiate(trained_pars_dict['log_J_2x2_m'])
     J_2x2_s = sep_exponentiate(trained_pars_dict['log_J_2x2_s']) 
-
-    kappa_pre = untrained_pars.ssn_pars.kappa_pre
-    kappa_post = untrained_pars.ssn_pars.kappa_post    
+ 
     p_local_s = untrained_pars.ssn_pars.p_local_s
     s_2x2 = untrained_pars.ssn_pars.s_2x2_s
     sigma_oris = untrained_pars.ssn_pars.sigma_oris
-    ref_ori = untrained_pars.stimuli_pars.ref_ori
     loss_pars = untrained_pars.loss_pars
     conv_pars = untrained_pars.conv_pars
 
