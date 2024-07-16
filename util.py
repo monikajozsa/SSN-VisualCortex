@@ -53,7 +53,6 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
 def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=180, numRnd_ori1=1):
     '''
     Create batch_size number of pairs of numbers between min_value and max_value with minimum distance min_distance and maximum distance max_distance.
-    If tot_angle is provided, values wrap around between 0 and tot_angle.
     '''
     if max_distance==None:
         max_distance = max_value - min_value

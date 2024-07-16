@@ -17,7 +17,7 @@ from util import sep_exponentiate, sigmoid, create_grating_training, create_grat
 from training.SSN_classes import SSN_mid
 from training.model import vmap_evaluate_model_response_mid, evaluate_model_response_mid
 from training.training_functions import loss_and_grad_ori_discr, binary_crossentropy_loss, offset_at_baseline_acc, mean_training_task_acc_test, training_task_acc_test
-from training.perturb_params import perturb_params_supp
+from training.perturb_params import randomize_params_supp
 
 def train_ori_discr_mid(
     readout_pars_dict,
@@ -491,7 +491,7 @@ def perturb_params_mid(readout_pars, trained_pars, untrained_pars, percent=0.1, 
     cond5 = False
 
     while not (cond1 and cond2 and cond3 and cond4 and cond5):
-        perturbed_pars = perturb_params_supp(trained_pars_dict, percent)
+        perturbed_pars = randomize_params_supp(trained_pars_dict, percent)
         cond1 = np.abs(perturbed_pars['J_2x2_m'][0,0]*perturbed_pars['J_2x2_m'][1,1])*1.1 < np.abs(perturbed_pars['J_2x2_m'][1,0]*perturbed_pars['J_2x2_m'][0,1])
         cond2 = np.abs(perturbed_pars['J_2x2_m'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < np.abs(perturbed_pars['J_2x2_m'][1,1]*untrained_pars.filter_pars.gE_m)
         

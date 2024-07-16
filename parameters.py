@@ -14,17 +14,17 @@ class PreTrainPars:
     ''' interval where the absolute orientation difference between reference and target is randomly chosen from '''
     acc_th = 0.749
     ''' accuracy threshold to calculate corresponding offset (training task) - used for early stopping of pretraining '''
-    acc_check_freq = 3
+    acc_check_freq = 2
     ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
-    min_acc_check_ind = 10
+    min_acc_check_ind = 1
     ''' minimum SGD step where accuracy check happens for the training task '''
-    min_stop_ind = 80
+    min_stop_ind = 1
     ''' minimum SGD step where pretraining can stop '''
-    offset_threshold = 6
+    offset_threshold = [3.5,6]
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
-    batch_size = 50
+    batch_size = 100
     ''' number of trials per SGD step during pretraining '''
-    SGD_steps = 100
+    SGD_steps = 1000
     ''' maximum number of SGD steps during pretraining '''
 
 pretrain_pars = PreTrainPars()
@@ -33,15 +33,15 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta: float = 1e-4
+    eta: float = 5*1e-4
     '''learning rate - the maximum rate of parameter change in one SGD step'''
     batch_size: int = 50
     '''number of trials per SGD step'''
-    SGD_steps: int = 100
+    SGD_steps: int = 1000
     '''number of SGD step'''
-    validation_freq: int = 10  
+    validation_freq: int = 50
     '''frequency of validation loss and accuracy calculation'''
-    first_stage_acc_th: float = 0.55
+    first_stage_acc_th: float = 0.51
     '''accuracy threshold for early stopping criterium for the first stage of training'''
 
 training_pars = TrainingPars()
@@ -71,7 +71,7 @@ class LossPars:
     ''' Constant for L2 regulazier of sigmoid layer bias '''
     lambda_r_max: float = 1
     ''' Constant for loss with respect to maximum rates in the network'''
-    lambda_r_mean: float = 0.1
+    lambda_r_mean: float = 0
     ''' Constant for loss with respect to maximum rates in the network'''
     Rmax_E: float = 40
     '''Maximum firing rate for E neurons - rates above this are penalised'''
@@ -238,6 +238,7 @@ ssn_pars = SSNPars()
 # Trained SSN parameters - f and c parameters can be moved between TrainedSSNPars and SSNPars deoending on whether we want to train (and perturb) them or not
 @dataclass
 class TrainedSSNPars:
+    # Note that these initial values are irrelevant when we randomize the parameters
     f_E: float = 1.11 
     ''' Scaling constant for feedforwards connections to excitatory units in sup layer '''
     f_I: float = 0.7
@@ -246,18 +247,17 @@ class TrainedSSNPars:
     ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
     c_I: float = 5.0 
     ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
-    # original sup: [[4.4, -1.66], [5, -1.24]], mid: [[1.9, -1.0], [3.6, -1.7]] 
-    J_2x2_s = np.array([[4.4, -1.66], [5, -1.24]])
+    J_2x2_s = np.array([[1.83, -0.68], [2.07, -0.51]]) * np.pi * 0.774
     ''' relative strength of weights of different pre/post cell-type in middle layer '''
-    J_2x2_m = np.array([[1.9, -1.0], [3.6, -1.7]] )
+    J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
     ''' relative strength of weights of different pre/post cell-type in superficial layer '''
     
 trained_pars = TrainedSSNPars()
 
-class PerturbPars:
+class RandomizePars:
     perturb_level = 0.3
     ''' level of perturbation of the trained parameters '''
-    J_range = np.array([1.1, 3.3])
+    J_range = np.array([1, 3])
     ''' range of the perturbed inhibitory weights, excitatory range is twice as large ([2.2, 6.6]) '''
     c_range = np.array([3, 7])
     ''' range of the perturbed c parameters '''
@@ -267,7 +267,7 @@ class PerturbPars:
     ''' range of the perturbed g parameters '''
     eta_range = np.array([1e-4, 1e-3])
 
-perturb_pars = PerturbPars()
+randomize_pars = RandomizePars()
 
 class MVPA_pars:
     gridsize_Nx = 9

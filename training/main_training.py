@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from util_gabor import init_untrained_pars
 from util import save_code, load_parameters, filter_for_run
 from training_functions import train_ori_discr
-from perturb_params import perturb_params, create_initial_parameters_df
+from perturb_params import randomize_params, create_initial_parameters_df
 from parameters import (
     grid_pars,
     filter_pars,
@@ -22,7 +22,7 @@ from parameters import (
     training_pars,
     loss_pars,
     pretrain_pars, # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
-    perturb_pars
+    randomize_pars
 )
 
 # Checking that pretrain_pars.is_on is on
@@ -35,12 +35,12 @@ if not pretrain_pars.is_on:
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 train_only_flag = False # Setting train_only_flag to True will run an additional training without pretraining
-num_training = 1
+num_training = 10
 starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder and create figures and train_only folders
-note=f'Initialization is from fix uniform distributions.'
+note=f'10 runs with new pretraining stopping criterium: stop if train task accuracy is in [3.5,6]. New randomization on initial params and no r_mean loss term.'
 results_filename, final_folder_path = save_code(train_only_flag=train_only_flag, note=note)
 if train_only_flag:
     results_filename_train_only = os.path.join(final_folder_path, 'train_only', "results_train_only.csv")
@@ -63,9 +63,9 @@ while i < num_training and num_FailedRuns < 20:
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
 
-    # Perturb readout_pars and trained_pars by percent % and collect them into two dictionaries for the two stages of the pretraining
+    # Randomize readout_pars and trained_pars and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
-    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, trained_pars, untrained_pars, perturb_pars=perturb_pars)
+    trained_pars_stage1, trained_pars_stage2, untrained_pars = randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars=randomize_pars)
     initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage2, untrained_pars.training_pars.eta)
     
     # Run pre-training

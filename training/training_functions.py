@@ -179,18 +179,20 @@ def train_ori_discr(
                 # ii) Early stopping during pre-training and training
                 # Check for early stopping during pre-training
                 if pretrain_on and SGD_step in acc_check_ind:
+                    # calculate training task accuracy for offsets in test_offset_vec
                     acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
-                    ## fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
+                    # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                     offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+                    # save and print offset_at_bl_acc
                     if SGD_step==acc_check_ind[0] and stage==1:
                         offsets_th=[float(offset_at_bl_acc)]
                     else:
                         offsets_th.append(float(offset_at_bl_acc))
                     print('Baseline acc is achieved at offset:', offset_at_bl_acc, ' for step ', SGD_step)
 
-                    # Stop pretraining: break out from SGD_step loop and stages loop (using a flag)
-                    if len(offsets_th)>1 and SGD_step > untrained_pars.pretrain_pars.min_stop_ind:
-                            pretrain_stop_flag = all(np.array(offsets_th[-2:]) < pretrain_offset_threshold)
+                    # Stopping criteria for pretraining: break out from SGD_step loop and stages loop (using a flag)
+                    if SGD_step > untrained_pars.pretrain_pars.min_stop_ind:
+                        pretrain_stop_flag = (offset_at_bl_acc < pretrain_offset_threshold[1]) and (offset_at_bl_acc > pretrain_offset_threshold[0])
                     if pretrain_stop_flag:
                         print('Stopping pretraining: desired accuracy achieved for training task.')
                         first_stage_final_step = SGD_step
