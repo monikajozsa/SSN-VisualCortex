@@ -237,8 +237,8 @@ def plot_tc_features(results_dir, num_training, ori_list):
             slope, fwhm, orientations = tc_features(tuning_curve, ori_list=ori_list, expand_dims=True, ori_to_center_slope=[55, 125])
             # Save features: if first iteration, initialize; else, concatenate
             if  i==0:
-                data[f'slope_55_{training_stage}'] = slope[:,0]
-                data[f'slope_125_{training_stage}'] = slope[:,1]
+                data[f'slope_55_{training_stage}'] = slope[:,:,0]
+                data[f'slope_125_{training_stage}'] = slope[:,:,1]
                 data[f'fwhm_{training_stage}'] = fwhm
                 data[f'preforis_{training_stage}'] = orientations
             else:
@@ -856,3 +856,4 @@ def plot_corr_triangle(data,folder_to_save='',filename='corr_triangle.png'):
     # Save the figure
     file_path = os.path.join(folder_to_save, filename)
     plt.savefig(file_path, bbox_inches='tight')
+    plt.close()

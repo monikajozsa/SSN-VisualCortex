@@ -6,25 +6,25 @@ import jax.numpy as np
 # Pretraining parameters
 @dataclass
 class PreTrainPars:
-    is_on = True
+    is_on: bool = True
     ''' flag for turning pretraining on or off '''
     ref_ori_int = [15, 165]
     ''' interval where the reference orientation is randomly chosen from '''
     ori_dist_int = [10, 20]
     ''' interval where the absolute orientation difference between reference and target is randomly chosen from '''
-    acc_th = 0.749
+    acc_th: float = 0.749
     ''' accuracy threshold to calculate corresponding offset (training task) - used for early stopping of pretraining '''
-    acc_check_freq = 2
+    acc_check_freq: int = 2
     ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
-    min_acc_check_ind = 1
+    min_acc_check_ind: int = 1
     ''' minimum SGD step where accuracy check happens for the training task '''
-    min_stop_ind = 1
+    min_stop_ind: int = 50
     ''' minimum SGD step where pretraining can stop '''
-    offset_threshold = [3.5,6]
+    offset_threshold = [3,10]
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
-    batch_size = 100
+    batch_size: int = 100
     ''' number of trials per SGD step during pretraining '''
-    SGD_steps = 1000
+    SGD_steps: int = 1000
     ''' maximum number of SGD steps during pretraining '''
 
 pretrain_pars = PreTrainPars()
@@ -33,16 +33,16 @@ pretrain_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta: float = 5*1e-4
-    '''learning rate - the maximum rate of parameter change in one SGD step'''
+    eta: float = 1e-3
+    ''' learning rate - the maximum rate of parameter change in one SGD step; note that this initial values are irrelevant when we randomize the parameters '''
     batch_size: int = 50
-    '''number of trials per SGD step'''
+    ''' number of trials per SGD step '''
     SGD_steps: int = 1000
-    '''number of SGD step'''
+    ''' number of SGD step '''
     validation_freq: int = 50
-    '''frequency of validation loss and accuracy calculation'''
+    ''' frequency of validation loss and accuracy calculation '''
     first_stage_acc_th: float = 0.51
-    '''accuracy threshold for early stopping criterium for the first stage of training'''
+    ''' accuracy threshold for early stopping criterium for the first stage of training '''
 
 training_pars = TrainingPars()
 
@@ -51,11 +51,11 @@ training_pars = TrainingPars()
 @dataclass
 class ConvPars:
     dt: float = 1.0
-    '''Step size during convergence of SSN'''
+    ''' step size during convergence of SSN '''
     xtol: float = 1e-04
-    '''Convergence tolerance of SSN'''
+    ''' convergence tolerance of SSN '''
     Tmax: float = 250.0
-    '''Maximum number of steps to be taken during convergence of SSN'''
+    ''' maximum number of steps to be taken during convergence of SSN '''
 
 conv_pars = ConvPars()
 
@@ -64,23 +64,23 @@ conv_pars = ConvPars()
 @dataclass
 class LossPars:
     lambda_dx: float = 1
-    ''' Constant for loss with respect to convergence of Euler function'''
+    ''' constant for loss with respect to convergence of Euler function '''
     lambda_w: float = 1
-    ''' Constant for L2 regularizer of sigmoid layer weights'''
+    ''' constant for L2 regularizer of sigmoid layer weights '''
     lambda_b: float = 1
-    ''' Constant for L2 regulazier of sigmoid layer bias '''
+    ''' constant for L2 regulazier of sigmoid layer bias '''
     lambda_r_max: float = 1
-    ''' Constant for loss with respect to maximum rates in the network'''
+    ''' constant for loss with respect to maximum rates in the network '''
     lambda_r_mean: float = 0
-    ''' Constant for loss with respect to maximum rates in the network'''
+    ''' constant for loss with respect to maximum rates in the network '''
     Rmax_E: float = 40
-    '''Maximum firing rate for E neurons - rates above this are penalised'''
+    ''' maximum firing rate for E neurons - rates above this are penalised '''
     Rmax_I: float = 80
-    '''Maximum firing rate for I neurons - rates above this are penalised '''
-    Rmean_E: float = 25
-    '''Mean firing rate for E neurons - rates deviating from this are penalised'''
-    Rmean_I: float = 50
-    '''Mean firing rate for I neurons - rates deviating from this are penalised '''
+    ''' maximum firing rate for I neurons - rates above this are penalised '''
+    Rmean_E = [25,25]
+    ''' mean firing rate for E neurons for the middle and superficial layers - rates deviating from this are penalised. These values may be overwritten after pretraining. '''
+    Rmean_I = [50,50]
+    ''' mean firing rate for I neurons for the middle and superficial layers - rates deviating from this are penalised. These values may be overwritten after pretraining. '''
 
 loss_pars = LossPars()
 
@@ -146,9 +146,9 @@ class FilterPars:
     degree_per_pixel: float = 0.05
     ''' convert degree to number of pixels (129 x 129), note that this is not an independent parameter and could be calculated from other parameters '''
     gE_m: float = 0.3
-    ''' scaling parameter between stimulus and excitatory units in middle layer '''
+    ''' scaling parameter between stimulus and excitatory units in middle layer; note that this initial values are irrelevant when we randomize the parameters '''
     gI_m: float = 0.25 
-    ''' scaling parameter between stimulus and inhibitory units in middle layer '''
+    ''' scaling parameter between stimulus and inhibitory units in middle layer; note that this initial values are irrelevant when we randomize the parameters '''
 filter_pars = FilterPars()
 
 
@@ -198,7 +198,7 @@ class ReadoutPars:
     # Define w_sig - its size depends on whether pretraining is on
     if pretrain_pars.is_on:
         w_sig = np.zeros(readout_grid_size[0]**2)
-        ''' readout weights (between the superficial and the sigmoid layer) - initialized with logistic regression'''
+        ''' readout weights (between the superficial and the sigmoid layer) - initialized with logistic regression '''
     else:
         w_sig = np.array(numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / readout_grid_size[1])
         ''' readout weights (between the superficial and the sigmoid layer) '''
@@ -240,9 +240,9 @@ ssn_pars = SSNPars()
 class TrainedSSNPars:
     # Note that these initial values are irrelevant when we randomize the parameters
     f_E: float = 1.11 
-    ''' Scaling constant for feedforwards connections to excitatory units in sup layer '''
+    ''' scaling constant for feedforwards connections to excitatory units in sup layer '''
     f_I: float = 0.7
-    ''' Scaling constant for feedforwards connections to inhibitory units in sup layer '''
+    ''' scaling constant for feedforwards connections to inhibitory units in sup layer '''
     c_E: float = 5.0 
     ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
     c_I: float = 5.0 
@@ -255,26 +255,26 @@ class TrainedSSNPars:
 trained_pars = TrainedSSNPars()
 
 class RandomizePars:
-    perturb_level = 0.3
+    perturb_level: float = 0.3
     ''' level of perturbation of the trained parameters '''
-    J_range = np.array([1, 3])
+    J_range = [np.array([3, 5]),np.array([1,3]), np.array([4, 6]),np.array([1,3])] #used [1,3] before when we just multiplied it by 2 for E
     ''' range of the perturbed inhibitory weights, excitatory range is twice as large ([2.2, 6.6]) '''
     c_range = np.array([3, 7])
     ''' range of the perturbed c parameters '''
-    f_range = np.array([0.7, 1.2])
+    f_range = np.array([0.6, 1.2])
     ''' range of the perturbed f parameters '''
-    g_range = np.array([0.22, 0.66])
+    g_range = np.array([0.5, 0.51])
     ''' range of the perturbed g parameters '''
-    eta_range = np.array([1e-4, 1e-3])
+    eta_range = np.array([5*1e-4, 5*1e-3])
 
 randomize_pars = RandomizePars()
 
 class MVPA_pars:
-    gridsize_Nx = 9
+    gridsize_Nx: int = 9
     ''' size of the extended grid that is filtered '''
-    size_conv_factor = (gridsize_Nx -1)/ (grid_pars.gridsize_Nx - 1)
+    size_conv_factor: float = (gridsize_Nx -1)/ (grid_pars.gridsize_Nx - 1)
     ''' adjusted conversion factor to keep the role of the middle grid the same'''
-    readout_grid_size = 5
+    readout_grid_size: int = 5
     ''' size of the readout grid '''
     middle_grid_ind = []
     mid_grid_ind0 = int((gridsize_Nx-readout_grid_size)/2)
@@ -284,7 +284,7 @@ class MVPA_pars:
         middle_grid_ind.extend(range(row_start + mid_grid_ind0, row_start + mid_grid_ind1))
     middle_grid_ind = np.array(middle_grid_ind)
     ''' indices of the middle grid when grid is flattened '''
-    noise_std = 1.0
+    noise_std: float = 1.0
     ''' std of the noise added to the readout layer '''
 
 mvpa_pars = MVPA_pars()

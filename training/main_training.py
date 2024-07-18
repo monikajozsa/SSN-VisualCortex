@@ -35,12 +35,12 @@ if not pretrain_pars.is_on:
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 train_only_flag = False # Setting train_only_flag to True will run an additional training without pretraining
-num_training = 10
+num_training = 3
 starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder and create figures and train_only folders
-note=f'10 runs with new pretraining stopping criterium: stop if train task accuracy is in [3.5,6]. New randomization on initial params and no r_mean loss term.'
+note=f'New1: last rmean from pretraining are targeted in training. New2: stopping crit asks for last 3 offsets to be in [3,10]; eta [5*1e-4,5*1e-3]; fair randomization on initial params including gE and gI.'
 results_filename, final_folder_path = save_code(train_only_flag=train_only_flag, note=note)
 if train_only_flag:
     results_filename_train_only = os.path.join(final_folder_path, 'train_only', "results_train_only.csv")
@@ -92,7 +92,12 @@ while i < num_training and num_FailedRuns < 20:
     # Load the last parameters from the pretraining
     df = pd.read_csv(results_filename)
     df_i = filter_for_run(df, i)
-    trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(df_i, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_stage2.keys())
+    trained_pars_stage1, trained_pars_stage2, offset_last, meanr_vec = load_parameters(df_i, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_stage2.keys())
+    if meanr_vec is not None:
+        loss_pars.lambda_r_mean = 1
+        loss_pars.Rmean_E = meanr_vec[0]
+        loss_pars.Rmean_I = meanr_vec[1]
+
     # Set the offset to the offset, where a threshold accuracy is achieved with the parameters from the last SGD step (loaded as offset_last)
     untrained_pars.stimuli_pars.offset = min(offset_last,10)
     # Run training
@@ -105,7 +110,7 @@ while i < num_training and num_FailedRuns < 20:
             offset_step=0.1,
             run_index = i
         )
-    
+    '''
     ########## TRAINING ONLY with the same initialization and orimap ##########
     if train_only_flag:
         # Load the first parameters that pretraining started with
@@ -124,7 +129,7 @@ while i < num_training and num_FailedRuns < 20:
                 jit_on=True,
                 run_index = i
             )
-        
+    '''
     # Save initial_parameters to csv
     initial_parameters.to_csv(os.path.join(final_folder_path, 'initial_parameters.csv'), index=False)
     

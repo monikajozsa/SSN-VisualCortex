@@ -16,6 +16,39 @@ from training.SSN_classes import SSN_mid, SSN_sup
 from training.model import evaluate_model_response
 
 
+def has_plateaued(accuracy, window=50, threshold=0.02, slope_threshold=0.3):
+    """
+    Check if accuracy has plateaued by checking the change in mean in the last two windows and the slope of the last window.
+
+    Parameters:
+    accuracy (list): A list of accuracy values over time.
+    window (int): The number of recent points to check for plateau.
+    threshold (float): The maximum allowable change in average accuracy to consider as plateau.
+    slope_threshold (float): The maximum allowable slope to consider as plateau.
+
+    Returns:
+    bool: True if the accuracy has plateaued, False otherwise.
+    """
+    if len(accuracy) < 2 * window:
+        return 0
+
+    recent_window = accuracy[-window:]
+    previous_window = accuracy[-2 * window:-window]
+
+    recent_avg = sum(recent_window) / window
+    previous_avg = sum(previous_window) / window
+
+    x = np.arange(window)*(max(accuracy)-min(accuracy))/window
+    y = np.array(accuracy[-window:])
+    slope, _ = np.polyfit(x, y, 1)
+
+    mean_cond = abs(recent_avg - previous_avg) < threshold
+    slope_cond = abs(slope) < slope_threshold
+
+    return int(mean_cond and slope_cond)
+
+
+
 def train_ori_discr(
     readout_pars_dict,
     trained_pars_dict,
@@ -191,8 +224,8 @@ def train_ori_discr(
                     print('Baseline acc is achieved at offset:', offset_at_bl_acc, ' for step ', SGD_step)
 
                     # Stopping criteria for pretraining: break out from SGD_step loop and stages loop (using a flag)
-                    if SGD_step > untrained_pars.pretrain_pars.min_stop_ind:
-                        pretrain_stop_flag = (offset_at_bl_acc < pretrain_offset_threshold[1]) and (offset_at_bl_acc > pretrain_offset_threshold[0])
+                    if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(offsets_th)>2:
+                        pretrain_stop_flag = all(np.array(offsets_th[-3:]) < pretrain_offset_threshold[1]) and all(np.array(offsets_th[-3:]) > pretrain_offset_threshold[0]) and has_plateaued(train_accs)                        
                     if pretrain_stop_flag:
                         print('Stopping pretraining: desired accuracy achieved for training task.')
                         first_stage_final_step = SGD_step
@@ -414,8 +447,8 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     loss_rmax_mid= np.mean(np.maximum(0, (max_E_mid/Rmax_E - 1)) + np.maximum(0, (max_I_mid/Rmax_I - 1)))
     loss_rmax_sup = np.mean(np.maximum(0, (max_E_sup/Rmax_E - 1)) + np.maximum(0, (max_I_sup/Rmax_I - 1)))
     loss_r_max = loss_pars.lambda_r_max*(loss_rmax_mid+loss_rmax_sup) #older version used leaky relu: lossr_max = leaky_relu(max_E, R_thresh = Rmax_E, slope = 1/Rmax_E) + leaky_relu(max_I, R_thresh = Rmax_I, slope = 1/Rmax_I)
-    loss_rmean_mid = np.mean((mean_E_mid/Rmean_E - 1) ** 2 + (mean_I_mid/Rmean_I - 1) ** 2)
-    loss_rmean_sup = np.mean((mean_E_sup/Rmean_E - 1) ** 2 + (mean_I_sup/Rmean_I - 1) ** 2)
+    loss_rmean_mid = np.mean((mean_E_mid/Rmean_E[0] - 1) ** 2 + (mean_I_mid/Rmean_I[0] - 1) ** 2)
+    loss_rmean_sup = np.mean((mean_E_sup/Rmean_E[1] - 1) ** 2 + (mean_I_sup/Rmean_I[1] - 1) ** 2)
     loss_r_mean = loss_pars.lambda_r_mean*(loss_rmean_mid + loss_rmean_sup)
     loss_dx_max = loss_pars.lambda_dx*np.mean(np.array([avg_dx_ref_mid, avg_dx_target_mid, avg_dx_ref_sup, avg_dx_target_sup])**2)
     loss_w = loss_pars.lambda_w*(np.linalg.norm(w_sig)**2)

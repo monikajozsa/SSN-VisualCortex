@@ -29,9 +29,9 @@ import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
 tc_ori_list = numpy.arange(0,180,2)
-num_training = 1
-final_folder_path = os.path.join('results','Jul16_v2')
-tc_ori_list = numpy.arange(0,180,6)
+num_training = 49
+final_folder_path = os.path.join('results','Apr10_v1')
+tc_ori_list = numpy.arange(0,180,2)
 
 start_time_in_main= time.time()
 
@@ -44,7 +44,7 @@ df = pd.read_csv(results_filename)
 ######### PLOT RESULTS ON PARAMETERS ############
 
 from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
-from MVPA_Mahal_combined import MVPA_Mahal_from_csv
+from MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
 from analysis_functions import MVPA_param_offset_correlations
 
 start_time=time.time()
@@ -57,28 +57,26 @@ mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
 sigma_filter = 2
 
-plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+
+#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
 '''
-boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
-time_start = time.time()
-print(f'Finished plotting tuning curve features in {time.time()-time_start} seconds')
-
-
 ########## CALCULATE AND PLOT TUNING CURVEs ############
+time_start = time.time()
 # Define the filename for the tuning curves 
 tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
 # Define the header for the tuning curves
 tc_headers = []
 tc_headers.append('run_index')
 tc_headers.append('training_stage')
-# Headers for middle layer cells - order matches the gabor filter but the rest of the code need to be check for cell ordering! especially select type functions
+# Headers for middle layer cells - order matches the gabor filters
 type_str = ['_E_','_I_']
 for phase_ind in range(ssn_pars.phases):
     for type_ind in range(2):
         for i in range(grid_pars.gridsize_Nx**2):
             tc_header = 'G'+ str(i+1) + type_str[type_ind] + 'Ph' + str(phase_ind) + '_M'
             tc_headers.append(tc_header)
-# Header for superficial layer cells
+# Headers for superficial layer cells
 for type_ind in range(2):
     for i in range(grid_pars.gridsize_Nx**2):
         tc_header = 'G'+str(i+1) + type_str[type_ind] +'S'
@@ -102,7 +100,7 @@ for i in range(0,num_training):
                  loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=orimap_i)
     # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
     for stage in range(3):
-        trained_pars_stage1, trained_pars_stage2, offset_last = load_parameters(df_i, iloc_ind = SGD_step_inds[stage], trained_pars_keys=trained_pars_keys)
+        trained_pars_stage1, trained_pars_stage2, offset_last, _ = load_parameters(df_i, iloc_ind = SGD_step_inds[stage], trained_pars_keys=trained_pars_keys)
         tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_headers)
         tc_headers = False
         
@@ -110,15 +108,18 @@ for i in range(0,num_training):
 
 plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
 plot_tc_features(final_folder_path, num_training, tc_ori_list)
-'''
-'''
-######### CALCULATE MVPA AND PLOT CORRELATIONS ############
 
-MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True, recalc=False)
+######### CALCULATE MVPA AND PLOT CORRELATIONS ############
+'''
+MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True, recalc=True)
 
 folder_to_save=os.path.join(final_folder_path, 'figures')
 data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff
 data_rel_changes['offset_staircase_diff']=-1*data_rel_changes['offset_staircase_diff']
+
+
+plot_MVPA(final_folder_path + f'/sigmafilt_{sigma_filter}',num_training)
+
 
 MVPA_scores = numpy.load(final_folder_path + f'/sigmafilt_{sigma_filter}/MVPA_scores.npy') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
 data_sup_55 = pd.DataFrame({
@@ -145,4 +146,3 @@ data_mid_125 = pd.DataFrame({
     'offset': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
-'''

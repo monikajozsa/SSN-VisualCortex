@@ -40,11 +40,10 @@ def randomize_params_supp(param_dict, randomize_pars):
             param_randomized[key] = random_sample
         else:
             # handling the J_2x2_m and J_2x2_s matrices
-            random_sample = random.uniform(low=param_range[0], high=param_range[1], size=param_array.shape)
-            JEE = 2*random_sample[0,0]
-            JEI = -random_sample[0,1]
-            JIE = 2*random_sample[1,0]
-            JII = -random_sample[1,0]
+            JEE = random.uniform(low=param_range[0][0], high=param_range[0][1])
+            JEI = -random.uniform(low=param_range[1][0], high=param_range[1][1])
+            JIE = random.uniform(low=param_range[2][0], high=param_range[2][1])
+            JII = -random.uniform(low=param_range[3][0], high=param_range[3][1])
             param_randomized[key] = np.array([[JEE, JEI],[JIE, JII]])
             #np.array([[4.4, -1.66], [5, -1.24]])
         
@@ -61,13 +60,16 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
         
     # Initialize parameters such that conditions are satisfied for J_mid and convergence of the differential equations of the model
     i=0
-    cond1 = False # parameter inequality on Jm
-    cond2 = False # parameter inequality on Jm and gE, gI
+    cond_ineq1 = False # parameter inequality on Jm
+    cond_ineq2 = False # parameter inequality on Jm and gE, gI
 
-    while not (cond1 and cond2):
+    while not (cond_ineq1 and cond_ineq2):
         randomized_pars = randomize_params_supp(trained_pars_dict, randomize_pars)
-        cond1 = np.abs(randomized_pars['J_2x2_m'][0,0]*randomized_pars['J_2x2_m'][1,1])*1.1 < np.abs(randomized_pars['J_2x2_m'][1,0]*randomized_pars['J_2x2_m'][0,1])
-        cond2 = np.abs(randomized_pars['J_2x2_m'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < np.abs(randomized_pars['J_2x2_m'][1,1]*untrained_pars.filter_pars.gE_m)   
+        cond_ineq1 = np.abs(randomized_pars['J_2x2_m'][0,0]*randomized_pars['J_2x2_m'][1,1])*1.1 < np.abs(randomized_pars['J_2x2_m'][1,0]*randomized_pars['J_2x2_m'][0,1])
+        # randomize gE and gI
+        untrained_pars.filter_pars.gI_m =  random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
+        untrained_pars.filter_pars.gE_m =  random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
+        cond_ineq2 = np.abs(randomized_pars['J_2x2_m'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < np.abs(randomized_pars['J_2x2_m'][1,1]*untrained_pars.filter_pars.gE_m)   
         i = i+1
     
     # Calculate model response to check the convergence of the differential equations
@@ -87,19 +89,20 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
     else:
         f_E = untrained_pars.ssn_pars.f_E
         f_I = untrained_pars.ssn_pars.f_I
-    [r_train,_],_ , [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-    [r_pretrain,_],_, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-    cond3 = bool((avg_dx_mid + avg_dx_sup < 50).all())
-    cond4 = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])>5 and max([float(np.max(max_E_mid)), float(np.max(max_I_mid)), float(np.max(max_E_sup)), float(np.max(max_I_sup))])<151
-    cond5 = not numpy.any(np.isnan(r_pretrain))
-    cond6 = not numpy.any(np.isnan(r_train))
-    if not (cond3 and cond4 and cond5 and cond6):
-        if num_init>500:
-            print(" ########### Randomized parameters violate conditions even after 200 sampling. ###########")
+    [r_train,_],_ ,[avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    [r_pretrain,_],_, _,_,_ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    cond_dx = bool((avg_dx_mid + avg_dx_sup < 50).all())
+    cond_rmax = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])>10 and max([float(np.max(max_E_mid)), float(np.max(max_I_mid)), float(np.max(max_E_sup)), float(np.max(max_I_sup))])<151
+    cond_rmean = min([float(np.min(mean_E_mid)), float(np.min(mean_I_mid)), float(np.min(mean_E_sup)), float(np.min(mean_I_sup))])>5 and max([float(np.max(mean_E_mid)), float(np.max(mean_I_mid)), float(np.max(mean_E_sup)), float(np.max(mean_I_sup))])<80
+    cond_r_pretrain = not numpy.any(np.isnan(r_pretrain))
+    cond_r_train = not numpy.any(np.isnan(r_train))
+    if not (cond_dx and cond_rmax and cond_rmean and cond_r_pretrain and cond_r_train):
+        if num_init>1000:
+            raise Exception(" ########### Randomized parameters violate conditions even after 1000 sampling. ###########")
         else:
             num_init = num_init+i
-            print(f'Randomized parameters {num_init} times',[bool(cond1),bool(cond2),cond3,cond4,cond5,cond6])
-            pars_stage1, randomized_pars_log, untrained_pars = randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars, logistic_regr, trained_pars_dict, num_init, start_time)
+            print(f'Randomized parameters {num_init} times',[bool(cond_ineq1),bool(cond_ineq2),cond_dx,cond_rmax,cond_rmean,cond_r_pretrain,cond_r_train])
+            optimized_readout_pars, randomized_pars_log, untrained_pars = randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars, logistic_regr, trained_pars_dict, num_init, start_time)
     else:
         print(f'Parameters found that satisfy conditions in {time.time() - start_time:.2f} seconds')
         # Take log of the J and f parameters (if f_I, f_E are in the randomized parameters)
@@ -114,15 +117,15 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
 
         # Optimize readout parameters by using log-linear regression
         if logistic_regr:
-            pars_stage1 = readout_pars_from_regr(readout_pars, randomized_pars_log, untrained_pars)
+            optimized_readout_pars = readout_pars_from_regr(readout_pars, randomized_pars_log, untrained_pars)
         else:
-            pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
-        pars_stage1['w_sig'] = (pars_stage1['w_sig'] / np.std(pars_stage1['w_sig']) ) * 0.25 / int(np.sqrt(len(pars_stage1['w_sig']))) # get the same std as before - see param
+            optimized_readout_pars = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
+        optimized_readout_pars['w_sig'] = (optimized_readout_pars['w_sig'] / np.std(optimized_readout_pars['w_sig']) ) * 0.25 / int(np.sqrt(len(optimized_readout_pars['w_sig']))) # get the same std as before - see param
 
         # Randomize learning rate
         untrained_pars.training_pars.eta = random.uniform(randomize_pars.eta_range[0], randomize_pars.eta_range[1])
         
-    return pars_stage1, randomized_pars_log, untrained_pars
+    return optimized_readout_pars, randomized_pars_log, untrained_pars
 
 
 def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=1000):

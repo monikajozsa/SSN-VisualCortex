@@ -296,6 +296,26 @@ def plot_Mahalanobis_dist(num_trainings, num_SGD_inds, mahal_train_control, maha
     fig.savefig(f"{folder_to_save}/Mahal_dist_diff")
     return 
 
+def plot_MVPA(final_folder_path,num_runs):
+    MVPA_scores = numpy.load(os.path.join(final_folder_path, 'MVPA_scores.npy'))
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    # iterate over the two layers
+    layer_label = ['sup', 'mid']
+    for layer in range(2):
+        # create a list of the 4 conditions
+        data = [MVPA_scores[:,layer,1, 0], MVPA_scores[:,layer,2, 0], MVPA_scores[:,layer,1, 1], MVPA_scores[:,layer,2, 1]]
+        # draw the boxplot
+        ax[layer].boxplot(data, positions=[1, 2, 3, 4])
+        ax[layer].set_xticklabels(['55 pre', '55 post', '125 pre', '125 post'])
+        ax[layer].set_title(f'Layer {layer_label[layer]}')
+        ax[layer].set_ylabel('MVPA score')
+        # draw lines to connect the pre and post training for each sample
+        for i in range(num_runs):
+            #gray lines
+            ax[layer].plot([1, 2], [data[0][i], data[1][i]], color='gray', alpha=0.5, linewidth=0.5)
+            ax[layer].plot([3, 4], [data[2][i], data[3][i]], color='gray', alpha=0.5, linewidth=0.5)
+    plt.savefig(final_folder_path+'/MVPA_boxplot.png')
+    plt.close()
 
 def plot_Mahal_LMI_hists(df_LMI, df_mahal, folder, num_SGD_inds):
     num_layers=2

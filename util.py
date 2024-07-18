@@ -253,7 +253,12 @@ def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['lo
     offsets  = df['offset'].dropna().reset_index(drop=True)
     offset_last = offsets[len(offsets)-1]
 
-    return pars_stage1, pars_stage2, offset_last
+    if 'meanr_E_mid' in df.columns:
+        meanr_vec=[[df['meanr_E_mid'], df['meanr_E_sup']], [df['meanr_I_mid'], df['meanr_I_sup']]]
+    else:
+        meanr_vec = None
+        
+    return pars_stage1, pars_stage2, offset_last, meanr_vec
 
 
 def filter_for_run(df,run_index):
