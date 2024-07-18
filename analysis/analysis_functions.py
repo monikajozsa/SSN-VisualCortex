@@ -376,7 +376,7 @@ def tc_slope(tuning_curve, x_axis, x1, x2, normalise=False):
     idx_2 = (np.abs(x_axis - x2)).argmin()
     x1, x2 = x_axis[[idx_1, idx_2]]
      
-    grad =(np.abs(tuning_curve[idx_2] - tuning_curve[idx_1]))/(x2-x1)
+    grad =np.abs((tuning_curve[idx_2] - tuning_curve[idx_1])/(x2-x1))
     
     return grad
 
