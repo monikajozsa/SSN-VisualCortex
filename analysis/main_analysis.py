@@ -28,11 +28,8 @@ if not pretrain_pars.is_on:
 import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
-tc_ori_list = numpy.arange(0,180,2)
-num_training = 49
-final_folder_path = os.path.join('results','Apr10_v1')
-tc_ori_list = numpy.arange(0,180,2)
-
+num_training = 2
+final_folder_path = os.path.join('results','Jul19_v0')
 start_time_in_main= time.time()
 
 results_filename = os.path.join(final_folder_path, f"results.csv")
@@ -57,12 +54,14 @@ mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
 sigma_filter = 2
 
-#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
 
-#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
-'''
-########## CALCULATE AND PLOT TUNING CURVEs ############
+boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
+
+########## CALCULATE TUNING CURVES ############
 time_start = time.time()
+
+tc_ori_list = numpy.arange(0,180,6)
 # Define the filename for the tuning curves 
 tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
 # Define the header for the tuning curves
@@ -106,11 +105,14 @@ for i in range(0,num_training):
         
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
 
+######### PLOT TUNING CURVES ############
+start_time_in_main = time.time()
 plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
 plot_tc_features(final_folder_path, num_training, tc_ori_list)
+print(f'Finished plotting tuning curves and features in {time.time()-start_time_in_main} seconds')
 
 ######### CALCULATE MVPA AND PLOT CORRELATIONS ############
-'''
+
 MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True, recalc=True)
 
 folder_to_save=os.path.join(final_folder_path, 'figures')

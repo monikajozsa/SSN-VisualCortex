@@ -10,11 +10,11 @@ class PreTrainPars:
     ''' flag for turning pretraining on or off '''
     ref_ori_int = [15, 165]
     ''' interval where the reference orientation is randomly chosen from '''
-    ori_dist_int = [10, 20]
+    ori_dist_int = [5, 20]
     ''' interval where the absolute orientation difference between reference and target is randomly chosen from '''
     acc_th: float = 0.749
     ''' accuracy threshold to calculate corresponding offset (training task) - used for early stopping of pretraining '''
-    acc_check_freq: int = 2
+    acc_check_freq: int = 5
     ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
     min_acc_check_ind: int = 1
     ''' minimum SGD step where accuracy check happens for the training task '''
@@ -161,7 +161,7 @@ class StimuliPars:
     ''' outer radius of the stimulus, inner_radius and outer_radius define how the edge of the stimulus fades away to the gray background '''
     grating_contrast: float = 0.8 
     ''' contrast of darkest and lightest point in the grid - see Current Biology paper from 2020 '''
-    std: float = 200.0
+    std: float = 100.0
     ''' Gaussian white noise added to the stimulus '''
     jitter_val: float = 5.0
     ''' constant that defines and interval [-jitter_val, jitter_val] from where jitter (same applied for reference an target stimuli orientation) is randomly taken '''
@@ -254,20 +254,22 @@ class TrainedSSNPars:
     
 trained_pars = TrainedSSNPars()
 
+
 class RandomizePars:
     perturb_level: float = 0.3
     ''' level of perturbation of the trained parameters '''
-    J_range = [np.array([3, 5]),np.array([1,3]), np.array([4, 6]),np.array([1,3])] #used [1,3] before when we just multiplied it by 2 for E
+    J_range = [np.array([4.2, 4.6]),np.array([1.5,1.7]), np.array([4.8, 5.2]),np.array([1,1.4])] #used [1,3] before when we just multiplied it by 2 for E
     ''' range of the perturbed inhibitory weights, excitatory range is twice as large ([2.2, 6.6]) '''
-    c_range = np.array([3, 7])
+    c_range = np.array([4.9, 5.1])
     ''' range of the perturbed c parameters '''
     f_range = np.array([0.6, 1.2])
     ''' range of the perturbed f parameters '''
-    g_range = np.array([0.5, 0.51])
+    g_range = np.array([0.2, 0.35])
     ''' range of the perturbed g parameters '''
-    eta_range = np.array([5*1e-4, 5*1e-3])
+    eta_range = np.array([10e-4, 3*10e-4])
 
 randomize_pars = RandomizePars()
+
 
 class MVPA_pars:
     gridsize_Nx: int = 9

@@ -14,7 +14,7 @@ from util import take_log, create_grating_training, sep_exponentiate, create_gra
 from util_gabor import init_untrained_pars
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response, vmap_evaluate_model_response
-from training_functions import mean_training_task_acc_test
+from training_functions import mean_training_task_acc_test, task_acc_test
 
 def perturb_params_supp_old(param_dict, percent = 0.1):
     '''Perturb all values in a dictionary by a percentage of their values. The perturbation is done by adding a uniformly sampled random value to the original value.'''
@@ -124,7 +124,7 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
 
         # Randomize learning rate
         untrained_pars.training_pars.eta = random.uniform(randomize_pars.eta_range[0], randomize_pars.eta_range[1])
-        
+
     return optimized_readout_pars, randomized_pars_log, untrained_pars
 
 
@@ -134,6 +134,9 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     '''
     # Generate stimuli and label data for setting w_sig and b_sig based on linear regression (pretraining)
     data = create_grating_pretraining(untrained_pars.pretrain_pars, N, untrained_pars.BW_image_jax_inp, numRnd_ori1=N)
+    # Adding 10% of training data to avoind weird phenomena like returning the opposite direction for the fine discrimination task
+    #data_training = create_grating_training(untrained_pars.stimuli_pars, int(N/10), untrained_pars.BW_image_jax_inp)
+    #data = {'ref': np.concatenate((data_pretraining['ref'], data_training['ref'])), 'target': np.concatenate((data_pretraining['target'], data_training['target'])), 'label': np.concatenate((data_pretraining['label'], data_training['label']))}
     
     #### Get model response for stimuli data['ref'] and data['target'] ####
     # 1. extract trained and untrained parameters
@@ -190,15 +193,10 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     else:
         readout_pars_opt['w_sig'] = w_sig[untrained_pars.middle_grid_ind]
 
-    # check if the readout parameters solve the task in the correct direction
-    test_offset_vec = numpy.array([2, 5, 10, 18]) 
-    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_opt, untrained_pars, True, test_offset_vec)
-    if np.sum(acc_mean<0.5)>0.5*len(acc_mean):
-        # flip the sign of w_sig and b_sig if the logistic regression is solving the flipped task
-        readout_pars_opt['w_sig'] = -w_sig
-        readout_pars_opt['b_sig'] = -readout_pars_opt['b_sig']
-        acc_mean_flipped, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_opt, untrained_pars, True, test_offset_vec)
-        print('accuracy of logistic regression before and after flipping the w_sig and b_sig', np.mean(acc_mean), np.mean(acc_mean_flipped))
+    # check if the readout parameters solve the task in the correct direction    
+    acc_train, _ = task_acc_test( trained_pars_dict, readout_pars_opt, untrained_pars, True, 4)
+    acc_pretrain, _ = task_acc_test( trained_pars_dict, readout_pars_opt, untrained_pars, True, None, pretrain_task=True)
+    print('accuracy of logistic regression on training and pretraining data', acc_train, acc_pretrain)
 
     return readout_pars_opt
 

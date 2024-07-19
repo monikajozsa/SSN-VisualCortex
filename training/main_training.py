@@ -94,9 +94,9 @@ while i < num_training and num_FailedRuns < 20:
     df_i = filter_for_run(df, i)
     trained_pars_stage1, trained_pars_stage2, offset_last, meanr_vec = load_parameters(df_i, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_stage2.keys())
     if meanr_vec is not None:
-        loss_pars.lambda_r_mean = 1
-        loss_pars.Rmean_E = meanr_vec[0]
-        loss_pars.Rmean_I = meanr_vec[1]
+        untrained_pars.loss_pars.lambda_r_mean = 0.1
+        untrained_pars.loss_pars.Rmean_E = meanr_vec[0]
+        untrained_pars.loss_pars.Rmean_I = meanr_vec[1]
 
     # Set the offset to the offset, where a threshold accuracy is achieved with the parameters from the last SGD step (loaded as offset_last)
     untrained_pars.stimuli_pars.offset = min(offset_last,10)

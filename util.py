@@ -50,22 +50,25 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
     return data_dict
 
 
-def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=180, numRnd_ori1=1):
+def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=180, numRnd_ori1=1, numRnd_dist=None):
     '''
-    Create batch_size number of pairs of numbers between min_value and max_value with minimum distance min_distance and maximum distance max_distance.
+    Create batch_size number of pairs of numbers between min_value and max_value with ori distance between min_distance and max_distance. numRnd_ori1 is the number of different values for the first number. numRnd_dist is the number of different distances.
     '''
     if max_distance==None:
         max_distance = max_value - min_value
-
+    if numRnd_dist==None:
+        numRnd_dist = batch_size
     # Generate the first numbers
     rnd_numbers = numpy.random.uniform(min_value, max_value, numRnd_ori1) #numpy.random.randint(low=min_value, high=max_value, size=numRnd_ori1, dtype=int)
     num1 = numpy.repeat(rnd_numbers, int(batch_size/numRnd_ori1))
 
-    # Generate a random distance within specified range
-    random_distance = numpy.random.choice([-1, 1], batch_size) * numpy.random.uniform(min_distance,max_distance ,batch_size) #numpy.random.randint(low=min_distance,high=max_distance, size=batch_size, dtype=int)
+    # Generate random distances within specified range (numRnd_dist is the number of different distances)
+    rnd_dist_samples = numpy.random.choice([-1, 1], batch_size) * numpy.random.uniform(min_distance,max_distance ,numRnd_dist) #numpy.random.randint(low=min_distance,high=max_distance, size=batch_size, dtype=int)
+    rnd_distances = numpy.repeat(rnd_dist_samples, int(batch_size/numRnd_dist))
+    numpy.random.shuffle(rnd_distances)
 
     # Generate the second numbers with correction if they are out of the specified range
-    num2 = num1 - random_distance #order and sign are important!
+    num2 = num1 - rnd_distances # order and sign are important!
 
     # Create a mask where flip_numbers equals 1
     swap_numbers = numpy.random.choice([0, 1], batch_size) 
@@ -75,9 +78,9 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     temp_num1 = np.copy(num1[mask]) # temporary array to hold the values of num1 where the mask is True
     num1[mask] = num2[mask]
     num2[mask] = temp_num1
-    random_distance[mask] = -random_distance[mask]
+    rnd_distances[mask] = -rnd_distances[mask]
     
-    return np.array(num1), np.array(num2), random_distance
+    return np.array(num1), np.array(num2), rnd_distances
 
 
 def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, numRnd_ori1=1):
@@ -254,7 +257,7 @@ def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['lo
     offset_last = offsets[len(offsets)-1]
 
     if 'meanr_E_mid' in df.columns:
-        meanr_vec=[[df['meanr_E_mid'], df['meanr_E_sup']], [df['meanr_I_mid'], df['meanr_I_sup']]]
+        meanr_vec=[[df['meanr_E_mid'][len(df)-1], df['meanr_E_sup'][len(df)-1]], [df['meanr_I_mid'][len(df)-1], df['meanr_I_sup'][len(df)-1]]]
     else:
         meanr_vec = None
         

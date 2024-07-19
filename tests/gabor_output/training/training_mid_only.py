@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from util import sep_exponentiate, sigmoid, create_grating_training, create_grating_pretraining, take_log
 from training.SSN_classes import SSN_mid
 from training.model import vmap_evaluate_model_response_mid, evaluate_model_response_mid
-from training.training_functions import loss_and_grad_ori_discr, binary_crossentropy_loss, offset_at_baseline_acc, mean_training_task_acc_test, training_task_acc_test
+from training.training_functions import loss_and_grad_ori_discr, binary_crossentropy_loss, offset_at_baseline_acc, mean_training_task_acc_test, task_acc_test
 from training.perturb_params import randomize_params_supp
 
 def train_ori_discr_mid(
@@ -214,7 +214,7 @@ def train_ori_discr_mid(
                 # iv) Loss and accuracy validation + printing results    
                 if SGD_step in val_steps:
                     #### Calculate loss and accuracy - *** could be switched to mean loss and acc easily
-                    val_acc_vec, val_loss_vec = training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset, loss_functioon_mid_only=batch_loss_ori_discr_mid)
+                    val_acc_vec, val_loss_vec = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset, loss_functioon_mid_only=batch_loss_ori_discr_mid)
                 
                     val_loss = np.mean(val_loss_vec)
                     val_acc = np.mean(val_acc_vec)
