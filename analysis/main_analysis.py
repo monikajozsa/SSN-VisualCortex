@@ -28,8 +28,8 @@ if not pretrain_pars.is_on:
 import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
-num_training = 2
-final_folder_path = os.path.join('results','Jul19_v0')
+num_training = 1
+final_folder_path = os.path.join('results','Jul19_v2')
 start_time_in_main= time.time()
 
 results_filename = os.path.join(final_folder_path, f"results.csv")
@@ -56,8 +56,8 @@ sigma_filter = 2
 
 plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
 
-boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
-
+#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
+'''
 ########## CALCULATE TUNING CURVES ############
 time_start = time.time()
 
@@ -148,3 +148,4 @@ data_mid_125 = pd.DataFrame({
     'offset': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
+'''

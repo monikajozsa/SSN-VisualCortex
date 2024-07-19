@@ -195,7 +195,7 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
 
     # check if the readout parameters solve the task in the correct direction    
     acc_train, _ = task_acc_test( trained_pars_dict, readout_pars_opt, untrained_pars, True, 4)
-    acc_pretrain, _ = task_acc_test( trained_pars_dict, readout_pars_opt, untrained_pars, True, None, pretrain_task=True)
+    acc_pretrain, _ = task_acc_test( trained_pars_dict, readout_pars_opt, untrained_pars, True, None, batch_size=300, pretrain_task=True)
     print('accuracy of logistic regression on training and pretraining data', acc_train, acc_pretrain)
 
     return readout_pars_opt

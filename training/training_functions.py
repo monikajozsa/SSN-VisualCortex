@@ -101,11 +101,11 @@ def train_ori_discr(
         acc_check_ind = np.arange(0, numSGD_steps, untrained_pars.pretrain_pars.acc_check_freq)
         acc_check_ind = acc_check_ind[(acc_check_ind > min_acc_check_ind) | (acc_check_ind <2)] # by leaving in 0, we make sure that it is not empty as we refer to it later
         test_offset_vec = numpy.array([2, 5, 8, 12])  # offset values to define offset threshold where given accuracy is achieved
-        current_stage = 1
+        numStages = 1
     else:
         numSGD_steps = training_pars.SGD_steps
         first_stage_acc_th = training_pars.first_stage_acc_th
-        current_stage = 2
+        numStages = 2
     
     # Define SGD_steps indices where losses an accuracy are validated
     val_steps = np.arange(0, numSGD_steps, training_pars.validation_freq)
@@ -127,7 +127,7 @@ def train_ori_discr(
     ######## Pretraining: One-stage, Training: Two-stage, where 1) parameters of sigmoid layer 2) parameters of SSN layers #############
     pretrain_stop_flag = False
     if not pretrain_stop_flag:
-        for stage in range(1,current_stage+1):
+        for stage in range(1,numStages+1):
             if stage == 2:
                 # Reinitialise optimizer and reset the argnum to take gradient of
                 opt_state_ssn = optimizer.init(trained_pars_dict)
@@ -278,15 +278,23 @@ def train_ori_discr(
                     print("Stage: {}¦ Readout loss: {:.3f}  ¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ SGD step: {} ¦ Offset: {} ¦ Runtime: {:.4f} ".format(
                         stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, stimuli_pars.offset, SGD_step_time
                     ))
-                
+                    
                 # v) Parameter update. Note that pre-training is one-stage, training is two-stage
-                if current_stage==1:
-                    # Update readout parameters
-                    updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
-                    trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
-                    # Update ssn layer parameters       
-                    updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
-                    readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
+                if numStages==1:
+                    if pretrain_on and val_acc < 0.47:
+                        # Flip the center readout parameters if validation accuracy is low
+                        readout_pars_dict['w_sig'] = readout_pars_dict['w_sig'].at[untrained_pars.middle_grid_ind].set(-readout_pars_dict['w_sig'][untrained_pars.middle_grid_ind])
+                        readout_pars_dict['b_sig'] = -readout_pars_dict['b_sig']
+                        val_acc_test, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
+                        train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, None, pretrain_task= True)
+                        print('Flipping readout parameters. Pretrain acc', train_acc_test,'train acc vec:', val_acc_test)
+                    else:
+                        # Update readout parameters
+                        updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
+                        trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
+                        # Update ssn layer parameters       
+                        updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
+                        readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
                 else:
                     if stage == 1:
                         # Update readout parameters
@@ -522,7 +530,7 @@ def generate_noise(batch_size, length, num_readout_noise=125, dt_readout = 0.2):
 
 
 ####### Functions for testing training task accuracy for different offsets and finding the offset value where it crosses baseline accuracy 
-def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset, pretrain_task= False, loss_functioon_mid_only=None):
+def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset, batch_size=300, pretrain_task= False, loss_functioon_mid_only=None):
     '''
     This function tests the accuracy of the training orientation discrimination task given a set of parameters across different stimulus offsets.
     
@@ -553,7 +561,6 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
     untrained_pars.stimuli_pars.std = 0
     
     # Generate noise that is added to the output of the model
-    batch_size=300
     noise_ref = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
     noise_target = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
     
@@ -594,7 +601,7 @@ def mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_
     # For the all the offsets, calculate fine discrimination accuracy sample_size times
     for i in range(N):
         for j in range(sample_size):
-            temp_acc, temp_loss = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec[i], pretrain_task= False, loss_functioon_mid_only=loss_functioon_mid_only)
+            temp_acc, temp_loss = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec[i], batch_size=100, pretrain_task= False, loss_functioon_mid_only=loss_functioon_mid_only)
             accuracy[i,j] = temp_acc
             loss[i,j] = temp_loss
         

@@ -40,7 +40,7 @@ starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder and create figures and train_only folders
-note=f'New1: last rmean from pretraining are targeted in training. New2: stopping crit asks for last 3 offsets to be in [3,10]; eta [5*1e-4,5*1e-3]; fair randomization on initial params including gE and gI.'
+note=f'trying out flipping w_sig when validation accuracy is below 0.45'
 results_filename, final_folder_path = save_code(train_only_flag=train_only_flag, note=note)
 if train_only_flag:
     results_filename_train_only = os.path.join(final_folder_path, 'train_only', "results_train_only.csv")
