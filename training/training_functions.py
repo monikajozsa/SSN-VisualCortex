@@ -285,7 +285,8 @@ def train_ori_discr(
                         # Flip the center readout parameters if validation accuracy is low
                         readout_pars_dict['w_sig'] = readout_pars_dict['w_sig'].at[untrained_pars.middle_grid_ind].set(-readout_pars_dict['w_sig'][untrained_pars.middle_grid_ind])
                         readout_pars_dict['b_sig'] = -readout_pars_dict['b_sig']
-                        val_acc_test, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
+                        val_acc =  1-val_acc
+                        val_acc_test, _ ,_ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
                         train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, None, pretrain_task= True)
                         print('Flipping readout parameters. Pretrain acc', train_acc_test,'train acc vec:', val_acc_test)
                     else:

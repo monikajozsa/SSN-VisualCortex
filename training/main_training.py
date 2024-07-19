@@ -35,7 +35,7 @@ if not pretrain_pars.is_on:
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 train_only_flag = False # Setting train_only_flag to True will run an additional training without pretraining
-num_training = 3
+num_training = 20
 starting_time_in_main= time.time()
 initial_parameters = None
 

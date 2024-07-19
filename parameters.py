@@ -39,7 +39,7 @@ class TrainingPars:
     ''' number of trials per SGD step '''
     SGD_steps: int = 1000
     ''' number of SGD step '''
-    validation_freq: int = 50
+    validation_freq: int = 20
     ''' frequency of validation loss and accuracy calculation '''
     first_stage_acc_th: float = 0.51
     ''' accuracy threshold for early stopping criterium for the first stage of training '''
@@ -258,7 +258,7 @@ trained_pars = TrainedSSNPars()
 class RandomizePars:
     perturb_level: float = 0.3
     ''' level of perturbation of the trained parameters '''
-    J_range = [np.array([4.2, 4.6]),np.array([1.5,1.7]), np.array([4.8, 5.2]),np.array([1,1.4])] #used [1,3] before when we just multiplied it by 2 for E
+    J_range = [np.array([4, 4.8]),np.array([1.2,2]), np.array([4.6, 5.4]),np.array([0.8,1.6])] #used [1,3] before when we just multiplied it by 2 for E
     ''' range of the perturbed inhibitory weights, excitatory range is twice as large ([2.2, 6.6]) '''
     c_range = np.array([4.9, 5.1])
     ''' range of the perturbed c parameters '''
@@ -266,7 +266,7 @@ class RandomizePars:
     ''' range of the perturbed f parameters '''
     g_range = np.array([0.2, 0.35])
     ''' range of the perturbed g parameters '''
-    eta_range = np.array([10e-4, 3*10e-4])
+    eta_range = np.array([2*10e-4, 5*10e-4])
 
 randomize_pars = RandomizePars()
 
