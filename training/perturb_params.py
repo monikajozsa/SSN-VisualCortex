@@ -201,7 +201,7 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     return readout_pars_opt
 
 
-def create_initial_parameters_df(initial_parameters, randomized_parameters, randomized_eta):
+def create_initial_parameters_df(initial_parameters, randomized_parameters, randomized_eta, randomized_gE, randomized_gI):
     '''
     This function creates or appens a dataframe with the initial parameters for the model. The dataframe includes the randomized traine dparameters, and the randomized learning rate eta.
     '''
@@ -211,7 +211,7 @@ def create_initial_parameters_df(initial_parameters, randomized_parameters, rand
     # Create a dictionary with the new randomized parameters
     new_vals_dict = dict(J_m_EE=J_2x2_m[0,0], J_m_EI=J_2x2_m[1,0], J_m_IE=J_2x2_m[0,1], J_m_II=J_2x2_m[1,1],
                         J_s_EE=J_2x2_s[0,0], J_s_EI=J_2x2_s[1,0], J_s_IE=J_2x2_s[0,1], J_s_II=J_2x2_s[1,1],
-                        eta=randomized_eta)
+                        eta=randomized_eta, gE = randomized_gE, gI= randomized_gI)
     if 'log_f_E' in randomized_parameters:
         new_vals_dict['f_E'] = np.exp(randomized_parameters['log_f_E'])
         new_vals_dict['f_I'] = np.exp(randomized_parameters['log_f_I'])

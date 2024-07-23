@@ -35,12 +35,12 @@ if not pretrain_pars.is_on:
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
 train_only_flag = False # Setting train_only_flag to True will run an additional training without pretraining
-num_training = 20
+num_training = 1
 starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder and create figures and train_only folders
-note=f'trying out flipping w_sig when validation accuracy is below 0.45'
+note=f'g parameters 5x bigger than in July 23 v2 run'
 results_filename, final_folder_path = save_code(train_only_flag=train_only_flag, note=note)
 if train_only_flag:
     results_filename_train_only = os.path.join(final_folder_path, 'train_only', "results_train_only.csv")
@@ -59,14 +59,14 @@ while i < num_training and num_FailedRuns < 20:
 
     # Initialize untrained parameters (calculate gabor filters, orientation map related variables)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, i, folder_to_save=final_folder_path)
+                 loss_pars, training_pars, pretrain_pars, readout_pars, i, folder_to_save=final_folder_path,randomize_pars=randomize_pars)
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
 
     # Randomize readout_pars and trained_pars and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
-    trained_pars_stage1, trained_pars_stage2, untrained_pars = randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars=randomize_pars)
-    initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage2, untrained_pars.training_pars.eta)
+    trained_pars_stage1, trained_pars_stage2, untrained_pars = randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars=randomize_pars)   
+    initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage2, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m)
     
     # Run pre-training
     training_output_df, pretraining_final_step = train_ori_discr(
@@ -94,7 +94,7 @@ while i < num_training and num_FailedRuns < 20:
     df_i = filter_for_run(df, i)
     trained_pars_stage1, trained_pars_stage2, offset_last, meanr_vec = load_parameters(df_i, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_stage2.keys())
     if meanr_vec is not None:
-        untrained_pars.loss_pars.lambda_r_mean = 0.1
+        untrained_pars.loss_pars.lambda_r_mean = 0.25
         untrained_pars.loss_pars.Rmean_E = meanr_vec[0]
         untrained_pars.loss_pars.Rmean_I = meanr_vec[1]
 

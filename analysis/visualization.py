@@ -33,7 +33,7 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
         relative_changes = relative_changes*100
         relative_changes_at_time_inds.append(relative_changes)
     
-        offset_pre_post_temp = [[df_i['offset'][time_inds[start_time_ind]] ,df_i['offset'][time_inds[i] ]] for i in range(start_time_ind+1,num_time_inds)]
+        offset_pre_post_temp = [[df_i['staircase_offset'][time_inds[start_time_ind]] ,df_i['staircase_offset'][time_inds[i] ]] for i in range(start_time_ind+1,num_time_inds)]
         if not numpy.isnan(numpy.array(offset_pre_post_temp)).any():
             if numFiles==0:
                 offset_pre_post = numpy.array(offset_pre_post_temp)
@@ -42,7 +42,8 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
             numFiles = numFiles + 1
         else:
             numFiles = numFiles - 1
-        
+    relative_changes_at_time_inds = numpy.array(relative_changes_at_time_inds)
+
     ################# Plotting bar plots of offset before and after given time indices #################
     offset_pre_post = offset_pre_post.T
     means = np.mean(offset_pre_post, axis=1)
@@ -72,6 +73,10 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     if plot_filename is not None:
         full_path = save_folder + '/offset_pre_post.png'
         fig.savefig(full_path)
+    plt.close()
+
+    ################# Plotting bar plots of J parameters before and after given time indices #################
+    # To be written ***
 
     ################# Boxplots for relative parameter changes #################
     # Define groups of parameters and plot each parameter group
@@ -85,7 +90,6 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     fig, axs = plt.subplots(num_time_inds-1, num_groups, figsize=(5*num_groups, 5*(num_time_inds-1)))  # Create subplots for each group
     axes_flat = axs.flatten()
     
-    relative_changes_at_time_inds = numpy.array(relative_changes_at_time_inds)
     group_start_ind = [0,4,8,12] # putting together Jm, Js, c, f
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
     c_f_box_colors = ['#8B4513', '#800080', '#FF8C00',  '#006400']
@@ -481,20 +485,20 @@ def plot_results_from_csv(df,fig_filename=None):
 
     # BARPLOTS about relative changes
     categories_J = ['Jm_EE', 'Jm_IE', 'Jm_EI', 'Jm_II', 'Js_EE', 'Js_IE', 'Js_EI', 'Js_II']
-    categories_metrics = [ 'acc', 'offset']
+    categories_metrics = [ 'acc', 'staircase_offset', 'stoichiometric_offset'] # *** staircase_offset
     categories_r = [ 'rm_E', 'rm_I', 'rs_E','rs_I']
     categories_cf = ['c_E', 'c_I', 'f_E', 'f_I']
     rel_par_changes,_ = rel_changes(df) # 0 is pretraining and 1 is training in the second dimensions
     pretrain_train_ind=1
     values_J = 100 * rel_par_changes[0:8,pretrain_train_ind]
     values_cf = 100 * rel_par_changes[8:12,pretrain_train_ind]
-    values_metrics = 100 * rel_par_changes[12:14,pretrain_train_ind]
-    values_r = 100 * rel_par_changes[14:19,pretrain_train_ind]
+    values_metrics = 100 * rel_par_changes[12:15,pretrain_train_ind]
+    values_r = 100 * rel_par_changes[15:19,pretrain_train_ind]
 
     # Choosing colors for each bar
     colors_J = ['tab:red', 'tab:orange', 'tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:blue']
     colors_cf = ['tab:red', 'tab:blue', 'tab:red', 'tab:blue']
-    colors_metrics = [ 'tab:green', 'tab:brown']
+    colors_metrics = [ 'tab:green', 'tab:brown', 'tab:orange']
     colors_r = ['tab:red', 'tab:blue', 'tab:red', 'tab:blue']
 
     # Creating the bar plot
@@ -560,16 +564,17 @@ def plot_results_from_csv(df,fig_filename=None):
     
     ################
     num_pretraining_steps= sum(df['stage'] == 0)
-    for column in df.columns:
-        if 'offset' in column:
-            axes[0,2].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*6, label='stopping threshold', alpha=0.6, c='tab:brown')
-            axes[0,2].scatter(range(N), df[column], label='offset', marker='o', s=50, c='tab:brown')
-            axes[0,2].grid(color='gray', linestyle='-', linewidth=0.5)
-            axes[0,2].set_title('Offset', fontsize=20)
-            axes[0,2].set_ylabel('degrees', fontsize=20)
-            axes[0,2].set_xlabel('SGD steps', fontsize=20)
-            axes[0,2].set_ylim(0, max(df[column])+1)
-    
+    axes[0,2].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*3, label='stopping threshold', alpha=0.6, c='tab:orange')
+    axes[0,2].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*10, alpha=0.6, c='tab:orange')
+    axes[0,2].scatter(range(N), df['stoichiometric_offset'], label='stoichiometric_offset', marker='o', s=50, c='tab:brown')
+
+    axes[0,2].scatter(range(N), df['staircase_offset'], label='staircase_offset', marker='o', s=50, c='tab:brown')
+    axes[0,2].grid(color='gray', linestyle='-', linewidth=0.5)
+    axes[0,2].set_title('Offset', fontsize=20)
+    axes[0,2].set_ylabel('degrees', fontsize=20)
+    axes[0,2].set_xlabel('SGD steps', fontsize=20)
+    axes[0,2].set_ylim(0, min(25,max(df['staircase_offset'])+1))
+       
     # Plot changes in sigmoid weights and bias of the sigmoid layer
     axes[1,2].plot(range(N), df['b_sig'], label='b_sig', linestyle='--', linewidth = 3)
     axes[1,2].set_xlabel('SGD steps', fontsize=20)

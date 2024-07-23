@@ -185,12 +185,13 @@ def rel_changes(df, num_indices=3):
     f_E = df['f_E']
     f_I = df['f_I']
     acc = df['acc']
-    offset = df['offset']
+    staircase_offset = df['staircase_offset'] 
+    stoichiometric_offset = df['stoichiometric_offset'] 
     maxr_E_mid = df['maxr_E_mid']
     maxr_I_mid = df['maxr_I_mid']
     maxr_E_sup = df['maxr_E_sup']
     maxr_I_sup = df['maxr_I_sup']
-    relative_changes = numpy.zeros((18,num_indices-1))
+    relative_changes = numpy.zeros((19,num_indices-1))
 
     ############### Calculate relative changes in parameters and other metrics before and after training ###############
     # Define time indices for pretraining and training
@@ -214,11 +215,12 @@ def rel_changes(df, num_indices=3):
             relative_changes[10,0] = (f_E[time_inds[1]] - f_E[start_ind]) / f_E[start_ind] # f_E
             relative_changes[11,0] = (f_I[time_inds[1]] - f_I[start_ind]) / f_I[start_ind] # f_I
             relative_changes[12,0] = (acc[time_inds[1]] - acc[start_ind]) / acc[start_ind] # accuracy
-            relative_changes[13,0] = (offset[time_inds[1]] - offset[start_ind]) / offset[start_ind] # offset and offset threshold
-            relative_changes[14,0] = (maxr_E_mid[time_inds[1]] - maxr_E_mid[start_ind]) /maxr_E_mid[start_ind] # r_E_mid
-            relative_changes[15,0] = (maxr_I_mid[time_inds[1]] -maxr_I_mid[start_ind]) / maxr_I_mid[start_ind] # r_I_mid
-            relative_changes[16,0] = (maxr_E_sup[time_inds[1]] - maxr_E_sup[start_ind]) / maxr_E_sup[start_ind] # r_E_sup
-            relative_changes[17,0] = (maxr_I_sup[time_inds[1]] - maxr_I_sup[start_ind]) / maxr_I_sup[start_ind] # r_I_sup
+            relative_changes[13,0] = (staircase_offset[time_inds[1]] - staircase_offset[start_ind]) / staircase_offset[start_ind] # offset used for the training data of training task
+            relative_changes[14,0] = (stoichiometric_offset[time_inds[1]] - stoichiometric_offset[start_ind]) / stoichiometric_offset[start_ind] # stoichoimetric offset
+            relative_changes[15,0] = (maxr_E_mid[time_inds[1]] - maxr_E_mid[start_ind]) /maxr_E_mid[start_ind] # r_E_mid
+            relative_changes[16,0] = (maxr_I_mid[time_inds[1]] -maxr_I_mid[start_ind]) / maxr_I_mid[start_ind] # r_I_mid
+            relative_changes[17,0] = (maxr_E_sup[time_inds[1]] - maxr_E_sup[start_ind]) / maxr_E_sup[start_ind] # r_E_sup
+            relative_changes[18,0] = (maxr_I_sup[time_inds[1]] - maxr_I_sup[start_ind]) / maxr_I_sup[start_ind] # r_I_sup
         else: 
             # changes during training
             start_ind = time_inds[1]
@@ -236,11 +238,12 @@ def rel_changes(df, num_indices=3):
                 relative_changes[10,i+j] = (f_E[time_inds[i+2]] - f_E[start_ind]) / f_E[start_ind] # f_E
                 relative_changes[11,i+j] = (f_I[time_inds[i+2]] - f_I[start_ind]) / f_I[start_ind] # f_I
                 relative_changes[12,i+j] = (acc[time_inds[i+2]] - acc[start_ind]) / acc[start_ind] # accuracy
-                relative_changes[13,i+j] = (offset[time_inds[i+2]] - offset[start_ind]) / offset[start_ind]
-                relative_changes[14,i+j] = (maxr_E_mid[time_inds[i+2]] - maxr_E_mid[start_ind]) / maxr_E_mid[start_ind] # r_E_mid
-                relative_changes[15,i+j] = (maxr_I_mid[time_inds[i+2]] - maxr_I_mid[start_ind]) / maxr_I_mid[start_ind] # r_I_mid
-                relative_changes[16,i+j] = (maxr_E_sup[time_inds[i+2]] - maxr_E_sup[start_ind]) /maxr_E_sup[start_ind] # r_E_sup
-                relative_changes[17,i+j] = (maxr_I_sup[time_inds[i+2]] - maxr_I_sup[start_ind]) /maxr_I_sup[start_ind] # r_I_sup
+                relative_changes[13,i+j] = (staircase_offset[time_inds[i+2]] - staircase_offset[start_ind]) / staircase_offset[start_ind]
+                relative_changes[14,i+j] = (stoichiometric_offset[time_inds[i+2]] - stoichiometric_offset[start_ind]) / stoichiometric_offset[start_ind]
+                relative_changes[15,i+j] = (maxr_E_mid[time_inds[i+2]] - maxr_E_mid[start_ind]) / maxr_E_mid[start_ind] # r_E_mid
+                relative_changes[16,i+j] = (maxr_I_mid[time_inds[i+2]] - maxr_I_mid[start_ind]) / maxr_I_mid[start_ind] # r_I_mid
+                relative_changes[17,i+j] = (maxr_E_sup[time_inds[i+2]] - maxr_E_sup[start_ind]) /maxr_E_sup[start_ind] # r_E_sup
+                relative_changes[18,i+j] = (maxr_I_sup[time_inds[i+2]] - maxr_I_sup[start_ind]) /maxr_I_sup[start_ind] # r_I_sup
 
     return relative_changes, time_inds
 
@@ -586,7 +589,7 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     # Generate data
     test_grating = BW_image_jit_noisy(untrained_pars.BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, jitter_vec)
     
-    # Create middle and superficial SSN layers *** this is something that would be great to call from outside the SGD loop and only refresh the params that change (and what rely on them such as W)
+    # Create middle and superficial SSN layers
     p_local_s = untrained_pars.ssn_pars.p_local_s
     s_2x2 = untrained_pars.ssn_pars.s_2x2_s
     sigma_oris = untrained_pars.ssn_pars.sigma_oris
@@ -608,7 +611,7 @@ def SGD_step_indices(df, num_indices=2, peak_offset_flag=False):
         training_start = df.index[df['stage'] == 0][-1]+1
         if peak_offset_flag:
             # get the index where max offset is reached 
-            SGD_step_inds[1] = training_start + df['offset'][training_start:training_start+100].idxmax()
+            SGD_step_inds[1] = training_start + df['staircase_offset'][training_start:training_start+100].idxmax()
         else:    
             SGD_step_inds[1] = training_start
         SGD_step_inds[-1] = num_SGD_steps-1 #index of when training ends

@@ -29,7 +29,7 @@ import jax.numpy as np
 from analysis_functions import gabor_tuning
 import matplotlib.pyplot as plt
 num_training = 1
-final_folder_path = os.path.join('results','Jul19_v2')
+final_folder_path = os.path.join('results','Jul23_v3')
 start_time_in_main= time.time()
 
 results_filename = os.path.join(final_folder_path, f"results.csv")
@@ -56,12 +56,13 @@ sigma_filter = 2
 
 plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
 
-#boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
-'''
+boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
+
 ########## CALCULATE TUNING CURVES ############
 time_start = time.time()
 
 tc_ori_list = numpy.arange(0,180,6)
+'''
 # Define the filename for the tuning curves 
 tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
 # Define the header for the tuning curves
@@ -99,7 +100,7 @@ for i in range(0,num_training):
                  loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=orimap_i)
     # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
     for stage in range(3):
-        trained_pars_stage1, trained_pars_stage2, offset_last, _ = load_parameters(df_i, iloc_ind = SGD_step_inds[stage], trained_pars_keys=trained_pars_keys)
+        trained_pars_stage1, trained_pars_stage2, _, _ = load_parameters(df_i, iloc_ind = SGD_step_inds[stage], trained_pars_keys=trained_pars_keys)
         tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_headers)
         tc_headers = False
         
@@ -127,25 +128,25 @@ MVPA_scores = numpy.load(final_folder_path + f'/sigmafilt_{sigma_filter}/MVPA_sc
 data_sup_55 = pd.DataFrame({
     'MVPA': (MVPA_scores[:,0,-1,0]- MVPA_scores[:,0,-2,0])/MVPA_scores[:,0,-2,0],
     'JsI/JsE': data_rel_changes['J_s_ratio_diff'],
-    'offset': data_rel_changes['offset_staircase_diff']
+    'offset_th': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_sup_55, folder_to_save, 'corr_triangle_sup_55')
 data_sup_125 = pd.DataFrame({
     'MVPA': (MVPA_scores[:,0,-1,1]- MVPA_scores[:,0,-2,1])/MVPA_scores[:,0,-2,1],
     'JsI/JsE': data_rel_changes['J_s_ratio_diff'],
-    'offset': data_rel_changes['offset_staircase_diff']
+    'offset_th': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_sup_125, folder_to_save, 'corr_triangle_sup_125')
 data_mid_55 = pd.DataFrame({
     'MVPA': (MVPA_scores[:,1,-1,0]- MVPA_scores[:,1,-2,0])/MVPA_scores[:,1,-2,0],
     'JmI/JmE': data_rel_changes['J_m_ratio_diff'],
-    'offset': data_rel_changes['offset_staircase_diff']
+    'offset_th': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_55, folder_to_save, 'corr_triangle_mid_55')
 data_mid_125 = pd.DataFrame({
     'MVPA': (MVPA_scores[:,1,-1,1]- MVPA_scores[:,1,-2,1])/MVPA_scores[:,1,-2,1],
     'JmI/JmE': data_rel_changes['J_m_ratio_diff'],
-    'offset': data_rel_changes['offset_staircase_diff']
+    'offset_th': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
 '''

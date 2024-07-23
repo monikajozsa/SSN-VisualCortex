@@ -21,13 +21,15 @@ from scipy.stats import ttest_ind
 def exponential_decay(x, a, b, c):
     return a * np.exp(-b * x) + c
 
-def has_plateaued(loss, der_threshold=0.001, p_threshold=0.05):
+def has_plateaued(loss, der_threshold=0.001, p_threshold=0.01, window_size = 10):
     """
     Check if the loss has plateaued by fitting an exponential decay curve, checking the derivative at the end and performing a t-test on the last 20 values.
 
     Parameters:
     loss: A vector of loss values over time.
     der_threshold (float): The maximum allowable derivative value to consider as plateau.
+    p_threshold (float): threshold p-value for a ttest on the mean of the last two windows
+    window_size (int): size of the windows for which we calculate the ttest
 
     Returns:
     int: 1 if the loss has plateaued, 0 otherwise.
@@ -44,7 +46,7 @@ def has_plateaued(loss, der_threshold=0.001, p_threshold=0.05):
     end_derivative = -a * b * np.exp(-b * x[-1])
 
     # Check if the mean of the last 10 values is significantly different from the previous 10 values
-    _, p_value = ttest_ind(loss[-10:-1], loss[-20:-10], equal_var=False)
+    _, p_value = ttest_ind(loss[-window_size:-1], loss[-2*window_size:-window_size], equal_var=False)
 
     return int(abs(end_derivative) < der_threshold and p_value > p_threshold)
 
@@ -105,6 +107,7 @@ def train_ori_discr(
     else:
         numSGD_steps = training_pars.SGD_steps
         first_stage_acc_th = training_pars.first_stage_acc_th
+        test_offset_vec = numpy.array([1, 2, 5, 8]) 
         numStages = 2
     
     # Define SGD_steps indices where losses an accuracy are validated
@@ -142,12 +145,17 @@ def train_ori_discr(
                 
                 if not pretrain_on and stage==1 and SGD_step == 0:
                     if train_acc > first_stage_acc_th:
-                        print("Early stop: accuracy {} reached target {} for stage 1 training".format(
-                                train_acc, first_stage_acc_th)
-                        )
+                        print("Early stop: accuracy {} reached target {} for stage 1 training".format(train_acc, first_stage_acc_th))
                         # Store final step index and exit first training loop (-1 because we did do not save this step)
                         first_stage_final_step = SGD_step -1
                         break
+                
+                # Calculate stoichiometric_offset if the SGD step is in the acc_check_ind vector
+                if pretrain_on and SGD_step in acc_check_ind:
+                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
+                    # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
+                    stoichiometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+                    print('Baseline acc is achieved at offset:', stoichiometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean, 'train_acc:', train_acc)
 
                 # ii) Store parameters and metrics 
                 if 'stages' in locals():
@@ -205,28 +213,21 @@ def train_ori_discr(
                 else:
                     w_sigs = [w_sig_temp[w_indices_to_save]]
                     b_sigs = [readout_pars_dict['b_sig']]
-                if 'offsets' in locals():
-                    offsets.append(stimuli_pars.offset)
+                if 'staircase_offsets' in locals():
+                    staircase_offsets.append(stimuli_pars.offset)
                 else:
-                    offsets=[stimuli_pars.offset]
+                    staircase_offsets=[stimuli_pars.offset]                
 
                 # ii) Early stopping during pre-training and training
                 # Check for early stopping during pre-training
                 if pretrain_on and SGD_step in acc_check_ind:
-                    # calculate training task accuracy for offsets in test_offset_vec
-                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
-                    # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
-                    offset_at_bl_acc = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
-                    # save and print offset_at_bl_acc
-                    if SGD_step==acc_check_ind[0] and stage==1:
-                        offsets_th=[float(offset_at_bl_acc)]
+                    if 'stoichiometric_offsets' in locals():
+                        stoichiometric_offsets.append(float(stoichiometric_offset))
                     else:
-                        offsets_th.append(float(offset_at_bl_acc))
-                    print('Baseline acc is achieved at offset:', offset_at_bl_acc, ' for step ', SGD_step, 'acc_vec:', acc_mean)
-
+                        stoichiometric_offsets=[float(stoichiometric_offset)]
                     # Stopping criteria for pretraining: break out from SGD_step loop and stages loop (using a flag)
-                    if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(offsets_th)>2:
-                        pretrain_stop_flag = all(np.array(offsets_th[-1:]) < pretrain_offset_threshold[1]) and all(np.array(offsets_th[-1:]) > pretrain_offset_threshold[0]) and has_plateaued(train_accs)                        
+                    if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(stoichiometric_offsets)>2:
+                        pretrain_stop_flag = all(np.array(stoichiometric_offsets[-2:]) < pretrain_offset_threshold[1]) and all(np.array(stoichiometric_offsets[-2:]) > pretrain_offset_threshold[0]) # and has_plateaued(train_accs)                        
                     if pretrain_stop_flag:
                         print('Stopping pretraining: desired accuracy achieved for training task.')
                         first_stage_final_step = SGD_step
@@ -278,8 +279,17 @@ def train_ori_discr(
                     print("Stage: {}¦ Readout loss: {:.3f}  ¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ SGD step: {} ¦ Offset: {} ¦ Runtime: {:.4f} ".format(
                         stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, stimuli_pars.offset, SGD_step_time
                     ))
+                    if not pretrain_on:
+                        acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
+                        # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
+                        stoichiometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+                        if 'stoichiometric_offsets' in locals():
+                            stoichiometric_offsets.append(float(stoichiometric_offset))
+                        else:
+                            stoichiometric_offsets=[float(stoichiometric_offset)]
+                        print('Baseline acc is achieved at offset:', stoichiometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean)
                     
-                # v) Parameter update. Note that pre-training is one-stage, training is two-stage
+                # v) Parameter update. Note that pre-training has one-stage, training has two-stages, where the first stage is skipped if the accuracy satisfies a minimum threshold criteria
                 if numStages==1:
                     if pretrain_on and val_acc < 0.45:
                         # Flip the center readout parameters if validation accuracy is low
@@ -292,9 +302,9 @@ def train_ori_discr(
                         m[1]['w_sig']=m[1]['w_sig'].at[untrained_pars.middle_grid_ind].set(-m[1]['w_sig'][untrained_pars.middle_grid_ind])
                         
                         # Print out the changes in accuracy
-                        val_acc_test, _ ,_ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
-                        train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, None, pretrain_task= True)
-                        print('Flipping readout parameters. Pretrain acc', train_acc_test,'train acc vec:', val_acc_test)
+                        train_acc_test, _ ,_ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
+                        pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, None, pretrain_task= True)
+                        print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc vec:', train_acc_test)
                     else:
                         # Update readout parameters
                         updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
@@ -318,8 +328,7 @@ def train_ori_discr(
     if pretrain_on:
         SGD_steps = np.arange(0, len(stages))
         val_SGD_steps = val_steps[0:len(val_accs)]
-        offsets = None
-        acc_check_ind = acc_check_ind[0:len(offsets_th)]
+        acc_check_ind = acc_check_ind[0:len(stoichiometric_offsets)]
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps, acc_check_ind=acc_check_ind)
     else:
         SGD_steps = np.arange(0, len(stages))
@@ -327,11 +336,10 @@ def train_ori_discr(
         val_SGD_steps_stage2 = np.arange(first_stage_final_step + 1, first_stage_final_step + 1 + numSGD_steps, training_pars.validation_freq)
         val_SGD_steps = np.hstack([val_SGD_steps_stage1, val_SGD_steps_stage2])
         val_SGD_steps = val_SGD_steps[0:len(val_accs)]
-        offsets_th = None
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps)
         
     # Create DataFrame and save the DataFrame to a CSV file        
-    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets, offsets_th)
+    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, staircase_offsets, stoichiometric_offsets)
     df.insert(0, 'run_index', run_index) # insert run index as the first column 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
@@ -651,7 +659,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
 
 ####### Function for creating DataFrame
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, offsets=None, offsets_at_bl_acc=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, staircase_offsets=None, stoichiometric_offsets=None):
     ''' This function collects different variables from training results into a dataframe.'''
     # Create an empty DataFrame and initialize it with stages, SGD steps, and training accuracies
     df = pd.DataFrame({
@@ -711,15 +719,17 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     df['log_f_I']=log_f_I
     df['f_E']=[np.exp(log_f_E[i]) for i in range(len(log_f_E))]
     df['f_I']=[np.exp(log_f_I[i]) for i in range(len(log_f_I))]
-
-    if max_stages==1:    
-        df['offset']=None
-        offsets_at_bl_acc=np.hstack(offsets_at_bl_acc)
-        df.loc[step_indices['acc_check_ind'],'offset']=offsets_at_bl_acc
-    else:    
-        # Add offset to df if staircase was in place
-        if offsets is not None:
-            df['offset']= offsets
+   
+    # Distinguish stoichiometric and staircase offsets and adjust the visualization and analysis functions ***
+    if max_stages==1:
+        df['stoichiometric_offset']=None
+        stoichiometric_offsets=np.hstack(stoichiometric_offsets)
+        df.loc[step_indices['acc_check_ind'],'stoichiometric_offset']=stoichiometric_offsets
+        df['staircase_offset']= staircase_offsets
+    else:
+        df['stoichiometric_offset']=None
+        df.loc[step_indices['val_SGD_steps'],'stoichiometric_offset']=stoichiometric_offsets
+        df['staircase_offset']= staircase_offsets
             
     for i in range(len(w_sigs[0])):
         weight_name = f'w_sig_{i+1}'

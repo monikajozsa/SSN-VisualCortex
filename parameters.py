@@ -13,9 +13,9 @@ class PreTrainPars:
     ori_dist_int = [5, 20]
     ''' interval where the absolute orientation difference between reference and target is randomly chosen from '''
     acc_th: float = 0.749
-    ''' accuracy threshold to calculate corresponding offset (training task) - used for early stopping of pretraining '''
-    acc_check_freq: int = 5
-    ''' frequency (in SGD step) of accuracy check for the training task - used for early stopping of pretraining '''
+    ''' accuracy threshold to calculate corresponding offset (training task) '''
+    acc_check_freq: int = 3
+    ''' frequency (in SGD step) of accuracy check for the training task '''
     min_acc_check_ind: int = 1
     ''' minimum SGD step where accuracy check happens for the training task '''
     min_stop_ind: int = 50
@@ -39,7 +39,7 @@ class TrainingPars:
     ''' number of trials per SGD step '''
     SGD_steps: int = 1000
     ''' number of SGD step '''
-    validation_freq: int = 20
+    validation_freq: int = 10
     ''' frequency of validation loss and accuracy calculation '''
     first_stage_acc_th: float = 0.51
     ''' accuracy threshold for early stopping criterium for the first stage of training '''
@@ -71,7 +71,7 @@ class LossPars:
     ''' constant for L2 regulazier of sigmoid layer bias '''
     lambda_r_max: float = 1
     ''' constant for loss with respect to maximum rates in the network '''
-    lambda_r_mean: float = 0
+    lambda_r_mean: float = 0.01
     ''' constant for loss with respect to maximum rates in the network '''
     Rmax_E: float = 40
     ''' maximum firing rate for E neurons - rates above this are penalised '''
@@ -256,15 +256,13 @@ trained_pars = TrainedSSNPars()
 
 
 class RandomizePars:
-    perturb_level: float = 0.3
-    ''' level of perturbation of the trained parameters '''
-    J_range = [np.array([4, 4.8]),np.array([1.2,2]), np.array([4.6, 5.4]),np.array([0.8,1.6])] #used [1,3] before when we just multiplied it by 2 for E
-    ''' range of the perturbed inhibitory weights, excitatory range is twice as large ([2.2, 6.6]) '''
-    c_range = np.array([4.9, 5.1])
+    J_range = [np.array([4, 4.8]),np.array([1.2,2]), np.array([4.6, 5.4]),np.array([0.8,1.6])]
+    ''' range of the perturbed Jm and Js parameters '''
+    c_range = np.array([4.5, 5.5])
     ''' range of the perturbed c parameters '''
     f_range = np.array([0.6, 1.2])
     ''' range of the perturbed f parameters '''
-    g_range = np.array([0.2, 0.35])
+    g_range = np.array([0.2, 0.4])
     ''' range of the perturbed g parameters '''
     eta_range = np.array([2*10e-4, 5*10e-4])
 

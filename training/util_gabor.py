@@ -1,5 +1,6 @@
 #import matplotlib.pyplot as plt
 import numpy
+from numpy import random
 import jax.numpy as np
 from jax import jit, lax, vmap
 import pandas as pd
@@ -142,13 +143,13 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 		if deterministic:
 			sj = 1 if j % 2 == 0 else -1
 		else:
-			sj = (2 * numpy.random.randint(0, 2) - 1)
+			sj = (2 * random.randint(0, 2) - 1)
 
 		# Define phase shift
 		if deterministic:
 			phij = 2 * numpy.pi * j/ nn
 		else:
-			phij = numpy.random.rand() * 2 * numpy.pi
+			phij = random.rand() * 2 * numpy.pi
 
 		# Construct the j-th wave and add to the total
 		tmp = (X * kj[0] + Y * kj[1]) * sj + phij
@@ -161,8 +162,8 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 	return ori_map
 
 
-def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, run_ind = 0, orimap_loaded=None, regen_extended_orimap=False, folder_to_save=None):
+def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
+                 loss_pars, training_pars, pretrain_pars, readout_pars, run_ind = 0, orimap_loaded=None, regen_extended_orimap=False, folder_to_save=None, randomize_pars=None):
     """
     Define untrained_pars with a randomly generated or given orientation map.
     """
@@ -188,7 +189,11 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_par
             if map_gen_ind>50:
                 print('############## After 50 attempts the randomly generated maps did not pass the uniformity test ##############')
                 break
-    
+    # randomize gE and gI if randomize_pars is nont None
+    if randomize_pars is not None:
+        filter_pars.gI_m = random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
+        filter_pars.gE_m = random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
+
     gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, flatten=True)
     
     oris = ssn_ori_map.ravel()[:, None]
@@ -222,7 +227,8 @@ def init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_par
     return untrained_pars
 
 
-###### Functions for grating generation ###### ***
+###### Functions for grating generation ###### 
+
 def BW_image_jax_supp(stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=False):
     """
     This function supports BW_image_jax (that generates grating images) by calculating variables that do not need to be recalculated in the training loop. 
@@ -314,7 +320,7 @@ def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, j
     
     # Add noise to the images
     if BW_image_const_inp[3]>0:
-        noisy_images = images + np.array(numpy.random.normal(loc=0, scale=BW_image_const_inp[3], size=images.shape))
+        noisy_images = images + np.array(random.normal(loc=0, scale=BW_image_const_inp[3], size=images.shape))
     else:
          noisy_images = images
     return noisy_images

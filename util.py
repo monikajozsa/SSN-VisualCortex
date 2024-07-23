@@ -195,26 +195,45 @@ def save_code(final_folder_path=None, train_only_flag=False, note=None):
     figure_folder = os.path.join(final_folder_path, 'figures')
     if not os.path.exists(figure_folder):
         os.makedirs(figure_folder)
-
-    # Create train_only folder if train_only_flag is True
-    train_only_folder = os.path.join(final_folder_path, 'train_only')
-    if train_only_flag:
-        if not os.path.exists(train_only_folder):
-            os.makedirs(train_only_folder)    
     
     # Get the path to the script's directory
     script_from_folder = os.path.dirname(os.path.realpath(__file__))
 
-    # Copy files into the folder
+    # List of root files to be copied
     file_names_root = ['parameters.py', 'util.py']
-    file_names_training = ['training_functions.py', 'SSN_classes.py', 'util_gabor.py', 'main_training.py', 'model.py', 'perturb_params.py']
+
+    # Copy root files
     for file_name in file_names_root:
         source_path = os.path.join(script_from_folder, file_name)
         destination_path = os.path.join(script_folder, file_name)
         shutil.copyfile(source_path, destination_path)
+
+    # Create the 'training' folder in the destination folder
+    training_folder_dest = os.path.join(script_folder, 'training')
+    os.makedirs(training_folder_dest, exist_ok=True)
+
+    # Get the list of all .py files in the source 'training' folder
+    training_folder_source = os.path.join(script_from_folder, 'training')
+    file_names_training = [f for f in os.listdir(training_folder_source) if f.endswith('.py')]
+
+    # Copy training files
     for file_name in file_names_training:
-        source_path = os.path.join(script_from_folder, 'training', file_name)
-        destination_path = os.path.join(script_folder, file_name)
+        source_path = os.path.join(training_folder_source, file_name)
+        destination_path = os.path.join(training_folder_dest, file_name)
+        shutil.copyfile(source_path, destination_path)
+
+    # Create the 'analysis' folder in the destination folder
+    analysis_folder_dest = os.path.join(script_folder, 'analysis')
+    os.makedirs(analysis_folder_dest, exist_ok=True)
+
+    # Get the list of all .py files in the source 'analysis' folder
+    analysis_folder_source = os.path.join(script_from_folder, 'analysis')
+    file_names_analysis = [f for f in os.listdir(analysis_folder_source) if f.endswith('.py')]
+
+    # Copy analysis files
+    for file_name in file_names_analysis:
+        source_path = os.path.join(analysis_folder_source, file_name)
+        destination_path = os.path.join(analysis_folder_dest, file_name)
         shutil.copyfile(source_path, destination_path)
 
     print(f"Script files copied successfully to: {script_folder}")
@@ -253,7 +272,7 @@ def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['lo
         pars_stage2['log_f_E'] = selected_row['log_f_E']
         pars_stage2['log_f_I'] = selected_row['log_f_I']
 
-    offsets  = df['offset'].dropna().reset_index(drop=True)
+    offsets  = df['stoichiometric_offsets'].dropna().reset_index(drop=True)
     offset_last = offsets[len(offsets)-1]
 
     if 'meanr_E_mid' in df.columns:
