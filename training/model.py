@@ -130,10 +130,10 @@ def middle_layer_fixed_point(
     fp_E=ssn.select_type(fp, map_numbers_E)
     fp_I=ssn.select_type(fp, map_numbers = map_numbers_I)
  
-    #Define output as sum of E neurons
+    # Define output as sum of E neurons
     layer_output = np.sum(fp_E, axis=0)
     
-    #Find maximum and mean rates
+    # Find maximum and mean rates
     maxr_E =  np.max(fp_E)
     maxr_I = np.max(fp_I)
     meanr_E =  np.mean(fp_E)
@@ -157,7 +157,7 @@ def superficial_layer_fixed_point(
     # Define output as sum of E neurons
     layer_output = fp[: ssn.Ne]
     
-    #Find maximum and mean rates
+    # Find maximum and mean rates
     maxr_E =  np.max(fp[: ssn.Ne])
     maxr_I = np.max(fp[ssn.Ne:-1])
     meanr_E = np.mean(fp[: ssn.Ne])

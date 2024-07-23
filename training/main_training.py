@@ -34,16 +34,14 @@ if not pretrain_pars.is_on:
 # Save out initial offset and reference orientation
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
-train_only_flag = False # Setting train_only_flag to True will run an additional training without pretraining
-num_training = 1
+num_training = 3
 starting_time_in_main= time.time()
 initial_parameters = None
 
-# Save scripts into scripts folder and create figures and train_only folders
-note=f'g parameters 5x bigger than in July 23 v2 run'
-results_filename, final_folder_path = save_code(train_only_flag=train_only_flag, note=note)
-if train_only_flag:
-    results_filename_train_only = os.path.join(final_folder_path, 'train_only', "results_train_only.csv")
+# Save scripts into scripts folder
+note=f'3 test runs'
+results_filename, final_folder_path = save_code(note=note)
+
 
 # Run num_training number of pretraining + training
 num_FailedRuns = 0
@@ -110,26 +108,6 @@ while i < num_training and num_FailedRuns < 20:
             offset_step=0.1,
             run_index = i
         )
-    '''
-    ########## TRAINING ONLY with the same initialization and orimap ##########
-    if train_only_flag:
-        # Load the first parameters that pretraining started with
-        trained_pars_stage1, trained_pars_stage2, _ = load_parameters(df_i, iloc_ind = 0)
-        # Set the offset to the original offset that pretraining started with
-        untrained_pars.stimuli_pars.offset = offset_saved
-        # Set the reference orientation to the original one that pretraining started with
-        untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
-        
-        # Run training
-        training_output_df, _ = train_ori_discr(
-                trained_pars_stage1,
-                trained_pars_stage2,
-                untrained_pars,
-                results_filename=results_filename_train_only,
-                jit_on=True,
-                run_index = i
-            )
-    '''
     # Save initial_parameters to csv
     initial_parameters.to_csv(os.path.join(final_folder_path, 'initial_parameters.csv'), index=False)
     

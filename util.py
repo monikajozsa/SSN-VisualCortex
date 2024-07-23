@@ -155,7 +155,7 @@ def leaky_relu(x, R_thresh, slope, height=0.15):
     return y
 
 
-def save_code(final_folder_path=None, train_only_flag=False, note=None):
+def save_code(final_folder_path=None, note=None):
     '''
     This code is used to save code files to make results replicable.
     1) It copies specific code files into a folder called 'script'
@@ -272,7 +272,7 @@ def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['lo
         pars_stage2['log_f_E'] = selected_row['log_f_E']
         pars_stage2['log_f_I'] = selected_row['log_f_I']
 
-    offsets  = df['stoichiometric_offsets'].dropna().reset_index(drop=True)
+    offsets  = df['stoichiometric_offset'].dropna().reset_index(drop=True)
     offset_last = offsets[len(offsets)-1]
 
     if 'meanr_E_mid' in df.columns:

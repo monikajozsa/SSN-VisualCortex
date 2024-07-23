@@ -437,18 +437,19 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
     ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist)
     
-    #Run reference and targetthrough two layer model
-    [r_ref, _], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-    [r_target,_],_, [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-
+    #Run reference and target through the model
+    [r_sup_ref, r_mid_ref], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    [r_sup_target,r_mid_target],_, [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    
+    # Select the middle grid and sum the contribution from the middle and the superficial layer
     if pretraining:
-        # Readout is from all neurons in sup layer
-        r_ref_box = r_ref
-        r_target_box = r_target
+        middle_grid_ind = np.arange(untrained_pars.grid_pars.gridsize_Nx ** 2)
     else:
-        # Select the middle grid
-        r_ref_box = r_ref[untrained_pars.middle_grid_ind]
-        r_target_box = r_target[untrained_pars.middle_grid_ind]       
+        middle_grid_ind = untrained_pars.middle_grid_ind
+    
+    sup_mid_contrib = untrained_pars.sup_mid_readout_contrib
+    r_ref_box = sup_mid_contrib[0] * r_sup_ref[middle_grid_ind] + sup_mid_contrib[1] * r_mid_ref[middle_grid_ind]
+    r_target_box = sup_mid_contrib[0] * r_sup_target[middle_grid_ind] + sup_mid_contrib[1] * r_mid_target[middle_grid_ind]
     
     # Add noise
     r_ref_box = r_ref_box + noise_ref*np.sqrt(jax.nn.softplus(r_ref_box))
@@ -545,7 +546,7 @@ def generate_noise(batch_size, length, num_readout_noise=125, dt_readout = 0.2):
 
 
 ####### Functions for testing training task accuracy for different offsets and finding the offset value where it crosses baseline accuracy 
-def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset, batch_size=300, pretrain_task= False, loss_functioon_mid_only=None):
+def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset, batch_size=300, pretrain_task= False):
     '''
     This function tests the accuracy of the training orientation discrimination task given a set of parameters across different stimulus offsets.
     
@@ -587,24 +588,21 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
         train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size, untrained_pars.BW_image_jax_inp)
     
     # Calculate loss and accuracy
-    if loss_functioon_mid_only is not None:
-        loss, [_, acc, _, _, _, _] = loss_functioon_mid_only(trained_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
+    if pretrain_task:
+        loss, [_, acc, _, _, _, _] = batch_loss_ori_discr(trained_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
     else:
-        if pretrain_task:
-            loss, [_, acc, _, _, _, _] = batch_loss_ori_discr(trained_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
-        else:
-            untrained_pars.pretrain_pars.is_on=False # this is to get the accuracy metric that corresponds to the training task
-            loss, [_, acc, _, _, _, _] = batch_loss_ori_discr(trained_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
-            # Restore the original values of pretrain_is_on and offset
-            untrained_pars.pretrain_pars.is_on = pretrain_is_on_saved
-            untrained_pars.stimuli_pars.offset = offset_saved
+        untrained_pars.pretrain_pars.is_on=False # this is to get the accuracy metric that corresponds to the training task
+        loss, [_, acc, _, _, _, _] = batch_loss_ori_discr(trained_pars_dict, readout_pars_dict_copy, untrained_pars, train_data, noise_ref, noise_target, jit_on)
+        # Restore the original values of pretrain_is_on and offset
+        untrained_pars.pretrain_pars.is_on = pretrain_is_on_saved
+        untrained_pars.stimuli_pars.offset = offset_saved
         
     # Restore the original values of jitter and std    
     untrained_pars.stimuli_pars.std = std_saved
     
     return acc, loss
 
-def mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec, sample_size = 1, loss_functioon_mid_only=None):
+def mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec, sample_size = 1):
     """
     This function runs training_task_acc_test sample_size times to get accuracies and losses for the training task for a given parameter set. It averages the accuracies accross independent samples of accuracies.
     """
@@ -616,7 +614,7 @@ def mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_
     # For the all the offsets, calculate fine discrimination accuracy sample_size times
     for i in range(N):
         for j in range(sample_size):
-            temp_acc, temp_loss = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec[i], batch_size=100, pretrain_task= False, loss_functioon_mid_only=loss_functioon_mid_only)
+            temp_acc, temp_loss = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec[i], batch_size=100, pretrain_task= False)
             accuracy[i,j] = temp_acc
             loss[i,j] = temp_loss
         

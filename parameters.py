@@ -115,7 +115,7 @@ def xy_distance(gridsize_Nx,gridsize_mm):
 @dataclass
 class GridPars:
     gridsize_Nx: int = 9
-    ''' size of the grid is gridsize_Nx x gridsize_Nx '''
+    ''' size of the 2D grid is gridsize_Nx x gridsize_Nx '''
     gridsize_deg: float = 2 * 1.6
     ''' edge length in degrees of visual angle '''
     c: float = 2.0
@@ -184,6 +184,7 @@ stimuli_pars = StimuliPars()
 # Sigmoid parameters
 @dataclass
 class ReadoutPars:
+    sup_mid_readout_contrib = [1.0, 0.0]
     readout_grid_size = np.array([grid_pars.gridsize_Nx, 5])
     ''' size of the center grid where readout units come from (first number is for the pretraining, second is for the training) '''
     # Define middle grid indices

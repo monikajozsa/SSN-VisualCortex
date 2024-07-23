@@ -28,6 +28,7 @@ class UntrainedPars:
         self.gabor_filters = gabor_filters
         self.readout_grid_size = readout_pars.readout_grid_size
         self.middle_grid_ind = readout_pars.middle_grid_ind
+        self.sup_mid_readout_contrib = readout_pars.sup_mid_readout_contrib
         self.num_readout_noise = readout_pars.num_readout_noise
         self.pretrain_pars = pretrain_pars
         self.BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)

@@ -252,7 +252,7 @@ def plot_tc_features(results_dir, num_training, ori_list):
                 data[f'preforis_{training_stage}'] = numpy.concatenate((data[f'preforis_{training_stage}'], orientations), axis=0)
 
 
-    ############## Plots about changes before vs after training and pretraining and training only (per layer and per centered or all) ##############
+    ############## Plots about changes before vs after training and pretraining (per layer and per centered or all) ##############
              
     # Define indices for each group of cells
     E_sup = 648+numpy.linspace(0, 80, 81).astype(int) 
