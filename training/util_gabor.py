@@ -304,7 +304,8 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, jitter)
     # Blend the Gabor stimulus with the alpha channel in ROI
     final_image = np.floor(alpha_channel / 256 * gabor_sti + (1.0 - alpha_channel / 256) * _GRAY)
 
-    return final_image.ravel()
+    return 3*final_image.ravel() # *** multiplied by 3 to match the SNR in Apr 10 run!
+
 # Vectorize BW_image function to process batches
 BW_image_vmap = vmap(BW_image_jax, in_axes=(None,None,None,None,None,0,0))
 

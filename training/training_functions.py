@@ -121,7 +121,7 @@ def train_ori_discr(
     )
 
     if results_filename:
-        print("Saving results to ", results_filename)
+        print("Will be saving results to ", results_filename)
     else:
         print("#### NOT SAVING! ####")
 
@@ -240,7 +240,7 @@ def train_ori_discr(
                     else:
                         avg_acc = np.mean(np.asarray(train_accs[-min(SGD_step,10):]))
                     if avg_acc > first_stage_acc_th:
-                        print("Early stop: accuracy {} reached target {} for stage 1 training".format(
+                        print("Early stop of stage 1: accuracy {} reached target {}".format(
                                 avg_acc, first_stage_acc_th)
                         )
                         # Store final step index and exit first training loop
@@ -434,8 +434,8 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     conv_pars = untrained_pars.conv_pars
 
     # Create middle and superficial SSN layers
-    ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
-    ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist)
+    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, p_local_s, sigma_oris, s_2x2, untrained_pars.ori_dist)
     
     #Run reference and target through the model
     [r_sup_ref, r_mid_ref], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)

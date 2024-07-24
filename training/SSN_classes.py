@@ -114,7 +114,7 @@ class _SSN_Base(object):
 class SSN_sup(_SSN_Base):
     _Lring = 180
 
-    def __init__(self, ssn_pars, grid_pars, J_2x2, p_local, oris, sigma_oris =None, s_2x2 = None, ori_dist=None,  **kwargs):
+    def __init__(self, ssn_pars, grid_pars, J_2x2, p_local, sigma_oris =None, s_2x2 = None, ori_dist=None,  **kwargs):
         Ni = Ne = grid_pars.gridsize_Nx**2
         n=ssn_pars.n
         self.k=ssn_pars.k
@@ -134,7 +134,6 @@ class SSN_sup(_SSN_Base):
         self.sigma_oris = sigma_oris
    
         xy_dist = grid_pars.xy_dist
-        cosdiff_ring = lambda d_x, L: np.sqrt(2 * (1 - np.cos(d_x * 2 * np.pi/L))) * L / 2/ np.pi
         self.W = self.make_W(J_2x2, xy_dist, ori_dist)
 
     @property

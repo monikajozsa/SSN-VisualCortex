@@ -11,21 +11,10 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from util import take_log, create_grating_training, sep_exponentiate, create_grating_pretraining
-from util_gabor import init_untrained_pars
 from SSN_classes import SSN_mid, SSN_sup
-from model import evaluate_model_response, vmap_evaluate_model_response
-from training_functions import mean_training_task_acc_test, task_acc_test
+from model import vmap_evaluate_model_response
+from training_functions import task_acc_test
 
-def perturb_params_supp_old(param_dict, percent = 0.1):
-    '''Perturb all values in a dictionary by a percentage of their values. The perturbation is done by adding a uniformly sampled random value to the original value.'''
-    param_randomized = copy.deepcopy(param_dict)
-    for key, param_array in param_dict.items():
-        if type(param_array) == float:
-            random_mtx = random.uniform(low=-1, high=1)
-        else:
-            random_mtx = random.uniform(low=-1, high=1, size=param_array.shape)
-        param_randomized[key] = param_array + percent * param_array * random_mtx
-    return param_randomized
 
 def randomize_params_supp(param_dict, randomize_pars):
     '''Randomize all values in a dictionary by a percentage of their values. The randomization is done by uniformly sampling random values from predefined ranges.'''
@@ -73,8 +62,8 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
         i = i+1
     
     # Calculate model response to check the convergence of the differential equations
-    ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=randomized_pars['J_2x2_m'])
-    ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=randomized_pars['J_2x2_s'], p_local=untrained_pars.ssn_pars.p_local_s, oris=untrained_pars.oris, s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist)
+    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, randomized_pars['J_2x2_m'])
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, randomized_pars['J_2x2_s'], untrained_pars.ssn_pars.p_local_s, untrained_pars.ssn_pars.s_2x2_s, untrained_pars.ssn_pars.sigma_oris, untrained_pars.ori_dist)
     train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp) 
     pretrain_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
     if 'c_E' in randomized_pars:
@@ -117,7 +106,7 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
 
         # Optimize readout parameters by using log-linear regression
         if logistic_regr:
-            optimized_readout_pars = readout_pars_from_regr(readout_pars, randomized_pars_log, untrained_pars)
+            optimized_readout_pars = readout_pars_from_regr(randomized_pars_log, untrained_pars)
         else:
             optimized_readout_pars = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
         optimized_readout_pars['w_sig'] = (optimized_readout_pars['w_sig'] / np.std(optimized_readout_pars['w_sig']) ) * 0.25 / int(np.sqrt(len(optimized_readout_pars['w_sig']))) # get the same std as before - see param
@@ -128,15 +117,12 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
     return optimized_readout_pars, randomized_pars_log, untrained_pars
 
 
-def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=1000):
+def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000):
     '''
     This function sets readout_pars based on N sample data using linear regression. This method is to initialize w_sig, b_sig optimally (given limited data) for a set of randomized trained_pars_dict parameters (to be trained).
     '''
     # Generate stimuli and label data for setting w_sig and b_sig based on linear regression (pretraining)
     data = create_grating_pretraining(untrained_pars.pretrain_pars, N, untrained_pars.BW_image_jax_inp, numRnd_ori1=N)
-    # Adding 10% of training data to avoind weird phenomena like returning the opposite direction for the fine discrimination task
-    #data_training = create_grating_training(untrained_pars.stimuli_pars, int(N/10), untrained_pars.BW_image_jax_inp)
-    #data = {'ref': np.concatenate((data_pretraining['ref'], data_training['ref'])), 'target': np.concatenate((data_pretraining['target'], data_training['target'])), 'label': np.concatenate((data_pretraining['label'], data_training['label']))}
     
     #### Get model response for stimuli data['ref'] and data['target'] ####
     # 1. extract trained and untrained parameters
@@ -160,12 +146,11 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     p_local_s = untrained_pars.ssn_pars.p_local_s
     s_2x2 = untrained_pars.ssn_pars.s_2x2_s
     sigma_oris = untrained_pars.ssn_pars.sigma_oris
-    ref_ori = untrained_pars.stimuli_pars.ref_ori
     conv_pars = untrained_pars.conv_pars
 
     # 2. define middle layer and superficial layer SSN
-    ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
-    ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_s, p_local=p_local_s, oris=untrained_pars.oris, s_2x2=s_2x2, sigma_oris = sigma_oris, ori_dist = untrained_pars.ori_dist)
+    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, p_local_s, sigma_oris, s_2x2, untrained_pars.ori_dist)
     
     # Run reference and target through two layer model
     [r_ref, _], _,_, _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
@@ -201,28 +186,33 @@ def readout_pars_from_regr(readout_pars, trained_pars_dict, untrained_pars, N=10
     return readout_pars_opt
 
 
-def create_initial_parameters_df(initial_parameters, randomized_parameters, randomized_eta, randomized_gE, randomized_gI):
+def create_initial_parameters_df(initial_parameters, readout_parameters, trained_parameters, randomized_eta, randomized_gE, randomized_gI):
     '''
     This function creates or appens a dataframe with the initial parameters for the model. The dataframe includes the randomized traine dparameters, and the randomized learning rate eta.
     '''
     # Take log of the J and f parameters (if f_I, f_E are in the randomized parameters)
-    J_2x2_m = sep_exponentiate(randomized_parameters['log_J_2x2_m'])
-    J_2x2_s = sep_exponentiate(randomized_parameters['log_J_2x2_s'])
+    J_2x2_m = sep_exponentiate(trained_parameters['log_J_2x2_m'])
+    J_2x2_s = sep_exponentiate(trained_parameters['log_J_2x2_s'])
+    
     # Create a dictionary with the new randomized parameters
-    new_vals_dict = dict(J_m_EE=J_2x2_m[0,0], J_m_EI=J_2x2_m[1,0], J_m_IE=J_2x2_m[0,1], J_m_II=J_2x2_m[1,1],
+    init_vals_dict = dict(J_m_EE=J_2x2_m[0,0], J_m_EI=J_2x2_m[1,0], J_m_IE=J_2x2_m[0,1], J_m_II=J_2x2_m[1,1],
                         J_s_EE=J_2x2_s[0,0], J_s_EI=J_2x2_s[1,0], J_s_IE=J_2x2_s[0,1], J_s_II=J_2x2_s[1,1],
                         eta=randomized_eta, gE = randomized_gE, gI= randomized_gI)
-    if 'log_f_E' in randomized_parameters:
-        new_vals_dict['f_E'] = np.exp(randomized_parameters['log_f_E'])
-        new_vals_dict['f_I'] = np.exp(randomized_parameters['log_f_I'])
-    if 'c_E' in randomized_parameters:
-        new_vals_dict['c_E'] = randomized_parameters['c_E']
-        new_vals_dict['c_I'] = randomized_parameters['c_I']
+    if 'log_f_E' in trained_parameters:
+        init_vals_dict['f_E'] = np.exp(trained_parameters['log_f_E'])
+        init_vals_dict['f_I'] = np.exp(trained_parameters['log_f_I'])
+    if 'c_E' in trained_parameters:
+        init_vals_dict['c_E'] = trained_parameters['c_E']
+        init_vals_dict['c_I'] = trained_parameters['c_I']
+
+    init_vals_dict['b']= readout_parameters['b_sig']
+    for i in range(len(readout_parameters['w_sig'])):
+        init_vals_dict[f'w{i}']= readout_parameters['w_sig'][i]
 
     # Create a dataframe with the initial parameters
     if initial_parameters is None:
-        initial_parameters_df = pd.DataFrame(new_vals_dict, index=[0])
+        initial_parameters_df = pd.DataFrame(init_vals_dict, index=[0])
     else:
-        initial_parameters_df = pd.concat([initial_parameters, pd.DataFrame(new_vals_dict, index=[0])])  
+        initial_parameters_df = pd.concat([initial_parameters, pd.DataFrame(init_vals_dict, index=[0])])  
     
     return initial_parameters_df

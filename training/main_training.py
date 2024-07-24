@@ -64,7 +64,7 @@ while i < num_training and num_FailedRuns < 20:
     # Randomize readout_pars and trained_pars and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
     trained_pars_stage1, trained_pars_stage2, untrained_pars = randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars=randomize_pars)   
-    initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage2, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m)
+    initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage1, trained_pars_stage2, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m)
     
     # Run pre-training
     training_output_df, pretraining_final_step = train_ori_discr(
