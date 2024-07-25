@@ -30,6 +30,39 @@ from parameters import (
 
 ############## Analysis functions ##########
 
+def exclude_runs(folder_path, input_vector):
+    # Read the original CSV file
+    folder_path_from_analysis = os.path.join(os.path.dirname(os.path.dirname(__file__)),folder_path)
+    file_path = os.path.join(folder_path_from_analysis,'results.csv')
+    df_results = pd.read_csv(file_path)
+    file_path = os.path.join(folder_path_from_analysis,'orimap.csv')
+    df_orimap = pd.read_csv(file_path)
+    file_path = os.path.join(folder_path_from_analysis,'initial_parameters.csv')
+    df_init_params = pd.read_csv(file_path)
+    
+    # Save the original dataframe as results_complete.csv
+    df_results.to_csv(os.path.join(folder_path_from_analysis,'results_complete.csv'), index=False)
+    df_orimap.to_csv(os.path.join(folder_path_from_analysis,'orimap_complete.csv'), index=False)
+    df_init_params.to_csv(os.path.join(folder_path_from_analysis,'initial_parameters_complete.csv'), index=False)
+    
+    # Exclude rows where 'runs' column is in the input_vector
+    df_results_filtered = df_results[~df_results['run_index'].isin(input_vector)]
+    df_orimap_filtered = df_orimap[~df_orimap['run_index'].isin(input_vector)]
+    df_init_params_filtered = df_init_params.drop(index=input_vector)
+
+    # Adjust the 'run_index' column
+    df_orimap_filtered['run_index'] = range(len(df_orimap_filtered))
+    for i in range(df_results_filtered['run_index'].max() + 1):
+        if i not in input_vector:
+            shift_val = sum(x < i for x in input_vector)
+            df_results_filtered.loc[df_results_filtered['run_index'] == i, 'run_index'] = i - shift_val            
+    
+    # Save the filtered dataframe as results.csv
+    df_results_filtered.to_csv(os.path.join(folder_path_from_analysis,'results.csv'), index=False)
+    df_orimap_filtered.to_csv(os.path.join(folder_path_from_analysis,'orimap.csv'), index=False)
+    df_init_params_filtered.to_csv(os.path.join(folder_path_from_analysis,'initial_parameters.csv'), index=False)
+
+
 def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=True, mesh_for_valid_offset=True):
     '''read CSV files and calculate the correlation between the changes of accuracy and J (J_II and J_EI are summed up and J_EE and J_IE are summed up) for each file'''
 

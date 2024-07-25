@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 numpy.random.seed(0)
 
 from training.util_gabor import init_untrained_pars
-from analysis_functions import tuning_curve, SGD_step_indices, tuning_curve
+from analysis.analysis_functions import tuning_curve, SGD_step_indices, tuning_curve, MVPA_param_offset_correlations
 from util import load_parameters, filter_for_run
 from parameters import (
     grid_pars,
@@ -20,16 +20,15 @@ from parameters import (
     loss_pars,
     pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on itP
 )
+from analysis.visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
+from MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
 
 # Checking that pretrain_pars.is_on is on
 if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
-import jax.numpy as np
-from analysis_functions import gabor_tuning
-import matplotlib.pyplot as plt
-num_training = 1
-final_folder_path = os.path.join('results','Jul23_v3')
+num_training = 50
+final_folder_path = os.path.join('results','Jul24_v5')
 start_time_in_main= time.time()
 
 results_filename = os.path.join(final_folder_path, f"results.csv")
@@ -39,10 +38,6 @@ df = pd.read_csv(results_filename)
 
 
 ######### PLOT RESULTS ON PARAMETERS ############
-
-from visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
-from MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
-from analysis_functions import MVPA_param_offset_correlations
 
 start_time=time.time()
 tc_cells=[10,40,100,130,650,690,740,760]
@@ -54,15 +49,23 @@ mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
 sigma_filter = 2
 
-plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+excluded_run_inds = []
+#########################################################################################
+###### If based on the plots from plots_results_from_csvs, some runs are excluded, ######
+#### run the following two lines adjusted to the run numbers that should be excluded ####
+#########################################################################################
+#excluded_run_inds = [0,8,14,16,17,24,28,34,35,36,37,40,42,43,44,45,47,48]
+#exclude_runs(final_folder_path, excluded_run_inds)
 
+num_training=num_training-len(excluded_run_inds)
 boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
 
 ########## CALCULATE TUNING CURVES ############
 time_start = time.time()
 
 tc_ori_list = numpy.arange(0,180,6)
-'''
+
 # Define the filename for the tuning curves 
 tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
 # Define the header for the tuning curves
@@ -149,4 +152,3 @@ data_mid_125 = pd.DataFrame({
     'offset_th': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
-'''

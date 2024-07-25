@@ -556,10 +556,10 @@ def plot_results_from_csv(df,fig_filename=None):
         axes[2,2].set_ylabel('relative change %', fontsize=20)
         axes[2,3].set_ylabel('relative change %', fontsize=20)
         if pretrain_train_ind==0:
-            axes[2,2].set_title('Rel changes in J before and after pretraining', fontsize=20)
+            axes[2,2].set_title('Rel. changes in J before and after pretraining', fontsize=20)
             axes[2,3].set_title('Other rel changes before and after pretraining', fontsize=20)
         else:
-            axes[2,2].set_title('Rel changes in J before and after training', fontsize=20)
+            axes[2,2].set_title('Rel. changes in J before and after training', fontsize=20)
             axes[2,3].set_title('Other rel changes before and after training', fontsize=20)
     
     ################
@@ -775,7 +775,7 @@ def plot_correlations(folder, num_training, num_time_inds=3):
 
     # plot MVPA_pars_corr for each ori_ind on the same plot but different subplots with scatter and different colors for each parameter
     x= numpy.arange(1,13)
-    x_labels = ['offset','J_m_E', 'J_m_I', 'J_s_E', 'J_s_I', 'm_f_E', 'm_f_I', 'm_c_E', 'm_c_I', 's_f_E', 's_f_I', 's_c_E', 's_c_I']
+    x_labels = ['offset threshold','J_m_E', 'J_m_I', 'J_s_E', 'J_s_I', 'm_f_E', 'm_f_I', 'm_c_E', 'm_c_I', 's_f_E', 's_f_I', 's_c_E', 's_c_I']
     plt.scatter(x, MVPA_corrs[0]['corr'])
     plt.scatter(x, MVPA_corrs[1]['corr'])
     plt.scatter(x, MVPA_corrs[2]['corr'])
@@ -791,7 +791,7 @@ def plot_corr_triangle(data,folder_to_save='',filename='corr_triangle.png'):
     '''Plot a triangle with correlation plots in the middle of the edges of the triangle. Data is supposed to be a dictionary with keys corresponding to MVPA results and relative parameter changes and offset changes.'''
     # Get keys and values
     keys = data.keys()
-    labels = ['rel change in ' + keys[0], 'rel change in '+keys[1], 'rel change in ' + keys[2]]
+    labels = ['rel. change in ' + keys[0], 'rel. change in '+keys[1], 'rel. change in ' + keys[2]]
 
     # Create a figure
     fig, ax = plt.subplots(figsize=(8, 8))

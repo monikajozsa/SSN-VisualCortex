@@ -1,3 +1,4 @@
+# THIS CODE IS A MODIFIED VERSION OF MAIN.TRAINING TO OVERWRITE PARAMETER SETTINGS AND THE PERTURBATION FUNCTION FROM MORE RECENT SETTINGS TO THOSE SUBMITTED TO CCN CONFERENCE. THIS IS TO SUPPORT CCN CONFERENCE PRESENTATION WITH ABLATION STUDY
 # This code runs pretraining for a general and training for a fine orientation discrimination task with a two-layer neural network model, where each layer is an SSN.
 
 import numpy
@@ -29,7 +30,8 @@ from parameters import (
 if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
-######### Overwrite parameters
+######### Overwrite parameters #########
+ssn_pars.p_local_s = [1.0, 1.0] # no horizontal connections in the superficial layer
 trained_pars.J_2x2_s = (np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774) 
 trained_pars.J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774 
 pretrain_pars.ori_dist_int = [10, 20]
@@ -41,7 +43,7 @@ training_pars.first_stage_acc_th = 0.55
 loss_pars.lambda_r_mean = 0
 stimuli_pars.std = 200.0
 
-######### Define perturbation functions
+######### Define the old perturbation functions #########
 import copy
 import jax.numpy as np
 from sklearn.model_selection import train_test_split
@@ -64,9 +66,17 @@ def perturb_params_supp(param_dict, percent = 0.1):
         param_randomized[key] = param_array + percent * param_array * random_mtx
     return param_randomized
 
-def perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, logistic_regr=True):
+def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, logistic_regr=True):
     #define the parameters that get perturbed
-    pars_stage2_nolog = dict(J_m_temp=ssn_layer_pars.J_2x2_m, J_s_temp=ssn_layer_pars.J_2x2_s, c_E_temp=ssn_layer_pars.c_E, c_I_temp=ssn_layer_pars.c_I, f_E_temp=ssn_layer_pars.f_E, f_I_temp=ssn_layer_pars.f_I)
+    pars_stage2_nolog = dict(J_m_temp=trained_pars.J_2x2_m, J_s_temp=trained_pars.J_2x2_s)
+    if hasattr(untrained_pars.ssn_pars, 'c_E'):
+        pars_stage2_nolog.update(dict(c_E_temp=untrained_pars.ssn_pars.c_E, c_I_temp=untrained_pars.ssn_pars.c_I))
+    else:
+        pars_stage2_nolog.update(dict(c_E_temp=trained_pars.c_E, c_I_temp=trained_pars.c_I))
+    if hasattr(untrained_pars.ssn_pars, 'f_E'):
+        pars_stage2_nolog.update(dict(f_E_temp=untrained_pars.ssn_pars.f_E, f_I_temp=untrained_pars.ssn_pars.f_I))
+    else:
+        pars_stage2_nolog.update(dict(f_E_temp=trained_pars.f_E, f_I_temp=trained_pars.f_I))
     
     # Perturb parameters under conditions for J_mid and convergence of the differential equations of the model
     i=0
@@ -78,6 +88,12 @@ def perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, lo
 
     while not (cond1 and cond2 and cond3 and cond4 and cond5):
         params_perturbed = perturb_params_supp(pars_stage2_nolog, percent)
+        if hasattr(untrained_pars.ssn_pars, 'c_E'):
+            params_perturbed['c_E_temp'] = untrained_pars.ssn_pars.c_E
+            params_perturbed['c_I_temp'] = untrained_pars.ssn_pars.c_I
+        if hasattr(untrained_pars.ssn_pars, 'f_E'):
+            params_perturbed['f_E_temp'] = untrained_pars.ssn_pars.f_E
+            params_perturbed['f_I_temp'] = untrained_pars.ssn_pars.f_I
         cond1 = numpy.abs(params_perturbed['J_m_temp'][0,0]*params_perturbed['J_m_temp'][1,1])*1.1 < numpy.abs(params_perturbed['J_m_temp'][1,0]*params_perturbed['J_m_temp'][0,1])
         cond2 = numpy.abs(params_perturbed['J_m_temp'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < numpy.abs(params_perturbed['J_m_temp'][1,1]*untrained_pars.filter_pars.gE_m)
         # checking the convergence of the differential equations of the model
@@ -97,11 +113,12 @@ def perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, lo
     pars_stage2 = dict(
         log_J_2x2_m= take_log(params_perturbed['J_m_temp']),
         log_J_2x2_s= take_log(params_perturbed['J_s_temp']),
-        c_E=params_perturbed['c_E_temp'],
-        c_I=params_perturbed['c_I_temp'],
-        log_f_E=np.log(params_perturbed['f_E_temp']),
-        log_f_I=np.log(params_perturbed['f_I_temp']),
     )
+    # Add the additional parameters that are trained to the dictionary
+    if not hasattr(untrained_pars.ssn_pars, 'c_E'):
+        pars_stage2.update(dict(c_E=params_perturbed['c_E_temp'], c_I=params_perturbed['c_I_temp']))
+    if not hasattr(untrained_pars.ssn_pars, 'f_E'):
+        pars_stage2.update(dict(log_f_E=np.log(params_perturbed['f_E_temp']), log_f_I=np.log(params_perturbed['f_I_temp'])))
     if logistic_regr:
         pars_stage1 = readout_pars_from_regr(pars_stage2, untrained_pars)
     else:
@@ -116,12 +133,12 @@ def perturb_params(readout_pars, ssn_layer_pars, untrained_pars, percent=0.1, lo
 # Save out initial offset and reference orientation
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
-num_training = 10
+num_training = 20
 starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder
-note=f'10 test runs for the Apr 10 settings'
+note=f'20 test runs for the case when cI and cE are not trained - with the Apr 10 settings otherwise'
 results_filename, final_folder_path = save_code(note=note)
 
 
