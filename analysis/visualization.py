@@ -1,15 +1,16 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
-import os
 import jax.numpy as np
 import numpy
-import sys
 import seaborn as sns
 import statsmodels.api as sm
 import scipy
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from analysis_functions import rel_changes, tc_features, MVPA_param_offset_correlations
+from analysis.analysis_functions import rel_changes, tc_features, MVPA_param_offset_correlations
 from util import filter_for_run
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels

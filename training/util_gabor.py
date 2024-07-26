@@ -164,7 +164,7 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 
 
 def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, run_ind = 0, orimap_loaded=None, regen_extended_orimap=False, folder_to_save=None, randomize_pars=None):
+                 loss_pars, training_pars, pretrain_pars, readout_pars, run_ind = 0, orimap_loaded=None, regen_extended_orimap=False, folder_to_save=None, randomize_g=None):
     """
     Define untrained_pars with a randomly generated or given orientation map.
     """
@@ -190,10 +190,14 @@ def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pa
             if map_gen_ind>50:
                 print('############## After 50 attempts the randomly generated maps did not pass the uniformity test ##############')
                 break
-    # randomize gE and gI if randomize_pars is nont None
-    if randomize_pars is not None:
-        filter_pars.gI_m = random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
-        filter_pars.gE_m = random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
+    # randomize or initialize gE and gI to their randomized value if randomize_g is not None
+    if randomize_g is not None:
+        if isinstance(randomize_g, dict):
+            filter_pars.gI_m = randomize_g['g_I']
+            filter_pars.gE_m = randomize_g['g_E']
+        else:
+            filter_pars.gI_m = random.uniform(low=randomize_g.g_range[0], high=randomize_g.g_range[1])
+            filter_pars.gE_m = random.uniform(low=randomize_g.g_range[0], high=randomize_g.g_range[1])
 
     gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, flatten=True)
     

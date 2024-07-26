@@ -100,12 +100,9 @@ for layer in range(num_layers):
 plt.savefig(final_folder_path+'/MVPA_boxplot.png')
 plt.close()
 
+'''
 ################# ANOVA #################
 import pingouin as pg
-#import importlib.util
-#spec = importlib.util.spec_from_file_location("imp", "/path/to/module.py")
-#module = importlib.util.module_from_spec(spec)
-#spec.loader.exec_module(module)
 
 ## reorganize the data such that Factor1 (layer) and Factor2 (control, untrained, trained) are the first dim (6) in the data and samples are the second dim (100)
 MVPA_ANOVA_sup = numpy.zeros(((num_SGD_inds-1)*(num_ori-1)*num_runs))
@@ -148,19 +145,4 @@ p_val_mid = anova_mid['p-unc'][0]
 
 print(f'Significance of MVPA learning x orientation, sup layer (p-val) {p_val_sup}')
 print(f'Significance of MVPA learning x orientation, mid layer (p-val) {p_val_mid}')
-'''
-'''
-
-'''
-LMI_type=['accross','accross', 'within', 'within', 'ratio', 'ratio']
-SGD_ind_df = numpy.zeros(num_training*num_layers)
-for i in range(1, num_SGD_inds-1):
-    SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(num_training * num_layers)))
-df_stats = pd.DataFrame({
-    'layer': numpy.tile(numpy.arange(num_layers),3*(num_SGD_inds-1)),# 1,2,1,2,1,2,...
-    'LMI_type': LMI_type *(num_SGD_inds-1),
-    'SGD_ind': SGD_ind_df,
-    'LMI_ttests': LMI_ttests.ravel(),
-    'LMI_ttest_p': LMI_ttest_p.ravel()
-})
 '''

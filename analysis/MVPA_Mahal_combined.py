@@ -5,7 +5,8 @@ import pandas as pd
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import os
-#import pingouin as pg
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
@@ -13,7 +14,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
-from analysis_functions import filtered_model_response, mahal, LMI_Mahal_df
+from analysis.analysis_functions import filtered_model_response, mahal, LMI_Mahal_df
 
 
 ######### Calculate MVPA and Mahalanobis distance for before pretraining, after pretraining and after training #########

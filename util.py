@@ -244,7 +244,7 @@ def save_code(final_folder_path=None, note=None):
     return results_filename, final_folder_path
 
 
-def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['log_J_2x2_m', 'log_J_2x2_s', 'c_E', 'c_I', 'log_f_E', 'log_f_I']):
+def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['log_J_2x2_m', 'log_J_2x2_s', 'c_E', 'c_I', 'log_f_E', 'log_f_I'], untrained_pars=None):
 
     # Get the last row of the given csv file
     selected_row = df.iloc[int(iloc_ind)]
@@ -257,20 +257,35 @@ def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['lo
     # Extract stage 2 parameters from df
     log_J_m_keys = ['log_J_m_EE','log_J_m_EI','log_J_m_IE','log_J_m_II'] 
     log_J_s_keys = ['log_J_s_EE','log_J_s_EI','log_J_s_IE','log_J_s_II']
-    J_m_values = selected_row[log_J_m_keys].values.reshape(2, 2)
-    J_s_values = selected_row[log_J_s_keys].values.reshape(2, 2)
+    log_J_m_values = selected_row[log_J_m_keys].values.reshape(2, 2)
+    log_J_s_values = selected_row[log_J_s_keys].values.reshape(2, 2)
+    J_m_keys = ['J_m_EE','J_m_EI','J_m_IE','J_m_II'] 
+    J_s_keys = ['J_s_EE','J_s_EI','J_s_IE','J_s_II']
+    J_m_values = selected_row[J_m_keys].values.reshape(2, 2)
+    J_s_values = selected_row[J_s_keys].values.reshape(2, 2)
     
-    # Create a dictionary with the trained parameters
-    pars_stage2 = dict(
-        log_J_2x2_m = J_m_values,
-        log_J_2x2_s = J_s_values
-    )
+    # Create a dictionary with the trained parameters and update untrained parameters
+    pars_stage2 = {}
+    if 'log_J_2x2_m' in trained_pars_keys or 'J_2x2_m' in trained_pars_keys:
+        pars_stage2['log_J_2x2_m'] = log_J_m_values
+    else:
+        untrained_pars.ssn_pars.J_2x2_m = J_m_values
+    if 'log_J_2x2_s' in trained_pars_keys or 'J_2x2_s' in trained_pars_keys:
+        pars_stage2['log_J_2x2_s'] = log_J_s_values
+    else:
+        untrained_pars.ssn_pars.J_2x2_s = J_s_values
     if 'c_E' in trained_pars_keys:
         pars_stage2['c_E'] = selected_row['c_E']
         pars_stage2['c_I'] = selected_row['c_I']
-    if 'log_f_E' in trained_pars_keys:
+    else:
+        untrained_pars.ssn_pars.c_E = selected_row['c_E']
+        untrained_pars.ssn_pars.c_I = selected_row['c_I']
+    if 'log_f_E' in trained_pars_keys or 'f_E' in trained_pars_keys:
         pars_stage2['log_f_E'] = selected_row['log_f_E']
         pars_stage2['log_f_I'] = selected_row['log_f_I']
+    else:
+        untrained_pars.ssn_pars.f_E = selected_row['f_E']
+        untrained_pars.ssn_pars.f_I = selected_row['f_I']
 
     offsets  = df['stoichiometric_offset'].dropna().reset_index(drop=True)
     offset_last = offsets[len(offsets)-1]
@@ -279,8 +294,8 @@ def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['lo
         meanr_vec=[[df['meanr_E_mid'][len(df)-1], df['meanr_E_sup'][len(df)-1]], [df['meanr_I_mid'][len(df)-1], df['meanr_I_sup'][len(df)-1]]]
     else:
         meanr_vec = None
-        
-    return pars_stage1, pars_stage2, offset_last, meanr_vec
+           
+    return pars_stage1, pars_stage2, untrained_pars, offset_last, meanr_vec
 
 
 def filter_for_run(df,run_index):

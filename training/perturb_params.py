@@ -39,13 +39,17 @@ def randomize_params_supp(param_dict, randomize_pars):
     return param_randomized
 
 
-def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars, logistic_regr=True, trained_pars_dict=None, num_init=0, start_time=time.time()):
+def randomize_params(readout_pars, pretrained_pars, untrained_pars, randomize_pars, logistic_regr=True, num_init=0, start_time=time.time()):
     # define the parameters to randomize
-    if trained_pars_dict is None:
-        trained_pars_dict = dict(J_2x2_m=trained_pars.J_2x2_m, J_2x2_s=trained_pars.J_2x2_s)
-        for key, value in vars(trained_pars).items():
-            if key == 'c_E' or key == 'c_I' or key == 'f_E' or key == 'f_I':
-                trained_pars_dict[key] = value
+    parameter_name_list = ['J_2x2_m', 'J_2x2_s', 'c_E', 'c_I', 'f_E', 'f_I']
+
+    randomized_pars_dict = {}
+    # Loop through each attribute and assign values
+    for attr in parameter_name_list:
+        if hasattr(pretrained_pars, attr):
+            randomized_pars_dict[attr] = getattr(pretrained_pars, attr)
+        else:
+            randomized_pars_dict[attr] = getattr(untrained_pars.ssn_pars, attr)
         
     # Initialize parameters such that conditions are satisfied for J_mid and convergence of the differential equations of the model
     i=0
@@ -53,11 +57,8 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
     cond_ineq2 = False # parameter inequality on Jm and gE, gI
 
     while not (cond_ineq1 and cond_ineq2):
-        randomized_pars = randomize_params_supp(trained_pars_dict, randomize_pars)
+        randomized_pars = randomize_params_supp(randomized_pars_dict, randomize_pars)
         cond_ineq1 = np.abs(randomized_pars['J_2x2_m'][0,0]*randomized_pars['J_2x2_m'][1,1])*1.1 < np.abs(randomized_pars['J_2x2_m'][1,0]*randomized_pars['J_2x2_m'][0,1])
-        # randomize gE and gI
-        untrained_pars.filter_pars.gI_m =  random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
-        untrained_pars.filter_pars.gE_m =  random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
         cond_ineq2 = np.abs(randomized_pars['J_2x2_m'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < np.abs(randomized_pars['J_2x2_m'][1,1]*untrained_pars.filter_pars.gE_m)   
         i = i+1
     
@@ -91,7 +92,7 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
         else:
             num_init = num_init+i
             print(f'Randomized parameters {num_init} times',[bool(cond_ineq1),bool(cond_ineq2),cond_dx,cond_rmax,cond_rmean,cond_r_pretrain,cond_r_train])
-            optimized_readout_pars, randomized_pars_log, untrained_pars = randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars, logistic_regr, trained_pars_dict, num_init, start_time)
+            optimized_readout_pars, randomized_pars_log, untrained_pars = randomize_params(readout_pars, pretrained_pars, untrained_pars, randomize_pars, logistic_regr, num_init, start_time)
     else:
         print(f'Parameters found that satisfy conditions in {time.time() - start_time:.2f} seconds')
         # Take log of the J and f parameters (if f_I, f_E are in the randomized parameters)
@@ -113,6 +114,21 @@ def randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars,
 
         # Randomize learning rate
         untrained_pars.training_pars.eta = random.uniform(randomize_pars.eta_range[0], randomize_pars.eta_range[1])
+        
+        # Update c,f or J values if they are in the untrained_pars.ssn_pars
+        if hasattr(untrained_pars.ssn_pars, 'c_E'):
+            untrained_pars.ssn_pars.c_E = randomized_pars['c_E']
+            untrained_pars.ssn_pars.c_I = randomized_pars['c_I']
+
+        if hasattr(untrained_pars.ssn_pars, 'f_E'):
+            untrained_pars.ssn_pars.f_E = randomized_pars['f_E']
+            untrained_pars.ssn_pars.f_I = randomized_pars['f_I']
+
+        if hasattr(untrained_pars.ssn_pars, 'J_2x2_s'):
+            untrained_pars.ssn_pars.J_2x2_s = randomized_pars['J_2x2_s']
+
+        if hasattr(untrained_pars.ssn_pars, 'J_2x2_m'):
+            untrained_pars.ssn_pars.J_2x2_m = randomized_pars['J_2x2_m']
 
     return optimized_readout_pars, randomized_pars_log, untrained_pars
 
@@ -186,24 +202,21 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000):
     return readout_pars_opt
 
 
-def create_initial_parameters_df(initial_parameters, readout_parameters, trained_parameters, randomized_eta, randomized_gE, randomized_gI):
+def create_initial_parameters_df(initial_parameters, readout_parameters, pretrained_parameters, randomized_eta, randomized_gE, randomized_gI):
     '''
     This function creates or appens a dataframe with the initial parameters for the model. The dataframe includes the randomized traine dparameters, and the randomized learning rate eta.
     '''
     # Take log of the J and f parameters (if f_I, f_E are in the randomized parameters)
-    J_2x2_m = sep_exponentiate(trained_parameters['log_J_2x2_m'])
-    J_2x2_s = sep_exponentiate(trained_parameters['log_J_2x2_s'])
+    J_2x2_m = sep_exponentiate(pretrained_parameters['log_J_2x2_m'])
+    J_2x2_s = sep_exponentiate(pretrained_parameters['log_J_2x2_s'])
+    f_E = np.exp(pretrained_parameters['log_f_E'])
+    f_I = np.exp(pretrained_parameters['log_f_I'])
     
     # Create a dictionary with the new randomized parameters
-    init_vals_dict = dict(J_m_EE=J_2x2_m[0,0], J_m_EI=J_2x2_m[1,0], J_m_IE=J_2x2_m[0,1], J_m_II=J_2x2_m[1,1],
+    init_vals_dict = dict(f_E = f_E, f_I = f_I, c_E = pretrained_parameters['c_E'], c_I = pretrained_parameters['c_I'],
+                        J_m_EE=J_2x2_m[0,0], J_m_EI=J_2x2_m[1,0], J_m_IE=J_2x2_m[0,1], J_m_II=J_2x2_m[1,1],
                         J_s_EE=J_2x2_s[0,0], J_s_EI=J_2x2_s[1,0], J_s_IE=J_2x2_s[0,1], J_s_II=J_2x2_s[1,1],
                         eta=randomized_eta, gE = randomized_gE, gI= randomized_gI)
-    if 'log_f_E' in trained_parameters:
-        init_vals_dict['f_E'] = np.exp(trained_parameters['log_f_E'])
-        init_vals_dict['f_I'] = np.exp(trained_parameters['log_f_I'])
-    if 'c_E' in trained_parameters:
-        init_vals_dict['c_E'] = trained_parameters['c_E']
-        init_vals_dict['c_I'] = trained_parameters['c_I']
 
     init_vals_dict['b']= readout_parameters['b_sig']
     for i in range(len(readout_parameters['w_sig'])):

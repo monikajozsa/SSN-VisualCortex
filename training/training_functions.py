@@ -408,6 +408,7 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     """
     
     pretraining = untrained_pars.pretrain_pars.is_on
+    
     w_sig = readout_pars_dict['w_sig']
     b_sig = readout_pars_dict['b_sig']
 
@@ -423,9 +424,12 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     else:
         f_E = untrained_pars.ssn_pars.f_E
         f_I = untrained_pars.ssn_pars.f_I
-
-    J_2x2_m = sep_exponentiate(trained_pars_dict['log_J_2x2_m'])
-    J_2x2_s = sep_exponentiate(trained_pars_dict['log_J_2x2_s']) 
+    if 'log_J_2x2_m' in trained_pars_dict:
+        J_2x2_m = sep_exponentiate(trained_pars_dict['log_J_2x2_m'])
+    else:
+        J_2x2_m = untrained_pars.ssn_pars.J_2x2_m
+    if 'log_J_2x2_s' in trained_pars_dict:
+        J_2x2_s = sep_exponentiate(trained_pars_dict['log_J_2x2_s'])
  
     p_local_s = untrained_pars.ssn_pars.p_local_s
     s_2x2 = untrained_pars.ssn_pars.s_2x2_s

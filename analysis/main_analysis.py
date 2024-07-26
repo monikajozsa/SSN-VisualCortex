@@ -28,13 +28,15 @@ if not pretrain_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 num_training = 50
-final_folder_path = os.path.join('results','Jul24_v5')
+final_folder_path = os.path.join('results','Jul25_v0')
 start_time_in_main= time.time()
 
 results_filename = os.path.join(final_folder_path, f"results.csv")
 orimap_filename = os.path.join(final_folder_path, f"orimap.csv")
+init_params_filename = os.path.join(final_folder_path, f"initial_parameters.csv")
 orimap_loaded = pd.read_csv(orimap_filename)
-df = pd.read_csv(results_filename)
+results_df = pd.read_csv(results_filename)
+init_params_df = pd.read_csv(init_params_filename)
 
 
 ######### PLOT RESULTS ON PARAMETERS ############
@@ -49,71 +51,17 @@ mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
 sigma_filter = 2
 
-#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
-excluded_run_inds = []
+plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+
 #########################################################################################
 ###### If based on the plots from plots_results_from_csvs, some runs are excluded, ######
 #### run the following two lines adjusted to the run numbers that should be excluded ####
 #########################################################################################
 #excluded_run_inds = [0,8,14,16,17,24,28,34,35,36,37,40,42,43,44,45,47,48]
 #exclude_runs(final_folder_path, excluded_run_inds)
+#num_training=num_training-len(excluded_run_inds)
 
-num_training=num_training-len(excluded_run_inds)
 boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
-
-########## CALCULATE TUNING CURVES ############
-time_start = time.time()
-
-tc_ori_list = numpy.arange(0,180,6)
-
-# Define the filename for the tuning curves 
-tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
-# Define the header for the tuning curves
-tc_headers = []
-tc_headers.append('run_index')
-tc_headers.append('training_stage')
-# Headers for middle layer cells - order matches the gabor filters
-type_str = ['_E_','_I_']
-for phase_ind in range(ssn_pars.phases):
-    for type_ind in range(2):
-        for i in range(grid_pars.gridsize_Nx**2):
-            tc_header = 'G'+ str(i+1) + type_str[type_ind] + 'Ph' + str(phase_ind) + '_M'
-            tc_headers.append(tc_header)
-# Headers for superficial layer cells
-for type_ind in range(2):
-    for i in range(grid_pars.gridsize_Nx**2):
-        tc_header = 'G'+str(i+1) + type_str[type_ind] +'S'
-        tc_headers.append(tc_header)
-# Define the trained parameter keys
-trained_pars_keys = ['log_J_2x2_m', 'log_J_2x2_s']
-if 'c_E' in df.columns:
-    trained_pars_keys += ['c_E', 'c_I']
-if 'log_f_E' in df.columns:
-    trained_pars_keys += ['log_f_E', 'log_f_I']
-
-# Loop over the different runs
-for i in range(0,num_training):
-    mesh_i = orimap_loaded['run_index']==i
-    orimap_i = orimap_loaded[mesh_i][1:]
-    df_i = filter_for_run(df, i)
-    SGD_step_inds = SGD_step_indices(df_i, 3)
-
-    # Load fixed parameters
-    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=orimap_i)
-    # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
-    for stage in range(3):
-        trained_pars_stage1, trained_pars_stage2, _, _ = load_parameters(df_i, iloc_ind = SGD_step_inds[stage], trained_pars_keys=trained_pars_keys)
-        tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_headers)
-        tc_headers = False
-        
-    print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
-
-######### PLOT TUNING CURVES ############
-start_time_in_main = time.time()
-plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
-plot_tc_features(final_folder_path, num_training, tc_ori_list)
-print(f'Finished plotting tuning curves and features in {time.time()-start_time_in_main} seconds')
 
 ######### CALCULATE MVPA AND PLOT CORRELATIONS ############
 
@@ -152,3 +100,55 @@ data_mid_125 = pd.DataFrame({
     'offset_th': data_rel_changes['offset_staircase_diff']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
+
+print(f'Finished calculating and plotting MVPA results in {time.time()-start_time_in_main} seconds')
+
+
+########## CALCULATE TUNING CURVES ############
+start_time_in_main = time.time()
+tc_ori_list = numpy.arange(0,180,6)
+
+# Define the filename for the tuning curves 
+tc_filename = os.path.join(final_folder_path, 'tuning_curves.csv')
+# Define the header for the tuning curves
+tc_headers = []
+tc_headers.append('run_index')
+tc_headers.append('training_stage')
+# Headers for middle layer cells - order matches the gabor filters
+type_str = ['_E_','_I_']
+for phase_ind in range(ssn_pars.phases):
+    for type_ind in range(2):
+        for i in range(grid_pars.gridsize_Nx**2):
+            tc_header = 'G'+ str(i+1) + type_str[type_ind] + 'Ph' + str(phase_ind) + '_M'
+            tc_headers.append(tc_header)
+# Headers for superficial layer cells
+for type_ind in range(2):
+    for i in range(grid_pars.gridsize_Nx**2):
+        tc_header = 'G'+str(i+1) + type_str[type_ind] +'S'
+        tc_headers.append(tc_header)
+
+# Loop over the different runs
+for i in range(0,num_training):
+    mesh_i = orimap_loaded['run_index']==i
+    orimap_i = orimap_loaded[mesh_i][1:]
+    df_i = filter_for_run(results_df, i)
+    SGD_step_inds = SGD_step_indices(df_i, 3)
+    g_randomized = dict(g_E = init_params_df['g_E'][i], g_I = init_params_df['g_I'][i])
+
+    # Load fixed parameters
+    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
+                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=orimap_i, randomize_g = g_randomized)
+
+    # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
+    for stage in range(3):
+        trained_pars_stage1, trained_pars_stage2, _, _, _ = load_parameters(df_i, iloc_ind = SGD_step_inds[stage])
+        tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_headers)
+        tc_headers = False
+        
+    print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
+
+######### PLOT TUNING CURVES ############
+start_time_in_main = time.time()
+plot_tuning_curves(final_folder_path,tc_cells,num_training,folder_to_save)
+plot_tc_features(final_folder_path, num_training, tc_ori_list)
+print(f'Finished plotting tuning curves and features in {time.time()-start_time_in_main} seconds')

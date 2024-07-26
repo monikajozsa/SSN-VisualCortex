@@ -19,6 +19,7 @@ from parameters import (
     stimuli_pars,
     readout_pars,
     ssn_pars,
+    pretrained_pars,
     trained_pars,
     conv_pars,
     training_pars,
@@ -68,15 +69,18 @@ def perturb_params_supp(param_dict, percent = 0.1):
 
 def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, logistic_regr=True):
     #define the parameters that get perturbed
-    pars_stage2_nolog = dict(J_m_temp=trained_pars.J_2x2_m, J_s_temp=trained_pars.J_2x2_s)
-    if hasattr(untrained_pars.ssn_pars, 'c_E'):
-        pars_stage2_nolog.update(dict(c_E_temp=untrained_pars.ssn_pars.c_E, c_I_temp=untrained_pars.ssn_pars.c_I))
-    else:
-        pars_stage2_nolog.update(dict(c_E_temp=trained_pars.c_E, c_I_temp=trained_pars.c_I))
-    if hasattr(untrained_pars.ssn_pars, 'f_E'):
-        pars_stage2_nolog.update(dict(f_E_temp=untrained_pars.ssn_pars.f_E, f_I_temp=untrained_pars.ssn_pars.f_I))
-    else:
-        pars_stage2_nolog.update(dict(f_E_temp=trained_pars.f_E, f_I_temp=trained_pars.f_I))
+    # List of parameters to randomize
+    parameter_name_list = ['J_2x2_m', 'J_2x2_s', 'c_E', 'c_I', 'f_E', 'f_I']
+
+    # Dictionary to store the attribute values
+    params_to_perturb = {}
+
+    # Loop through each attribute and assign values
+    for attr in parameter_name_list:
+        if hasattr(trained_pars, attr):
+            params_to_perturb[attr] = getattr(trained_pars, attr)
+        else:
+            params_to_perturb[attr] = getattr(untrained_pars.ssn_pars, attr)
     
     # Perturb parameters under conditions for J_mid and convergence of the differential equations of the model
     i=0
@@ -87,20 +91,15 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, logi
     cond5 = False
 
     while not (cond1 and cond2 and cond3 and cond4 and cond5):
-        params_perturbed = perturb_params_supp(pars_stage2_nolog, percent)
-        if hasattr(untrained_pars.ssn_pars, 'c_E'):
-            params_perturbed['c_E_temp'] = untrained_pars.ssn_pars.c_E
-            params_perturbed['c_I_temp'] = untrained_pars.ssn_pars.c_I
-        if hasattr(untrained_pars.ssn_pars, 'f_E'):
-            params_perturbed['f_E_temp'] = untrained_pars.ssn_pars.f_E
-            params_perturbed['f_I_temp'] = untrained_pars.ssn_pars.f_I
-        cond1 = numpy.abs(params_perturbed['J_m_temp'][0,0]*params_perturbed['J_m_temp'][1,1])*1.1 < numpy.abs(params_perturbed['J_m_temp'][1,0]*params_perturbed['J_m_temp'][0,1])
-        cond2 = numpy.abs(params_perturbed['J_m_temp'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < numpy.abs(params_perturbed['J_m_temp'][1,1]*untrained_pars.filter_pars.gE_m)
+        params_perturbed = perturb_params_supp(params_to_perturb, percent)
+        
+        cond1 = numpy.abs(params_perturbed['J_2x2_m'][0,0]*params_perturbed['J_2x2_m'][1,1])*1.1 < numpy.abs(params_perturbed['J_2x2_m'][1,0]*params_perturbed['J_2x2_m'][0,1])
+        cond2 = numpy.abs(params_perturbed['J_2x2_m'][0,1]*untrained_pars.filter_pars.gI_m)*1.1 < numpy.abs(params_perturbed['J_2x2_m'][1,1]*untrained_pars.filter_pars.gE_m)
         # checking the convergence of the differential equations of the model
-        ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=params_perturbed['J_m_temp'])
-        ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=params_perturbed['J_s_temp'], p_local=untrained_pars.ssn_pars.p_local_s,s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist)
+        ssn_mid=SSN_mid(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=params_perturbed['J_2x2_m'])
+        ssn_sup=SSN_sup(ssn_pars=untrained_pars.ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=params_perturbed['J_2x2_s'], p_local=untrained_pars.ssn_pars.p_local_s,s_2x2=untrained_pars.ssn_pars.s_2x2_s, sigma_oris = untrained_pars.ssn_pars.sigma_oris, ori_dist = untrained_pars.ori_dist)
         train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=1, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
-        [r_ref, _], _, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars, params_perturbed['c_E_temp'], params_perturbed['c_I_temp'], params_perturbed['f_E_temp'], params_perturbed['f_I_temp'], untrained_pars.gabor_filters)
+        [r_ref, _], _, [avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], _ = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars, params_perturbed['c_E'], params_perturbed['c_I'], params_perturbed['f_E'], params_perturbed['f_I'], untrained_pars.gabor_filters)
         cond3 = not numpy.any(numpy.isnan(r_ref))
         cond4 = avg_dx_mid + avg_dx_sup < 50
         cond5 = min([max_E_mid, max_I_mid, max_E_sup, max_I_sup])>10 and max([max_E_mid, max_I_mid, max_E_sup, max_I_sup])<101
@@ -110,22 +109,38 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, logi
         else:
             i = i+1
 
-    pars_stage2 = dict(
-        log_J_2x2_m= take_log(params_perturbed['J_m_temp']),
-        log_J_2x2_s= take_log(params_perturbed['J_s_temp']),
+    params_perturbed_logged = dict(
+        log_J_2x2_m= take_log(params_perturbed['J_2x2_m']),
+        log_J_2x2_s= take_log(params_perturbed['J_2x2_s']),
+        c_E=params_perturbed['c_E'],
+        c_I=params_perturbed['c_I'],
+        log_f_E=np.log(params_perturbed['f_E']),
+        log_f_I=np.log(params_perturbed['f_I'])
     )
-    # Add the additional parameters that are trained to the dictionary
-    if not hasattr(untrained_pars.ssn_pars, 'c_E'):
-        pars_stage2.update(dict(c_E=params_perturbed['c_E_temp'], c_I=params_perturbed['c_I_temp']))
-    if not hasattr(untrained_pars.ssn_pars, 'f_E'):
-        pars_stage2.update(dict(log_f_E=np.log(params_perturbed['f_E_temp']), log_f_I=np.log(params_perturbed['f_I_temp'])))
+    
     if logistic_regr:
-        pars_stage1 = readout_pars_from_regr(pars_stage2, untrained_pars)
+        pars_stage1 = readout_pars_from_regr(params_perturbed_logged, untrained_pars)
     else:
         pars_stage1 = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
     pars_stage1['w_sig'] = (pars_stage1['w_sig'] / np.std(pars_stage1['w_sig']) ) * 0.25 / int(np.sqrt(len(pars_stage1['w_sig']))) # get the same std as before - see param
 
-    return pars_stage1, pars_stage2
+    # If a parameter is untrained then save the perturbed value in the untrained class
+    pars_stage2 = params_perturbed_logged
+    if hasattr(untrained_pars.ssn_pars, 'c_E'):
+        untrained_pars.ssn_pars.c_E = pars_stage2['c_E']
+        untrained_pars.ssn_pars.c_I = pars_stage2['c_I']
+
+    if hasattr(untrained_pars.ssn_pars, 'f_E'):
+        untrained_pars.ssn_pars.f_E = pars_stage2['f_E']
+        untrained_pars.ssn_pars.f_I = pars_stage2['f_I']
+
+    if hasattr(untrained_pars.ssn_pars, 'J_2x2_s'):
+        untrained_pars.ssn_pars.J_2x2_s = pars_stage2['J_2x2_s']
+
+    if hasattr(untrained_pars.ssn_pars, 'J_2x2_m'):
+        untrained_pars.ssn_pars.J_2x2_m = pars_stage2['J_2x2_m']
+
+    return pars_stage1, pars_stage2, untrained_pars
 
 
 ########## Initialize orientation map and gabor filters ############
@@ -133,12 +148,12 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, logi
 # Save out initial offset and reference orientation
 ref_ori_saved = float(stimuli_pars.ref_ori)
 offset_saved = float(stimuli_pars.offset)
-num_training = 20
+num_training = 50
 starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder
-note=f'20 test runs for the case when cI and cE are not trained - with the Apr 10 settings otherwise'
+note=f'50 runs for the case when cI and cE are not trained - with the Apr 10 settings otherwise'
 results_filename, final_folder_path = save_code(note=note)
 
 
@@ -161,7 +176,7 @@ while i < num_training and num_FailedRuns < 20:
 
     # Randomize readout_pars and trained_pars and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
-    trained_pars_stage1, trained_pars_stage2 = perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1)
+    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, pretrained_pars, untrained_pars, percent=0.1)
     initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage1, trained_pars_stage2, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m)
     
     # Run pre-training
