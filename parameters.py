@@ -27,7 +27,7 @@ class PreTrainPars:
     SGD_steps: int = 1000
     ''' maximum number of SGD steps during pretraining '''
 
-pretrain_pars = PreTrainPars()
+pretraining_pars = PreTrainPars()
 
 
 # Training parameters
@@ -37,12 +37,12 @@ class TrainingPars:
     ''' learning rate - the maximum rate of parameter change in one SGD step; note that this initial values are irrelevant when we randomize the parameters '''
     batch_size: int = 50
     ''' number of trials per SGD step '''
-    SGD_steps: int = 1000
-    ''' number of SGD step '''
     validation_freq: int = 10
     ''' frequency of validation loss and accuracy calculation '''
     first_stage_acc_th: float = 0.51
     ''' accuracy threshold for early stopping criterium for the first stage of training '''
+    SGD_steps: int = 1000
+    ''' number of SGD step '''
 
 training_pars = TrainingPars()
 
@@ -197,7 +197,7 @@ class ReadoutPars:
     middle_grid_ind = np.array(middle_grid_ind)
     ''' indices of the middle grid when grid is flattened '''
     # Define w_sig - its size depends on whether pretraining is on
-    if pretrain_pars.is_on:
+    if pretraining_pars.is_on:
         w_sig = np.zeros(readout_grid_size[0]**2)
         ''' readout weights (between the superficial and the sigmoid layer) - initialized with logistic regression '''
     else:
@@ -232,11 +232,14 @@ class SSNPars:
     ''' relative strength of local parts of E projections in superficial layer '''
     p_local_m = [1.0, 1.0]
     ''' relative strength of local parts of E projections in middle layer '''
-    c_E: float = 5.0 
-    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
-    c_I: float = 5.0 
-    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
-    
+    f_E: float = 1.11 
+    ''' scaling constant for feedforwards connections to excitatory units in sup layer '''
+    f_I: float = 0.7
+    ''' scaling constant for feedforwards connections to inhibitory units in sup layer '''
+    J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
+    ''' relative strength of weights of different pre/post cell-type in superficial layer '''
+    J_2x2_s = np.array([[1.83, -0.68], [2.07, -0.51]]) * np.pi * 0.774
+    ''' relative strength of weights of different pre/post cell-type in middle layer '''
 ssn_pars = SSNPars()
 
 
@@ -244,14 +247,10 @@ ssn_pars = SSNPars()
 @dataclass
 class TrainedSSNPars:
     # Note that these initial values are irrelevant when we randomize the parameters
-    f_E: float = 1.11 
-    ''' scaling constant for feedforwards connections to excitatory units in sup layer '''
-    f_I: float = 0.7
-    ''' scaling constant for feedforwards connections to inhibitory units in sup layer '''
-    J_2x2_s = np.array([[1.83, -0.68], [2.07, -0.51]]) * np.pi * 0.774
-    ''' relative strength of weights of different pre/post cell-type in middle layer '''
-    J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
-    ''' relative strength of weights of different pre/post cell-type in superficial layer '''
+    c_E: float = 5.0 
+    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
+    c_I: float = 5.0 
+    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
     
 trained_pars = TrainedSSNPars()
 

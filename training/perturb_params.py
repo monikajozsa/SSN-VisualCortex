@@ -24,7 +24,7 @@ def randomize_params_supp(param_dict, randomize_pars):
     for key, param_array in param_dict.items():
         matching_attributes = [attr for attr in attributes if attr.startswith(key[0])]
         param_range = getattr(randomize_pars, matching_attributes[0])
-        if type(param_array) == float:
+        if isinstance(param_array, (float,np.floating, numpy.floating)):
             random_sample = random.uniform(low=param_range[0], high=param_range[1])
             param_randomized[key] = random_sample
         else:
@@ -64,7 +64,7 @@ def randomize_params(readout_pars, pretrained_pars, untrained_pars, randomize_pa
     
     # Calculate model response to check the convergence of the differential equations
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, randomized_pars['J_2x2_m'])
-    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, randomized_pars['J_2x2_s'], untrained_pars.ssn_pars.p_local_s, untrained_pars.ssn_pars.s_2x2_s, untrained_pars.ssn_pars.sigma_oris, untrained_pars.ori_dist)
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, randomized_pars['J_2x2_s'], untrained_pars.ssn_pars.p_local_s, untrained_pars.ssn_pars.sigma_oris,  untrained_pars.ssn_pars.s_2x2_s, untrained_pars.ori_dist)
     train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp) 
     pretrain_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
     if 'c_E' in randomized_pars:
@@ -211,9 +211,11 @@ def create_initial_parameters_df(initial_parameters, readout_parameters, pretrai
     J_2x2_s = sep_exponentiate(pretrained_parameters['log_J_2x2_s'])
     f_E = np.exp(pretrained_parameters['log_f_E'])
     f_I = np.exp(pretrained_parameters['log_f_I'])
+    c_E = pretrained_parameters['c_E']
+    c_I = pretrained_parameters['c_I']
     
     # Create a dictionary with the new randomized parameters
-    init_vals_dict = dict(f_E = f_E, f_I = f_I, c_E = pretrained_parameters['c_E'], c_I = pretrained_parameters['c_I'],
+    init_vals_dict = dict(f_E = f_E, f_I = f_I, c_E = c_E, c_I = c_I,
                         J_m_EE=J_2x2_m[0,0], J_m_EI=J_2x2_m[1,0], J_m_IE=J_2x2_m[0,1], J_m_II=J_2x2_m[1,1],
                         J_s_EE=J_2x2_s[0,0], J_s_EI=J_2x2_s[1,0], J_s_IE=J_2x2_s[0,1], J_s_II=J_2x2_s[1,1],
                         eta=randomized_eta, gE = randomized_gE, gI= randomized_gI)

@@ -3,21 +3,21 @@ import jax
 import jax.numpy as np
 from jax import vmap
 import optax
-import time
 import pandas as pd
 import numpy
-import os
+from scipy.optimize import curve_fit
+from scipy.stats import ttest_ind, linregress
 import copy
+import time
+import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from util import create_grating_training, sep_exponentiate, sigmoid, create_grating_pretraining
+from util import create_grating_training, sep_exponentiate, take_log, sigmoid, create_grating_pretraining
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.model import evaluate_model_response
 
 
-from scipy.optimize import curve_fit
-from scipy.stats import ttest_ind
 def exponential_decay(x, a, b, c):
     return a * np.exp(-b * x) + c
 
@@ -177,8 +177,14 @@ def train_ori_discr(
                     else:
                         stages=[stage]
                 if 'log_J_2x2_m' in locals():
-                        log_J_2x2_m.append(trained_pars_dict['log_J_2x2_m'].ravel())
-                        log_J_2x2_s.append(trained_pars_dict['log_J_2x2_s'].ravel())
+                        if 'log_J_2x2_m' in trained_pars_dict.keys():
+                            log_J_2x2_m.append(trained_pars_dict['log_J_2x2_m'].ravel())
+                        else:
+                            log_J_2x2_m.append(take_log(untrained_pars.ssn_pars.J_2x2_m).ravel())
+                        if 'log_J_2x2_s' in trained_pars_dict.keys():
+                            log_J_2x2_s.append(trained_pars_dict['log_J_2x2_s'].ravel())
+                        else:
+                            log_J_2x2_s.append(take_log(untrained_pars.ssn_pars.J_2x2_s).ravel())
                         if 'c_E' in trained_pars_dict.keys():
                             c_E.append(trained_pars_dict['c_E'])
                             c_I.append(trained_pars_dict['c_I'])
@@ -192,8 +198,14 @@ def train_ori_discr(
                             log_f_E.append(np.log(untrained_pars.ssn_pars.f_E))
                             log_f_I.append(np.log(untrained_pars.ssn_pars.f_I))
                 else:
-                    log_J_2x2_m = [trained_pars_dict['log_J_2x2_m'].ravel()]
-                    log_J_2x2_s = [trained_pars_dict['log_J_2x2_s'].ravel()]
+                    if 'log_J_2x2_m' in trained_pars_dict.keys():
+                        log_J_2x2_m = [trained_pars_dict['log_J_2x2_m'].ravel()]
+                    else:
+                        log_J_2x2_m = [take_log(untrained_pars.ssn_pars.J_2x2_m).ravel()]
+                    if 'log_J_2x2_s' in trained_pars_dict.keys():
+                        log_J_2x2_s = [trained_pars_dict['log_J_2x2_s'].ravel()]
+                    else:
+                        log_J_2x2_s = [take_log(untrained_pars.ssn_pars.J_2x2_s).ravel()]
                     if 'c_E' in trained_pars_dict.keys():
                         c_E = [trained_pars_dict['c_E']]
                         c_I = [trained_pars_dict['c_I']]
@@ -291,8 +303,10 @@ def train_ori_discr(
                     
                 # v) Parameter update. Note that pre-training has one-stage, training has two-stages, where the first stage is skipped if the accuracy satisfies a minimum threshold criteria
                 if numStages==1:
-                    if pretrain_on and val_acc < 0.45:
-                        # Flip the center readout parameters if validation accuracy is low
+                    # linear regression to check if acc_mean is decreasing (happens when pretraining goes on while solving the flipped training task)
+                    acc_mean_slope, _, _, _, _ = linregress(range(len(acc_mean)), acc_mean)
+                    if pretrain_on and val_acc < 0.45 and acc_mean_slope < -0.02:
+                        # Flip the center readout parameters if validation accuracy is low (which corresponds to training task) and training task accuracy is decreasing as offset increases
                         readout_pars_dict['w_sig'] = readout_pars_dict['w_sig'].at[untrained_pars.middle_grid_ind].set(-readout_pars_dict['w_sig'][untrained_pars.middle_grid_ind])
                         readout_pars_dict['b_sig'] = -readout_pars_dict['b_sig']
                         val_acc =  1-val_acc
@@ -430,6 +444,8 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
         J_2x2_m = untrained_pars.ssn_pars.J_2x2_m
     if 'log_J_2x2_s' in trained_pars_dict:
         J_2x2_s = sep_exponentiate(trained_pars_dict['log_J_2x2_s'])
+    else:
+        J_2x2_s = untrained_pars.ssn_pars.J_2x2_s
  
     p_local_s = untrained_pars.ssn_pars.p_local_s
     s_2x2 = untrained_pars.ssn_pars.s_2x2_s
@@ -475,7 +491,7 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     max_E_mid, max_I_mid, max_E_sup, max_I_sup
     loss_rmax_mid= np.mean(np.maximum(0, (max_E_mid/Rmax_E - 1)) + np.maximum(0, (max_I_mid/Rmax_I - 1)))
     loss_rmax_sup = np.mean(np.maximum(0, (max_E_sup/Rmax_E - 1)) + np.maximum(0, (max_I_sup/Rmax_I - 1)))
-    loss_r_max = loss_pars.lambda_r_max*(loss_rmax_mid+loss_rmax_sup) #older version used leaky relu: lossr_max = leaky_relu(max_E, R_thresh = Rmax_E, slope = 1/Rmax_E) + leaky_relu(max_I, R_thresh = Rmax_I, slope = 1/Rmax_I)
+    loss_r_max = loss_pars.lambda_r_max*(loss_rmax_mid+loss_rmax_sup) # optionally, we could use leaky relu here
     loss_rmean_mid = np.mean((mean_E_mid/Rmean_E[0] - 1) ** 2 + (mean_I_mid/Rmean_I[0] - 1) ** 2)
     loss_rmean_sup = np.mean((mean_E_sup/Rmean_E[1] - 1) ** 2 + (mean_I_sup/Rmean_I[1] - 1) ** 2)
     loss_r_mean = loss_pars.lambda_r_mean*(loss_rmean_mid + loss_rmean_sup)

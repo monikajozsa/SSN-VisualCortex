@@ -6,6 +6,7 @@ import shutil
 from datetime import datetime
 import pandas as pd
 import re
+from pathlib import Path
 
 from training.util_gabor import BW_image_jit_noisy
 
@@ -156,92 +157,58 @@ def leaky_relu(x, R_thresh, slope, height=0.15):
 
 
 def save_code(final_folder_path=None, note=None):
-    '''
-    This code is used to save code files to make results replicable.
-    1) It copies specific code files into a folder called 'script'
-    3) Returns the path to save the results into
-    '''
+    """
+    This function saves code files to make results replicable.
+    1) Copies specific code files into a folder called 'scripts'.
+    2) Returns the path to save the results into.
+    """
+
+    def create_versioned_folder(base_path):
+        version = 0
+        while base_path.with_name(f"{base_path.name}_v{version}").exists():
+            version += 1
+        versioned_folder = base_path.with_name(f"{base_path.name}_v{version}")
+        versioned_folder.mkdir(parents=True, exist_ok=True)
+        return versioned_folder
+
+    def copy_files(source_folder, destination_folder, file_pattern):
+        destination_folder.mkdir(parents=True, exist_ok=True)
+        for file in source_folder.glob(file_pattern):
+            shutil.copy(file, destination_folder / file.name)
+
     # Get the current date
     current_date = datetime.now().strftime("%b%d")
 
-    # Create a folder name based on the current date
+    # Determine the final folder path
     if final_folder_path is None:
-        folder_name = f"results/{current_date}_v"
-        # Find the next available script version
-        version = 0
-        while os.path.exists(f"{folder_name}{version}"):
-            version += 1
-        final_folder_path = f"{folder_name}{version}"
-        # Create the folder for the results    
-        os.makedirs(final_folder_path)
+        base_folder = Path("results") / current_date
+        final_folder_path = create_versioned_folder(base_folder)
     else:
-        # version is after '_v' in final_folder_path
-        match = re.search('_v', final_folder_path)
-        if match:
-            # Extract the number from the match object
-            version = final_folder_path[match.endpos-1:]
-        else:
-            version = 0
+        final_folder_path = Path(final_folder_path)
 
-    # Save note to final_folder_path as csv
-    if note is not None:
-        with open(os.path.join(final_folder_path, 'note.txt'), 'w') as f:
+    # Save note if provided
+    if note:
+        with open(final_folder_path / 'note.txt', 'w') as f:
             f.write(note)
 
-    # Create a folder for the scripts and a folder for the figures
-    script_folder = os.path.join(final_folder_path, 'scripts')
-    if not os.path.exists(script_folder):
-        os.makedirs(script_folder)
-    figure_folder = os.path.join(final_folder_path, 'figures')
-    if not os.path.exists(figure_folder):
-        os.makedirs(figure_folder)
-    
-    # Get the path to the script's directory
-    script_from_folder = os.path.dirname(os.path.realpath(__file__))
+    # Create subfolders
+    script_folder = final_folder_path / 'scripts'
+    figure_folder = final_folder_path / 'figures'
+    figure_folder.mkdir(parents=True, exist_ok=True)
 
-    # List of root files to be copied
-    file_names_root = ['parameters.py', 'util.py']
+    # Define source folder
+    script_from_folder = Path(__file__).parent
 
-    # Copy root files
-    for file_name in file_names_root:
-        source_path = os.path.join(script_from_folder, file_name)
-        destination_path = os.path.join(script_folder, file_name)
-        shutil.copyfile(source_path, destination_path)
-
-    # Create the 'training' folder in the destination folder
-    training_folder_dest = os.path.join(script_folder, 'training')
-    os.makedirs(training_folder_dest, exist_ok=True)
-
-    # Get the list of all .py files in the source 'training' folder
-    training_folder_source = os.path.join(script_from_folder, 'training')
-    file_names_training = [f for f in os.listdir(training_folder_source) if f.endswith('.py')]
-
-    # Copy training files
-    for file_name in file_names_training:
-        source_path = os.path.join(training_folder_source, file_name)
-        destination_path = os.path.join(training_folder_dest, file_name)
-        shutil.copyfile(source_path, destination_path)
-
-    # Create the 'analysis' folder in the destination folder
-    analysis_folder_dest = os.path.join(script_folder, 'analysis')
-    os.makedirs(analysis_folder_dest, exist_ok=True)
-
-    # Get the list of all .py files in the source 'analysis' folder
-    analysis_folder_source = os.path.join(script_from_folder, 'analysis')
-    file_names_analysis = [f for f in os.listdir(analysis_folder_source) if f.endswith('.py')]
-
-    # Copy analysis files
-    for file_name in file_names_analysis:
-        source_path = os.path.join(analysis_folder_source, file_name)
-        destination_path = os.path.join(analysis_folder_dest, file_name)
-        shutil.copyfile(source_path, destination_path)
+    # Copy root files, 'training' files and 'analysis' files
+    copy_files(script_from_folder, script_folder, '*.py')
+    copy_files(script_from_folder / 'training', script_folder / 'training', '*.py')
+    copy_files(script_from_folder / 'analysis', script_folder / 'analysis', '*.py')
 
     print(f"Script files copied successfully to: {script_folder}")
 
-    # return path (inclusing filename) to save results into
-    results_filename = os.path.join(final_folder_path,"results.csv")
-
-    return results_filename, final_folder_path
+    # Return path to save results
+    results_filename = final_folder_path / "results.csv"
+    return str(results_filename), str(final_folder_path)
 
 
 def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['log_J_2x2_m', 'log_J_2x2_s', 'c_E', 'c_I', 'log_f_E', 'log_f_I'], untrained_pars=None):

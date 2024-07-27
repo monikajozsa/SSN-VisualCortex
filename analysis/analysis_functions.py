@@ -24,7 +24,7 @@ from parameters import (
     conv_pars,
     training_pars,
     loss_pars,
-    pretrain_pars, # Setting pretraining (pretrain_pars.is_on) should happen in parameters.py because w_sig depends on it
+    pretraining_pars, # Setting pretraining (pretrain_pars.is_on) should happen in parameters.py because w_sig depends on it
     mvpa_pars
 )
 
@@ -105,7 +105,7 @@ def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=
             # Load the orimap file and define the untrained parameters
             loaded_orimap =  load_orientation_map(folder, i)
             untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                            loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
+                            loss_pars, training_pars, pretraining_pars, readout_pars, None, orimap_loaded=loaded_orimap)
             untrained_pars.pretrain_pars.is_on = False        
         # Filter the df for the ith run
         df_i = filter_for_run(df, i)
@@ -124,7 +124,7 @@ def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=
 
         if offset_calc:
             # Calculate the offset threshold before training (repeat as many times as the number of indices-2)
-            trained_pars_stage1, trained_pars_stage2, _, _ = load_parameters(df_i, iloc_ind = training_start)
+            trained_pars_stage1, trained_pars_stage2, _, _, _ = load_parameters(df_i, iloc_ind = training_start)
             acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec, sample_size = 1 )
             offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
             offset_th[sample_ind : sample_ind + max(1,num_indices-2),0] = numpy.repeat(offset_temp, max(1,num_indices-2))
@@ -162,7 +162,7 @@ def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=
                     
             if offset_calc:
                 # Calculate the offset threshold after training
-                trained_pars_stage1, trained_pars_stage2, _, _ = load_parameters(df_i, iloc_ind = training_end)
+                trained_pars_stage1, trained_pars_stage2, _, _, _ = load_parameters(df_i, iloc_ind = training_end)
                 acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
                 offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
                 offset_th[sample_ind,1] = offset_temp
@@ -733,7 +733,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     file_name = f"{folder}/results.csv"
     loaded_orimap = load_orientation_map(folder, run_ind)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                    loss_pars, training_pars, pretrain_pars, readout_pars, None, orimap_loaded=loaded_orimap)
+                    loss_pars, training_pars, pretraining_pars, readout_pars, None, orimap_loaded=loaded_orimap)
     df = pd.read_csv(file_name)
     df_run = filter_for_run(df,run_ind)
     SGD_step_inds = SGD_step_indices(df_run, num_SGD_inds)
@@ -741,7 +741,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     # Iterate overs SGD_step indices (default is before and after training)
     for step_ind in SGD_step_inds:
         # Load parameters from csv for given epoch
-        _, trained_pars_stage2, _, _ = load_parameters(df_run, iloc_ind = step_ind)
+        _, trained_pars_stage2, _, _, _ = load_parameters(df_run, iloc_ind = step_ind)
         J_2x2_m = sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
         J_2x2_s = sep_exponentiate(trained_pars_stage2['log_J_2x2_s'])
         c_E = trained_pars_stage2['c_E']

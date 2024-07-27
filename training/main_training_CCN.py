@@ -24,21 +24,27 @@ from parameters import (
     conv_pars,
     training_pars,
     loss_pars,
-    pretrain_pars, # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
+    pretraining_pars, # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 )
 
 # Checking that pretrain_pars.is_on is on
-if not pretrain_pars.is_on:
+if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 ######### Overwrite parameters #########
-ssn_pars.p_local_s = [1.0, 1.0] # no horizontal connections in the superficial layer
-trained_pars.J_2x2_s = (np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774) 
-trained_pars.J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774 
-pretrain_pars.ori_dist_int = [10, 20]
-pretrain_pars.offset_threshold = [0,6]
-pretrain_pars.SGD_steps = 500
-pretrain_pars.min_acc_check_ind = 10
+#ssn_pars.p_local_s = [1.0, 1.0] # no horizontal connections in the superficial layer
+if hasattr(trained_pars, 'J_2x2_s'):
+    trained_pars.J_2x2_s = (np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774) 
+else:
+    ssn_pars.J_2x2_s = (np.array([[1.82650658, -0.68194475], [2.06815311, -0.5106321]]) * np.pi * 0.774)
+if hasattr(trained_pars, 'J_2x2_m'):
+    trained_pars.J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774 
+else:
+    ssn_pars.J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
+pretraining_pars.ori_dist_int = [10, 20]
+pretraining_pars.offset_threshold = [0,6]
+pretraining_pars.SGD_steps = 500
+pretraining_pars.min_acc_check_ind = 10
 training_pars.eta = 2*10e-4
 training_pars.first_stage_acc_th = 0.55
 loss_pars.lambda_r_mean = 0
@@ -56,6 +62,7 @@ from util_gabor import init_untrained_pars
 from SSN_classes import SSN_mid, SSN_sup
 from model import evaluate_model_response
 from training.perturb_params import readout_pars_from_regr
+
 def perturb_params_supp(param_dict, percent = 0.1):
     '''Perturb all values in a dictionary by a percentage of their values. The perturbation is done by adding a uniformly sampled random value to the original value.'''
     param_randomized = copy.deepcopy(param_dict)
@@ -125,22 +132,21 @@ def perturb_params(readout_pars, trained_pars, untrained_pars, percent=0.1, logi
     pars_stage1['w_sig'] = (pars_stage1['w_sig'] / np.std(pars_stage1['w_sig']) ) * 0.25 / int(np.sqrt(len(pars_stage1['w_sig']))) # get the same std as before - see param
 
     # If a parameter is untrained then save the perturbed value in the untrained class
-    pars_stage2 = params_perturbed_logged
     if hasattr(untrained_pars.ssn_pars, 'c_E'):
-        untrained_pars.ssn_pars.c_E = pars_stage2['c_E']
-        untrained_pars.ssn_pars.c_I = pars_stage2['c_I']
+        untrained_pars.ssn_pars.c_E = params_perturbed_logged['c_E']
+        untrained_pars.ssn_pars.c_I = params_perturbed_logged['c_I']
 
     if hasattr(untrained_pars.ssn_pars, 'f_E'):
-        untrained_pars.ssn_pars.f_E = pars_stage2['f_E']
-        untrained_pars.ssn_pars.f_I = pars_stage2['f_I']
+        untrained_pars.ssn_pars.f_E = params_perturbed['f_E']
+        untrained_pars.ssn_pars.f_I = params_perturbed['f_I']
 
     if hasattr(untrained_pars.ssn_pars, 'J_2x2_s'):
-        untrained_pars.ssn_pars.J_2x2_s = pars_stage2['J_2x2_s']
+        untrained_pars.ssn_pars.J_2x2_s = params_perturbed['J_2x2_s']
 
     if hasattr(untrained_pars.ssn_pars, 'J_2x2_m'):
-        untrained_pars.ssn_pars.J_2x2_m = pars_stage2['J_2x2_m']
+        untrained_pars.ssn_pars.J_2x2_m = params_perturbed['J_2x2_m']
 
-    return pars_stage1, pars_stage2, untrained_pars
+    return pars_stage1, params_perturbed_logged, untrained_pars
 
 
 ########## Initialize orientation map and gabor filters ############
@@ -160,29 +166,30 @@ results_filename, final_folder_path = save_code(note=note)
 # Run num_training number of pretraining + training
 num_FailedRuns = 0
 i=0
+trained_pars_keys = trained_pars_dict = {attr: getattr(trained_pars, attr) for attr in dir(trained_pars)}
 while i < num_training and num_FailedRuns < 20:
     numpy.random.seed(i+1)
 
     # Set pretraining flag to False
-    pretrain_pars.is_on=True
+    pretraining_pars.is_on=True
     # Set offset and reference orientation to their initial values
     stimuli_pars.offset=offset_saved
     stimuli_pars.ref_ori=ref_ori_saved
 
     # Initialize untrained parameters (calculate gabor filters, orientation map related variables)
-    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, loss_pars, training_pars, pretrain_pars, readout_pars, i, folder_to_save=final_folder_path)
+    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, loss_pars, training_pars, pretraining_pars, readout_pars, i, folder_to_save=final_folder_path)
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
 
     # Randomize readout_pars and trained_pars and collect them into two dictionaries for the two stages of the pretraining
     # Note that orimap is regenerated if conditions do not hold!
-    trained_pars_stage1, trained_pars_stage2, untrained_pars = perturb_params(readout_pars, pretrained_pars, untrained_pars, percent=0.1)
-    initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage1, trained_pars_stage2, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m)
+    trained_pars_stage1, pretrained_pars_stage2, untrained_pars = perturb_params(readout_pars, pretrained_pars, untrained_pars, percent=0.1)
+    initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage1, pretrained_pars_stage2, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m)
     
     # Run pre-training
     training_output_df, pretraining_final_step = train_ori_discr(
             trained_pars_stage1,
-            trained_pars_stage2,
+            pretrained_pars_stage2,
             untrained_pars,
             results_filename=results_filename,
             jit_on=True,
@@ -203,7 +210,8 @@ while i < num_training and num_FailedRuns < 20:
     # Load the last parameters from the pretraining
     df = pd.read_csv(results_filename)
     df_i = filter_for_run(df, i)
-    trained_pars_stage1, trained_pars_stage2, offset_last, meanr_vec = load_parameters(df_i, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_stage2.keys())
+    trained_pars_stage1, trained_pars_stage2, untrained_pars, offset_last, meanr_vec = load_parameters(df_i, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_keys, untrained_pars = untrained_pars)
+    
     if meanr_vec is not None:
         untrained_pars.loss_pars.lambda_r_mean = 0.25
         untrained_pars.loss_pars.Rmean_E = meanr_vec[0]
@@ -230,7 +238,7 @@ while i < num_training and num_FailedRuns < 20:
 
 ############### Run main analysis as well ###############
 # Get the path to the sibling folder
-sibling_folder = os.path.join(os.path.dirname(__file__), '..', 'analysis')
+sibling_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'analysis')
 
 # Get the path to the script.py file
 script_path = os.path.join(sibling_folder, 'main_analysis.py')

@@ -18,17 +18,17 @@ from parameters import (
     conv_pars,
     training_pars,
     loss_pars,
-    pretrain_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on itP
+    pretraining_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on itP
 )
 from analysis.visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
 from MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
 
 # Checking that pretrain_pars.is_on is on
-if not pretrain_pars.is_on:
+if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 num_training = 50
-final_folder_path = os.path.join('results','Jul25_v0')
+final_folder_path = os.path.join('results','Jul27_v0')
 start_time_in_main= time.time()
 
 results_filename = os.path.join(final_folder_path, f"results.csv")
@@ -133,11 +133,11 @@ for i in range(0,num_training):
     orimap_i = orimap_loaded[mesh_i][1:]
     df_i = filter_for_run(results_df, i)
     SGD_step_inds = SGD_step_indices(df_i, 3)
-    g_randomized = dict(g_E = init_params_df['g_E'][i], g_I = init_params_df['g_I'][i])
+    g_randomized = dict(g_E = init_params_df['gE'][i], g_I = init_params_df['gI'][i])
 
     # Load fixed parameters
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=orimap_i, randomize_g = g_randomized)
+                 loss_pars, training_pars, pretraining_pars, readout_pars, orimap_loaded=orimap_i, randomize_g = g_randomized)
 
     # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
     for stage in range(3):
