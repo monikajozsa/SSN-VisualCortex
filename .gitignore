@@ -9,5 +9,6 @@ Apr 10 scripts/
 *.png
 *.zip
 *.pkl
+*.csv
 *.db
 *.db-journal

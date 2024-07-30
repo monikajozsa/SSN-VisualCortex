@@ -321,16 +321,16 @@ def plot_tc_features(results_dir, num_training, ori_list):
                 for phase_ind in range(4):
                     indices_phase_E = E_mid_array[phase_ind,0,:]
                     indices_phase_I = I_mid_array[phase_ind,1,:]
-                    y_E= data[f'slopediff_diff_{training_stage}'][:,indices_phase_E].flatten()
-                    y_I= data[f'slopediff_diff_{training_stage}'][:,indices_phase_I].flatten()
+                    y_E= data[f'slopediff_55_{training_stage}'][:,indices_phase_E].flatten()
+                    y_I= data[f'slopediff_55_{training_stage}'][:,indices_phase_I].flatten()
                     x_I_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_I, shift_value=90)
                     x_E_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_E, shift_value=90)
                     axs[abs((2-j)) // 2,0].scatter(x_E_90, y_E, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
                     axs[abs((2-j)) // 2,0].scatter(x_I_90, y_I, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
             else:
                 # Superficial layer scatter plots
-                y_E= data[f'slopediff_diff_{training_stage}'][:,E_sup].flatten()
-                y_I= data[f'slopediff_diff_{training_stage}'][:,I_sup].flatten()
+                y_E= data[f'slopediff_55_{training_stage}'][:,E_sup].flatten()
+                y_I= data[f'slopediff_55_{training_stage}'][:,I_sup].flatten()
                 x_E_90= shift_x_data(data[f'preforis_{training_stage}'], E_sup, shift_value=90)
                 x_I_90= shift_x_data(data[f'preforis_{training_stage}'], I_sup, shift_value=90)
                 axs[abs((2-j)) // 2,0].scatter(x_E_90, y_E, s=30, alpha=0.7, color='red')
@@ -486,7 +486,7 @@ def plot_results_from_csv(df,fig_filename=None):
 
     # BARPLOTS about relative changes
     categories_J = ['Jm_EE', 'Jm_IE', 'Jm_EI', 'Jm_II', 'Js_EE', 'Js_IE', 'Js_EI', 'Js_II']
-    categories_metrics = [ 'acc', 'staircase_offset', 'stoichiometric_offset'] # *** staircase_offset
+    categories_metrics = [ 'acc', 'staircase_offset', 'stoichiometric_offset'] 
     categories_r = [ 'rm_E', 'rm_I', 'rs_E','rs_I']
     categories_cf = ['c_E', 'c_I', 'f_E', 'f_I']
     rel_par_changes,_ = rel_changes(df) # 0 is pretraining and 1 is training in the second dimensions

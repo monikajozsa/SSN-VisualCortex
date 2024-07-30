@@ -21,7 +21,7 @@ from parameters import (
     pretraining_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on itP
 )
 from analysis.visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
-from MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
+from analysis.MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
 
 # Checking that pretrain_pars.is_on is on
 if not pretraining_pars.is_on:
