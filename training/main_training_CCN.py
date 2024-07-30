@@ -159,7 +159,7 @@ starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder
-note=f'50 runs for the case when cI and cE are not trained - with the Apr 10 settings otherwise'
+note=f'50 runs that repeat the Apr10_v1 but with slightly different stopping criteria and flipping conditions and saving settings, etc'
 results_filename, final_folder_path = save_code(note=note)
 
 

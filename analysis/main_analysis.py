@@ -28,7 +28,7 @@ if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 num_training = 50
-final_folder_path = os.path.join('results','Jul27_v0')
+final_folder_path = os.path.join('results','Jul30_v0')
 start_time_in_main= time.time()
 
 results_filename = os.path.join(final_folder_path, f"results.csv")
@@ -68,7 +68,7 @@ boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_tim
 MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True, recalc=True)
 
 folder_to_save=os.path.join(final_folder_path, 'figures')
-data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff
+_,_,_, data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff
 data_rel_changes['offset_staircase_diff']=-1*data_rel_changes['offset_staircase_diff']
 
 

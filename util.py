@@ -253,9 +253,9 @@ def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['lo
     else:
         untrained_pars.ssn_pars.f_E = selected_row['f_E']
         untrained_pars.ssn_pars.f_I = selected_row['f_I']
-    if 'stoichiometric_offset' in trained_pars_keys:
+    if 'stoichiometric_offset' in df.keys():
         offsets  = df['stoichiometric_offset'].dropna().reset_index(drop=True)
-    else:
+    else:  
         offsets = df['offset'].dropna().reset_index(drop=True)
     offset_last = offsets[len(offsets)-1]
 
