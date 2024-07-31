@@ -28,7 +28,8 @@ if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 num_training = 50
-final_folder_path = os.path.join('results','Jul30_v0')
+final_folder_path = os.path.join('results','Apr10_v1')
+g_randomized_flag = False
 start_time_in_main= time.time()
 
 results_filename = os.path.join(final_folder_path, f"results.csv")
@@ -36,7 +37,8 @@ orimap_filename = os.path.join(final_folder_path, f"orimap.csv")
 init_params_filename = os.path.join(final_folder_path, f"initial_parameters.csv")
 orimap_loaded = pd.read_csv(orimap_filename)
 results_df = pd.read_csv(results_filename)
-init_params_df = pd.read_csv(init_params_filename)
+if g_randomized_flag:
+    init_params_df = pd.read_csv(init_params_filename)
 
 
 ######### PLOT RESULTS ON PARAMETERS ############
@@ -68,7 +70,7 @@ boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_tim
 MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True, recalc=True)
 
 folder_to_save=os.path.join(final_folder_path, 'figures')
-_,_,_, data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff
+data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff
 data_rel_changes['offset_staircase_diff']=-1*data_rel_changes['offset_staircase_diff']
 
 
@@ -133,7 +135,10 @@ for i in range(0,num_training):
     orimap_i = orimap_loaded[mesh_i][1:]
     df_i = filter_for_run(results_df, i)
     SGD_step_inds = SGD_step_indices(df_i, 3)
-    g_randomized = dict(g_E = init_params_df['gE'][i], g_I = init_params_df['gI'][i])
+    if g_randomized_flag:
+        g_randomized = dict(g_E = init_params_df['gE'][i], g_I = init_params_df['gI'][i])
+    else:
+        g_randomized = None
 
     # Load fixed parameters
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 

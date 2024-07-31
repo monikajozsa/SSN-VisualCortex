@@ -251,9 +251,12 @@ def plot_tc_features(results_dir, num_training, ori_list):
                 data[f'slope_125_{training_stage}'] = numpy.concatenate((data[f'slope_125_{training_stage}'], slope[:,:,1]), axis=0)
                 data[f'fwhm_{training_stage}'] = numpy.concatenate((data[f'fwhm_{training_stage}'], fwhm), axis=0)
                 data[f'preforis_{training_stage}'] = numpy.concatenate((data[f'preforis_{training_stage}'], orientations), axis=0)
+            if training_stage > 0:
+                data[f'slopediff_55_{training_stage-1}'] = data[f'slope_55_{training_stage}'] - data[f'slope_55_{training_stage-1}']
+                data[f'slopediff_125_{training_stage-1}'] = data[f'slope_125_{training_stage}'] - data[f'slope_125_{training_stage-1}']
+                data[f'slopediff_diff_{training_stage-1}'] = data[f'slopediff_55_{training_stage-1}'] - data[f'slopediff_125_{training_stage-1}']
 
-
-    ############## Plots about changes before vs after training and pretraining (per layer and per centered or all) ##############
+############## Plots about changes before vs after training and pretraining (per layer and per centered or all) ##############
              
     # Define indices for each group of cells
     E_sup = 648+numpy.linspace(0, 80, 81).astype(int) 
@@ -273,8 +276,8 @@ def plot_tc_features(results_dir, num_training, ori_list):
     cmap = plt.get_cmap('rainbow')
     colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
     bins = ['0-4', '4-12', '12-20', '20-28', '28-36', '36-44', '44-50', '+50']
-    for j in range(0,len(colors)):
-        patches.append(mpatches.Patch(color=colors[j], label=bins[j]))
+    for layer_j in range(0,len(colors)):
+        patches.append(mpatches.Patch(color=colors[layer_j], label=bins[layer_j]))
 
     #############################################################################
     ######### Schoups-style scatter plots - coloring based on cell type #########
@@ -287,15 +290,15 @@ def plot_tc_features(results_dir, num_training, ori_list):
     
     # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
     stage_labels = ['pretrain', 'train']
-    for training_stage in range(2):
+    for training_stage in range(2):# change to range(2) for both pretrain and train
         fig, axs = plt.subplots(2, 2, figsize=(25, 25))
-        for j in [0,2]:            
+        for layer_j in [0,2]:            
             ##### Plot fwhm before vs after training for E_sup and E_mid #####
             # add a little jitter to x and y to avoid overlapping points
-            x = numpy.random.normal(0, 0.3, data[f'fwhm_{training_stage}'].shape) + data[f'fwhm_{training_stage}']
-            y = numpy.random.normal(0, 0.3, data[f'fwhm_{training_stage+1}'].shape) + data[f'fwhm_{training_stage+1}']
-            ax = axs[abs((2-j))//2,1]
-            if j==2:
+            x = data[f'fwhm_{training_stage}'] # + numpy.random.normal(0, 0.1, data[f'fwhm_{training_stage}'].shape) 
+            y = data[f'fwhm_{training_stage+1}'] # + numpy.random.normal(0, 0.1, data[f'fwhm_{training_stage+1}'].shape)
+            ax = axs[abs((2-layer_j))//2,1]
+            if layer_j==2:
                 for phase_ind in range(4):
                     indices_phase_E = I_mid_array[phase_ind,0,:]
                     indices_phase_I = I_mid_array[phase_ind,1,:]
@@ -310,41 +313,38 @@ def plot_tc_features(results_dir, num_training, ori_list):
             ax.set_ylabel('Post training')
             
             # Format axes
-            axes_format(axs[abs((2-j))//2,1], fs_ticks)
+            axes_format(axs[abs((2-layer_j))//2,1], fs_ticks)
             
             ##### Plot orientation vs slope #####
-            data[f'slopediff_55_{training_stage}'] = data[f'slope_55_{training_stage+1}'] - data[f'slope_55_{training_stage}']
-            data[f'slopediff_125_{training_stage}'] = data[f'slope_125_{training_stage+1}'] - data[f'slope_125_{training_stage}']
-            data[f'slopediff_diff_{training_stage}'] = data[f'slopediff_55_{training_stage}'] - data[f'slopediff_125_{training_stage}']
-            if j==2:
+            if layer_j==2:
                 # Middle layer scatter plots with added colors to the different cell categories
                 for phase_ind in range(4):
                     indices_phase_E = E_mid_array[phase_ind,0,:]
                     indices_phase_I = I_mid_array[phase_ind,1,:]
                     y_E= data[f'slopediff_55_{training_stage}'][:,indices_phase_E].flatten()
                     y_I= data[f'slopediff_55_{training_stage}'][:,indices_phase_I].flatten()
-                    x_I_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_I, shift_value=90)
-                    x_E_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_E, shift_value=90)
-                    axs[abs((2-j)) // 2,0].scatter(x_E_90, y_E, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
-                    axs[abs((2-j)) // 2,0].scatter(x_I_90, y_I, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
+                    x_I_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_I, shift_value=55)
+                    x_E_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_E, shift_value=55)
+                    axs[abs((2-layer_j)) // 2,0].scatter(x_E_90, y_E, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
+                    axs[abs((2-layer_j)) // 2,0].scatter(x_I_90, y_I, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
             else:
                 # Superficial layer scatter plots
                 y_E= data[f'slopediff_55_{training_stage}'][:,E_sup].flatten()
                 y_I= data[f'slopediff_55_{training_stage}'][:,I_sup].flatten()
-                x_E_90= shift_x_data(data[f'preforis_{training_stage}'], E_sup, shift_value=90)
-                x_I_90= shift_x_data(data[f'preforis_{training_stage}'], I_sup, shift_value=90)
-                axs[abs((2-j)) // 2,0].scatter(x_E_90, y_E, s=30, alpha=0.7, color='red')
-                axs[abs((2-j)) // 2,0].scatter(x_I_90, y_I, s=30, alpha=0.7, color='blue')
+                x_E_90= shift_x_data(data[f'preforis_{training_stage}'], E_sup, shift_value=55)
+                x_I_90= shift_x_data(data[f'preforis_{training_stage}'], I_sup, shift_value=55)
+                axs[abs((2-layer_j)) // 2,0].scatter(x_E_90, y_E, s=30, alpha=0.7, color='red')
+                axs[abs((2-layer_j)) // 2,0].scatter(x_I_90, y_I, s=30, alpha=0.7, color='blue')
             # Line plots for both layers: define x and y values and shift x to have 0 in its center
-            y_E= data[f'slopediff_diff_{training_stage}'][:,indices[j]].flatten()
-            y_I= data[f'slopediff_diff_{training_stage}'][:,indices[j+1]].flatten()
-            x_E= shift_x_data(data[f'preforis_{training_stage}'], indices[j], shift_value=90)
-            x_I= shift_x_data(data[f'preforis_{training_stage}'], indices[j+1], shift_value=90)
+            y_E= data[f'slopediff_55_{training_stage}'][:,indices[layer_j]].flatten()
+            y_I= data[f'slopediff_55_{training_stage}'][:,indices[layer_j+1]].flatten()
+            x_E= shift_x_data(data[f'preforis_{training_stage}'], indices[layer_j], shift_value=55)
+            x_I= shift_x_data(data[f'preforis_{training_stage}'], indices[layer_j+1], shift_value=55)
             lowess_E = sm.nonparametric.lowess(y_E, x_E, frac=0.15)  # Example with frac=0.2 for more local averaging
             lowess_I = sm.nonparametric.lowess(y_I, x_I, frac=0.15)
-            axs[abs((2-j)) // 2,0].plot(lowess_E[:, 0], lowess_E[:, 1], color='darkred', linewidth=6)
-            axs[abs((2-j)) // 2,0].plot(lowess_I[:, 0], lowess_I[:, 1], color='darkblue', linewidth=6)
-            axes_format(axs[abs((2-j)) // 2,0], fs_ticks)
+            axs[abs((2-layer_j)) // 2,0].plot(lowess_E[:, 0], lowess_E[:, 1], color='darkred', linewidth=8)
+            axs[abs((2-layer_j)) // 2,0].plot(lowess_I[:, 0], lowess_I[:, 1], color='darkblue', linewidth=8)
+            axes_format(axs[abs((2-layer_j)) // 2,0], fs_ticks)
         
         axs[0,1].set_title('Full width \n at half maximum (deg.)', fontsize=fs_text)
         axs[0,1].set_xlabel('')
@@ -352,11 +352,11 @@ def plot_tc_features(results_dir, num_training, ori_list):
         axs[1,1].set_ylabel('Post FWHM', fontsize=fs_text)
         axs[0,1].set_ylabel('Post FWHM', fontsize=fs_text)
 
-        axs[0,0].set_title('Tuning curve slope:\n'+ r'$\Delta$' + 'slope(55) - '+ r'$\Delta$' + 'slope(125)', fontsize=fs_text)
+        axs[0,0].set_title('Tuning curve slope:\n'+ r'$\Delta$' + 'slope(55)', fontsize=fs_text)
         axs[0,0].set_xlabel('')
         axs[1,0].set_xlabel('pref. ori - trained ori', fontsize=fs_text, labelpad=20)
-        axs[1,0].set_ylabel(r'$\Delta$ slope(55)- \Delta$ slope(125)', fontsize=fs_text)
-        axs[0,0].set_ylabel(r'$\Delta$ slope(55)- \Delta$ slope(125)', fontsize=fs_text)
+        axs[1,0].set_ylabel(r'$\Delta$ slope(55)', fontsize=fs_text)
+        axs[0,0].set_ylabel(r'$\Delta$ slope(55)', fontsize=fs_text)
         plt.tight_layout(w_pad=10, h_pad=7)
         fig.savefig(results_dir + f"/figures/tc_features_{stage_labels[training_stage]}.png", bbox_inches='tight')
         plt.close()

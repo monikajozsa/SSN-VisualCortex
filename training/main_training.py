@@ -130,4 +130,6 @@ sibling_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'analy
 script_path = os.path.join(sibling_folder, 'main_analysis.py')
 
 with open(script_path) as file:
+    pretraining_pars.is_on = True
+    untrained_pars.pretrain_pars.is_on = True
     exec(file.read())

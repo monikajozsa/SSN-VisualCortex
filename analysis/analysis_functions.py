@@ -73,6 +73,7 @@ def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=
     num_rows = num_trainings*max(1,(num_indices-2))
     J_m_diff = numpy.zeros((num_rows,7))
     J_s_diff = numpy.zeros((num_rows,7))
+    J_ms_ratio = numpy.zeros((num_rows,3))
     f_diff = numpy.zeros((num_rows,2))
     c_diff = numpy.zeros((num_rows,2))
     offset_th = numpy.zeros((num_rows,2))
@@ -112,7 +113,11 @@ def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=
         
         # Calculate the J differences (J_m_EE	J_m_EI	J_m_IE	J_m_II	J_s_EE	J_s_EI	J_s_IE	J_s_II) at start and end of training
         relative_changes, time_inds = rel_changes(df_i, num_indices)
-        training_start = time_inds[1]
+        if num_indices==3:
+            training_start = time_inds[1]
+        else:
+            training_start = time_inds[0]
+        training_end = time_inds[-1]
         J_m_EE = df_i['J_m_EE']
         J_m_IE = df_i['J_m_IE']
         J_s_EE = df_i['J_s_EE']
@@ -134,50 +139,55 @@ def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=
             offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
             offset_th_125[sample_ind : sample_ind + max(1,num_indices-2),0] = numpy.repeat(offset_temp, max(1,num_indices-2))
             untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
+        # Calculate the relative changes in the combined J_m_E J_m_I, J_s_E and J_s_I parameters
+        J_m_E_0 = (J_m_EE[training_start]+J_m_IE[training_start])
+        J_m_I_0 = (J_m_II[training_start]+J_m_EI[training_start])
+        J_s_E_0 = (J_s_EE[training_start]+J_s_IE[training_start])
+        J_s_I_0 = (J_s_II[training_start]+J_s_EI[training_start])
+        J_ms_I_0 = (J_s_II[training_start]+J_s_EI[training_start]+J_m_II[training_start]+J_m_EI[training_start])
+        J_ms_E_0 = (J_s_EE[training_start]+J_s_IE[training_start]+J_m_EE[training_start]+J_m_IE[training_start])
+        J_m_E_1 = (J_m_EE[training_end]+J_m_IE[training_end])
+        J_m_I_1 = (J_m_II[training_end]+J_m_EI[training_end])
+        J_s_E_1 = (J_s_EE[training_end]+J_s_IE[training_end])
+        J_s_I_1 = (J_s_II[training_end]+J_s_EI[training_end])
+        J_ms_I_1 = (J_s_II[training_end]+J_s_EI[training_end]+J_m_II[training_end]+J_m_EI[training_end])
+        J_ms_E_1 = (J_s_EE[training_end]+J_s_IE[training_end]+J_m_EE[training_end]+J_m_IE[training_end])
 
-        for j in range(2,num_indices):
-            training_end = time_inds[j]
-            # Calculate the relative changes in the combined J_m_E J_m_I, J_s_E and J_s_I parameters
-            J_m_E_0 = (J_m_EE[training_start]+J_m_IE[training_start])
-            J_m_I_0 = (J_m_II[training_start]+J_m_EI[training_start])
-            J_s_E_0 = (J_s_EE[training_start]+J_s_IE[training_start])
-            J_s_I_0 = (J_s_II[training_start]+J_s_EI[training_start])
-            J_m_E_1 = (J_m_EE[training_end]+J_m_IE[training_end])
-            J_m_I_1 = (J_m_II[training_end]+J_m_EI[training_end])
-            J_s_E_1 = (J_s_EE[training_end]+J_s_IE[training_end])
-            J_s_I_1 = (J_s_II[training_end]+J_s_EI[training_end])
-
-            J_m_diff[sample_ind,4] = (J_m_E_1 - J_m_E_0) / J_m_E_0
-            J_m_diff[sample_ind,5] = (J_m_I_1 - J_m_I_0) / J_m_I_0
-            J_m_diff[sample_ind,6] = (J_m_I_1/J_m_E_1 - J_m_I_0/J_m_E_0) / (J_m_I_0/J_m_E_0)
-            J_s_diff[sample_ind,4] = (J_s_E_1 - J_s_E_0) / J_s_E_0       
-            J_s_diff[sample_ind,5] = (J_s_I_1 - J_s_I_0) / J_s_I_0
-            J_s_diff[sample_ind,6] = (J_s_I_1/J_s_E_1 - J_s_I_0/J_s_E_0) / (J_s_I_0/J_s_E_0)
-            # Calculate the relative changes in the parameters
-            J_m_diff[sample_ind,0:4]= relative_changes[0:4,1] *100
-            J_s_diff[sample_ind,0:4]= relative_changes[4:8,1] *100
-            c_diff[sample_ind,:] = relative_changes[8:10,1] *100
-            f_diff[sample_ind,:] = relative_changes[10:12,1] *100
-            offset_staircase_diff[sample_ind] = relative_changes[13,1] *100
-                    
-            if offset_calc:
-                # Calculate the offset threshold after training
-                trained_pars_stage1, trained_pars_stage2, _, _, _ = load_parameters(df_i, iloc_ind = training_end)
-                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
-                offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
-                offset_th[sample_ind,1] = offset_temp
+        J_m_diff[sample_ind,4] = (J_m_E_1 - J_m_E_0) / J_m_E_0
+        J_m_diff[sample_ind,5] = (J_m_I_1 - J_m_I_0) / J_m_I_0
+        J_m_diff[sample_ind,6] = (J_m_I_1/J_m_E_1 - J_m_I_0/J_m_E_0) / (J_m_I_0/J_m_E_0)
+        J_s_diff[sample_ind,4] = (J_s_E_1 - J_s_E_0) / J_s_E_0       
+        J_s_diff[sample_ind,5] = (J_s_I_1 - J_s_I_0) / J_s_I_0
+        J_s_diff[sample_ind,6] = (J_s_I_1/J_s_E_1 - J_s_I_0/J_s_E_0) / (J_s_I_0/J_s_E_0)
+        #J_ms_ratio[sample_ind,0] = ((J_ms_I_1-J_ms_I_0) / J_ms_I_0) / ((J_ms_E_1-J_ms_E_0) / J_ms_E_0)
+        J_ms_ratio[sample_ind,0] = ((J_ms_I_1/ J_ms_E_1)-(J_ms_I_0/J_ms_E_0)) / (J_ms_I_0/J_ms_E_0)
+        J_ms_ratio[sample_ind,1] = J_ms_I_0/J_ms_E_0
+        J_ms_ratio[sample_ind,2] = J_ms_I_1/ J_ms_E_1
+        # Calculate the relative changes in the parameters
+        J_m_diff[sample_ind,0:4]= relative_changes[0:4,num_indices-2] *100
+        J_s_diff[sample_ind,0:4]= relative_changes[4:8,num_indices-2] *100
+        c_diff[sample_ind,:] = relative_changes[8:10,num_indices-2] *100
+        f_diff[sample_ind,:] = relative_changes[10:12,num_indices-2] *100
+        offset_staircase_diff[sample_ind] = relative_changes[13,num_indices-2] *100
                 
-                untrained_pars.stimuli_pars.ref_ori = 125
-                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
-                offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
-                offset_th_125[sample_ind,1] = offset_temp
-                untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
-                
-            offset_th_diff[sample_ind] = -(offset_th[sample_ind,1] - offset_th[sample_ind,0]) / offset_th[sample_ind,0] *100
-            offset_th_diff_125[sample_ind] = -(offset_th_125[sample_ind,1] - offset_th_125[sample_ind,0]) / offset_th_125[sample_ind,0] *100
-        
-            # increment the sample index
-            sample_ind += 1
+        if offset_calc:
+            # Calculate the offset threshold after training
+            trained_pars_stage1, trained_pars_stage2, _, _, _ = load_parameters(df_i, iloc_ind = training_end)
+            acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
+            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
+            offset_th[sample_ind,1] = offset_temp
+            
+            untrained_pars.stimuli_pars.ref_ori = 125
+            acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
+            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
+            offset_th_125[sample_ind,1] = offset_temp
+            untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
+            
+        offset_th_diff[sample_ind] = -(offset_th[sample_ind,1] - offset_th[sample_ind,0]) / offset_th[sample_ind,0] *100
+        offset_th_diff_125[sample_ind] = -(offset_th_125[sample_ind,1] - offset_th_125[sample_ind,0]) / offset_th_125[sample_ind,0] *100
+    
+        # increment the sample index
+        sample_ind += 1
 
         print('Finished reading file', i, 'time elapsed:', time.time() - start_time)
 
@@ -194,13 +204,14 @@ def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=
         offset_th_diff_125 = offset_th_diff_125[mesh_offset_th]
         J_m_diff = J_m_diff[mesh_offset_th,:]
         J_s_diff = J_s_diff[mesh_offset_th,:]
+        J_ms_ratio = J_ms_ratio[mesh_offset_th,:]
         f_diff = f_diff[mesh_offset_th,:]
         c_diff = c_diff[mesh_offset_th,:]
         offset_staircase_diff = offset_staircase_diff[mesh_offset_th]
         
         print('Number of samples:', sum(mesh_offset_th))
     
-    return  offset_th_diff, offset_th_diff_125, offset_staircase_diff, J_m_diff, J_s_diff, f_diff, c_diff, mesh_offset_th
+    return  offset_th_diff, offset_th_diff_125, offset_staircase_diff, J_m_diff, J_s_diff, J_ms_ratio, f_diff, c_diff, mesh_offset_th
 
 
 def rel_changes(df, num_indices=3):
@@ -218,8 +229,12 @@ def rel_changes(df, num_indices=3):
     f_E = df['f_E']
     f_I = df['f_I']
     acc = df['acc']
-    staircase_offset = df['staircase_offset'] 
-    stoichiometric_offset = df['stoichiometric_offset'] 
+    if 'staircase_offset' in df.columns:
+        staircase_offset = df['staircase_offset'] 
+        stoichiometric_offset = df['stoichiometric_offset']
+    else:
+        staircase_offset = df['offset']
+        stoichiometric_offset = numpy.zeros_like(staircase_offset)
     maxr_E_mid = df['maxr_E_mid']
     maxr_I_mid = df['maxr_I_mid']
     maxr_E_sup = df['maxr_E_sup']
@@ -464,7 +479,7 @@ def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_lab
     '''
     Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores.
     '''
-    offset_th_diff, offset_th_diff_125,offset_staircase_diff, J_m_diff, J_s_diff, f_diff, c_diff, mesh_offset_th = rel_changes_from_csvs(folder, num_trainings, num_time_inds, mesh_for_valid_offset=mesh_for_valid_offset)
+    offset_th_diff, offset_th_diff_125,offset_staircase_diff, J_m_diff, J_s_diff, J_ms_diff, f_diff, c_diff, mesh_offset_th = rel_changes_from_csvs(folder, num_trainings, num_time_inds, mesh_for_valid_offset=mesh_for_valid_offset)
     
     # Convert relative parameter differences to pandas DataFrame
     data = pd.DataFrame({'offset_th_diff': offset_th_diff, 'offset_th_diff_125': offset_th_diff_125, 'offset_staircase_diff': offset_staircase_diff,  'J_m_EE_diff': J_m_diff[:, 0], 'J_m_IE_diff': J_m_diff[:, 1], 'J_m_EI_diff': J_m_diff[:, 2], 'J_m_II_diff': J_m_diff[:, 3], 'J_s_EE_diff': J_s_diff[:, 0], 'J_s_IE_diff': J_s_diff[:, 1], 'J_s_EI_diff': J_s_diff[:, 2], 'J_s_II_diff': J_s_diff[:, 3], 'f_E_diff': f_diff[:, 0], 'f_I_diff': f_diff[:, 1], 'c_E_diff': c_diff[:, 0], 'c_I_diff': c_diff[:, 1]})
@@ -476,6 +491,7 @@ def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_lab
     data['J_s_I_diff'] = J_s_diff[:, 5]
     data['J_m_ratio_diff'] = J_m_diff[:, 6]
     data['J_s_ratio_diff'] = J_s_diff[:, 6]
+    data['J_ms_diff'] = J_ms_diff[:, 0]
 
     if data_only:
         return data
