@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 numpy.random.seed(0)
 
 from training.util_gabor import init_untrained_pars
-from analysis.analysis_functions import tuning_curve, SGD_step_indices, tuning_curve, MVPA_param_offset_correlations
+from analysis.analysis_functions import tuning_curve, SGD_indices_at_stages, tuning_curve, rel_change_for_runs
 from util import load_parameters, filter_for_run
 from parameters import (
     grid_pars,
@@ -27,8 +27,8 @@ from analysis.MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
 if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
-num_training = 50
-final_folder_path = os.path.join('results','Apr10_v1')
+num_training = 2
+final_folder_path = os.path.join('results','Aug06_v1')
 g_randomized_flag = False
 start_time_in_main= time.time()
 
@@ -70,41 +70,38 @@ boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_tim
 MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True, recalc=True)
 
 folder_to_save=os.path.join(final_folder_path, 'figures')
-data_rel_changes = MVPA_param_offset_correlations(final_folder_path, num_training, num_time_inds=3, x_labels=None,mesh_for_valid_offset=False, data_only=True) #J_m_ratio_diff, J_s_ratio_diff, offset_staircase_diff
-data_rel_changes['offset_staircase_diff']=-1*data_rel_changes['offset_staircase_diff']
-
+data_rel_changes, _ = rel_change_for_runs(final_folder_path, num_indices=3)
+data_rel_changes['staircase_offset']=-data_rel_changes['staircase_offset']
 
 plot_MVPA(final_folder_path + f'/sigmafilt_{sigma_filter}',num_training)
-
 
 MVPA_scores = numpy.load(final_folder_path + f'/sigmafilt_{sigma_filter}/MVPA_scores.npy') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
 data_sup_55 = pd.DataFrame({
     'MVPA': (MVPA_scores[:,0,-1,0]- MVPA_scores[:,0,-2,0])/MVPA_scores[:,0,-2,0],
-    'JsI/JsE': data_rel_changes['J_s_ratio_diff'],
-    'offset_th': data_rel_changes['offset_staircase_diff']
+    'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
+    'offset_th': data_rel_changes['staircase_offset']
 })
 plot_corr_triangle(data_sup_55, folder_to_save, 'corr_triangle_sup_55')
 data_sup_125 = pd.DataFrame({
     'MVPA': (MVPA_scores[:,0,-1,1]- MVPA_scores[:,0,-2,1])/MVPA_scores[:,0,-2,1],
-    'JsI/JsE': data_rel_changes['J_s_ratio_diff'],
-    'offset_th': data_rel_changes['offset_staircase_diff']
+    'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
+    'offset_th': data_rel_changes['staircase_offset']
 })
 plot_corr_triangle(data_sup_125, folder_to_save, 'corr_triangle_sup_125')
 data_mid_55 = pd.DataFrame({
     'MVPA': (MVPA_scores[:,1,-1,0]- MVPA_scores[:,1,-2,0])/MVPA_scores[:,1,-2,0],
-    'JmI/JmE': data_rel_changes['J_m_ratio_diff'],
-    'offset_th': data_rel_changes['offset_staircase_diff']
+    'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
+    'offset_th': data_rel_changes['staircase_offset']
 })
 plot_corr_triangle(data_mid_55, folder_to_save, 'corr_triangle_mid_55')
 data_mid_125 = pd.DataFrame({
     'MVPA': (MVPA_scores[:,1,-1,1]- MVPA_scores[:,1,-2,1])/MVPA_scores[:,1,-2,1],
-    'JmI/JmE': data_rel_changes['J_m_ratio_diff'],
-    'offset_th': data_rel_changes['offset_staircase_diff']
+    'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
+    'offset_th': data_rel_changes['staircase_offset']
 })
 plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
 
 print(f'Finished calculating and plotting MVPA results in {time.time()-start_time_in_main} seconds')
-
 
 ########## CALCULATE TUNING CURVES ############
 start_time_in_main = time.time()
@@ -130,11 +127,11 @@ for type_ind in range(2):
         tc_headers.append(tc_header)
 
 # Loop over the different runs
+from analysis.analysis_functions import load_orientation_map
 for i in range(0,num_training):
-    mesh_i = orimap_loaded['run_index']==i
-    orimap_i = orimap_loaded[mesh_i][1:]
+    orimap_i = load_orientation_map(final_folder_path, i)
     df_i = filter_for_run(results_df, i)
-    SGD_step_inds = SGD_step_indices(df_i, 3)
+    SGD_step_inds = SGD_indices_at_stages(df_i, 3)
     if g_randomized_flag:
         g_randomized = dict(g_E = init_params_df['gE'][i], g_I = init_params_df['gI'][i])
     else:

@@ -61,7 +61,7 @@ while i < num_training and num_FailedRuns < 20:
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretraining_pars, readout_pars, i, folder_to_save=final_folder_path, randomize_g=randomize_pars)
     # Randomize readout_pars, trained_pars, eta such that they satisfy certain conditions
-    trained_pars_stage1, pretrained_pars_stage2, untrained_pars = randomize_params(readout_pars, trained_pars, untrained_pars, randomize_pars=randomize_pars)
+    trained_pars_stage1, pretrained_pars_stage2, untrained_pars = randomize_params(readout_pars, pretrained_pars, untrained_pars, randomize_pars=randomize_pars)
     # Save initial parameters into initial_parameters variable
     initial_parameters = create_initial_parameters_df(initial_parameters, trained_pars_stage1, pretrained_pars_stage2, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m)
 

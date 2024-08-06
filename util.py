@@ -1,11 +1,9 @@
 import jax
 import jax.numpy as np
 import numpy
-import os
 import shutil
 from datetime import datetime
 import pandas as pd
-import re
 from pathlib import Path
 
 from training.util_gabor import BW_image_jit_noisy
@@ -253,10 +251,12 @@ def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['lo
     else:
         untrained_pars.ssn_pars.f_E = selected_row['f_E']
         untrained_pars.ssn_pars.f_I = selected_row['f_I']
-    if 'stoichiometric_offset' in df.keys():
-        offsets  = df['stoichiometric_offset'].dropna().reset_index(drop=True)
-    else:  
-        offsets = df['offset'].dropna().reset_index(drop=True)
+    if 'psychometric_offset' in df.keys():
+        offsets  = df['psychometric_offset'].dropna().reset_index(drop=True)
+    else:
+        for keys in df.keys():
+            if 'ric_offset' in keys:
+                offsets = df[keys].dropna().reset_index(drop=True)
     offset_last = offsets[len(offsets)-1]
 
     if 'meanr_E_mid' in df.columns:

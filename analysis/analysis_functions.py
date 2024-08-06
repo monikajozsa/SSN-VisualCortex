@@ -9,11 +9,11 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from training.model import evaluate_model_response, vmap_evaluate_model_response, vmap_evaluate_model_response_mid
+from training.model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
-from training.training_functions import mean_training_task_acc_test, offset_at_baseline_acc, generate_noise
-from util import load_parameters, sep_exponentiate, filter_for_run #, create_grating_training
-from training.util_gabor import init_untrained_pars, BW_image_jit, BW_image_jit_noisy, BW_image_jax_supp, BW_image_vmap
+from training.training_functions import generate_noise
+from util import load_parameters, sep_exponentiate, filter_for_run
+from training.util_gabor import init_untrained_pars, BW_image_jit_noisy, BW_image_jax_supp, BW_image_vmap
 from parameters import (
     xy_distance,
     grid_pars,
@@ -63,238 +63,80 @@ def exclude_runs(folder_path, input_vector):
     df_init_params_filtered.to_csv(os.path.join(folder_path_from_analysis,'initial_parameters.csv'), index=False)
 
 
-def rel_changes_from_csvs(folder, num_trainings=1, num_indices = 3, offset_calc=True, mesh_for_valid_offset=True):
-    '''read CSV files and calculate the correlation between the changes of accuracy and J (J_II and J_EI are summed up and J_EE and J_IE are summed up) for each file'''
-
-    filepath = folder + '/results.csv'
+def data_from_run(folder, run_index=0, num_indices=3):
+    """Read CSV files and calculate the relative changes between parameters at the different stages of training."""
+    
+    filepath = os.path.join(folder, 'results.csv')
     df = pd.read_csv(filepath)
+    df_i = filter_for_run(df, run_index)
+    stage_time_inds = SGD_indices_at_stages(df_i, num_indices)
+
+    return df_i, stage_time_inds
+
+def calc_rel_change_supp(variable, time_start, time_end):
+    '''Calculate the relative change in a variable between two time points.'''
+    # Find the first non-None value after training_start and the last non-None value before training_end
+    start_value = None
+    for i in range(time_start, len(variable)):
+        if not pd.isna(variable[i]):
+            start_value = variable[i]
+            break
+    end_value = None
+    for j in range(time_end, i, -1):
+        if not pd.isna(variable[j]):
+            end_value = variable[j]
+            break
+    
+    # Calculate the relative change
+    if start_value is None or end_value is None:
+        return None
+    else:
+        if start_value == 0:
+            return (end_value - start_value)
+        else:
+            return 100*(end_value - start_value) / start_value
+    
+def rel_change_for_run(folder, training_ind=0, num_indices=3):
+    '''Calculate the relative changes in the parameters for a single run.'''
+    data, time_inds = data_from_run(folder, training_ind, num_indices)
+    training_end = time_inds[-1]
+    columns_to_drop = ['stage', 'SGD_steps']  # Replace with the actual column names you want to drop
+    data = data.drop(columns=columns_to_drop)
+    data['EI_ratio_J_m'] = numpy.abs((data['J_m_II']+data['J_m_EI']))/numpy.abs((data['J_m_IE']+data['J_m_EE']))
+    data['EI_ratio_J_s'] = numpy.abs((data['J_s_II']+data['J_s_EI']))/numpy.abs((data['J_s_IE']+data['J_s_EE']))
+    data['EI_ratio_J_ms'] = numpy.abs((data['J_m_II']+data['J_m_EI']+data['J_s_II']+data['J_s_EI']))/numpy.abs((data['J_m_IE']+data['J_m_EE']+data['J_s_IE']+data['J_s_EE']))
+    if num_indices == 3:
+        pretraining_start = time_inds[0]
+        training_start = time_inds[1]
+        rel_change_pretrain = {key: calc_rel_change_supp(value, pretraining_start, training_start) for key, value in data.items()}
+    else:
+        training_start = time_inds[0]
+        rel_change_pretrain = None
+
+    rel_change_train = {key: calc_rel_change_supp(value, training_start, training_end) for key, value in data.items()}        
+    
+    return rel_change_train, rel_change_pretrain, time_inds
+
+def rel_change_for_runs(folder, num_indices=3):
+    '''Calculate the relative changes in the parameters for all runs.'''
 
     # Initialize the arrays to store the results in
-    num_rows = num_trainings*max(1,(num_indices-2))
-    J_m_diff = numpy.zeros((num_rows,7))
-    J_s_diff = numpy.zeros((num_rows,7))
-    J_ms_ratio = numpy.zeros((num_rows,3))
-    f_diff = numpy.zeros((num_rows,2))
-    c_diff = numpy.zeros((num_rows,2))
-    offset_th = numpy.zeros((num_rows,2))
-    offset_th_125 = numpy.zeros((num_rows,2))
-    offset_th_diff = numpy.zeros(num_rows)
-    offset_th_diff_125 = numpy.zeros(num_rows)
-    offset_staircase_diff = numpy.zeros(num_rows)
+    filepath = os.path.join(folder, 'results.csv')
+    df = pd.read_csv(filepath)
+    num_runs = df['run_index'].iloc[-1]+1
 
-    # Initialize the test offset vector for the threshold calculation
-    test_offset_vec = numpy.array([1, 2, 3, 4, 6, 10, 15, 20]) 
-
-    start_time = time.time()
-    sample_ind = 0
-
-    # Check if offset_th.csv is already present and if it is the same size as the number of trainings * (num_indices-2)
-    if offset_calc:
-        if 'offset_th.csv' in os.listdir(folder):
-            offset_th = numpy.loadtxt(folder + '/offset_th.csv', delimiter=',')
-        if 'offset_th_125.csv' in os.listdir(folder):
-            offset_th_125 = numpy.loadtxt(folder + '/offset_th_125.csv', delimiter=',')
-            if offset_th.shape[0]==num_rows and offset_th_125.shape[0]==num_rows:
-                offset_calc = False
-            else:
-                offset_th = numpy.zeros((num_rows,2))
-                offset_th_125 = numpy.zeros((num_rows,2))
-    
-    ref_ori_saved = float(stimuli_pars.ref_ori)
-    for i in range(num_trainings):
-        if offset_calc:
-            # Load the orimap file and define the untrained parameters
-            loaded_orimap =  load_orientation_map(folder, i)
-            untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                            loss_pars, training_pars, pretraining_pars, readout_pars, None, orimap_loaded=loaded_orimap)
-            untrained_pars.pretrain_pars.is_on = False        
-        # Filter the df for the ith run
-        df_i = filter_for_run(df, i)
+    # Calculate the relative changes for all runs
+    for i in range(num_runs):
+        rel_change_train, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_indices)
+        if i == 0:
+            rel_changes_train = {key: numpy.zeros(num_runs) for key in rel_change_train.keys()}
+            rel_changes_pretrain = {key: numpy.zeros(num_runs) for key in rel_change_pretrain.keys()}
+        for key, value in rel_change_train.items():
+            rel_changes_train[key][i] = value
+            rel_changes_pretrain[key][i] = rel_change_pretrain[key]
         
-        # Calculate the J differences (J_m_EE	J_m_EI	J_m_IE	J_m_II	J_s_EE	J_s_EI	J_s_IE	J_s_II) at start and end of training
-        relative_changes, time_inds = rel_changes(df_i, num_indices)
-        if num_indices==3:
-            training_start = time_inds[1]
-        else:
-            training_start = time_inds[0]
-        training_end = time_inds[-1]
-        J_m_EE = df_i['J_m_EE']
-        J_m_IE = df_i['J_m_IE']
-        J_s_EE = df_i['J_s_EE']
-        J_s_IE = df_i['J_s_IE']
-        J_m_EI = [numpy.abs(df_i['J_m_EI'][i]) for i in range(len(df_i['J_m_EI']))]
-        J_m_II = [numpy.abs(df_i['J_m_II'][i]) for i in range(len(df_i['J_m_II']))]
-        J_s_EI = [numpy.abs(df_i['J_s_EI'][i]) for i in range(len(df_i['J_s_EI']))]
-        J_s_II = [numpy.abs(df_i['J_s_II'][i]) for i in range(len(df_i['J_s_II']))]
-
-        if offset_calc:
-            # Calculate the offset threshold before training (repeat as many times as the number of indices-2)
-            trained_pars_stage1, trained_pars_stage2, _, _, _ = load_parameters(df_i, iloc_ind = training_start)
-            acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec, sample_size = 1 )
-            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
-            offset_th[sample_ind : sample_ind + max(1,num_indices-2),0] = numpy.repeat(offset_temp, max(1,num_indices-2))
-            
-            untrained_pars.stimuli_pars.ref_ori = 125
-            acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec, sample_size = 1 )
-            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
-            offset_th_125[sample_ind : sample_ind + max(1,num_indices-2),0] = numpy.repeat(offset_temp, max(1,num_indices-2))
-            untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
-        # Calculate the relative changes in the combined J_m_E J_m_I, J_s_E and J_s_I parameters
-        J_m_E_0 = (J_m_EE[training_start]+J_m_IE[training_start])
-        J_m_I_0 = (J_m_II[training_start]+J_m_EI[training_start])
-        J_s_E_0 = (J_s_EE[training_start]+J_s_IE[training_start])
-        J_s_I_0 = (J_s_II[training_start]+J_s_EI[training_start])
-        J_ms_I_0 = (J_s_II[training_start]+J_s_EI[training_start]+J_m_II[training_start]+J_m_EI[training_start])
-        J_ms_E_0 = (J_s_EE[training_start]+J_s_IE[training_start]+J_m_EE[training_start]+J_m_IE[training_start])
-        J_m_E_1 = (J_m_EE[training_end]+J_m_IE[training_end])
-        J_m_I_1 = (J_m_II[training_end]+J_m_EI[training_end])
-        J_s_E_1 = (J_s_EE[training_end]+J_s_IE[training_end])
-        J_s_I_1 = (J_s_II[training_end]+J_s_EI[training_end])
-        J_ms_I_1 = (J_s_II[training_end]+J_s_EI[training_end]+J_m_II[training_end]+J_m_EI[training_end])
-        J_ms_E_1 = (J_s_EE[training_end]+J_s_IE[training_end]+J_m_EE[training_end]+J_m_IE[training_end])
-
-        J_m_diff[sample_ind,4] = (J_m_E_1 - J_m_E_0) / J_m_E_0
-        J_m_diff[sample_ind,5] = (J_m_I_1 - J_m_I_0) / J_m_I_0
-        J_m_diff[sample_ind,6] = (J_m_I_1/J_m_E_1 - J_m_I_0/J_m_E_0) / (J_m_I_0/J_m_E_0)
-        J_s_diff[sample_ind,4] = (J_s_E_1 - J_s_E_0) / J_s_E_0       
-        J_s_diff[sample_ind,5] = (J_s_I_1 - J_s_I_0) / J_s_I_0
-        J_s_diff[sample_ind,6] = (J_s_I_1/J_s_E_1 - J_s_I_0/J_s_E_0) / (J_s_I_0/J_s_E_0)
-        #J_ms_ratio[sample_ind,0] = ((J_ms_I_1-J_ms_I_0) / J_ms_I_0) / ((J_ms_E_1-J_ms_E_0) / J_ms_E_0)
-        J_ms_ratio[sample_ind,0] = ((J_ms_I_1/ J_ms_E_1)-(J_ms_I_0/J_ms_E_0)) / (J_ms_I_0/J_ms_E_0)
-        J_ms_ratio[sample_ind,1] = J_ms_I_0/J_ms_E_0
-        J_ms_ratio[sample_ind,2] = J_ms_I_1/ J_ms_E_1
-        # Calculate the relative changes in the parameters
-        J_m_diff[sample_ind,0:4]= relative_changes[0:4,num_indices-2] *100
-        J_s_diff[sample_ind,0:4]= relative_changes[4:8,num_indices-2] *100
-        c_diff[sample_ind,:] = relative_changes[8:10,num_indices-2] *100
-        f_diff[sample_ind,:] = relative_changes[10:12,num_indices-2] *100
-        offset_staircase_diff[sample_ind] = relative_changes[13,num_indices-2] *100
-                
-        if offset_calc:
-            # Calculate the offset threshold after training
-            trained_pars_stage1, trained_pars_stage2, _, _, _ = load_parameters(df_i, iloc_ind = training_end)
-            acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
-            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
-            offset_th[sample_ind,1] = offset_temp
-            
-            untrained_pars.stimuli_pars.ref_ori = 125
-            acc_mean, _, _ = mean_training_task_acc_test(trained_pars_stage2, trained_pars_stage1, untrained_pars, jit_on=True, offset_vec=test_offset_vec )
-            offset_temp = numpy.atleast_1d(offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec))[0]
-            offset_th_125[sample_ind,1] = offset_temp
-            untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
-            
-        offset_th_diff[sample_ind] = -(offset_th[sample_ind,1] - offset_th[sample_ind,0]) / offset_th[sample_ind,0] *100
-        offset_th_diff_125[sample_ind] = -(offset_th_125[sample_ind,1] - offset_th_125[sample_ind,0]) / offset_th_125[sample_ind,0] *100
+    return rel_changes_train, rel_changes_pretrain
     
-        # increment the sample index
-        sample_ind += 1
-
-        print('Finished reading file', i, 'time elapsed:', time.time() - start_time)
-
-    # save out offset_th in a csv if it is not already present
-    if offset_calc:
-        numpy.savetxt(folder + '/offset_th.csv', offset_th, delimiter=',')
-        numpy.savetxt(folder + '/offset_th_125.csv', offset_th_125, delimiter=',')
-
-    # Check if the offset is valid (180 is a default value for when offset_th is not found within range)
-    mesh_offset_th=numpy.sum(offset_th, axis=1)<180
-    if mesh_for_valid_offset:  
-        # Filter the data based on the valid offset values
-        offset_th_diff = offset_th_diff[mesh_offset_th]
-        offset_th_diff_125 = offset_th_diff_125[mesh_offset_th]
-        J_m_diff = J_m_diff[mesh_offset_th,:]
-        J_s_diff = J_s_diff[mesh_offset_th,:]
-        J_ms_ratio = J_ms_ratio[mesh_offset_th,:]
-        f_diff = f_diff[mesh_offset_th,:]
-        c_diff = c_diff[mesh_offset_th,:]
-        offset_staircase_diff = offset_staircase_diff[mesh_offset_th]
-        
-        print('Number of samples:', sum(mesh_offset_th))
-    
-    return  offset_th_diff, offset_th_diff_125, offset_staircase_diff, J_m_diff, J_s_diff, J_ms_ratio, f_diff, c_diff, mesh_offset_th
-
-
-def rel_changes(df, num_indices=3):
-    # Calculate relative changes in Jm and Js
-    J_m_EE = df['J_m_EE']
-    J_m_IE = df['J_m_IE']
-    J_m_EI = [np.abs(df['J_m_EI'][i]) for i in range(len(df['J_m_EI']))]
-    J_m_II = [np.abs(df['J_m_II'][i]) for i in range(len(df['J_m_II']))]
-    J_s_EE = df['J_s_EE']
-    J_s_IE = df['J_s_IE']
-    J_s_EI = [np.abs(df['J_s_EI'][i]) for i in range(len(df['J_s_EI']))]
-    J_s_II = [np.abs(df['J_s_II'][i]) for i in range(len(df['J_s_II']))]
-    c_E = df['c_E']
-    c_I = df['c_I']
-    f_E = df['f_E']
-    f_I = df['f_I']
-    acc = df['acc']
-    if 'staircase_offset' in df.columns:
-        staircase_offset = df['staircase_offset'] 
-        stoichiometric_offset = df['stoichiometric_offset']
-    else:
-        staircase_offset = df['offset']
-        stoichiometric_offset = numpy.zeros_like(staircase_offset)
-    maxr_E_mid = df['maxr_E_mid']
-    maxr_I_mid = df['maxr_I_mid']
-    maxr_E_sup = df['maxr_E_sup']
-    maxr_I_sup = df['maxr_I_sup']
-    relative_changes = numpy.zeros((19,num_indices-1))
-
-    ############### Calculate relative changes in parameters and other metrics before and after training ###############
-    # Define time indices for pretraining and training
-    time_inds = SGD_step_indices(df, num_indices)
-
-    # Calculate relative changes for pretraining and training (additional time points may be included)
-    for j in range(2):
-        if j==0:
-            # changes during pretraining
-            start_ind = time_inds[0]
-            relative_changes[0,0] =(J_m_EE[time_inds[1]] - J_m_EE[start_ind]) / J_m_EE[start_ind] # J_m_EE
-            relative_changes[1,0] =(J_m_IE[time_inds[1]] - J_m_IE[start_ind]) / J_m_IE[start_ind] # J_m_IE
-            relative_changes[2,0] =(J_m_EI[time_inds[1]] - J_m_EI[start_ind]) / J_m_EI[start_ind] # J_m_EI
-            relative_changes[3,0] =(J_m_II[time_inds[1]] - J_m_II[start_ind]) / J_m_II[start_ind] # J_m_II
-            relative_changes[4,0] =(J_s_EE[time_inds[1]] - J_s_EE[start_ind]) / J_s_EE[start_ind] # J_s_EE
-            relative_changes[5,0] =(J_s_IE[time_inds[1]] - J_s_IE[start_ind]) / J_s_IE[start_ind] # J_s_IE
-            relative_changes[6,0] =(J_s_EI[time_inds[1]] - J_s_EI[start_ind]) / J_s_EI[start_ind] # J_s_EI
-            relative_changes[7,0] =(J_s_II[time_inds[1]] - J_s_II[start_ind]) / J_s_II[start_ind] # J_s_II
-            relative_changes[8,0] = (c_E[time_inds[1]] - c_E[start_ind]) / c_E[start_ind] # c_E
-            relative_changes[9,0] = (c_I[time_inds[1]] - c_I[start_ind]) / c_I[start_ind] # c_I
-            relative_changes[10,0] = (f_E[time_inds[1]] - f_E[start_ind]) / f_E[start_ind] # f_E
-            relative_changes[11,0] = (f_I[time_inds[1]] - f_I[start_ind]) / f_I[start_ind] # f_I
-            relative_changes[12,0] = (acc[time_inds[1]] - acc[start_ind]) / acc[start_ind] # accuracy
-            relative_changes[13,0] = (staircase_offset[time_inds[1]] - staircase_offset[start_ind]) / staircase_offset[start_ind] # offset used for the training data of training task
-            relative_changes[14,0] = (stoichiometric_offset[time_inds[1]] - stoichiometric_offset[start_ind]) / stoichiometric_offset[start_ind] # stoichoimetric offset
-            relative_changes[15,0] = (maxr_E_mid[time_inds[1]] - maxr_E_mid[start_ind]) /maxr_E_mid[start_ind] # r_E_mid
-            relative_changes[16,0] = (maxr_I_mid[time_inds[1]] -maxr_I_mid[start_ind]) / maxr_I_mid[start_ind] # r_I_mid
-            relative_changes[17,0] = (maxr_E_sup[time_inds[1]] - maxr_E_sup[start_ind]) / maxr_E_sup[start_ind] # r_E_sup
-            relative_changes[18,0] = (maxr_I_sup[time_inds[1]] - maxr_I_sup[start_ind]) / maxr_I_sup[start_ind] # r_I_sup
-        else: 
-            # changes during training
-            start_ind = time_inds[1]
-            for i in range(num_indices-2):
-                relative_changes[0,i+j] =(J_m_EE[time_inds[i+2]] - J_m_EE[start_ind]) / J_m_EE[start_ind] # J_m_EE
-                relative_changes[1,i+j] =(J_m_IE[time_inds[i+2]] - J_m_IE[start_ind]) / J_m_IE[start_ind] # J_m_IE
-                relative_changes[2,i+j] =(J_m_EI[time_inds[i+2]] - J_m_EI[start_ind]) / J_m_EI[start_ind] # J_m_EI
-                relative_changes[3,i+j] =(J_m_II[time_inds[i+2]] - J_m_II[start_ind]) / J_m_II[start_ind] # J_m_II
-                relative_changes[4,i+j] =(J_s_EE[time_inds[i+2]] - J_s_EE[start_ind]) / J_s_EE[start_ind] # J_s_EE
-                relative_changes[5,i+j] =(J_s_IE[time_inds[i+2]] - J_s_IE[start_ind]) / J_s_IE[start_ind] # J_s_IE
-                relative_changes[6,i+j] =(J_s_EI[time_inds[i+2]] - J_s_EI[start_ind]) / J_s_EI[start_ind] # J_s_EI
-                relative_changes[7,i+j] =(J_s_II[time_inds[i+2]] - J_s_II[start_ind]) / J_s_II[start_ind] # J_s_II
-                relative_changes[8,i+j] = (c_E[time_inds[i+2]] - c_E[start_ind]) / c_E[start_ind] # c_E
-                relative_changes[9,i+j] = (c_I[time_inds[i+2]] - c_I[start_ind]) / c_I[start_ind] # c_I
-                relative_changes[10,i+j] = (f_E[time_inds[i+2]] - f_E[start_ind]) / f_E[start_ind] # f_E
-                relative_changes[11,i+j] = (f_I[time_inds[i+2]] - f_I[start_ind]) / f_I[start_ind] # f_I
-                relative_changes[12,i+j] = (acc[time_inds[i+2]] - acc[start_ind]) / acc[start_ind] # accuracy
-                relative_changes[13,i+j] = (staircase_offset[time_inds[i+2]] - staircase_offset[start_ind]) / staircase_offset[start_ind]
-                relative_changes[14,i+j] = (stoichiometric_offset[time_inds[i+2]] - stoichiometric_offset[start_ind]) / stoichiometric_offset[start_ind]
-                relative_changes[15,i+j] = (maxr_E_mid[time_inds[i+2]] - maxr_E_mid[start_ind]) / maxr_E_mid[start_ind] # r_E_mid
-                relative_changes[16,i+j] = (maxr_I_mid[time_inds[i+2]] - maxr_I_mid[start_ind]) / maxr_I_mid[start_ind] # r_I_mid
-                relative_changes[17,i+j] = (maxr_E_sup[time_inds[i+2]] - maxr_E_sup[start_ind]) /maxr_E_sup[start_ind] # r_E_sup
-                relative_changes[18,i+j] = (maxr_I_sup[time_inds[i+2]] - maxr_I_sup[start_ind]) /maxr_I_sup[start_ind] # r_I_sup
-
-    return relative_changes, time_inds
-
 
 def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     '''Calculate the responses of the gabor filters to stimuli with different orientations.'''
@@ -475,74 +317,56 @@ def tc_features(tuning_curve, ori_list=numpy.arange(0,180,6), expand_dims=False,
     return avg_slope_vec, full_width_half_max_vec, pref_ori
 
 
-def MVPA_param_offset_correlations(folder, num_trainings, num_time_inds=3, x_labels=None, mesh_for_valid_offset=True, data_only=False):
+def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
     '''
     Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores.
     '''
-    offset_th_diff, offset_th_diff_125,offset_staircase_diff, J_m_diff, J_s_diff, J_ms_diff, f_diff, c_diff, mesh_offset_th = rel_changes_from_csvs(folder, num_trainings, num_time_inds, mesh_for_valid_offset=mesh_for_valid_offset)
+    data, _ = rel_change_for_runs(folder, num_indices=num_time_inds)
+    ##################### Correlate offset_th_diff with the combintation of the J_m and J_s, etc. #####################      
+    offset_pars_corr = []
+    offset_staircase_pars_corr = []
+    if x_labels is None:
+        x_labels = ['J_m_E', 'J_m_I', 'J_s_E', 'J_s_I', 'f_E','f_I', 'c_E', 'c_I']
+    for i in range(len(x_labels)):
+        # Calculate the Pearson correlation coefficient and the p-value
+        corr, p_value = scipy.stats.pearsonr(data['psychometric_offset'], data[x_labels[i]])
+        offset_pars_corr.append({'corr': corr, 'p_value': p_value})
+        corr, p_value = scipy.stats.pearsonr(data['staircase_offset'], data[x_labels[i]])
+        offset_staircase_pars_corr.append({'corr': corr, 'p_value': p_value})
     
-    # Convert relative parameter differences to pandas DataFrame
-    data = pd.DataFrame({'offset_th_diff': offset_th_diff, 'offset_th_diff_125': offset_th_diff_125, 'offset_staircase_diff': offset_staircase_diff,  'J_m_EE_diff': J_m_diff[:, 0], 'J_m_IE_diff': J_m_diff[:, 1], 'J_m_EI_diff': J_m_diff[:, 2], 'J_m_II_diff': J_m_diff[:, 3], 'J_s_EE_diff': J_s_diff[:, 0], 'J_s_IE_diff': J_s_diff[:, 1], 'J_s_EI_diff': J_s_diff[:, 2], 'J_s_II_diff': J_s_diff[:, 3], 'f_E_diff': f_diff[:, 0], 'f_I_diff': f_diff[:, 1], 'c_E_diff': c_diff[:, 0], 'c_I_diff': c_diff[:, 1]})
-    
-    # combine the J_m_EE and J_m_IE, J_m_EI and J_m_II, J_s_EE and J_s_IE, J_s_EI and J_s_II and add them to the data
-    data['J_m_E_diff'] = J_m_diff[:, 4]
-    data['J_m_I_diff'] = J_m_diff[:, 5]
-    data['J_s_E_diff'] = J_s_diff[:, 4]
-    data['J_s_I_diff'] = J_s_diff[:, 5]
-    data['J_m_ratio_diff'] = J_m_diff[:, 6]
-    data['J_s_ratio_diff'] = J_s_diff[:, 6]
-    data['J_ms_diff'] = J_ms_diff[:, 0]
-
-    if data_only:
-        return data
-    else:
-        ##################### Correlate offset_th_diff with the combintation of the J_m and J_s, etc. #####################      
-        offset_pars_corr = []
-        offset_staircase_pars_corr = []
-        if x_labels is None:
-            x_labels = ['J_m_E_diff', 'J_m_I_diff', 'J_s_E_diff', 'J_s_I_diff', 'f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
-        for i in range(len(x_labels)):
-            # Calculate the Pearson correlation coefficient and the p-value
-            corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], data[x_labels[i]])
-            offset_pars_corr.append({'corr': corr, 'p_value': p_value})
-            corr, p_value = scipy.stats.pearsonr(data['offset_staircase_diff'], data[x_labels[i]])
-            offset_staircase_pars_corr.append({'corr': corr, 'p_value': p_value})
-        
-        # Load MVPA_scores and correlate them with the offset threshold and the parameter differences (samples are the different trainings)
-        MVPA_scores = numpy.load(folder + '/MVPA_scores.npy') # num_trainings x layer x SGD_ind x ori_ind
-        if mesh_for_valid_offset:
-            MVPA_scores = MVPA_scores[mesh_offset_th,:,:,:]
-        MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
-        MVPA_offset_corr = []
-        for i in range(MVPA_scores_diff.shape[1]):
-            for j in range(MVPA_scores_diff.shape[2]):
-                corr, p_value = scipy.stats.pearsonr(data['offset_th_diff'], MVPA_scores_diff[:,i,j])
-                MVPA_offset_corr.append({'corr': corr, 'p_value': p_value})
-        MVPA_pars_corr = [] # (J_m_I,J_m_E,J_s_I,J_s_E,f_E,f_I,c_E,c_I) x ori_ind
+    # Load MVPA_scores and correlate them with the offset threshold and the parameter differences (samples are the different trainings)
+    MVPA_scores = numpy.load(folder + '/MVPA_scores.npy') # num_trainings x layer x SGD_ind x ori_ind
+    MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
+    MVPA_offset_corr = []
+    for i in range(MVPA_scores_diff.shape[1]):
         for j in range(MVPA_scores_diff.shape[2]):
-            for i in range(MVPA_scores_diff.shape[1]):        
-                if i==0:
-                    corr_m_J_I, p_val_m_J_I = scipy.stats.pearsonr(data['J_m_I_diff'], MVPA_scores_diff[:,i,j])
-                    corr_m_J_E, p_val_m_J_E = scipy.stats.pearsonr(data['J_m_E_diff'], MVPA_scores_diff[:,i,j])
-                    corr_m_f_E, p_val_m_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
-                    corr_m_f_I, p_val_m_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
-                    corr_m_c_E, p_val_m_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
-                    corr_m_c_I, p_val_m_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
-                if i==1:
-                    corr_s_J_I, p_val_s_J_I = scipy.stats.pearsonr(data['J_s_I_diff'], MVPA_scores_diff[:,i,j])
-                    corr_s_J_E, p_val_s_J_E = scipy.stats.pearsonr(data['J_s_E_diff'], MVPA_scores_diff[:,i,j])                
-                    corr_s_f_E, p_val_s_f_E = scipy.stats.pearsonr(data['f_E_diff'], MVPA_scores_diff[:,i,j])
-                    corr_s_f_I, p_val_s_f_I = scipy.stats.pearsonr(data['f_I_diff'], MVPA_scores_diff[:,i,j])
-                    corr_s_c_E, p_val_s_c_E = scipy.stats.pearsonr(data['c_E_diff'], MVPA_scores_diff[:,i,j])
-                    corr_s_c_I, p_val_s_c_I = scipy.stats.pearsonr(data['c_I_diff'], MVPA_scores_diff[:,i,j])
-                
-            corr = [corr_m_J_E, corr_m_J_I, corr_s_J_E, corr_s_J_I, corr_m_f_E, corr_m_f_I, corr_m_c_E, corr_m_c_I, corr_s_f_E, corr_s_f_I, corr_s_c_E, corr_s_c_I]
-            p_value = [p_val_m_J_E, p_val_m_J_I, p_val_s_J_E, p_val_s_J_I, p_val_m_f_E, p_val_m_f_I, p_val_m_c_E, p_val_m_c_I, p_val_s_f_E, p_val_s_f_I, p_val_s_c_E, p_val_s_c_I]
-            MVPA_pars_corr.append({'corr': corr, 'p_value': p_value})
-        # combine MVPA_offset_corr and MVPA_pars_corr into a single list
-        MVPA_corrs = MVPA_offset_corr + MVPA_pars_corr
+            corr, p_value = scipy.stats.pearsonr(data['staircase_offset'], MVPA_scores_diff[:,i,j])
+            MVPA_offset_corr.append({'corr': corr, 'p_value': p_value})
+    MVPA_pars_corr = [] # (J_m_I,J_m_E,J_s_I,J_s_E,f_E,f_I,c_E,c_I) x ori_ind
+    for j in range(MVPA_scores_diff.shape[2]):
+        for i in range(MVPA_scores_diff.shape[1]):        
+            if i==0:
+                corr_m_J_I, p_val_m_J_I = scipy.stats.pearsonr(data['J_m_I'], MVPA_scores_diff[:,i,j])
+                corr_m_J_E, p_val_m_J_E = scipy.stats.pearsonr(data['J_m_E'], MVPA_scores_diff[:,i,j])
+                corr_m_f_E, p_val_m_f_E = scipy.stats.pearsonr(data['f_E'], MVPA_scores_diff[:,i,j])
+                corr_m_f_I, p_val_m_f_I = scipy.stats.pearsonr(data['f_I'], MVPA_scores_diff[:,i,j])
+                corr_m_c_E, p_val_m_c_E = scipy.stats.pearsonr(data['c_E'], MVPA_scores_diff[:,i,j])
+                corr_m_c_I, p_val_m_c_I = scipy.stats.pearsonr(data['c_I'], MVPA_scores_diff[:,i,j])
+            if i==1:
+                corr_s_J_I, p_val_s_J_I = scipy.stats.pearsonr(data['J_s_I'], MVPA_scores_diff[:,i,j])
+                corr_s_J_E, p_val_s_J_E = scipy.stats.pearsonr(data['J_s_E'], MVPA_scores_diff[:,i,j])                
+                corr_s_f_E, p_val_s_f_E = scipy.stats.pearsonr(data['f_E'], MVPA_scores_diff[:,i,j])
+                corr_s_f_I, p_val_s_f_I = scipy.stats.pearsonr(data['f_I'], MVPA_scores_diff[:,i,j])
+                corr_s_c_E, p_val_s_c_E = scipy.stats.pearsonr(data['c_E'], MVPA_scores_diff[:,i,j])
+                corr_s_c_I, p_val_s_c_I = scipy.stats.pearsonr(data['c_I'], MVPA_scores_diff[:,i,j])
+            
+        corr = [corr_m_J_E, corr_m_J_I, corr_s_J_E, corr_s_J_I, corr_m_f_E, corr_m_f_I, corr_m_c_E, corr_m_c_I, corr_s_f_E, corr_s_f_I, corr_s_c_E, corr_s_c_I]
+        p_value = [p_val_m_J_E, p_val_m_J_I, p_val_s_J_E, p_val_s_J_I, p_val_m_f_E, p_val_m_f_I, p_val_m_c_E, p_val_m_c_I, p_val_s_f_E, p_val_s_f_I, p_val_s_c_E, p_val_s_c_I]
+        MVPA_pars_corr.append({'corr': corr, 'p_value': p_value})
+    # combine MVPA_offset_corr and MVPA_pars_corr into a single list
+    MVPA_corrs = MVPA_offset_corr + MVPA_pars_corr
 
-        return offset_pars_corr, offset_staircase_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run
+    return offset_pars_corr, offset_staircase_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run
 
 ############################## helper functions for MVPA and Mahal distance analysis ##############################
 
@@ -619,9 +443,10 @@ def load_orientation_map(folder, run_ind):
         orimap_filename = os.path.join(folder, f"orimap_{run_ind}.npy")
         orimap = np.load(orimap_filename)
     else:
-        orimaps = pd.read_csv(orimap_filename)
-        mesh_run = orimaps['run_index']==run_ind
-        orimap = orimaps[mesh_run][1:]
+        orimaps = pd.read_csv(orimap_filename, header=0)
+        mesh_run = orimaps['run_index']==float(run_ind)
+        orimap = orimaps[mesh_run].to_numpy()
+        orimap = orimap[0][1:]
 
     return orimap
 
@@ -651,7 +476,7 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     return r_mid, r_sup
 
 
-def SGD_step_indices(df, num_indices=2, peak_offset_flag=False):
+def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
     # get the number of rows in the dataframe
     num_SGD_steps = len(df)
     SGD_step_inds = numpy.zeros(num_indices, dtype=int)
@@ -672,6 +497,8 @@ def SGD_step_indices(df, num_indices=2, peak_offset_flag=False):
         SGD_step_inds[-1] = num_SGD_steps-1 #index of when training ends    
     return SGD_step_inds
 
+
+################### Functions for MVPA and Mahalanobis distance analysis ###################
 
 def select_response(responses, sgd_step, layer, ori):
     '''
@@ -752,7 +579,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
                     loss_pars, training_pars, pretraining_pars, readout_pars, None, orimap_loaded=loaded_orimap)
     df = pd.read_csv(file_name)
     df_run = filter_for_run(df,run_ind)
-    SGD_step_inds = SGD_step_indices(df_run, num_SGD_inds)
+    SGD_step_inds = SGD_indices_at_stages(df_run, num_SGD_inds)
 
     # Iterate overs SGD_step indices (default is before and after training)
     for step_ind in SGD_step_inds:

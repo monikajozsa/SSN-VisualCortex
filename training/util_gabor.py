@@ -169,8 +169,13 @@ def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pa
     Define untrained_pars with a randomly generated or given orientation map.
     """
 
-    if (orimap_loaded is not None) and (orimap_loaded.shape[0] == grid_pars.gridsize_Nx):
-         ssn_ori_map=orimap_loaded
+    if (orimap_loaded is not None):
+        if (orimap_loaded.shape[0] == grid_pars.gridsize_Nx) or (orimap_loaded.shape[0] == grid_pars.gridsize_Nx**2):
+            ssn_ori_map=orimap_loaded
+            if orimap_loaded.shape[0] == grid_pars.gridsize_Nx ** 2:
+                ssn_ori_map = ssn_ori_map.reshape(grid_pars.gridsize_Nx, grid_pars.gridsize_Nx)                
+        else:
+            ValueError('The loaded orimap does not have the correct size')
     else:
         is_uniform = False
         map_gen_ind = 0
@@ -450,8 +455,10 @@ def create_gabor_filters_ori_map(
     """Create Gabor filters for each orientation and phase in orimap."""
     k=int(num_phases//2)
     phases = np.linspace(0, np.pi, k, endpoint=False)
-    grid_size_1D = ori_map.shape[0]
-    grid_size_2D = grid_size_1D*grid_size_1D
+    grid_size_1D = grid_pars.gridsize_Nx
+    grid_size_2D = grid_pars.gridsize_Nx**2
+    if ori_map.shape[0] == grid_size_2D:
+        ori_map = ori_map.reshape(grid_size_1D, grid_size_1D)
     image_size = int(((filter_pars.gridsize_deg*grid_size_1D**2)//2)**2)
     gabors_all = numpy.zeros((num_phases, 2, grid_size_2D, image_size))
 

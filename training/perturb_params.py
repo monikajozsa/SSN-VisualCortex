@@ -40,7 +40,8 @@ def randomize_params_supp(param_dict, randomize_pars):
 
 
 def randomize_params(readout_pars, pretrained_pars, untrained_pars, randomize_pars, logistic_regr=True, num_init=0, start_time=time.time()):
-    # define the parameters to randomize
+    '''Randomize the parameters of the model for initialization and optimize the readout parameters using logistic regression. The randomization is done by uniformly sampling random values from predefined ranges.'''
+    # Define the parameters to randomize
     parameter_name_list = ['J_2x2_m', 'J_2x2_s', 'c_E', 'c_I', 'f_E', 'f_I']
 
     randomized_pars_dict = {}

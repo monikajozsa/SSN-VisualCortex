@@ -46,102 +46,43 @@ num_training = 50
 results_file = os.path.join('results','Apr10_v1','results.csv')
 main_folder = os.path.join('results','Apr10_v1')
 
-'''
-def stoichiometric_offsets_calc(results_file, num_training, start_time_in_main=start_time_in_main, step_indices=[0,-1], ref_ori=None, orimap_folder=None):
-    # This needs to be updated if gE and gI are randomized (read them from init_params file and save them in the filter_pars)!
-    pretraining_pars.is_on = False
-    results_df = pd.read_csv(results_file)
-    stoichiometric_offsets = numpy.zeros((num_training, len(step_indices)))
-    acc_mean_all = []
-    test_offset_vec = numpy.array([1, 2, 4, 6, 8, 10]) 
-    jit_on= True
-    if ref_ori is not None:
-        stimuli_pars.ref_ori = ref_ori
-    for run_index in range(num_training):
-        df_i = filter_for_run(results_df, run_index)
-        df_i = df_i[df_i['stage']==2]
-        orimap_i =  load_orientation_map(orimap_folder, run_index)
-        
-        untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretraining_pars, readout_pars, orimap_loaded=orimap_i)
-        for j in range(len(step_indices)):
-            # Find the row that matches the given values
-            readout_pars_dict, trained_pars_dict, untrained_pars, _,_ = load_parameters(df_i, iloc_ind = step_indices[j],untrained_pars = untrained_pars)
-            acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size=10)
-            # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
-            stoich_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc=0.7)
-            acc_mean_flipped=1-acc_mean
-            #acc_mean_all.append(acc_mean)
-            stoich_offset_flipped = offset_at_baseline_acc(acc_mean_flipped, offset_vec=test_offset_vec, baseline_acc=0.7)
-            stoichiometric_offsets[run_index,j] = numpy.min([np.array(stoich_offset).item(), np.array(stoich_offset_flipped).item()])
-            print('Stoichiometric_offset', stoichiometric_offsets[run_index,j], 'from accuracies', acc_mean, 'for run ', run_index, 'and step', step_indices[j])
-        print(f'Finished calculating stoichiometric offsets in {time.time()-start_time_in_main} seconds for run {run_index}')
+##### MVPA plot #####
+def MVPA_plot_CCN(folder, num_runs):
+    color_pretest = '#F3929A'
+    color_posttest = '#70BFD9'
+    colors_bar = [color_pretest, color_posttest]
+    darker_colors = ['#91575C', '#385F6C']
+    MVPA_scores = numpy.load(os.path.join(folder, 'sigmafilt_2/MVPA_scores.npy'))
+    fig, ax = plt.subplots(figsize=(6, 6))
+    # Plotting the bars
+    bar_width = 0.7  # Width of the bars
+    x = np.arange(4)
+    data_a = [MVPA_scores[:,0,1, 0]*100, MVPA_scores[:,0,2, 0]*100] # runs x layer x time x orientation
+    data_b = [MVPA_scores[:,1,1, 0]*100, MVPA_scores[:,1,2, 0]*100]
+    # First group of bars (df_a)
+    for i, (mean, std, color) in enumerate(zip([np.mean(data_a[0]), np.mean(data_a[1])], [np.std(data_a[0]), np.std(data_a[1])], colors_bar)):
+        ax.bar(x[i] - bar_width/2, mean, bar_width, yerr=std, capsize=5, color=color, ecolor=color, error_kw=dict(ecolor=darker_colors[i], alpha=0.9, lw=2, capsize=5, capthick=2))
+    for i, (mean, std, color) in enumerate(zip([np.mean(data_b[0]), np.mean(data_b[1])], [np.std(data_b[0]), np.std(data_b[1])], colors_bar)):
+        ax.bar(x[i+2] + bar_width/2, mean, bar_width, yerr=std, capsize=5, color=color, ecolor=color, error_kw=dict(ecolor=darker_colors[i], alpha=0.9, lw=2, capsize=5, capthick=2))
+    ax.set_xticks([0.2, 2.8])
+    ax.set_xticklabels(['Superficial', 'Middle'], fontsize=20)
+    ax.set_ylim(50,100)
+    ax.set_ylabel('MVPA accuracy (%)', fontsize=20)
+    ax.tick_params(axis='y', which='both', labelsize=18)
+    ax.yaxis.set_tick_params(width=2, length=8)  # Customize tick size
     
-    return stoichiometric_offsets, acc_mean_all
+    plt.tight_layout()
+    plt.savefig(folder+'/figures/MVPA_barplot.png')
+    plt.close()
 
-# Save the stoichiometric offsets
-stoichiometric_offsets, acc_mean_all = stoichiometric_offsets_calc(results_file, num_training, step_indices=[1,-1], orimap_folder=main_folder)
-stoichiometric_offsets_df = pd.DataFrame(stoichiometric_offsets)
-stoichiometric_offsets_df.to_csv('stoichiometric_offsets_55.csv')
+MVPA_plot_CCN(main_folder, num_training)
 
-stoichiometric_offsets_125, acc_mean_all_125 = stoichiometric_offsets_calc(results_file, num_training, step_indices=[1,-1], ref_ori=125, orimap_loaded=main_folder)
-stoichiometric_offsets_125_df = pd.DataFrame(stoichiometric_offsets_125)
-stoichiometric_offsets_125_df.to_csv('stoichiometric_offsets_125.csv')
 
-######### Load the csv files #########
-stoichiometric_offsets_55 = pd.read_csv('stoichiometric_offsets_55.csv', index_col=0).to_numpy()
-stoichiometric_offsets_125 = pd.read_csv('stoichiometric_offsets_125.csv', index_col=0).to_numpy()
-
-# barplot of stoichiometric offsets at different stages and orientations
-color_pretest = '#F3929A'
-color_posttest = '#70BFD9'
-colors_bar = [color_pretest, color_posttest]
-
-# Data preparation
-include_runs=[]
-for i in range(num_training):
-    if all(stoichiometric_offsets_55[i,:]<25) and all(stoichiometric_offsets_125[i,:]<25):
-        include_runs.append(i)
-print(' Number of runs included in the plot:', len(include_runs))
-categories = ['Trained', 'Untrained']
-values_55 = [np.mean(stoichiometric_offsets_55[include_runs,0]), np.mean(stoichiometric_offsets_55[include_runs,-1])]
-errors_55 = [np.std(stoichiometric_offsets_55[include_runs, 0]), np.std(stoichiometric_offsets_55[include_runs, -1])]
-
-values_125 = [np.mean(stoichiometric_offsets_125[include_runs, 0]), np.mean(stoichiometric_offsets_125[include_runs, -1])]
-errors_125 = [np.std(stoichiometric_offsets_125[include_runs, 0]), np.std(stoichiometric_offsets_125[include_runs, -1])]
-
-# X locations for the groups
-x = np.arange(4)
-
-# Create the figure and axis
-fig, ax = plt.subplots(figsize=(6, 6))
-
-# Plotting the bars
-bar_width = 0.7  # Width of the bars
-
-# First group of bars (df_a)
-bars_a = ax.bar(x[:2] - bar_width/2, values_55, bar_width, yerr=errors_55, capsize=5, label='Trained \n orientation', color=colors_bar)
-
-# Second group of bars (df_b)
-bars_b = ax.bar(x[2:] + bar_width/2, values_125, bar_width, yerr=errors_125, capsize=5, label='Untrained \n orientation', color=colors_bar)
-# remove the xticks
-
-ax.set_xticks([0.2, 2.8])
-ax.set_xticklabels(['Trained \n orientation', 'Untrained \n orientation'])
-ax.set_ylabel('Mean stoichiometric offset')
-
-plt.show()
-
-# Save the stoichiometric offset plot
-plt.savefig('stoichiometric_offsets.png')
-
-plt.close()
-'''
 ####################
 import seaborn as sns
 import scipy
 from analysis.analysis_functions import rel_changes_from_csvs
-'''
+
 sigma_filter = 2
 folder_to_save=os.path.join(main_folder, 'figures')
 offset_th_diff, offset_th_diff_125,offset_staircase_diff, J_m_diff, J_s_diff, J_ms_ratio_diff, f_diff, c_diff, mesh_offset_th = rel_changes_from_csvs(main_folder, num_training, 2, mesh_for_valid_offset=False)
@@ -218,7 +159,7 @@ plt.savefig(main_folder + f"/figures/corr_JIperJE_offset_mid_55.png")
 plt.show()
 
 plt.close()
-'''
+
 
 # load data_midsup_55
 data_midsup_55 = pd.read_csv(main_folder +'/data_midsup_55.csv', index_col=0)
@@ -244,7 +185,7 @@ for i, (mean, std, color) in enumerate(zip(mean_Jms_ratio, std_Jms_ratio, colors
     bars.append(ax.bar(i, mean, bar_width, yerr=std, capsize=5, 
                        color=color, ecolor=color, error_kw=dict(ecolor=darker_colors[i], alpha=0.9, lw=2, capsize=5, capthick=2)))
 ax.set_xticks([0.0, 1.0])
-ax.set_xticklabels(['Pretrest', 'Posttest'], fontsize=20)
+ax.set_xticklabels(['Pretest', 'Posttest'], fontsize=20)
 ax.set_ylabel(r'$J^{\text{tot}}_{I} /J^{\text{tot}}_{E}$', fontsize=20)
 ax.tick_params(axis='y', which='both', labelsize=18)
 ax.yaxis.set_tick_params(width=2, length=8)  # Customize tick size
@@ -353,10 +294,105 @@ def plot_tc_features_simplified(results_dir):
     axs[0].set_ylabel(r'$\Delta$ slope', fontsize=fs_text)
 
     plt.tight_layout(w_pad=10, h_pad=7)
-    fig.savefig(results_dir + f"/figures/tc_features_simplified.png", bbox_inches='tight')
+    fig.savefig(results_dir + f"/figures/tc_features_simplified_redone.png", bbox_inches='tight')
     plt.close()
 
 start_time = time.time()
 results_dir = os.path.join('results','Apr10_v1')
 plot_tc_features_simplified(results_dir)
 print(f'Finished plotting tuning curve features in {time.time()-start_time} seconds')
+
+
+######### Calculating and plotting psychometric offsets #########
+'''
+def psychometric_offsets_calc(results_file, num_training, start_time_in_main=start_time_in_main, step_indices=[0,-1], ref_ori=None, orimap_folder=None):
+    # This needs to be updated if gE and gI are randomized (read them from init_params file and save them in the filter_pars)!
+    pretraining_pars.is_on = False
+    results_df = pd.read_csv(results_file)
+    psychometric_offsets = numpy.zeros((num_training, len(step_indices)))
+    acc_mean_all = []
+    test_offset_vec = numpy.array([1, 2, 4, 6, 8, 10]) 
+    jit_on= True
+    if ref_ori is not None:
+        stimuli_pars.ref_ori = ref_ori
+    for run_index in range(num_training):
+        df_i = filter_for_run(results_df, run_index)
+        df_i = df_i[df_i['stage']==2]
+        orimap_i =  load_orientation_map(orimap_folder, run_index)
+        
+        untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
+                 loss_pars, training_pars, pretraining_pars, readout_pars, orimap_loaded=orimap_i)
+        for j in range(len(step_indices)):
+            # Find the row that matches the given values
+            readout_pars_dict, trained_pars_dict, untrained_pars, _,_ = load_parameters(df_i, iloc_ind = step_indices[j],untrained_pars = untrained_pars)
+            acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size=10)
+            # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
+            psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc=0.7)
+            acc_mean_flipped=1-acc_mean
+            #acc_mean_all.append(acc_mean)
+            psychometric_offset_flipped = offset_at_baseline_acc(acc_mean_flipped, offset_vec=test_offset_vec, baseline_acc=0.7)
+            psychometric_offsets[run_index,j] = numpy.min([np.array(psychometric_offset).item(), np.array(psychometric_offset_flipped).item()])
+            print('psychometric_offset', psychometric_offsets[run_index,j], 'from accuracies', acc_mean, 'for run ', run_index, 'and step', step_indices[j])
+        print(f'Finished calculating psychometric offsets in {time.time()-start_time_in_main} seconds for run {run_index}')
+    
+    return psychometric_offsets, acc_mean_all
+
+# Save the psychometric offsets
+psychometric_offsets, acc_mean_all = psychometric_offsets_calc(results_file, num_training, step_indices=[1,-1], orimap_folder=main_folder)
+
+psychometric_offsets_df = pd.DataFrame(psychometric_offsets)
+psychometric_offsets_df.to_csv('psychometric_offsets_55_redone.csv')
+
+psychometric_offsets_125, acc_mean_all_125 = psychometric_offsets_calc(results_file, num_training, step_indices=[1,-1], ref_ori=125, orimap_folder=main_folder)
+psychometric_offsets_125_df = pd.DataFrame(psychometric_offsets_125)
+psychometric_offsets_125_df.to_csv('psychometric_offsets_125_redone.csv')
+
+######### Load the csv files #########
+psychometric_offsets_55 = pd.read_csv('psychometric_offsets_55_redone.csv', index_col=0).to_numpy()
+psychometric_offsets_125 = pd.read_csv('psychometric_offsets_125_redone.csv', index_col=0).to_numpy()
+
+# barplot of psychometric offsets at different stages and orientations
+color_pretest = '#F3929A'
+color_posttest = '#70BFD9'
+colors_bar = [color_pretest, color_posttest]
+
+# Data preparation
+include_runs=[]
+for i in range(num_training):
+    if all(psychometric_offsets_55[i,:]<25) and all(psychometric_offsets_125[i,:]<25):
+        include_runs.append(i)
+print(' Number of runs included in the plot:', len(include_runs))
+categories = ['Trained', 'Untrained']
+values_55 = [np.mean(psychometric_offsets_55[include_runs,0]), np.mean(psychometric_offsets_55[include_runs,-1])]
+errors_55 = [np.std(psychometric_offsets_55[include_runs, 0]), np.std(psychometric_offsets_55[include_runs, -1])]
+
+values_125 = [np.mean(psychometric_offsets_125[include_runs, 0]), np.mean(psychometric_offsets_125[include_runs, -1])]
+errors_125 = [np.std(psychometric_offsets_125[include_runs, 0]), np.std(psychometric_offsets_125[include_runs, -1])]
+
+# X locations for the groups
+x = np.arange(4)
+
+# Create the figure and axis
+fig, ax = plt.subplots(figsize=(6, 6))
+
+# Plotting the bars
+bar_width = 0.7  # Width of the bars
+
+# First group of bars (df_a)
+bars_a = ax.bar(x[:2] - bar_width/2, values_55, bar_width, yerr=errors_55, capsize=5, label='Trained \n orientation', color=colors_bar)
+
+# Second group of bars (df_b)
+bars_b = ax.bar(x[2:] + bar_width/2, values_125, bar_width, yerr=errors_125, capsize=5, label='Untrained \n orientation', color=colors_bar)
+# remove the xticks
+
+ax.set_xticks([0.2, 2.8])
+ax.set_xticklabels(['Trained \n orientation', 'Untrained \n orientation'])
+ax.set_ylabel('Mean psychometric offset')
+
+plt.show()
+
+# Save the psychometric offset plot
+plt.savefig('psychometric_offsets_redone.png')
+
+plt.close()
+'''
