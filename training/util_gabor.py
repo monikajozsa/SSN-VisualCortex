@@ -26,12 +26,12 @@ class UntrainedPars:
         self.loss_pars = loss_pars
         self.training_pars = training_pars
         self.gabor_filters = gabor_filters
+        self.pretrain_pars = pretrain_pars
+        self.BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
         self.readout_grid_size = readout_pars.readout_grid_size
         self.middle_grid_ind = readout_pars.middle_grid_ind
         self.sup_mid_readout_contrib = readout_pars.sup_mid_readout_contrib
         self.num_readout_noise = readout_pars.num_readout_noise
-        self.pretrain_pars = pretrain_pars
-        self.BW_image_jax_inp = BW_image_jax_supp(stimuli_pars)
 
 
 def cosdiff_ring(d_x, L):
@@ -164,7 +164,7 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 
 
 def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, run_ind = 0, orimap_loaded=None, regen_extended_orimap=False, folder_to_save=None, randomize_g=None):
+                 loss_pars, training_pars, pretrain_pars, readout_pars, run_ind = 0, orimap_loaded=None, regen_extended_orimap=False, folder_to_save=None):
     """
     Define untrained_pars with a randomly generated or given orientation map.
     """
@@ -195,14 +195,6 @@ def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pa
             if map_gen_ind>50:
                 print('############## After 50 attempts the randomly generated maps did not pass the uniformity test ##############')
                 break
-    # randomize or initialize gE and gI to their randomized value if randomize_g is not None
-    if randomize_g is not None:
-        if isinstance(randomize_g, dict):
-            filter_pars.gI_m = randomize_g['g_I']
-            filter_pars.gE_m = randomize_g['g_E']
-        else:
-            filter_pars.gI_m = random.uniform(low=randomize_g.g_range[0], high=randomize_g.g_range[1])
-            filter_pars.gE_m = random.uniform(low=randomize_g.g_range[0], high=randomize_g.g_range[1])
 
     gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, flatten=True)
     
@@ -236,6 +228,18 @@ def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pa
         print('Saved orimap to ' + folder_to_save + '/orimap.csv')
     return untrained_pars
 
+
+def update_untrained_pars(untrained_pars, readout_pars, gE_m, gI_m, eta= None):
+    '''Update the gE_m and gI_m filter parameters and the gabor filters (because their normalization depend on g)'''
+    untrained_pars.filter_pars.gE_m = gE_m
+    untrained_pars.filter_pars.gI_m = gI_m
+    if eta is not None:
+        untrained_pars.training_pars.eta = eta
+    gabor_filters = create_gabor_filters_ori_map(untrained_pars.ssn_ori_map, untrained_pars.ssn_pars.phases, untrained_pars.filter_pars, untrained_pars.grid_pars, flatten=True)
+    untrained_pars = UntrainedPars(untrained_pars.grid_pars, untrained_pars.stimuli_pars, untrained_pars.filter_pars, untrained_pars.ssn_pars, untrained_pars.conv_pars, 
+                 untrained_pars.loss_pars, untrained_pars.training_pars, untrained_pars.pretrain_pars, untrained_pars.ssn_ori_map, untrained_pars.oris, untrained_pars.ori_dist, gabor_filters, 
+                 readout_pars)
+    return untrained_pars
 
 ###### Functions for grating generation ###### 
 

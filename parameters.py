@@ -33,7 +33,7 @@ pretraining_pars = PreTrainPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    eta: float = 1e-3
+    eta: float = 0.0
     ''' learning rate - the maximum rate of parameter change in one SGD step; note that this initial values are irrelevant when we randomize the parameters '''
     batch_size: int = 50
     ''' number of trials per SGD step '''
@@ -145,9 +145,9 @@ class FilterPars:
     ''' edge length in degrees - visual field, same as grid_pars.gridsize_deg '''
     degree_per_pixel: float = 0.05
     ''' convert degree to number of pixels (129 x 129), note that this is not an independent parameter and could be calculated from other parameters '''
-    gE_m: float = 0.3
+    gE_m: float = 0.0
     ''' scaling parameter between stimulus and excitatory units in middle layer; note that this initial values are irrelevant when we randomize the parameters '''
-    gI_m: float = 0.25 
+    gI_m: float = 0.0 
     ''' scaling parameter between stimulus and inhibitory units in middle layer; note that this initial values are irrelevant when we randomize the parameters '''
 filter_pars = FilterPars()
 
@@ -239,17 +239,17 @@ ssn_pars = SSNPars()
 @dataclass
 class TrainedSSNPars:
     # Note that these initial values are irrelevant when we randomize the parameters
-    c_E: float = 5.0 
+    c_E: float = 0.0 
     ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
-    c_I: float = 5.0 
+    c_I: float = 0.0 
     ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
-    f_E: float = 1.11 
+    f_E: float = 0.0 
     ''' scaling constant for feedforwards connections to excitatory units in sup layer '''
-    f_I: float = 0.7
+    f_I: float = 0.0
     ''' scaling constant for feedforwards connections to inhibitory units in sup layer '''
-    J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
+    J_2x2_m = np.array([[0.0, 0.0], [0.0, 0.0]])
     ''' relative strength of weights of different pre/post cell-type in superficial layer '''
-    J_2x2_s = np.array([[1.83, -0.68], [2.07, -0.51]]) * np.pi * 0.774
+    J_2x2_s = np.array([[0.0, 0.0], [0.0, 0.0]])
     ''' relative strength of weights of different pre/post cell-type in middle layer '''
 trained_pars = TrainedSSNPars()
 
@@ -257,32 +257,34 @@ trained_pars = TrainedSSNPars()
 @dataclass
 class PretrainedSSNPars:
     # Note that these initial values are irrelevant when we randomize the parameters
-    c_E: float = 5.0 
+    c_E: float = 0.0 
     ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
-    c_I: float = 5.0 
+    c_I: float = 0.0 
     ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
-    f_E: float = 1.11 
+    f_E: float = 0.0 
     ''' scaling constant for feedforwards connections to excitatory units in sup layer '''
-    f_I: float = 0.7
+    f_I: float = 0.0
     ''' scaling constant for feedforwards connections to inhibitory units in sup layer '''
-    J_2x2_s = np.array([[1.83, -0.68], [2.07, -0.51]]) * np.pi * 0.774
+    J_2x2_s = np.array([[0.0, 0.0], [0.0, 0.0]])
     ''' relative strength of weights of different pre/post cell-type in middle layer '''
-    J_2x2_m = np.array([[2.5, -1.3], [4.7, -2.2]]) * 0.774
+    J_2x2_m = np.array([[0.0, 0.0], [0.0, 0.0]])
     ''' relative strength of weights of different pre/post cell-type in superficial layer '''
     
 pretrained_pars = PretrainedSSNPars()
 
 
 class RandomizePars:
-    J_range = [np.array([4, 4.8]),np.array([1.2,2]), np.array([4.6, 5.4]),np.array([0.8,1.6])]
+    J_range = [np.array([4, 5]),np.array([1,2]), np.array([4.5, 5.5]),np.array([0.7,1.7])]
     ''' range of the perturbed Jm and Js parameters '''
     c_range = np.array([4.5, 5.5])
     ''' range of the perturbed c parameters '''
     f_range = np.array([0.6, 1.2])
     ''' range of the perturbed f parameters '''
-    g_range = np.array([0.2, 0.4])
-    ''' range of the perturbed g parameters '''
-    eta_range = np.array([2*10e-4, 5*10e-4])
+    gE_range = np.array([0.25, 0.45])
+    ''' range of the perturbed gE parameters '''
+    gI_range = np.array([0.15, 0.35])
+    ''' range of the perturbed gI parameters '''
+    eta_range = np.array([2e-3, 5e-3])
 
 randomize_pars = RandomizePars()
 

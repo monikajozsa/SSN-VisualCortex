@@ -209,70 +209,113 @@ def save_code(final_folder_path=None, note=None):
     return str(results_filename), str(final_folder_path)
 
 
-def load_parameters(df, readout_grid_size=5, iloc_ind=-1, trained_pars_keys=['log_J_2x2_m', 'log_J_2x2_s', 'c_E', 'c_I', 'log_f_E', 'log_f_I'], untrained_pars=None):
+def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1):
+    import os
+    from training.util_gabor import init_untrained_pars
+
+    # Define parameter keys that will be trained depending on the stage
+    from parameters import ssn_pars, readout_pars, trained_pars, pretrained_pars
+    if stage==0:
+        par_keys = {attr: getattr(pretrained_pars, attr) for attr in dir(pretrained_pars)}
+    else:
+        par_keys = {attr: getattr(trained_pars, attr) for attr in dir(trained_pars)}
 
     # Get the last row of the given csv file
+    df_all = pd.read_csv(os.path.join(folder_path, 'results.csv'))
+    df = filter_for_run_and_stage(df_all, run_index)
     selected_row = df.iloc[int(iloc_ind)]
 
-    # Extract stage 1 parameters from df
-    w_sig_keys = [f'w_sig_{i}' for i in range(1, readout_grid_size*readout_grid_size+1)] 
+    # Extract readout parameters from df and save it to readout pars
+    if stage==1:
+        shift_ind = (readout_pars.readout_grid_size[0]**2 - readout_pars.readout_grid_size[1]**2)//2
+    else:
+        shift_ind = 0
+    w_sig_keys = [f'w_sig_{i+shift_ind}' for i in range(1, readout_pars.readout_grid_size[stage]**2 + 1)] 
     w_sig_values = selected_row[w_sig_keys].values
-    pars_stage1 = dict(w_sig=w_sig_values, b_sig=selected_row['b_sig'])
+    readout_pars_loaded = dict(w_sig=w_sig_values, b_sig=selected_row['b_sig'])
+    readout_pars.b_sig = selected_row['b_sig']
+    readout_pars.w_sig = w_sig_values
 
-    # Extract stage 2 parameters from df
+    # Define keys for J parameters
     log_J_m_keys = ['log_J_m_EE','log_J_m_EI','log_J_m_IE','log_J_m_II'] 
     log_J_s_keys = ['log_J_s_EE','log_J_s_EI','log_J_s_IE','log_J_s_II']
-    log_J_m_values = selected_row[log_J_m_keys].values.reshape(2, 2)
-    log_J_s_values = selected_row[log_J_s_keys].values.reshape(2, 2)
     J_m_keys = ['J_m_EE','J_m_EI','J_m_IE','J_m_II'] 
     J_s_keys = ['J_s_EE','J_s_EI','J_s_IE','J_s_II']
-    J_m_values = selected_row[J_m_keys].values.reshape(2, 2)
-    J_s_values = selected_row[J_s_keys].values.reshape(2, 2)
+
+    # Create a dictionary with the trained parameters and update untrained parameters if J, c or f are not trained
+    pars_dict = {}
+    if 'log_J_2x2_m' in par_keys or 'J_2x2_m' in par_keys:
+        pars_dict['log_J_2x2_m'] = selected_row[log_J_m_keys].values.reshape(2, 2)
+    else:
+        ssn_pars.J_2x2_m = selected_row[J_m_keys].values.reshape(2, 2)
+    if 'log_J_2x2_s' in par_keys or 'J_2x2_s' in par_keys:
+        pars_dict['log_J_2x2_s'] = selected_row[log_J_s_keys].values.reshape(2, 2)
+    else:
+        ssn_pars.J_2x2_s = selected_row[J_s_keys].values.reshape(2, 2)
+    if 'c_E' in par_keys:
+        pars_dict['c_E'] = selected_row['c_E']
+        pars_dict['c_I'] = selected_row['c_I']
+    else:
+        ssn_pars.c_E = selected_row['c_E']
+        ssn_pars.c_I = selected_row['c_I']
+    if 'log_f_E' in par_keys or 'f_E' in par_keys:
+        pars_dict['log_f_E'] = selected_row['log_f_E']
+        pars_dict['log_f_I'] = selected_row['log_f_I']
+    else:
+        ssn_pars.f_E = selected_row['f_E']
+        ssn_pars.f_I = selected_row['f_I']
     
-    # Create a dictionary with the trained parameters and update untrained parameters
-    pars_stage2 = {}
-    if 'log_J_2x2_m' in trained_pars_keys or 'J_2x2_m' in trained_pars_keys:
-        pars_stage2['log_J_2x2_m'] = log_J_m_values
-    else:
-        untrained_pars.ssn_pars.J_2x2_m = J_m_values
-    if 'log_J_2x2_s' in trained_pars_keys or 'J_2x2_s' in trained_pars_keys:
-        pars_stage2['log_J_2x2_s'] = log_J_s_values
-    else:
-        untrained_pars.ssn_pars.J_2x2_s = J_s_values
-    if 'c_E' in trained_pars_keys:
-        pars_stage2['c_E'] = selected_row['c_E']
-        pars_stage2['c_I'] = selected_row['c_I']
-    else:
-        untrained_pars.ssn_pars.c_E = selected_row['c_E']
-        untrained_pars.ssn_pars.c_I = selected_row['c_I']
-    if 'log_f_E' in trained_pars_keys or 'f_E' in trained_pars_keys:
-        pars_stage2['log_f_E'] = selected_row['log_f_E']
-        pars_stage2['log_f_I'] = selected_row['log_f_I']
-    else:
-        untrained_pars.ssn_pars.f_E = selected_row['f_E']
-        untrained_pars.ssn_pars.f_I = selected_row['f_I']
-    if 'psychometric_offset' in df.keys():
-        offsets  = df['psychometric_offset'].dropna().reset_index(drop=True)
-    else:
-        for keys in df.keys():
-            if 'ric_offset' in keys:
-                offsets = df[keys].dropna().reset_index(drop=True)
-    offset_last = offsets[len(offsets)-1]
+    # Set the randomized gE, gI and eta parameters in relevant classes from initial_parameters.csv
+    df_init_pars_all = pd.read_csv(os.path.join(folder_path, 'initial_parameters.csv'))
+    df_init_pars = filter_for_run_and_stage(df_init_pars_all, run_index, stage)
+    from parameters import (
+        grid_pars,
+        filter_pars,
+        stimuli_pars,
+        conv_pars,
+        training_pars,
+        loss_pars,
+        pretraining_pars
+    )
+    training_pars.eta = df_init_pars['eta'].iloc[0]
+    filter_pars.gE_m = df_init_pars['gE'].iloc[0]
+    filter_pars.gI_m = df_init_pars['gI'].iloc[0]
+    # Initialize untrained parameters
+    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
+                    loss_pars, training_pars, pretraining_pars, readout_pars, run_index)
+    
+    # Get other metrics needed for training
+    if stage==1:
+        if 'psychometric_offset' in df.keys():
+            offsets  = df['psychometric_offset'].dropna().reset_index(drop=True)
+        else:
+            for keys in df.keys():
+                if 'ric_offset' in keys:
+                    offsets = df[keys].dropna().reset_index(drop=True)
+        offset_last = offsets[len(offsets)-1]
 
-    if 'meanr_E_mid' in df.columns:
-        meanr_vec=[[df['meanr_E_mid'][len(df)-1], df['meanr_E_sup'][len(df)-1]], [df['meanr_I_mid'][len(df)-1], df['meanr_I_sup'][len(df)-1]]]
-    else:
-        meanr_vec = None
+        if 'meanr_E_mid' in df.columns:
+            meanr_vec=[[df['meanr_E_mid'][len(df)-1], df['meanr_E_sup'][len(df)-1]], [df['meanr_I_mid'][len(df)-1], df['meanr_I_sup'][len(df)-1]]]
+        else:
+            meanr_vec = None
            
-    return pars_stage1, pars_stage2, untrained_pars, offset_last, meanr_vec
+        return readout_pars_loaded, pars_dict, untrained_pars, offset_last, meanr_vec
+    else:
+        return readout_pars_loaded, pars_dict, untrained_pars
 
 
-def filter_for_run(df,run_index):
+def filter_for_run_and_stage(df,run_index, stage=None):
     df['run_index'] = pd.to_numeric(df['run_index'], errors='coerce')
     mesh_i = df['run_index'] == run_index
     df_i = df[mesh_i]
     df_i = df_i.drop(columns=['run_index'])
     df_i = df_i.reset_index(drop=True)
+
+    if stage is not None:
+        mesh_i = df_i['stage'] == stage
+        df_i = df_i[mesh_i]
+        df_i = df_i.drop(columns=['stage'])
+        df_i = df_i.reset_index(drop=True)
 
     return df_i
 

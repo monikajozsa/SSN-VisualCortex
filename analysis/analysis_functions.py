@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from training.model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import generate_noise
-from util import load_parameters, sep_exponentiate, filter_for_run
+from util import load_parameters, sep_exponentiate, filter_for_run_and_stage
 from training.util_gabor import init_untrained_pars, BW_image_jit_noisy, BW_image_jax_supp, BW_image_vmap
 from parameters import (
     xy_distance,
@@ -68,7 +68,7 @@ def data_from_run(folder, run_index=0, num_indices=3):
     
     filepath = os.path.join(folder, 'results.csv')
     df = pd.read_csv(filepath)
-    df_i = filter_for_run(df, run_index)
+    df_i = filter_for_run_and_stage(df, run_index)
     stage_time_inds = SGD_indices_at_stages(df_i, num_indices)
 
     return df_i, stage_time_inds
@@ -578,7 +578,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                     loss_pars, training_pars, pretraining_pars, readout_pars, None, orimap_loaded=loaded_orimap)
     df = pd.read_csv(file_name)
-    df_run = filter_for_run(df,run_ind)
+    df_run = filter_for_run_and_stage(df,run_ind)
     SGD_step_inds = SGD_indices_at_stages(df_run, num_SGD_inds)
 
     # Iterate overs SGD_step indices (default is before and after training)

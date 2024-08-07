@@ -772,12 +772,18 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         df.loc[step_indices['val_SGD_steps'],'psychometric_offset']=psychometric_offsets
         df['staircase_offset']= staircase_offsets
             
+    weight_data = {}
+    shift_ind = (81-len(w_sigs[0]))/2
     for i in range(81):# *** Filling up all the weights with None if they are not in the middle readout grid - makek 81 an input parameter
-        weight_name = f'w_sig_{i+1}'
-        shift_ind = (81-len(w_sigs[0]))/2
-        if i< shift_ind or i>= 81-shift_ind:
-            df[weight_name] = None            
+        weight_name = f'w_sig_{i+1}'        
+        if i < shift_ind or i >= 81 - shift_ind:
+            weight_data[weight_name] = [None] * len(df)
         else:
-            df[weight_name] =  w_sigs[:,i]
+            weight_data[weight_name] = w_sigs[:, i]
+
+    # Create a new DataFrame from the weight_data dictionary
+    weight_df = pd.DataFrame(weight_data)
+    df = pd.concat([df, weight_df], axis=1)
     df['b_sig'] = b_sigs
+
     return df

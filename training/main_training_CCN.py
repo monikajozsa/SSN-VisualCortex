@@ -10,7 +10,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from util_gabor import init_untrained_pars
-from util import save_code, load_parameters, filter_for_run
+from util import save_code, load_parameters, filter_for_run_and_stage
 from training_functions import train_ori_discr
 from perturb_params import create_initial_parameters_df
 from parameters import (
@@ -209,8 +209,8 @@ while i < num_training and num_FailedRuns < 20:
     untrained_pars.pretrain_pars.is_on = False
     # Load the last parameters from the pretraining
     df = pd.read_csv(results_filename)
-    df_i = filter_for_run(df, i)
-    trained_pars_stage1, trained_pars_stage2, untrained_pars, offset_last, meanr_vec = load_parameters(df_i, iloc_ind = pretraining_final_step, trained_pars_keys=trained_pars_keys, untrained_pars = untrained_pars)
+    df_i = filter_for_run_and_stage(df, i)
+    trained_pars_stage1, trained_pars_stage2, untrained_pars, offset_last, meanr_vec = load_parameters(df_i, iloc_ind = pretraining_final_step, pars_keys=trained_pars_keys, untrained_pars = untrained_pars)
     
     if meanr_vec is not None:
         untrained_pars.loss_pars.lambda_r_mean = 0.25

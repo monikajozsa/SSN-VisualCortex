@@ -6,7 +6,7 @@ import time
 import matplotlib.pyplot as plt
 
 from training.training_functions import mean_training_task_acc_test, offset_at_baseline_acc
-from util import filter_for_run, load_parameters
+from util import filter_for_run_and_stage, load_parameters
 from training.util_gabor import init_untrained_pars
 from parameters import (
     grid_pars,

@@ -8,7 +8,7 @@ numpy.random.seed(0)
 
 from training.util_gabor import init_untrained_pars
 from analysis.analysis_functions import tuning_curve, SGD_indices_at_stages, tuning_curve, rel_change_for_runs
-from util import load_parameters, filter_for_run
+from util import load_parameters, filter_for_run_and_stage
 from parameters import (
     grid_pars,
     filter_pars,
@@ -130,7 +130,7 @@ for type_ind in range(2):
 from analysis.analysis_functions import load_orientation_map
 for i in range(0,num_training):
     orimap_i = load_orientation_map(final_folder_path, i)
-    df_i = filter_for_run(results_df, i)
+    df_i = filter_for_run_and_stage(results_df, i)
     SGD_step_inds = SGD_indices_at_stages(df_i, 3)
     if g_randomized_flag:
         g_randomized = dict(g_E = init_params_df['gE'][i], g_I = init_params_df['gI'][i])

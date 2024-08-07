@@ -11,7 +11,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, tc_features, MVPA_param_offset_correlations, data_from_run, SGD_indices_at_stages
-from util import filter_for_run
+from util import filter_for_run_and_stage
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
 plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels
@@ -37,7 +37,7 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
         filepath = os.path.join(folder, 'results.csv')
         # Read CSV file
         df = pd.read_csv(filepath)
-        df_i = filter_for_run(df,i)
+        df_i = filter_for_run_and_stage(df,i)
         # Calculate relative change
         stage_time_inds = SGD_indices_at_stages(df_i, num_time_inds)
         train_end_ind = stage_time_inds[-1]
@@ -472,7 +472,7 @@ def plot_tc_features(results_dir, num_training, ori_list):
     # Loop through each training and stage within training (pre pretraining, post pretrainig and post training)
     for i in range(num_training):
         # Filter tuning curves for the current run
-        tuning_curves_i = filter_for_run(tuning_curves,i)
+        tuning_curves_i = filter_for_run_and_stage(tuning_curves,i)
         tuning_curves_i['training_stage'] = pd.to_numeric(tuning_curves_i['training_stage'], errors='coerce')
         for training_stage in range(3):      
             # Filter tuning curves for the current training stage      
