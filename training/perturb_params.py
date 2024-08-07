@@ -245,8 +245,8 @@ def create_initial_parameters_df(folder_path, initial_parameters, readout_parame
                         eta=randomized_eta, gE = randomized_gE, gI= randomized_gI)
 
     init_vals_dict['b_sig']= readout_parameters['b_sig']    
-    for i in range(1,len(readout_parameters['w_sig'])+1):
-        init_vals_dict[f'w_sig_{i}']= readout_parameters['w_sig'][i]
+    for i in range(len(readout_parameters['w_sig'])):
+        init_vals_dict[f'w_sig_{i+1}']= readout_parameters['w_sig'][i]
 
     # Create a dataframe with the initial parameters
     if initial_parameters is None:
