@@ -5,7 +5,7 @@ import jax.numpy as np
 
 # Pretraining parameters
 @dataclass
-class PreTrainPars:
+class PretrainingPars:
     is_on: bool = True
     ''' flag for turning pretraining on or off '''
     ref_ori_int = [15, 165]
@@ -27,7 +27,7 @@ class PreTrainPars:
     SGD_steps: int = 1000
     ''' maximum number of SGD steps during pretraining '''
 
-pretraining_pars = PreTrainPars()
+pretraining_pars = PretrainingPars()
 
 
 # Training parameters
@@ -44,8 +44,6 @@ class TrainingPars:
     SGD_steps: int = 1000
     ''' number of SGD step '''
 
-training_pars = TrainingPars()
-
 
 # Convergence parameters
 @dataclass
@@ -56,8 +54,6 @@ class ConvPars:
     ''' convergence tolerance of SSN '''
     Tmax: float = 250.0
     ''' maximum number of steps to be taken during convergence of SSN '''
-
-conv_pars = ConvPars()
 
 
 # Loss parameters
@@ -81,8 +77,6 @@ class LossPars:
     ''' mean firing rate for E neurons for the middle and superficial layers - rates deviating from this are penalised. These values may be overwritten after pretraining. '''
     Rmean_I = [50,50]
     ''' mean firing rate for I neurons for the middle and superficial layers - rates deviating from this are penalised. These values may be overwritten after pretraining. '''
-
-loss_pars = LossPars()
 
 
 def xy_distance(gridsize_Nx,gridsize_mm):
@@ -149,6 +143,7 @@ class FilterPars:
     ''' scaling parameter between stimulus and excitatory units in middle layer; note that this initial values are irrelevant when we randomize the parameters '''
     gI_m: float = 0.0 
     ''' scaling parameter between stimulus and inhibitory units in middle layer; note that this initial values are irrelevant when we randomize the parameters '''
+
 filter_pars = FilterPars()
 
 
@@ -178,8 +173,6 @@ class StimuliPars:
     offset: float = 4.0 
     ''' difference between reference and task orientation in degree (task ori is either ref_ori + offset or ref_or - offset) '''
 
-stimuli_pars = StimuliPars()
-
 
 # Sigmoid parameters
 @dataclass
@@ -207,8 +200,6 @@ class ReadoutPars:
     ''' bias added to the sigmoid layer '''
     num_readout_noise: int = 125
     ''' defines the additive Gaussian readout noise var (meaning is number of neighbouring cells), see generate_noise function '''
-
-readout_pars = ReadoutPars()
 
 
 # general SSN parameters
@@ -287,24 +278,3 @@ class RandomizePars:
     eta_range = np.array([2e-3, 5e-3])
 
 randomize_pars = RandomizePars()
-
-
-class MVPA_pars:
-    gridsize_Nx: int = 9
-    ''' size of the extended grid that is filtered '''
-    size_conv_factor: float = (gridsize_Nx -1)/ (grid_pars.gridsize_Nx - 1)
-    ''' adjusted conversion factor to keep the role of the middle grid the same'''
-    readout_grid_size: int = 5
-    ''' size of the readout grid '''
-    middle_grid_ind = []
-    mid_grid_ind0 = int((gridsize_Nx-readout_grid_size)/2)
-    mid_grid_ind1 = int(gridsize_Nx) - mid_grid_ind0
-    for i in range(mid_grid_ind0,mid_grid_ind1):  
-        row_start = i * gridsize_Nx
-        middle_grid_ind.extend(range(row_start + mid_grid_ind0, row_start + mid_grid_ind1))
-    middle_grid_ind = np.array(middle_grid_ind)
-    ''' indices of the middle grid when grid is flattened '''
-    noise_std: float = 1.0
-    ''' std of the noise added to the readout layer '''
-
-mvpa_pars = MVPA_pars()

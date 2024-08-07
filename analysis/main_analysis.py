@@ -9,37 +9,18 @@ numpy.random.seed(0)
 from training.util_gabor import init_untrained_pars
 from analysis.analysis_functions import tuning_curve, SGD_indices_at_stages, tuning_curve, rel_change_for_runs
 from util import load_parameters, filter_for_run_and_stage
-from parameters import (
-    grid_pars,
-    filter_pars,
-    stimuli_pars,
-    readout_pars,
-    ssn_pars,
-    conv_pars,
-    training_pars,
-    loss_pars,
-    pretraining_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on itP
-)
 from analysis.visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
 from analysis.MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
+from parameters import GridPars, SSNPars, PretrainingPars
+grid_pars, ssn_pars, pretraining_pars = GridPars(), SSNPars(), PretrainingPars()
 
 # Checking that pretrain_pars.is_on is on
 if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 num_training = 2
-final_folder_path = os.path.join('results','Aug06_v1')
-g_randomized_flag = False
+final_folder_path = os.path.join('results','Aug07_v0')
 start_time_in_main= time.time()
-
-results_filename = os.path.join(final_folder_path, f"results.csv")
-orimap_filename = os.path.join(final_folder_path, f"orimap.csv")
-init_params_filename = os.path.join(final_folder_path, f"initial_parameters.csv")
-orimap_loaded = pd.read_csv(orimap_filename)
-results_df = pd.read_csv(results_filename)
-if g_randomized_flag:
-    init_params_df = pd.read_csv(init_params_filename)
-
 
 ######### PLOT RESULTS ON PARAMETERS ############
 
@@ -64,6 +45,7 @@ plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to
 #num_training=num_training-len(excluded_run_inds)
 
 boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
+print(f'Finished run-plots and boxplots in {time.time()-start_time} seconds')
 
 ######### CALCULATE MVPA AND PLOT CORRELATIONS ############
 
@@ -127,24 +109,15 @@ for type_ind in range(2):
         tc_headers.append(tc_header)
 
 # Loop over the different runs
-from analysis.analysis_functions import load_orientation_map
 for i in range(0,num_training):
-    orimap_i = load_orientation_map(final_folder_path, i)
+    results_df = pd.read_csv(os.path.join(final_folder_path, 'results.csv'))
     df_i = filter_for_run_and_stage(results_df, i)
     SGD_step_inds = SGD_indices_at_stages(df_i, 3)
-    if g_randomized_flag:
-        g_randomized = dict(g_E = init_params_df['gE'][i], g_I = init_params_df['gI'][i])
-    else:
-        g_randomized = None
-
-    # Load fixed parameters
-    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretraining_pars, readout_pars, orimap_loaded=orimap_i, randomize_g = g_randomized)
-
+    
     # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
     for stage in range(3):
-        trained_pars_stage1, trained_pars_stage2, _, _, _ = load_parameters(df_i, iloc_ind = SGD_step_inds[stage])
-        tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_stage2, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_headers)
+        pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(final_folder_path, run_index=i, stage=1, iloc_ind = SGD_step_inds[stage])
+        tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_dict, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_headers)
         tc_headers = False
         
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')

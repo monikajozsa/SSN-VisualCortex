@@ -38,23 +38,20 @@ def randomize_params_supp(param_dict, randomize_pars):
 
 
 def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True, num_init=0, start_time=time.time()):
-    from parameters import pretrained_pars, randomize_pars, readout_pars
+    '''Randomize the required initial parameters of the model and optimize the readout parameters using logistic regression. 
+    The randomization is done by uniformly sampling random values from predefined ranges.'''
+        
+    from parameters import PretrainedSSNPars, RandomizePars, ReadoutPars
+    pretrained_pars, randomize_pars, readout_pars = PretrainedSSNPars(), RandomizePars(), ReadoutPars()
     pretrained_pars_keys = {attr: getattr(pretrained_pars, attr) for attr in dir(pretrained_pars) if not callable(getattr(pretrained_pars,attr)) and not attr.startswith('__')}
 
     ##### Initialize untrained parameters if they are not given #####
     if untrained_pars is None:
         from util_gabor import init_untrained_pars
-        from parameters import (
-        grid_pars,
-        filter_pars,
-        stimuli_pars,
-        ssn_pars,
-        conv_pars,
-        training_pars,
-        loss_pars,
-        pretraining_pars)
-        '''Randomize the parameters of the model for initialization and optimize the readout parameters using logistic regression. The randomization is done by uniformly sampling random values from predefined ranges.'''
-        
+        from parameters import GridPars, FilterPars, StimuliPars, SSNPars, ConvPars, TrainingPars, LossPars, PretrainingPars
+        grid_pars, filter_pars, stimuli_pars, ssn_pars = GridPars(), FilterPars(), StimuliPars(), SSNPars()
+        conv_pars, training_pars, loss_pars, pretraining_pars = ConvPars(), TrainingPars(), LossPars(), PretrainingPars()
+
         # Randomize gE and gI (feedforward weights from stimuli and mid layer) and learning rate 
         training_pars.eta = random.uniform(randomize_pars.eta_range[0], randomize_pars.eta_range[1])
         filter_pars.gE_m = random.uniform(low=randomize_pars.gE_range[0], high=randomize_pars.gE_range[1])
@@ -98,6 +95,7 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
     f_I = randomized_pars['f_I']
     [r_train,_],_ ,[avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
     [r_pretrain,_],_, _,_,_ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars,c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    
     # 2. Evaluate conditions
     cond_dx = bool((avg_dx_mid + avg_dx_sup < 50).all())
     rmax_min_to_check = min([float(np.min(max_E_mid)), float(np.min(max_I_mid)), float(np.min(max_E_sup)), float(np.min(max_I_sup))])

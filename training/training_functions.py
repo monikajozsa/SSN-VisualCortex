@@ -356,28 +356,12 @@ def train_ori_discr(
     '''
     # *** Testing some analysis functions - this will be removed soon ***
     run_ind=0.0
-    from analysis.analysis_functions import load_orientation_map
-    from training.util_gabor import init_untrained_pars    
-    from util import filter_for_run, load_parameters
-    from parameters import (
-    xy_distance,
-    grid_pars,
-    filter_pars,
-    stimuli_pars,
-    readout_pars,
-    ssn_pars,
-    conv_pars,
-    training_pars,
-    loss_pars,
-    pretraining_pars, # Setting pretraining (pretrain_pars.is_on) should happen in parameters.py because w_sig depends on it
-    )
-
-    loaded_orimap = load_orientation_map(results_filename, run_ind)
-    untrained_pars_v2 = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                    loss_pars, training_pars, pretraining_pars, readout_pars, None, orimap_loaded=loaded_orimap)
+    from util import filter_for_run_and_stage, load_parameters
+    
     results_df = pd.read_csv(results_filename)
-    df_i = filter_for_run(results_df, run_ind)
-    readout_pars_dict_v2, trained_pars_dict_v2, untrained_pars_v3, _,_ = load_parameters(df_i, readout_grid_size=9, iloc_ind = -1,untrained_pars = untrained_pars_v2)
+    df_i = filter_for_run_and_stage(results_df, run_ind) #folder_path, run_index, stage=0, iloc_ind
+    folder_path = os.path.dirname(results_filename)
+    readout_pars_dict_v2, trained_pars_dict_v2, untrained_pars_v3, _,_ = load_parameters(folder_path,run_index=run_ind, iloc_ind = -1)
     acc_mean_test, _, _ = mean_training_task_acc_test(trained_pars_dict_v2, readout_pars_dict_v2, untrained_pars_v3, jit_on, test_offset_vec, sample_size=1)
     acc_mean, _ ,_ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
     print(acc_mean, acc_mean_test)
@@ -702,6 +686,8 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 ####### Function for creating DataFrame from training results #######
 def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, staircase_offsets=None, psychometric_offsets=None):
     ''' This function collects different variables from training results into a dataframe.'''
+    from parameters import ReadoutPars
+    readout_pars = ReadoutPars()
     # Create an empty DataFrame and initialize it with stages, SGD steps, and training accuracies
     df = pd.DataFrame({
         'stage': stages,
@@ -771,19 +757,20 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         df['psychometric_offset']=None
         df.loc[step_indices['val_SGD_steps'],'psychometric_offset']=psychometric_offsets
         df['staircase_offset']= staircase_offsets
-            
+    
+    # Create a new DataFrame from the weight_data dictionary and concatenate it with the existing DataFrame
     weight_data = {}
-    shift_ind = (81-len(w_sigs[0]))/2
-    for i in range(81):# *** Filling up all the weights with None if they are not in the middle readout grid - makek 81 an input parameter
-        weight_name = f'w_sig_{i+1}'        
-        if i < shift_ind or i >= 81 - shift_ind:
-            weight_data[weight_name] = [None] * len(df)
-        else:
-            weight_data[weight_name] = w_sigs[:, i]
-
-    # Create a new DataFrame from the weight_data dictionary
+    if w_sigs.shape[1] == readout_pars.readout_grid_size[0] ** 2:
+        middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
+    else:
+        middle_grid_inds = readout_pars.middle_grid_ind
+    w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
+    for i in range(w_sigs.shape[1]):      
+        weight_data[w_sig_keys[i]] = w_sigs[:,i]
     weight_df = pd.DataFrame(weight_data)
     df = pd.concat([df, weight_df], axis=1)
+
+    # Add b_sig to the DataFrame
     df['b_sig'] = b_sigs
 
     return df

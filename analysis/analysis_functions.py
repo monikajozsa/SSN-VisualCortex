@@ -13,22 +13,53 @@ from training.model import vmap_evaluate_model_response, vmap_evaluate_model_res
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import generate_noise
 from util import load_parameters, sep_exponentiate, filter_for_run_and_stage
-from training.util_gabor import init_untrained_pars, BW_image_jit_noisy, BW_image_jax_supp, BW_image_vmap
-from parameters import (
-    xy_distance,
-    grid_pars,
-    filter_pars,
-    stimuli_pars,
-    readout_pars,
-    ssn_pars,
-    conv_pars,
-    training_pars,
-    loss_pars,
-    pretraining_pars, # Setting pretraining (pretrain_pars.is_on) should happen in parameters.py because w_sig depends on it
-    mvpa_pars
-)
+from training.util_gabor import BW_image_jit_noisy, BW_image_jax_supp, BW_image_vmap
 
 ############## Analysis functions ##########
+"""
+def corr_loss_and_param_change(folder_path):
+    '''NOT TESTED Calculate the mean correlation between the loss and the parameter changes for all runs.'''
+    # Read the original CSV file
+    file_path = os.path.join(folder_path,'results.csv')
+    df_results = pd.read_csv(file_path)
+    
+    # Calculate change over time by shufting the columns and subtracting the original columns
+    df_results_shifted = df_results.shift(1)
+    df_results_change = df_results - df_results_shifted
+    df_results_change = df_results_change.dropna()
+    
+    # Correlate the loss with the parameter changes
+    loss_keys = ['loss_binary_cross_entr', 'loss_dx_max', 'loss_r_max', 'loss_r_mean', 'loss_all']
+    other_pars_keys = ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II', 'J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II', 'c_E', 'c_I', 'f_E', 'f_I']
+    corr_loss_param_change = {}
+    for loss_key in loss_keys:
+        corr_loss_param_change[loss_key] = {}
+        for other_pars_key in other_pars_keys:
+            corr_loss_param_change[loss_key][other_pars_key] = df_results_change[loss_key].corr(df_results_change[other_pars_key])
+    
+    ##### Plot the correlation matrix - will be moved to visualization if it looks interesting #####
+    # Convert the dictionary to a DataFrame
+    correlation_df = pd.DataFrame(corr_loss_param_change).T
+
+    # Plot the matrix using imshow (imagesc equivalent in matplotlib)
+    plt.figure(figsize=(24, 16))
+    plt.imshow(correlation_df, cmap='viridis', aspect='auto')
+    plt.colorbar(label='Correlation')
+
+    # Set the ticks and labels for the plot
+    plt.xticks(ticks=np.arange(len(correlation_df.columns)), labels=correlation_df.columns, rotation=90)
+    plt.yticks(ticks=np.arange(len(correlation_df.index)), labels=correlation_df.index)
+
+    # Add axis labels and title
+    plt.xlabel('Other Parameters')
+    plt.ylabel('Loss Terms')
+    plt.title('Correlation Matrix between Loss Terms and Other Parameters')
+
+    # Save the plot
+    plt.savefig(os.path.join(folder_path, 'corr_loss_param_change.png'))
+
+    return corr_loss_param_change
+"""
 
 def exclude_runs(folder_path, input_vector):
     # Read the original CSV file
@@ -143,7 +174,7 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     gabor_filters = untrained_pars.gabor_filters
     num_ori = len(ori_vec)
     # Getting the 'blank' alpha_channel and mask for a full image version stimuli with no background
-    BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=True) 
+    BW_image_jax_inp = BW_image_jax_supp(untrained_pars.stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=True) 
     alpha_channel = BW_image_jax_inp[6]
     mask = BW_image_jax_inp[7]
     if len(gabor_filters.shape)==2:
@@ -159,7 +190,7 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
         y0 = untrained_pars.grid_pars.y_map[grid_ind_x, grid_ind_y]
         for phase_ind in range(gabor_filters.shape[0]):
             phase = phase_ind * np.pi/2
-            BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0=x0, y0=y0, phase=phase, full_grating=True)
+            BW_image_jax_inp = BW_image_jax_supp(untrained_pars.stimuli_pars, x0=x0, y0=y0, phase=phase, full_grating=True)
             x = BW_image_jax_inp[4]
             y = BW_image_jax_inp[5]
             stimuli = BW_image_vmap(BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori)) 
@@ -218,7 +249,7 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
             for phase_ind in range(ssn_pars.phases):
                 # Generate stimulus
                 phase = phase_ind * np.pi/2
-                BW_image_jax_inp = BW_image_jax_supp(stimuli_pars, x0=x0, y0=y0, phase=phase, full_grating=True)
+                BW_image_jax_inp = BW_image_jax_supp(untrained_pars.stimuli_pars, x0=x0, y0=y0, phase=phase, full_grating=True)
                 x = BW_image_jax_inp[4]
                 y = BW_image_jax_inp[5]
                 alpha_channel = BW_image_jax_inp[6]
@@ -370,12 +401,12 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
 
 ############################## helper functions for MVPA and Mahal distance analysis ##############################
 
-def select_type_mid(r_mid, cell_type='E'):
+def select_type_mid(r_mid, cell_type='E', phases=4):
     '''Selects the excitatory or inhibitory cell responses. This function assumes that r_mid is 3D (trials x grid points x celltype and phase)'''
     if cell_type=='E':
-        map_numbers = np.arange(1, 2 * ssn_pars.phases, 2)-1 # 0,2,4,6
+        map_numbers = np.arange(1, 2 * phases, 2)-1 # 0,2,4,6
     else:
-        map_numbers = np.arange(2, 2 * ssn_pars.phases + 1, 2)-1 # 1,3,5,7
+        map_numbers = np.arange(2, 2 * phases + 1, 2)-1 # 1,3,5,7
     
     out = np.zeros((r_mid.shape[0],r_mid.shape[1], int(r_mid.shape[2]/2)))
     for i in range(len(map_numbers)):
@@ -383,7 +414,7 @@ def select_type_mid(r_mid, cell_type='E'):
 
     return np.array(out)
 
-vmap_select_type_mid = jax.vmap(select_type_mid, in_axes=(0, None))
+vmap_select_type_mid = jax.vmap(select_type_mid, in_axes=(0, None, None))
 
 
 def gaussian_kernel(size: int, sigma: float):
@@ -436,21 +467,6 @@ def smooth_data(X, gridsize_Nx, sigma = 1):
     return smoothed_data
 
 
-def load_orientation_map(folder, run_ind):
-    '''Loads the orientation map from the folder for the training indexed by run_ind.'''
-    orimap_filename = os.path.join(folder, f"orimap.csv")
-    if not os.path.exists(orimap_filename):
-        orimap_filename = os.path.join(folder, f"orimap_{run_ind}.npy")
-        orimap = np.load(orimap_filename)
-    else:
-        orimaps = pd.read_csv(orimap_filename, header=0)
-        mesh_run = orimaps['run_index']==float(run_ind)
-        orimap = orimaps[mesh_run].to_numpy()
-        orimap = orimap[0][1:]
-
-    return orimap
-
-
 def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, c_E = None, c_I = None, f_E = None, f_I = None):
     # Generate noisy data
     ori_vec = np.repeat(ori, n_noisy_trials)
@@ -482,7 +498,7 @@ def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
     SGD_step_inds = numpy.zeros(num_indices, dtype=int)
     if num_indices>2:
         SGD_step_inds[0] = df.index[df['stage'] == 0][0] #index of when pretraining starts
-        training_start = df.index[df['stage'] == 0][-1]+1
+        training_start = df.index[df['stage'] == 0][-1] #index of when pretraining ends and training starts
         if peak_offset_flag:
             # get the index where max offset is reached 
             SGD_step_inds[1] = training_start + df['staircase_offset'][training_start:training_start+100].idxmax()
@@ -563,20 +579,15 @@ def mahal(X,Y):
     return np.sqrt(d)
 
 
-def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=True, sigma_filter = 1, plot_flag = False):
+def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=True, sigma_filter = 1, plot_flag = False, noise_std=1.0):
     '''
     Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)
     '''
+    from parameters import ReadoutPars
+    readout_pars = ReadoutPars()
 
-    grid_pars.gridsize_Nx = mvpa_pars.gridsize_Nx
-    readout_pars.readout_grid_size = mvpa_pars.readout_grid_size
-    grid_pars.gridsize_mm = float(grid_pars.gridsize_mm) * mvpa_pars.size_conv_factor
-    grid_pars.xy_dist, grid_pars.x_map, grid_pars.y_map = xy_distance(grid_pars.gridsize_Nx, grid_pars.gridsize_mm)
-
+    pretrained_readout_pars_dict, pretrained_pars_dict, untrained_pars = load_parameters(folder, run_index = run_ind, stage = 2, iloc_ind = -1)
     file_name = f"{folder}/results.csv"
-    loaded_orimap = load_orientation_map(folder, run_ind)
-    untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                    loss_pars, training_pars, pretraining_pars, readout_pars, None, orimap_loaded=loaded_orimap)
     df = pd.read_csv(file_name)
     df_run = filter_for_run_and_stage(df,run_ind)
     SGD_step_inds = SGD_indices_at_stages(df_run, num_SGD_inds)
@@ -584,7 +595,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     # Iterate overs SGD_step indices (default is before and after training)
     for step_ind in SGD_step_inds:
         # Load parameters from csv for given epoch
-        _, trained_pars_stage2, _, _, _ = load_parameters(df_run, iloc_ind = step_ind)
+        _, trained_pars_stage2, _, _, _ = load_parameters(folder, run_index=run_ind, iloc_ind = step_ind)
         J_2x2_m = sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
         J_2x2_s = sep_exponentiate(trained_pars_stage2['log_J_2x2_s'])
         c_E = trained_pars_stage2['c_E']
@@ -604,12 +615,12 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
                 r_sup = r_sup + noise_sup*np.sqrt(jax.nn.softplus(r_sup))
 
             # Smooth data for each celltype separately with Gaussian filter
-            filtered_r_mid_EI= smooth_data(r_mid, grid_pars.gridsize_Nx, sigma_filter)  #num_noisy_trials x 648
+            filtered_r_mid_EI= smooth_data(r_mid, untrained_pars.grid_pars.gridsize_Nx, sigma_filter)  #num_noisy_trials x 648
             filtered_r_mid_E=vmap_select_type_mid(filtered_r_mid_EI,'E')
             filtered_r_mid_I=vmap_select_type_mid(filtered_r_mid_EI,'I')
             filtered_r_mid=np.sum(0.8*filtered_r_mid_E + 0.2 *filtered_r_mid_I, axis=-1)# order of summing up phases and mixing I-E matters if we change to sum of squares!
 
-            filtered_r_sup_EI= smooth_data(r_sup, grid_pars.gridsize_Nx, sigma_filter)
+            filtered_r_sup_EI= smooth_data(r_sup, untrained_pars.grid_pars.gridsize_Nx, sigma_filter)
             if filtered_r_sup_EI.ndim == 3:
                 filtered_r_sup_E=filtered_r_sup_EI[:,:,0]
                 filtered_r_sup_I=filtered_r_sup_EI[:,:,1]
@@ -634,15 +645,15 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
                 ori_df = np.concatenate((ori_df, np.repeat(ori, num_noisy_trials)))
                 step_df = np.concatenate((step_df, np.repeat(step_ind, num_noisy_trials)))
 
-    # Get the responses from the center of the grid
-    min_ind = mvpa_pars.mid_grid_ind0
-    max_ind = mvpa_pars.mid_grid_ind1
+    # Get the responses from the center of the grid - *** check this indexing for middle box
+    min_ind = int((readout_pars.readout_grid_size[0] - readout_pars.readout_grid_size[1])/2)
+    max_ind = int(readout_pars.readout_grid_size[0]) - min_ind
     filtered_r_mid_box_df = filtered_r_mid_df[:,min_ind:max_ind, min_ind:max_ind]
     filtered_r_sup_box_df = filtered_r_sup_df[:,min_ind:max_ind, min_ind:max_ind]
 
     # Add noise to the responses - scaled by the std of the responses
-    filtered_r_mid_box_noisy_df= filtered_r_mid_box_df + numpy.random.normal(0, mvpa_pars.noise_std, filtered_r_mid_box_df.shape)
-    filtered_r_sup_box_noisy_df= filtered_r_sup_box_df + numpy.random.normal(0, mvpa_pars.noise_std, filtered_r_sup_box_df.shape)
+    filtered_r_mid_box_noisy_df= filtered_r_mid_box_df + numpy.random.normal(0, noise_std, filtered_r_mid_box_df.shape)
+    filtered_r_sup_box_noisy_df= filtered_r_sup_box_df + numpy.random.normal(0, noise_std, filtered_r_sup_box_df.shape)
 
     output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_box_noisy_df, r_sup = filtered_r_sup_box_noisy_df)
 

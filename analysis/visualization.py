@@ -107,6 +107,31 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     if plot_filename is not None:
         full_path = save_folder + '/J_pre_post.png'
         fig.savefig(full_path)
+    plt.close()
+
+    ################# Plotting bar plots of loss parameters before and after  #################
+    # Create figure and axis
+    fig, ax = plt.subplots(2,4, figsize=(20, 10))
+    # Colors for bars
+    colors=['red' ,'blue', 'tab:red', 'tab:blue' ,'red' , 'blue','tab:red', 'tab:blue']
+    keys_r = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup', 'meanr_E_mid', 'meanr_I_mid', 'meanr_E_sup', 'meanr_I_sup']
+    r_means_pre = [means_pre[keys_r[i]] for i in range(8)]
+    r_means_post = [means_post[keys_r[i]] for i in range(8)]
+    ax_flat = ax.flatten()
+
+    for i in range(8):
+        bars = ax_flat[i].bar(['Pre', 'Post'], [r_means_pre[i], r_means_post[i]], color=colors[i], alpha=0.7)
+        ax_flat[i].set_title(keys_r[i])
+        for bar in bars:
+            yval = bar.get_height()
+            ax_flat[i].text(bar.get_x() + bar.get_width() / 2, 0.9*yval, f'{yval:.2f}', ha='center', va='bottom', fontsize=20)
+        scatter_data_with_lines(ax_flat[i], numpy.abs(numpy.array([vals_pre[keys_r[i]], vals_post[keys_r[i]]])))
+
+    # Save plot
+    if plot_filename is not None:
+        full_path = save_folder + '/r_pre_post.png'
+        fig.savefig(full_path)
+    plt.close()
 
     ################# Boxplots for relative parameter changes #################
 
@@ -190,7 +215,7 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
             ax.text(bar.get_x() + bar.get_width() / 2, text_position, f'{yval:.2f}', ha='center', va='bottom', fontsize=20)
 
     # Create a subplot with 4 rows and 3 columns
-    fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(45, 35))
+    fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(60, 45))
     df, time_inds  = data_from_run(folder, run_index=run_index, num_indices=3)
     N = time_inds[-1]+1
 
@@ -221,7 +246,7 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
     keys_J = [key for key in rel_changes_train.keys() if key.startswith('J_')]
     values_J = [rel_changes_train[key] for key in keys_J] 
     keys_metrics =  [key for key in rel_changes_train.keys() if '_offset' in key or key.startswith('acc')]
-    values_metrics = [rel_changes_train[key]for key in keys_metrics] 
+    values_metrics = [rel_changes_train[key] for key in keys_metrics] 
     keys_meanr = [key for key in rel_changes_train.keys() if key.startswith('meanr_')]
     values_meanr = [rel_changes_train[key] for key in keys_meanr] 
     keys_fc = [key for key in rel_changes_train.keys() if key.startswith('c_') or key.startswith('f_')]

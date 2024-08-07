@@ -7,10 +7,11 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from util import save_code, load_parameters, filter_for_run_and_stage
+from util import save_code, load_parameters
 from training_functions import train_ori_discr
 from perturb_params import randomize_params, create_initial_parameters_df
-from parameters import pretraining_pars # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
+from parameters import PretrainingPars
+pretraining_pars = PretrainingPars() # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
@@ -62,20 +63,17 @@ while i < num_training and num_FailedRuns < 20:
     pretrained_readout_pars_dict, pretrained_pars_dict, untrained_pars = load_parameters(folder_path, run_index = i, stage =0, iloc_ind = -1)
     initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, pretrained_readout_pars_dict, pretrained_pars_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =1)
     
-    i = i + 1
     run_indices.append(i)
+    i = i + 1
     print('runtime of {} pretraining'.format(i), time.time()-starting_time_in_main)
     print('number of failed runs = ', num_FailedRuns)
 
-  
+
 ############### FINE DISCRIMINATION ###############
 
 for i in run_indices:
-    # Set pretraining flag to False
-    untrained_pars.pretrain_pars.is_on = False
-
     # Load the last parameters from the pretraining
-    pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=1, iloc_ind = -1)
+    pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=0, iloc_ind = -1, for_training=True)
     
     # Change mean rate homeostatic loss
     if meanr_vec is not None:
