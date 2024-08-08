@@ -51,7 +51,6 @@ def has_plateaued(loss, der_threshold=0.001, p_threshold=0.01, window_size = 10)
     return int(abs(end_derivative) < der_threshold and p_value > p_threshold)
 
 
-
 def train_ori_discr(
     readout_pars_dict,
     trained_pars_dict,
@@ -96,14 +95,13 @@ def train_ori_discr(
         min_acc_check_ind = untrained_pars.pretrain_pars.min_acc_check_ind
         acc_check_ind = np.arange(0, numSGD_steps, untrained_pars.pretrain_pars.acc_check_freq)
         acc_check_ind = acc_check_ind[(acc_check_ind > min_acc_check_ind) | (acc_check_ind <2)] # by leaving in 0, we make sure that it is not empty as we refer to it later
-        test_offset_vec = numpy.array([2, 5, 8, 12])  # offset values to define offset threshold where given accuracy is achieved
         numStages = 1
     else:
         numSGD_steps = training_pars.SGD_steps
         first_stage_acc_th = training_pars.first_stage_acc_th
-        test_offset_vec = numpy.array([1, 2, 5, 8]) 
         numStages = 2
-    
+    test_offset_vec = numpy.array([1, 3, 7, 12])  # offset values to define offset threshold where given accuracy is achieved
+
     # Define SGD_steps indices where losses an accuracy are validated
     val_steps = np.arange(0, numSGD_steps, training_pars.validation_freq)
     first_stage_final_step = numSGD_steps - 1
@@ -233,7 +231,7 @@ def train_ori_discr(
                         psychometric_offsets=[float(psychometric_offset)]
                     # Stopping criteria for pretraining: break out from SGD_step loop and stages loop (using a flag)
                     if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(psychometric_offsets)>2:
-                        pretrain_stop_flag = all(np.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]) and all(np.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) # and has_plateaued(train_accs)                        
+                        pretrain_stop_flag = all(np.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(np.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1])  # and has_plateaued(train_accs)                  
                     if pretrain_stop_flag:
                         print('Stopping pretraining: desired accuracy achieved for training task.')
                         first_stage_final_step = SGD_step

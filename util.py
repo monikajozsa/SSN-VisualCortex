@@ -223,7 +223,7 @@ def load_orientation_map(folder, run_ind):
 
     return orimap
 
-def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=False):
+def load_parameters(folder_path, run_index, stage=None, iloc_ind=-1, for_training=False):
     from training.util_gabor import init_untrained_pars
 
     # Define parameter keys that will be trained depending on the stage
@@ -283,7 +283,11 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     
     # Set the randomized gE, gI and eta parameters in relevant classes from initial_parameters.csv
     df_init_pars_all = pd.read_csv(os.path.join(folder_path, 'initial_parameters.csv'))
-    df_init_pars = filter_for_run_and_stage(df_init_pars_all, run_index, stage)
+    if stage is not None:
+        stage_for_init_pars=min(1,stage)
+    else:
+        stage_for_init_pars=None
+    df_init_pars = filter_for_run_and_stage(df_init_pars_all, run_index, stage_for_init_pars)
  
     training_pars.eta = df_init_pars['eta'].iloc[0]
     filter_pars.gE_m = df_init_pars['gE'].iloc[0]

@@ -498,7 +498,7 @@ def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
     SGD_step_inds = numpy.zeros(num_indices, dtype=int)
     if num_indices>2:
         SGD_step_inds[0] = df.index[df['stage'] == 0][0] #index of when pretraining starts
-        training_start = df.index[df['stage'] == 0][-1] #index of when pretraining ends and training starts
+        training_start = df.index[df['stage'] == 0][-1] + 1 #index of when training starts
         if peak_offset_flag:
             # get the index where max offset is reached 
             SGD_step_inds[1] = training_start + df['staircase_offset'][training_start:training_start+100].idxmax()
@@ -586,7 +586,6 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
 
-    pretrained_readout_pars_dict, pretrained_pars_dict, untrained_pars = load_parameters(folder, run_index = run_ind, stage = 2, iloc_ind = -1)
     file_name = f"{folder}/results.csv"
     df = pd.read_csv(file_name)
     df_run = filter_for_run_and_stage(df,run_ind)
@@ -595,7 +594,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     # Iterate overs SGD_step indices (default is before and after training)
     for step_ind in SGD_step_inds:
         # Load parameters from csv for given epoch
-        _, trained_pars_stage2, _, _, _ = load_parameters(folder, run_index=run_ind, iloc_ind = step_ind)
+        _, trained_pars_stage2, untrained_pars = load_parameters(folder, run_index=run_ind, iloc_ind = step_ind)
         J_2x2_m = sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
         J_2x2_s = sep_exponentiate(trained_pars_stage2['log_J_2x2_s'])
         c_E = trained_pars_stage2['c_E']
@@ -616,8 +615,8 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
 
             # Smooth data for each celltype separately with Gaussian filter
             filtered_r_mid_EI= smooth_data(r_mid, untrained_pars.grid_pars.gridsize_Nx, sigma_filter)  #num_noisy_trials x 648
-            filtered_r_mid_E=vmap_select_type_mid(filtered_r_mid_EI,'E')
-            filtered_r_mid_I=vmap_select_type_mid(filtered_r_mid_EI,'I')
+            filtered_r_mid_E=vmap_select_type_mid(filtered_r_mid_EI,'E',4)
+            filtered_r_mid_I=vmap_select_type_mid(filtered_r_mid_EI,'I',4)
             filtered_r_mid=np.sum(0.8*filtered_r_mid_E + 0.2 *filtered_r_mid_I, axis=-1)# order of summing up phases and mixing I-E matters if we change to sum of squares!
 
             filtered_r_sup_EI= smooth_data(r_sup, untrained_pars.grid_pars.gridsize_Nx, sigma_filter)
@@ -657,6 +656,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
 
     output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_box_noisy_df, r_sup = filtered_r_sup_box_noisy_df)
 
+    # *** Move this to visualization.py
     if plot_flag & (run_ind<2):
         for layer in [0,1]:
             for SGD_ind in range(num_SGD_inds):

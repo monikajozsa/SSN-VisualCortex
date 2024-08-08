@@ -14,11 +14,11 @@ class PretrainingPars:
     ''' interval where the absolute orientation difference between reference and target is randomly chosen from '''
     acc_th: float = 0.749
     ''' accuracy threshold to calculate corresponding offset (training task) '''
-    acc_check_freq: int = 3
+    acc_check_freq: int = 2
     ''' frequency (in SGD step) of accuracy check for the training task '''
     min_acc_check_ind: int = 1
     ''' minimum SGD step where accuracy check happens for the training task '''
-    min_stop_ind: int = 50
+    min_stop_ind: int = 200
     ''' minimum SGD step where pretraining can stop '''
     offset_threshold = [3,10]
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
@@ -265,7 +265,7 @@ pretrained_pars = PretrainedSSNPars()
 
 
 class RandomizePars:
-    J_range = [np.array([4, 5]),np.array([1,2]), np.array([4.5, 5.5]),np.array([0.7,1.7])]
+    J_range = [np.array([4.25, 5.25]),np.array([0.8,1.8]), np.array([4.25, 5.25]),np.array([0.8,1.8])]
     ''' range of the perturbed Jm and Js parameters '''
     c_range = np.array([4.5, 5.5])
     ''' range of the perturbed c parameters '''
@@ -275,6 +275,6 @@ class RandomizePars:
     ''' range of the perturbed gE parameters '''
     gI_range = np.array([0.15, 0.35])
     ''' range of the perturbed gI parameters '''
-    eta_range = np.array([2e-3, 5e-3])
+    eta_range = np.array([3e-3, 5e-3])
 
 randomize_pars = RandomizePars()

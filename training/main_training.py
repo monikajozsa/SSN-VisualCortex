@@ -18,12 +18,12 @@ if not pretraining_pars.is_on:
 ########## Initialize orientation map and gabor filters ############
 
 # Save out initial offset and reference orientation
-num_training = 50
+num_training = 20
 starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder
-note=f'3 test runs'
+note=f'20 test runs on longer pretrainings (min 200 SGD steps)'
 results_filename, folder_path = save_code(note=note)
 
 # Run num_training number of pretraining + training

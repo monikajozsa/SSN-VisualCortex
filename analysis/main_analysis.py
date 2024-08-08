@@ -18,8 +18,8 @@ grid_pars, ssn_pars, pretraining_pars = GridPars(), SSNPars(), PretrainingPars()
 if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
-num_training = 2
-final_folder_path = os.path.join('results','Aug07_v0')
+num_training = 20
+final_folder_path = os.path.join('results','Aug08_v0')
 start_time_in_main= time.time()
 
 ######### PLOT RESULTS ON PARAMETERS ############
@@ -116,7 +116,7 @@ for i in range(0,num_training):
     
     # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
     for stage in range(3):
-        pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(final_folder_path, run_index=i, stage=1, iloc_ind = SGD_step_inds[stage])
+        pretrained_readout_pars_dict, trained_pars_dict, untrained_pars = load_parameters(final_folder_path, run_index=i, iloc_ind = SGD_step_inds[stage])
         tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_dict, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_headers)
         tc_headers = False
         
