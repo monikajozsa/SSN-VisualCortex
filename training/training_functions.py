@@ -318,8 +318,8 @@ def train_ori_discr(
                         m[1]['w_sig']=m[1]['w_sig'].at[untrained_pars.middle_grid_ind].set(-m[1]['w_sig'][untrained_pars.middle_grid_ind])
                         
                         # Print out the changes in accuracy ***
-                        pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, None, pretrain_task= True)
-                        train_acc_test, _ ,_ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, None, pretrain_task= False)                        
+                        pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True)
+                        train_acc_test, _ ,_ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False)                        
                         print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc vec:', train_acc_test)
                     else:
                         # Update readout parameters

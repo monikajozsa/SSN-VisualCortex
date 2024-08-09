@@ -23,7 +23,7 @@ starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder
-note=f'50 test runs on longer pretrainings (min 200 SGD steps) and new results files.'
+note=f'50 test runs on medium-long pretrainings (min 100 SGD steps) and new results files.'
 folder_path = save_code(note=note)
 
 # Run num_training number of pretraining + training

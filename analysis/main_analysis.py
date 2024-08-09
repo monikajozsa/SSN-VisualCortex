@@ -18,7 +18,7 @@ if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 num_training = 50
-final_folder_path = os.path.join('results','Aug09_v1')
+final_folder_path = os.path.join('results','Aug09_v3')
 start_time_in_main= time.time()
 
 ######### PLOT RESULTS ON PARAMETERS ############
