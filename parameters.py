@@ -18,7 +18,7 @@ class PretrainingPars:
     ''' frequency (in SGD step) of accuracy check for the training task '''
     min_acc_check_ind: int = 1
     ''' minimum SGD step where accuracy check happens for the training task '''
-    min_stop_ind: int = 200
+    min_stop_ind: int = 100
     ''' minimum SGD step where pretraining can stop '''
     offset_threshold = [3,10]
     ''' threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining '''
@@ -41,8 +41,10 @@ class TrainingPars:
     ''' frequency of validation loss and accuracy calculation '''
     first_stage_acc_th: float = 0.51
     ''' accuracy threshold for early stopping criterium for the first stage of training '''
-    SGD_steps: int = 1000
+    SGD_steps: int = 2000
     ''' number of SGD step '''
+    min_stop_ind: int = 1000
+    ''' minimum SGD step where training can stop '''
 
 
 # Convergence parameters
@@ -265,7 +267,7 @@ pretrained_pars = PretrainedSSNPars()
 
 
 class RandomizePars:
-    J_range = [np.array([4.25, 5.25]),np.array([0.8,1.8]), np.array([4.25, 5.25]),np.array([0.8,1.8])]
+    J_range = [np.array([4, 5]),np.array([1,2]), np.array([4.5, 5.5]),np.array([0.7,1.7])]
     ''' range of the perturbed Jm and Js parameters '''
     c_range = np.array([4.5, 5.5])
     ''' range of the perturbed c parameters '''

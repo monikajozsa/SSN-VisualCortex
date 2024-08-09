@@ -10,7 +10,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, tc_features, MVPA_param_offset_correlations, data_from_run, SGD_indices_at_stages
+from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, tc_features, MVPA_param_offset_correlations, data_from_run
 from util import filter_for_run_and_stage
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
@@ -34,12 +34,7 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
 
     # Iterate through each file in the directory
     for i in range(num_training):
-        filepath = os.path.join(folder, 'results.csv')
-        # Read CSV file
-        df = pd.read_csv(filepath)
-        df_i = filter_for_run_and_stage(df,i)
-        # Calculate relative change
-        stage_time_inds = SGD_indices_at_stages(df_i, num_time_inds)
+        df_i, stage_time_inds = data_from_run(folder, run_index=i, num_indices=num_time_inds)
         train_end_ind = stage_time_inds[-1]
         if num_time_inds>2:
             pretrain_start_ind = stage_time_inds[0]

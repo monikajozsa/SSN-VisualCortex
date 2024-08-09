@@ -6,7 +6,7 @@ import optax
 import pandas as pd
 import numpy
 from scipy.optimize import curve_fit
-from scipy.stats import ttest_ind, linregress
+from scipy.stats import mannwhitneyu, linregress
 import copy
 import time
 import os
@@ -21,7 +21,7 @@ from training.model import evaluate_model_response
 def exponential_decay(x, a, b, c):
     return a * np.exp(-b * x) + c
 
-def has_plateaued(loss, der_threshold=0.001, p_threshold=0.01, window_size = 10):
+def has_plateaued(loss, der_threshold=0.001, p_threshold=0.1, window_size = 20):
     """
     Check if the loss has plateaued by fitting an exponential decay curve, checking the derivative at the end and performing a t-test on the last 20 values.
 
@@ -34,19 +34,20 @@ def has_plateaued(loss, der_threshold=0.001, p_threshold=0.01, window_size = 10)
     Returns:
     int: 1 if the loss has plateaued, 0 otherwise.
     """
-    if len(loss) < 2:
+    if len(loss) < 2*window_size:
         return False
 
     # Fit an exponential decay function to the loss vector
     x = np.arange(len(loss))
     popt, _ = curve_fit(exponential_decay, x, loss, maxfev=10000)
-    a, b, c = popt
+    a, b, _ = popt
     
     # Calculate the derivative at the end of the loss vector
     end_derivative = -a * b * np.exp(-b * x[-1])
 
-    # Check if the mean of the last 10 values is significantly different from the previous 10 values
-    _, p_value = ttest_ind(loss[-window_size:-1], loss[-2*window_size:-window_size], equal_var=False)
+    # Check if the mean of the last window_size values is significantly different from the previous window_size values
+    _, p_value = mannwhitneyu(loss[-window_size:-1], loss[-2*window_size:-window_size])
+    print('Derivative:',end_derivative, f'p-val:{p_value} (should be > {p_threshold} for plateau)')
 
     return int(abs(end_derivative) < der_threshold and p_value > p_threshold)
 
@@ -231,7 +232,7 @@ def train_ori_discr(
                         psychometric_offsets=[float(psychometric_offset)]
                     # Stopping criteria for pretraining: break out from SGD_step loop and stages loop (using a flag)
                     if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(psychometric_offsets)>2:
-                        pretrain_stop_flag = all(np.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(np.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1])  # and has_plateaued(train_accs)                  
+                        pretrain_stop_flag = all(np.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(np.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]) and has_plateaued(train_accs)
                     if pretrain_stop_flag:
                         print('Stopping pretraining: desired accuracy achieved for training task.')
                         first_stage_final_step = SGD_step
@@ -292,6 +293,15 @@ def train_ori_discr(
                         else:
                             psychometric_offsets=[float(psychometric_offset)]
                         print('Baseline acc is achieved at offset:', psychometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean)
+                        # Early stopping criteria for training - if accuracies in multiple relevant offsets did not change
+                        if 'acc_means' in locals():
+                            acc_means.append(acc_mean)
+                        else:
+                            acc_means=[acc_mean]
+                        if SGD_step > training_pars.min_stop_ind:
+                            acc_means_np = numpy.array(acc_means)
+                            if has_plateaued(acc_means_np[:,0], window_size=10) and has_plateaued(acc_means_np[:,1], window_size=10) and has_plateaued(acc_means_np[:,2], window_size=10):
+                                break
                     
                 # v) Parameter update. Note that pre-training has one-stage, training has two-stages, where the first stage is skipped if the accuracy satisfies a minimum threshold criteria
                 if numStages==1:
@@ -344,8 +354,11 @@ def train_ori_discr(
         val_SGD_steps = val_SGD_steps[0:len(val_accs)]
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps)
         
-    # Create DataFrame and save the DataFrame to a CSV file        
-    df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, b_sigs, w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, staircase_offsets, psychometric_offsets)
+    # Create DataFrame and save the DataFrame to a CSV file
+    if pretrain_on:  
+        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, b_sigs, w_sigs, staircase_offsets, psychometric_offsets)
+    else:
+        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets)
     df.insert(0, 'run_index', run_index) # insert run index as the first column 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
@@ -682,7 +695,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
 
 ####### Function for creating DataFrame from training results #######
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, b_sigs,w_sigs, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, staircase_offsets=None, psychometric_offsets=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None):
     ''' This function collects different variables from training results into a dataframe.'''
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
@@ -695,7 +708,6 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
 
     train_max_rates = np.vstack(np.asarray(train_max_rates))
     train_mean_rates = np.vstack(np.asarray(train_mean_rates))
-    w_sigs = np.stack(w_sigs)
     log_J_2x2_m = np.stack(log_J_2x2_m)
     log_J_2x2_s = np.stack(log_J_2x2_s)
     train_losses_all = np.stack(train_losses_all)
@@ -723,7 +735,6 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         df[mean_rates_names[i]]=train_mean_rates[:,i]
     
     # Add parameters that are trained in two stages during training and in one stage during pretraining
-    max_stages = max(1,max(stages))
     log_J_m_names = ['log_J_m_EE', 'log_J_m_EI', 'log_J_m_IE', 'log_J_m_II']
     log_J_s_names = ['log_J_s_EE', 'log_J_s_EI', 'log_J_s_IE', 'log_J_s_II']
     J_m_names = ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II']
@@ -744,31 +755,33 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     df['log_f_I']=log_f_I
     df['f_E']=[np.exp(log_f_E[i]) for i in range(len(log_f_E))]
     df['f_I']=[np.exp(log_f_I[i]) for i in range(len(log_f_I))]
-   
-    # Distinguish psychometric and staircase offsets and adjust the visualization and analysis functions ***
+
+    # Distinguish psychometric and staircase offsets
+    df['psychometric_offset']=None
+    max_stages = max(1,max(stages))
     if max_stages==1:
-        df['psychometric_offset']=None
         psychometric_offsets=np.hstack(psychometric_offsets)
         df.loc[step_indices['acc_check_ind'],'psychometric_offset']=psychometric_offsets
         df['staircase_offset']= staircase_offsets
-    else:
-        df['psychometric_offset']=None
+    else:        
         df.loc[step_indices['val_SGD_steps'],'psychometric_offset']=psychometric_offsets
         df['staircase_offset']= staircase_offsets
-    
-    # Create a new DataFrame from the weight_data dictionary and concatenate it with the existing DataFrame
-    weight_data = {}
-    if w_sigs.shape[1] == readout_pars.readout_grid_size[0] ** 2:
-        middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
-    else:
-        middle_grid_inds = readout_pars.middle_grid_ind
-    w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
-    for i in range(w_sigs.shape[1]):      
-        weight_data[w_sig_keys[i]] = w_sigs[:,i]
-    weight_df = pd.DataFrame(weight_data)
-    df = pd.concat([df, weight_df], axis=1)
+    # save w_sigs when pretraining is on
+    if max_stages==1:
+        w_sigs = np.stack(w_sigs)
+        # Create a new DataFrame from the weight_data dictionary and concatenate it with the existing DataFrame
+        weight_data = {}
+        if w_sigs.shape[1] == readout_pars.readout_grid_size[0] ** 2:
+            middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
+        else:
+            middle_grid_inds = readout_pars.middle_grid_ind
+        w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
+        for i in range(w_sigs.shape[1]):      
+            weight_data[w_sig_keys[i]] = w_sigs[:,i]
+        weight_df = pd.DataFrame(weight_data)
+        df = pd.concat([df, weight_df], axis=1)
 
-    # Add b_sig to the DataFrame
-    df['b_sig'] = b_sigs
+        # Add b_sig to the DataFrame
+        df['b_sig'] = b_sigs
 
     return df

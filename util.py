@@ -205,9 +205,7 @@ def save_code(final_folder_path=None, note=None):
 
     print(f"Script files copied successfully to: {script_folder}")
 
-    # Return path to save results
-    results_filename = final_folder_path / "results.csv"
-    return str(results_filename), str(final_folder_path)
+    return str(final_folder_path)
 
 def load_orientation_map(folder, run_ind):
     '''Loads the orientation map from the folder for the training indexed by run_ind.'''
@@ -223,34 +221,27 @@ def load_orientation_map(folder, run_ind):
 
     return orimap
 
-def load_parameters(folder_path, run_index, stage=None, iloc_ind=-1, for_training=False):
+def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=False):
     from training.util_gabor import init_untrained_pars
-
-    # Define parameter keys that will be trained depending on the stage
     from parameters import SSNPars, ReadoutPars, TrainedSSNPars, PretrainedSSNPars, GridPars, FilterPars, StimuliPars, ConvPars, TrainingPars, LossPars, PretrainingPars
     ssn_pars, readout_pars, trained_pars, pretrained_pars = SSNPars(), ReadoutPars(), TrainedSSNPars(), PretrainedSSNPars()
     grid_pars, filter_pars, stimuli_pars = GridPars(), FilterPars(), StimuliPars()
     conv_pars, training_pars, loss_pars, pretraining_pars = ConvPars(), TrainingPars(), LossPars(), PretrainingPars()
+    
+    ###### Set the J, f and c parameters from pretraining_results.csv or training_results.csv depending on stage ######
+    # define what keys the output pars_dict should have
     if for_training==0:
         par_keys = {attr: getattr(trained_pars, attr) for attr in dir(trained_pars)}
     else:
         par_keys = {attr: getattr(pretrained_pars, attr) for attr in dir(pretrained_pars)}
 
-    # Get the last row of the given csv file
-    df_all = pd.read_csv(os.path.join(folder_path, 'results.csv'))
+    # Get the iloc_ind row of the pretraining_results or training_results csv file depending on stage
+    if stage==0:
+        df_all = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv'))
+    else:
+        df_all = pd.read_csv(os.path.join(folder_path, 'training_results.csv'))
     df = filter_for_run_and_stage(df_all, run_index, stage)
     selected_row = df.iloc[int(iloc_ind)]
-
-    # Extract readout parameters from df and save it to readout pars
-    if for_training:
-        middle_grid_inds = readout_pars.middle_grid_ind
-    else:
-        middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
-    w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
-    w_sig_values = selected_row[w_sig_keys].values
-    readout_pars_loaded = dict(w_sig=w_sig_values, b_sig=selected_row['b_sig'])
-    readout_pars.b_sig = selected_row['b_sig']
-    readout_pars.w_sig = w_sig_values
 
     # Define keys for J parameters
     log_J_m_keys = ['log_J_m_EE','log_J_m_EI','log_J_m_IE','log_J_m_II'] 
@@ -281,25 +272,34 @@ def load_parameters(folder_path, run_index, stage=None, iloc_ind=-1, for_trainin
         ssn_pars.f_E = selected_row['f_E']
         ssn_pars.f_I = selected_row['f_I']
     
-    # Set the randomized gE, gI and eta parameters in relevant classes from initial_parameters.csv
+    ###### Set the w_sig, b_sig, gE, gI and eta parameters from initial_parameters.csv ######
     df_init_pars_all = pd.read_csv(os.path.join(folder_path, 'initial_parameters.csv'))
-    if stage is not None:
-        stage_for_init_pars=min(1,stage)
-    else:
-        stage_for_init_pars=None
+    stage_for_init_pars=min(1,stage)
     df_init_pars = filter_for_run_and_stage(df_init_pars_all, run_index, stage_for_init_pars)
  
     training_pars.eta = df_init_pars['eta'].iloc[0]
     filter_pars.gE_m = df_init_pars['gE'].iloc[0]
     filter_pars.gI_m = df_init_pars['gI'].iloc[0]
 
+    # Extract readout parameters from initial_parameters and save it to readout pars
+    if for_training:
+        middle_grid_inds = readout_pars.middle_grid_ind
+    else:
+        middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
+    w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
+    w_sig_values = np.array(df_init_pars[w_sig_keys].iloc[0])
+    b_sig_value = float(df_init_pars['b_sig'].iloc[0])
+    readout_pars_loaded = dict(w_sig=w_sig_values, b_sig=b_sig_value)
+    readout_pars.b_sig = b_sig_value
+    readout_pars.w_sig = w_sig_values
+
+    ###### Initialize untrained parameters with the loaded values ######
     # Load orientation map
     loaded_orimap = load_orientation_map(folder_path, run_index)
-
-    # Initialize untrained parameters with the loaded values
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                     loss_pars, training_pars, pretraining_pars, readout_pars, run_index, orimap_loaded=loaded_orimap)
-    # Get other metrics needed for training
+    
+    ###### Get other metrics needed for training ######
     if for_training:
         untrained_pars.pretrain_pars.is_on = False
         if 'psychometric_offset' in df.keys():

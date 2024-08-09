@@ -64,42 +64,53 @@ def corr_loss_and_param_change(folder_path):
 def exclude_runs(folder_path, input_vector):
     # Read the original CSV file
     folder_path_from_analysis = os.path.join(os.path.dirname(os.path.dirname(__file__)),folder_path)
-    file_path = os.path.join(folder_path_from_analysis,'results.csv')
-    df_results = pd.read_csv(file_path)
+    file_path = os.path.join(folder_path_from_analysis,'pretraining_results.csv')
+    df_pretraining_results = pd.read_csv(file_path)
+    file_path = os.path.join(folder_path_from_analysis,'training_results.csv')
+    df_training_results = pd.read_csv(file_path)
     file_path = os.path.join(folder_path_from_analysis,'orimap.csv')
     df_orimap = pd.read_csv(file_path)
     file_path = os.path.join(folder_path_from_analysis,'initial_parameters.csv')
     df_init_params = pd.read_csv(file_path)
     
     # Save the original dataframe as results_complete.csv
-    df_results.to_csv(os.path.join(folder_path_from_analysis,'results_complete.csv'), index=False)
+    df_pretraining_results.to_csv(os.path.join(folder_path_from_analysis,'pretraining_results_complete.csv'), index=False)
+    df_training_results.to_csv(os.path.join(folder_path_from_analysis,'training_results_complete.csv'), index=False)
     df_orimap.to_csv(os.path.join(folder_path_from_analysis,'orimap_complete.csv'), index=False)
     df_init_params.to_csv(os.path.join(folder_path_from_analysis,'initial_parameters_complete.csv'), index=False)
     
     # Exclude rows where 'runs' column is in the input_vector
-    df_results_filtered = df_results[~df_results['run_index'].isin(input_vector)]
+    df_pretraining_results_filtered = df_pretraining_results[~df_pretraining_results['run_index'].isin(input_vector)]
+    df_training_results_filtered = df_training_results[~df_training_results['run_index'].isin(input_vector)]
     df_orimap_filtered = df_orimap[~df_orimap['run_index'].isin(input_vector)]
     df_init_params_filtered = df_init_params.drop(index=input_vector)
 
     # Adjust the 'run_index' column
     df_orimap_filtered['run_index'] = range(len(df_orimap_filtered))
-    for i in range(df_results_filtered['run_index'].max() + 1):
+    for i in range(df_pretraining_results_filtered['run_index'].max() + 1):
         if i not in input_vector:
             shift_val = sum(x < i for x in input_vector)
-            df_results_filtered.loc[df_results_filtered['run_index'] == i, 'run_index'] = i - shift_val            
+            df_pretraining_results_filtered.loc[df_pretraining_results_filtered['run_index'] == i, 'run_index'] = i - shift_val    
+            df_training_results_filtered.loc[df_training_results_filtered['run_index'] == i, 'run_index'] = i - shift_val            
     
-    # Save the filtered dataframe as results.csv
-    df_results_filtered.to_csv(os.path.join(folder_path_from_analysis,'results.csv'), index=False)
+    # Save the filtered dataframes as csv files
+    df_pretraining_results_filtered.to_csv(os.path.join(folder_path_from_analysis,'pretraining_results.csv'), index=False)
+    df_training_results_filtered.to_csv(os.path.join(folder_path_from_analysis,'training_results.csv'), index=False)
     df_orimap_filtered.to_csv(os.path.join(folder_path_from_analysis,'orimap.csv'), index=False)
     df_init_params_filtered.to_csv(os.path.join(folder_path_from_analysis,'initial_parameters.csv'), index=False)
 
 
 def data_from_run(folder, run_index=0, num_indices=3):
-    """Read CSV files and calculate the relative changes between parameters at the different stages of training."""
+    """Read CSV files, filter them for run and return the combined dataframe together with the time indices where stages change."""
     
-    filepath = os.path.join(folder, 'results.csv')
-    df = pd.read_csv(filepath)
-    df_i = filter_for_run_and_stage(df, run_index)
+    pretrain_filepath = os.path.join(folder, 'pretraining_results.csv')
+    train_filepath = os.path.join(folder, 'training_results.csv')
+    df_pretrain = pd.read_csv(pretrain_filepath)
+    df_train = pd.read_csv(train_filepath)
+    df_pretrain_i = filter_for_run_and_stage(df_pretrain, run_index)
+    df_train_i = filter_for_run_and_stage(df_train, run_index)
+    df_i = pd.concat((df_pretrain_i,df_train_i))
+    df_i.reset_index(inplace=True)
     stage_time_inds = SGD_indices_at_stages(df_i, num_indices)
 
     return df_i, stage_time_inds
@@ -152,7 +163,7 @@ def rel_change_for_runs(folder, num_indices=3):
     '''Calculate the relative changes in the parameters for all runs.'''
 
     # Initialize the arrays to store the results in
-    filepath = os.path.join(folder, 'results.csv')
+    filepath = os.path.join(folder, 'pretraining_results.csv')
     df = pd.read_csv(filepath)
     num_runs = df['run_index'].iloc[-1]+1
 
@@ -272,6 +283,8 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
 
     # Save responses into csv file - overwrite the file if it already exists
     if filename is not None:
+        if os.path.exists(filename) and header is not False:
+            Warning('Tuning curve csv file will get multiple headers and will possibly have repeated rows!')
         # repeat training_stage run_index and expand dimension to add as the first two columns of the new_rows
         run_index_vec = numpy.repeat(run_index, len(ori_vec))
         training_stage_vec = numpy.repeat(training_stage, len(ori_vec))
@@ -509,19 +522,19 @@ def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
         for i in range(2,num_indices-1):
             SGD_step_inds[i] = int(SGD_step_inds[1] + (SGD_step_inds[-1]-SGD_step_inds[1])*(i-1)/(num_indices-2))
     else:
-        SGD_step_inds[0] = df.index[df['stage'] == 2][0] # index of when training starts (second stage of training)
+        SGD_step_inds[0] = df.index[df['stage'] > 0][0] # index of when training starts (first or second stages)
         SGD_step_inds[-1] = num_SGD_steps-1 #index of when training ends    
     return SGD_step_inds
 
 
 ################### Functions for MVPA and Mahalanobis distance analysis ###################
 
-def select_response(responses, sgd_step, layer, ori):
+def select_response(responses, stage_ind, layer, ori):
     '''
     Selects the response for a given sgd_step, layer and ori from the responses dictionary. If the dictionary has ref and target responses, it returns the difference between them.
     The response is the output from filtered_model_response or filtered_model_response_task functions.    
     '''
-    step_mask = responses['SGD_step'] == sgd_step
+    step_mask = responses['stage'] == stage_ind
     if ori is None:
         ori_mask = responses['ori'] >-1
         ori_out = responses['ori'][step_mask]
@@ -579,22 +592,23 @@ def mahal(X,Y):
     return np.sqrt(d)
 
 
-def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_SGD_inds = 2, r_noise=True, sigma_filter = 1, plot_flag = False, noise_std=1.0):
+def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_stage_inds = 2, r_noise=True, sigma_filter = 1, plot_flag = False, noise_std=1.0):
     '''
     Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)
     '''
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
 
-    file_name = f"{folder}/results.csv"
-    df = pd.read_csv(file_name)
-    df_run = filter_for_run_and_stage(df,run_ind)
-    SGD_step_inds = SGD_indices_at_stages(df_run, num_SGD_inds)
-
     # Iterate overs SGD_step indices (default is before and after training)
-    for step_ind in SGD_step_inds:
+    iloc_ind_vec=[0,0,-1]
+    if num_stage_inds==2:
+        stages = [1,2]
+    else:
+        stages = [0,2,2]
+    for stage_ind in range(len(stages)):
+        stage = stages[stage_ind]
         # Load parameters from csv for given epoch
-        _, trained_pars_stage2, untrained_pars = load_parameters(folder, run_index=run_ind, iloc_ind = step_ind)
+        _, trained_pars_stage2, untrained_pars = load_parameters(folder, run_index=run_ind, stage=stage, iloc_ind = iloc_ind_vec[stage_ind])
         J_2x2_m = sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
         J_2x2_s = sep_exponentiate(trained_pars_stage2['log_J_2x2_s'])
         c_E = trained_pars_stage2['c_E']
@@ -633,16 +647,16 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
             filtered_r_sup = filtered_r_sup / np.std(filtered_r_sup)
 
             # Concatenate all orientation responses
-            if ori == ori_list[0] and step_ind==SGD_step_inds[0]:
+            if ori == ori_list[0] and stage_ind==0:
                 filtered_r_mid_df = filtered_r_mid
                 filtered_r_sup_df = filtered_r_sup
                 ori_df = np.repeat(ori, num_noisy_trials)
-                step_df = np.repeat(step_ind, num_noisy_trials)
+                stage_df = np.repeat(stage_ind, num_noisy_trials)
             else:
                 filtered_r_mid_df = np.concatenate((filtered_r_mid_df, filtered_r_mid))
                 filtered_r_sup_df = np.concatenate((filtered_r_sup_df, filtered_r_sup))
                 ori_df = np.concatenate((ori_df, np.repeat(ori, num_noisy_trials)))
-                step_df = np.concatenate((step_df, np.repeat(step_ind, num_noisy_trials)))
+                stage_df = np.concatenate((stage_df, np.repeat(stage_ind, num_noisy_trials)))
 
     # Get the responses from the center of the grid - *** check this indexing for middle box
     min_ind = int((readout_pars.readout_grid_size[0] - readout_pars.readout_grid_size[1])/2)
@@ -654,33 +668,9 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     filtered_r_mid_box_noisy_df= filtered_r_mid_box_df + numpy.random.normal(0, noise_std, filtered_r_mid_box_df.shape)
     filtered_r_sup_box_noisy_df= filtered_r_sup_box_df + numpy.random.normal(0, noise_std, filtered_r_sup_box_df.shape)
 
-    output = dict(ori = ori_df, SGD_step = step_df, r_mid = filtered_r_mid_box_noisy_df, r_sup = filtered_r_sup_box_noisy_df)
-
-    # *** Move this to visualization.py
-    if plot_flag & (run_ind<2):
-        for layer in [0,1]:
-            for SGD_ind in range(num_SGD_inds):
-                response_0, _ = select_response(output, SGD_step_inds[SGD_ind], layer, ori_list[0])
-                response_1, _ = select_response(output, SGD_step_inds[SGD_ind], layer, ori_list[1])
-                response_2, _ = select_response(output, SGD_step_inds[SGD_ind], layer, ori_list[2])
-                global_min = np.min(np.array([float(response_0.min()), float(response_1.min()), float(response_2.min())]))
-                global_max = np.max(np.array([float(response_0.max()), float(response_1.max()), float(response_2.max())]))
-                # plot 4 trials from response_0,response_1, response_2 on a 10 x 3 subplot
-                fig, axs = plt.subplots(4, 3, figsize=(15, 30))
-                for i in range(4):
-
-                    axs[i, 0].imshow(response_0[i,:,:], vmin=global_min, vmax=global_max)
-                    axs[i, 1].imshow(response_1[i,:,:], vmin=global_min, vmax=global_max)
-                    axs[i, 2].imshow(response_2[i,:,:], vmin=global_min, vmax=global_max)
-                # Add black square in the middle of the image to highlight the readout region
-                for ax in axs.flatten():
-                    ax.add_patch(plt.Rectangle((8.5, 8.5), 9, 9, edgecolor='black', facecolor='none'))
-                # Add colorbar to the right of the last column
-                #fig.colorbar(axs[0, 2].imshow(response_0[i,:,:], vmin=global_min, vmax=global_max), ax=axs[:, 0], orientation='vertical')
-
-                plt.savefig(f'{folder}/figures/filt_resp_{run_ind}_{layer}_{sigma_filter}.png')
-    return output, SGD_step_inds
-
+    output = dict(ori = ori_df, stage = stage_df, r_mid = filtered_r_mid_box_noisy_df, r_sup = filtered_r_sup_box_noisy_df)
+    
+    return output
 
 def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio):
     '''

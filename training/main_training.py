@@ -18,13 +18,13 @@ if not pretraining_pars.is_on:
 ########## Initialize orientation map and gabor filters ############
 
 # Save out initial offset and reference orientation
-num_training = 20
+num_training = 50
 starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder
-note=f'20 test runs on longer pretrainings (min 200 SGD steps)'
-results_filename, folder_path = save_code(note=note)
+note=f'50 test runs on longer pretrainings (min 200 SGD steps) and new results files.'
+folder_path = save_code(note=note)
 
 # Run num_training number of pretraining + training
 num_FailedRuns = 0
@@ -43,6 +43,7 @@ while i < num_training and num_FailedRuns < 20:
     initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, readout_pars_opt_dict, pretrain_pars_rand_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =0)
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
+    results_filename = os.path.join(folder_path,'pretraining_results.csv')
     training_output_df = train_ori_discr(
             readout_pars_opt_dict,
             pretrain_pars_rand_dict,
@@ -70,7 +71,7 @@ while i < num_training and num_FailedRuns < 20:
 
 
 ############### FINE DISCRIMINATION ###############
-
+starting_time_training= time.time()
 for i in run_indices:
     # Load the last parameters from the pretraining
     pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=0, iloc_ind = -1, for_training=True)
@@ -85,6 +86,7 @@ for i in run_indices:
     untrained_pars.stimuli_pars.offset = min(offset_last,10)
 
     # Run training
+    results_filename = os.path.join(folder_path,'training_results.csv')
     training_output_df, _ = train_ori_discr(
             pretrained_readout_pars_dict,
             trained_pars_dict,
@@ -94,6 +96,7 @@ for i in run_indices:
             offset_step=0.1,
             run_index = i
         )
+    print('runtime of {} training'.format(i), time.time()-starting_time_training)
     
 ############### Run main analysis ###############
 # Get the path to the sibling folder

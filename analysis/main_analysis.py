@@ -6,9 +6,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 numpy.random.seed(0)
 
-from training.util_gabor import init_untrained_pars
-from analysis.analysis_functions import tuning_curve, SGD_indices_at_stages, tuning_curve, rel_change_for_runs
-from util import load_parameters, filter_for_run_and_stage
+from analysis.analysis_functions import tuning_curve, tuning_curve, rel_change_for_runs
+from util import load_parameters
 from analysis.visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
 from analysis.MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
 from parameters import GridPars, SSNPars, PretrainingPars
@@ -18,8 +17,8 @@ grid_pars, ssn_pars, pretraining_pars = GridPars(), SSNPars(), PretrainingPars()
 if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
-num_training = 20
-final_folder_path = os.path.join('results','Aug08_v0')
+num_training = 50
+final_folder_path = os.path.join('results','Aug09_v1')
 start_time_in_main= time.time()
 
 ######### PLOT RESULTS ON PARAMETERS ############
@@ -109,15 +108,13 @@ for type_ind in range(2):
         tc_headers.append(tc_header)
 
 # Loop over the different runs
-for i in range(0,num_training):
-    results_df = pd.read_csv(os.path.join(final_folder_path, 'results.csv'))
-    df_i = filter_for_run_and_stage(results_df, i)
-    SGD_step_inds = SGD_indices_at_stages(df_i, 3)
-    
+iloc_ind_vec = [0,0,-1]
+stages = [0,2,2]
+for i in range(0,num_training):    
     # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
-    for stage in range(3):
-        pretrained_readout_pars_dict, trained_pars_dict, untrained_pars = load_parameters(final_folder_path, run_index=i, iloc_ind = SGD_step_inds[stage])
-        tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_dict, tc_filename, ori_vec=tc_ori_list, training_stage=stage, run_index=i, header=tc_headers)
+    for stage_ind in range(3):
+        pretrained_readout_pars_dict, trained_pars_dict, untrained_pars = load_parameters(final_folder_path, run_index=i, stage=stages[stage_ind], iloc_ind=iloc_ind_vec[stage_ind])
+        tc_sup, tc_mid = tuning_curve(untrained_pars, trained_pars_dict, tc_filename, ori_vec=tc_ori_list, training_stage=stage_ind, run_index=i, header=tc_headers)
         tc_headers = False
         
     print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
