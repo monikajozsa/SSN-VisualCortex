@@ -145,7 +145,7 @@ def train_ori_discr(
                 
                 # Calculate psychometric_offset if the SGD step is in the acc_check_ind vector
                 if pretrain_on and SGD_step in acc_check_ind:
-                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
+                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size =5)
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                     psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     print('Baseline acc is achieved at offset:', psychometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean, 'train_acc:', train_acc)
@@ -285,7 +285,7 @@ def train_ori_discr(
                         stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, stimuli_pars.offset, SGD_step_time
                     ))
                     if not pretrain_on:
-                        acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
+                        acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size=5)
                         # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                         psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                         if 'psychometric_offsets' in locals():
@@ -317,9 +317,9 @@ def train_ori_discr(
                         m[1]['b_sig']=-m[1]['b_sig']
                         m[1]['w_sig']=m[1]['w_sig'].at[untrained_pars.middle_grid_ind].set(-m[1]['w_sig'][untrained_pars.middle_grid_ind])
                         
-                        # Print out the changes in accuracy
-                        train_acc_test, _ ,_ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
+                        # Print out the changes in accuracy ***
                         pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, None, pretrain_task= True)
+                        train_acc_test, _ ,_ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, None, pretrain_task= False)                        
                         print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc vec:', train_acc_test)
                     else:
                         # Update readout parameters
@@ -363,19 +363,24 @@ def train_ori_discr(
     if results_filename:
         file_exists = os.path.isfile(results_filename)
         df.to_csv(results_filename, mode='a', header=not file_exists, index=False)
-    
+
     '''
     # *** Testing some analysis functions - this will be removed soon ***
     run_ind=0.0
-    from util import filter_for_run_and_stage, load_parameters
-    
-    results_df = pd.read_csv(results_filename)
-    df_i = filter_for_run_and_stage(results_df, run_ind) #folder_path, run_index, stage=0, iloc_ind
+    from util import load_parameters
+    # Fine discrimination test for within loop
+    acc_mean_test, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size=5)
+    print(acc_mean_test)
+
+    # Fine discrimination test for loading from files
     folder_path = os.path.dirname(results_filename)
-    readout_pars_dict_v2, trained_pars_dict_v2, untrained_pars_v3, _,_ = load_parameters(folder_path,run_index=run_ind, iloc_ind = -1)
-    acc_mean_test, _, _ = mean_training_task_acc_test(trained_pars_dict_v2, readout_pars_dict_v2, untrained_pars_v3, jit_on, test_offset_vec, sample_size=1)
-    acc_mean, _ ,_ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec)
-    print(acc_mean, acc_mean_test)
+    if stage ==1:
+        stage_ind = 0
+    else:
+        stage_ind = 0
+    readout_pars_dict_v2, trained_pars_dict_v2, untrained_pars_v2, _,_ = load_parameters(folder_path,run_index=run_ind, stage=stage_ind, iloc_ind = -1, for_training=True)
+    acc_mean_test_v2, _, _ = mean_training_task_acc_test(trained_pars_dict_v2, readout_pars_dict_v2, untrained_pars_v2, jit_on, test_offset_vec, sample_size=5)
+    print(acc_mean_test_v2)
     '''
     return df, first_stage_final_step
 

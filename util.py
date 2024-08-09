@@ -272,7 +272,23 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
         ssn_pars.f_E = selected_row['f_E']
         ssn_pars.f_I = selected_row['f_I']
     
-    ###### Set the w_sig, b_sig, gE, gI and eta parameters from initial_parameters.csv ######
+    ###### Extract readout parameters from pretraining.csv and save it to readout pars ######
+    if stage>0:
+        df_all = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv'))
+        df = filter_for_run_and_stage(df_all, run_index, stage)
+        selected_row = df.iloc[-1]
+    if for_training:
+        middle_grid_inds = readout_pars.middle_grid_ind
+    else:
+        middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
+    w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
+    w_sig_values = np.array(selected_row[w_sig_keys])
+    b_sig_value = float(selected_row['b_sig'])
+    readout_pars_loaded = dict(w_sig=w_sig_values, b_sig=b_sig_value)
+    readout_pars.b_sig = b_sig_value
+    readout_pars.w_sig = w_sig_values
+
+    ###### Set the gE, gI and eta parameters from initial_parameters.csv ######
     df_init_pars_all = pd.read_csv(os.path.join(folder_path, 'initial_parameters.csv'))
     stage_for_init_pars=min(1,stage)
     df_init_pars = filter_for_run_and_stage(df_init_pars_all, run_index, stage_for_init_pars)
@@ -280,18 +296,6 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     training_pars.eta = df_init_pars['eta'].iloc[0]
     filter_pars.gE_m = df_init_pars['gE'].iloc[0]
     filter_pars.gI_m = df_init_pars['gI'].iloc[0]
-
-    # Extract readout parameters from initial_parameters and save it to readout pars
-    if for_training:
-        middle_grid_inds = readout_pars.middle_grid_ind
-    else:
-        middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
-    w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
-    w_sig_values = np.array(df_init_pars[w_sig_keys].iloc[0])
-    b_sig_value = float(df_init_pars['b_sig'].iloc[0])
-    readout_pars_loaded = dict(w_sig=w_sig_values, b_sig=b_sig_value)
-    readout_pars.b_sig = b_sig_value
-    readout_pars.w_sig = w_sig_values
 
     ###### Initialize untrained parameters with the loaded values ######
     # Load orientation map

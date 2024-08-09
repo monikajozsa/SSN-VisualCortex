@@ -22,7 +22,7 @@ def randomize_params_supp(param_dict, randomize_pars):
     
     for key, param_array in param_dict.items():
         matching_attributes = [attr for attr in attributes_ranges if attr.startswith(key[0])]
-        param_range = getattr(randomize_pars, matching_attributes[0]) # Note that this would not work for different gE and gI ranges as their first letter is the same
+        param_range = getattr(randomize_pars, matching_attributes[0]) # Note that this would not work for gE and gI ranges as their first letter is the same but those are not sampled with this function
         if isinstance(param_array, (float,np.floating, numpy.floating)):
             random_sample = random.uniform(low=param_range[0], high=param_range[1])
             param_dict[key] = random_sample
@@ -241,10 +241,6 @@ def create_initial_parameters_df(folder_path, initial_parameters, readout_parame
                         J_m_EE=J_2x2_m[0,0], J_m_EI=J_2x2_m[0,1], J_m_IE=J_2x2_m[1,0], J_m_II=J_2x2_m[1,1],
                         J_s_EE=J_2x2_s[0,0], J_s_EI=J_2x2_s[0,1], J_s_IE=J_2x2_s[1,0], J_s_II=J_2x2_s[1,1],
                         eta=randomized_eta, gE = randomized_gE, gI= randomized_gI)
-
-    init_vals_dict['b_sig']= readout_parameters['b_sig']    
-    for i in range(len(readout_parameters['w_sig'])):
-        init_vals_dict[f'w_sig_{i}']= readout_parameters['w_sig'][i]
 
     # Create a dataframe with the initial parameters
     if initial_parameters is None:
