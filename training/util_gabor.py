@@ -34,22 +34,6 @@ class UntrainedPars:
         self.num_readout_noise = readout_pars.num_readout_noise
 
 
-def cosdiff_ring(d_x, L):
-    """
-    Calculate the cosine-based distance.
-    Parameters:
-    d_x: The difference in the angular position.
-    L: The total angle.
-    """
-    # Calculate the cosine of the scaled angular difference
-    cos_angle = np.cos(d_x * 2 * np.pi / L)
-
-    # Calculate scaled distance
-    distance = np.sqrt( (1 - cos_angle) * 2) * L / (2 * np.pi)
-
-    return distance
-
-
 def test_uniformity(numbers, num_bins=18, alpha=0.25):
     """
     This function assesses the uniformity of 'numbers' within the range [0, 180] by dividing the range into 'num_bins' 
@@ -168,7 +152,7 @@ def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pa
     """
     Define untrained_pars with a randomly generated or given orientation map.
     """
-
+    from util import cosdiff_ring
     if (orimap_loaded is not None):
         if (orimap_loaded.shape[0] == grid_pars.gridsize_Nx) or (orimap_loaded.shape[0] == grid_pars.gridsize_Nx**2):
             ssn_ori_map=orimap_loaded
@@ -198,7 +182,7 @@ def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pa
 
     gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, flatten=True)
     
-    oris = ssn_ori_map.ravel()[:, None]
+    oris = ssn_ori_map.ravel()[:, None] # adding a second dimension
     ori_dist = cosdiff_ring(oris - oris.T, 180)
     
     # Collect parameters that are not trained into a single class

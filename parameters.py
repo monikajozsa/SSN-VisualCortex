@@ -175,6 +175,7 @@ class StimuliPars:
     offset: float = 4.0 
     ''' difference between reference and task orientation in degree (task ori is either ref_ori + offset or ref_or - offset) '''
 
+stimuli_pars = StimuliPars()
 
 # Sigmoid parameters
 @dataclass
@@ -217,7 +218,7 @@ class SSNPars:
     ''' time constant for inhibitory neurons in ms '''
     phases: int = 4 
     ''' number of inh. and exc. neurons (with different Gabor filt.) per grid point in middle layer (has to be an even integer) '''
-    sigma_oris = np.asarray([90.0, 90.0])
+    sigma_oris = np.asarray([180.0, 180.0])
     ''' range of weights in terms of preferred orientation difference (in degree) '''
     s_2x2_s = np.array([[0.2, 0.09], [0.4, 0.09]])
     ''' ranges of weights between different pre/post cell-type '''
@@ -225,6 +226,12 @@ class SSNPars:
     ''' relative strength of local parts of E projections in superficial layer '''
     p_local_m = [1.0, 1.0]
     ''' relative strength of local parts of E projections in middle layer '''
+    kappa_pre = np.asarray([0.0, 0.0])
+    ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
+    kappa_post = np.asarray([0.0, 0.0])
+    ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
+    beta = stimuli_pars.ref_ori
+    ''' shaping tuning curves depending on the reference orientation of the stimulus '''
 ssn_pars = SSNPars()
 
 

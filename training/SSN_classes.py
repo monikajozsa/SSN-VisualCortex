@@ -112,14 +112,17 @@ class _SSN_Base(object):
 
 
 class SSN_sup(_SSN_Base):
-    _Lring = 180
-
-    def __init__(self, ssn_pars, grid_pars, J_2x2, p_local, sigma_oris =None, s_2x2 = None, ori_dist=None,  **kwargs):
+    def __init__(self, ssn_pars, grid_pars, J_2x2, oris, ori_dist=None, **kwargs):
+        from util import cosdiff_ring
         Ni = Ne = grid_pars.gridsize_Nx**2
         n=ssn_pars.n
         self.k=ssn_pars.k
         tauE= ssn_pars.tauE
         tauI=ssn_pars.tauI
+        beta = ssn_pars.beta
+        kappa_post = ssn_pars.kappa_post
+        kappa_pre = ssn_pars.kappa_pre
+        oris = oris
         self.tauE = tauE
         self.tauI = tauI
         tau_vec = np.hstack([tauE * np.ones(Ne), tauI * np.ones(Ni)])
@@ -128,13 +131,14 @@ class SSN_sup(_SSN_Base):
                                     tau_vec=tau_vec, **kwargs)
 
         self.grid_pars = grid_pars
-        self.p_local = p_local
-
-        self.s_2x2 = s_2x2
-        self.sigma_oris = sigma_oris
+        self.p_local = ssn_pars.p_local_s
+        self.s_2x2 = ssn_pars.s_2x2_s
+        self.sigma_oris = ssn_pars.sigma_oris
    
         xy_dist = grid_pars.xy_dist
-        self.W = self.make_W(J_2x2, xy_dist, ori_dist)
+        # Calculate the distance of each orientation in the map from the beta orientation
+        dist_from_single_ori = cosdiff_ring(oris - beta, 180)
+        self.W = self.make_W(J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa_pre, kappa_post)
 
     @property
     def neuron_params(self):
@@ -142,7 +146,7 @@ class SSN_sup(_SSN_Base):
                     tauE=self.tau_vec[0], tauI=self.tau_vec[self.Ne])
     
         
-    def make_W(self, J_2x2, xy_dist, ori_dist, MinSyn=1e-4, CellWiseNormalized=False):
+    def make_W(self, J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa_pre, kappa_post, MinSyn=1e-4, CellWiseNormalized=False):
             """
             make the full recurrent connectivity matrix W
             Input:
@@ -153,12 +157,15 @@ class SSN_sup(_SSN_Base):
             Output/side-effects:
             self.W
             """
+            # Unpack parameters
             s_2x2 = self.s_2x2
             sigma_oris = self.sigma_oris
             p_local = self.p_local
             
-            #Reshape sigma_oris
+            # Reshape sigma_oris kappas and s_2x2 to 2x2 matrices
             sigma_oris = sigma_oris * np.ones((2,2))
+            kappa_pre = kappa_pre * np.ones((2,2))
+            kappa_post = kappa_post * np.ones((2,2))
             
             if np.isscalar(s_2x2):
                 s_2x2 = s_2x2 * np.ones((2,2))
@@ -168,37 +175,37 @@ class SSN_sup(_SSN_Base):
             if np.isscalar(p_local) or len(p_local) == 1:
                 p_local = np.asarray(p_local) * np.ones(2)
 
-            #Create empty matrix
+            # Create empty matrix
             Wblks = [[1,1],[1,1]]
-            
-            # loop over post- (a) and pre-synaptic (b) cell-types
+
+            # Loop over post- (a) and pre-synaptic (b) cell-types
             for a in range(2):
                 for b in range(2):                    
                     if b == 0: # E projections
-                        W = np.exp(-xy_dist/s_2x2[a,b] -ori_dist**2/(2*sigma_oris[a,b]**2))                        
+                        W_local = np.exp(-xy_dist/s_2x2[a,b] - ori_dist**2/(sigma_oris[a,b]**2) - dist_from_single_ori[:, 0]**2*(kappa_post[a,b]**2)  - dist_from_single_ori[:,0]**2*(kappa_pre[a,b]**2))
                     elif b == 1: # I projections 
-                        W = np.exp(-xy_dist**2/(2*s_2x2[a,b]**2) -ori_dist**2/(2*sigma_oris[a,b]**2))
+                        W_local = np.exp(-xy_dist**2/(s_2x2[a,b]**2) -ori_dist**2/(sigma_oris[a,b]**2) - dist_from_single_ori[:, None]**2/(kappa_post[a,b]**2)  - dist_from_single_ori[None,:]**2/(kappa_pre[a,b]**2))
 
                     # sparsify (set small weights to zero)
-                    W = np.where(W < MinSyn, 0, W)
+                    W_local = np.where(W_local < MinSyn, 0, W_local)
 
                     # row-wise normalize
-                    tW = np.sum(W, axis=1)
+                    tW = np.sum(W_local, axis=1)
                     if not CellWiseNormalized:
                         tW = np.mean(tW)
-                        W =  W / tW
+                        W_local =  W_local / tW
                     else:
-                        W = W / tW[:, None]
+                        W_local = W_local / tW[:, None]
 
                     # for E projections, add the local part
                     # NOTE: alterntaively could do this before normalizing
                     if b == 0:
-                        W = p_local[a] * np.eye(*W.shape) + (1-p_local[a]) * W
+                        W = p_local[a] * np.eye(*W_local.shape) + (1-p_local[a]) * W_local
 
-                    Wblks[a][b] = J_2x2[a, b] * W            
+                    Wblks[a][b] = J_2x2[a, b] * W          
             
-            W = np.block(Wblks)
-            return W
+            W_out = np.block(Wblks)
+            return W_out
 
 
     def select_type(self, vec, select='E'):    
@@ -218,7 +225,6 @@ class SSN_sup(_SSN_Base):
 
 
 class SSN_mid(_SSN_Base):
-    _Lring = 180
 
     def __init__(
         self,

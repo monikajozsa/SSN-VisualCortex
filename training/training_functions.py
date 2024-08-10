@@ -75,6 +75,7 @@ def train_ori_discr(
     - jit_on (bool): If True, enables JIT compilation for performance improvement.
     """
      # Unpack training_pars and stimuli_pars from untrained_pars
+    ssn_pars = untrained_pars.ssn_pars
     training_pars = untrained_pars.training_pars
     stimuli_pars = untrained_pars.stimuli_pars
     pretrain_on = untrained_pars.pretrain_pars.is_on
@@ -173,44 +174,44 @@ def train_ori_discr(
                         if 'log_J_2x2_m' in trained_pars_dict.keys():
                             log_J_2x2_m.append(trained_pars_dict['log_J_2x2_m'].ravel())
                         else:
-                            log_J_2x2_m.append(take_log(untrained_pars.ssn_pars.J_2x2_m).ravel())
+                            log_J_2x2_m.append(take_log(ssn_pars.J_2x2_m).ravel())
                         if 'log_J_2x2_s' in trained_pars_dict.keys():
                             log_J_2x2_s.append(trained_pars_dict['log_J_2x2_s'].ravel())
                         else:
-                            log_J_2x2_s.append(take_log(untrained_pars.ssn_pars.J_2x2_s).ravel())
+                            log_J_2x2_s.append(take_log(ssn_pars.J_2x2_s).ravel())
                         if 'c_E' in trained_pars_dict.keys():
                             c_E.append(trained_pars_dict['c_E'])
                             c_I.append(trained_pars_dict['c_I'])
                         else:
-                            c_E.append(untrained_pars.ssn_pars.c_E)
-                            c_I.append(untrained_pars.ssn_pars.c_I)
+                            c_E.append(ssn_pars.c_E)
+                            c_I.append(ssn_pars.c_I)
                         if 'log_f_E' in trained_pars_dict.keys():
                             log_f_E.append(trained_pars_dict['log_f_E'])
                             log_f_I.append(trained_pars_dict['log_f_I'])
                         else:
-                            log_f_E.append(np.log(untrained_pars.ssn_pars.f_E))
-                            log_f_I.append(np.log(untrained_pars.ssn_pars.f_I))
+                            log_f_E.append(np.log(ssn_pars.f_E))
+                            log_f_I.append(np.log(ssn_pars.f_I))
                 else:
                     if 'log_J_2x2_m' in trained_pars_dict.keys():
                         log_J_2x2_m = [trained_pars_dict['log_J_2x2_m'].ravel()]
                     else:
-                        log_J_2x2_m = [take_log(untrained_pars.ssn_pars.J_2x2_m).ravel()]
+                        log_J_2x2_m = [take_log(ssn_pars.J_2x2_m).ravel()]
                     if 'log_J_2x2_s' in trained_pars_dict.keys():
                         log_J_2x2_s = [trained_pars_dict['log_J_2x2_s'].ravel()]
                     else:
-                        log_J_2x2_s = [take_log(untrained_pars.ssn_pars.J_2x2_s).ravel()]
+                        log_J_2x2_s = [take_log(ssn_pars.J_2x2_s).ravel()]
                     if 'c_E' in trained_pars_dict.keys():
                         c_E = [trained_pars_dict['c_E']]
                         c_I = [trained_pars_dict['c_I']]
                     else:
-                        c_E = [untrained_pars.ssn_pars.c_E]
-                        c_I = [untrained_pars.ssn_pars.c_I]
+                        c_E = [ssn_pars.c_E]
+                        c_I = [ssn_pars.c_I]
                     if 'log_f_E' in trained_pars_dict.keys():
                         log_f_E = [trained_pars_dict['log_f_E']]
                         log_f_I = [trained_pars_dict['log_f_I']]
                     else:
-                        log_f_E = [np.log(untrained_pars.ssn_pars.f_E)]
-                        log_f_I = [np.log(untrained_pars.ssn_pars.f_I)]
+                        log_f_E = [np.log(ssn_pars.f_E)]
+                        log_f_I = [np.log(ssn_pars.f_I)]
                 w_sig_temp=readout_pars_dict['w_sig']
                 if 'w_sigs' in locals():
                     w_sigs.append(w_sig_temp)
@@ -319,7 +320,7 @@ def train_ori_discr(
                         
                         # Print out the changes in accuracy ***
                         pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True)
-                        train_acc_test, _ ,_ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False)                        
+                        train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False)                        
                         print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc vec:', train_acc_test)
                     else:
                         # Update readout parameters
@@ -470,15 +471,12 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     else:
         J_2x2_s = untrained_pars.ssn_pars.J_2x2_s
  
-    p_local_s = untrained_pars.ssn_pars.p_local_s
-    s_2x2 = untrained_pars.ssn_pars.s_2x2_s
-    sigma_oris = untrained_pars.ssn_pars.sigma_oris
     loss_pars = untrained_pars.loss_pars
     conv_pars = untrained_pars.conv_pars
 
     # Create middle and superficial SSN layers
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
-    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, p_local_s, sigma_oris, s_2x2, untrained_pars.ori_dist)
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
     
     #Run reference and target through the model
     [r_sup_ref, r_mid_ref], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
@@ -695,6 +693,8 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
         mask = acc_vec < baseline_acc
         first_index = np.argmax(mask)
         offsets_at_bl_acc = offset_vec[first_index]
+    elif offsets_at_bl_acc.size > 1:
+        offsets_at_bl_acc = offsets_at_bl_acc[0]
 
     return offsets_at_bl_acc
 

@@ -86,7 +86,7 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
     ##### Accept initialization if conditions on the model response are also satisfied #####
     # 1. Calculate model responses
     ssn_mid = SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, randomized_pars['J_2x2_m'])
-    ssn_sup = SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, randomized_pars['J_2x2_s'], untrained_pars.ssn_pars.p_local_s, untrained_pars.ssn_pars.sigma_oris,  untrained_pars.ssn_pars.s_2x2_s, untrained_pars.ori_dist)
+    ssn_sup = SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, randomized_pars['J_2x2_s'], untrained_pars.oris, untrained_pars.ori_dist)
     train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp) 
     pretrain_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
     c_E = randomized_pars['c_E']
@@ -181,14 +181,11 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000):
         f_E = untrained_pars.ssn_pars.f_E
         f_I = untrained_pars.ssn_pars.f_I
 
-    p_local_s = untrained_pars.ssn_pars.p_local_s
-    s_2x2 = untrained_pars.ssn_pars.s_2x2_s
-    sigma_oris = untrained_pars.ssn_pars.sigma_oris
     conv_pars = untrained_pars.conv_pars
 
     # 2. define middle layer and superficial layer SSN
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
-    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, p_local_s, sigma_oris, s_2x2, untrained_pars.ori_dist)
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
     
     # Run reference and target through two layer model
     [r_ref, _], _,_, _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)

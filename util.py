@@ -10,6 +10,22 @@ import os
 from training.util_gabor import BW_image_jit_noisy
 
 
+def cosdiff_ring(d_x, L):
+    """
+    Calculate the cosine-based distance.
+    Parameters:
+    d_x: The difference in the angular position.
+    L: The total angle.
+    """
+    # Calculate the cosine of the scaled angular difference
+    cos_angle = np.cos(d_x * 2 * np.pi / L)
+
+    # Calculate scaled distance
+    distance = np.sqrt( (1 - cos_angle) * 2) * L / (2 * np.pi)
+
+    return distance
+
+
 ##### Functions to create training data #####
 def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
     '''
@@ -273,10 +289,13 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
         ssn_pars.f_I = selected_row['f_I']
     
     ###### Extract readout parameters from pretraining.csv and save it to readout pars ######
+    # If stage is >0, then load the last row of pretraining_results.csv as readout parameters are not trained during training
     if stage>0:
         df_all = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv'))
-        df = filter_for_run_and_stage(df_all, run_index, stage)
+        df = filter_for_run_and_stage(df_all, run_index)
         selected_row = df.iloc[-1]
+   
+    # Load the whole or the middle readout parameters depending on if the load is for training or pretraining
     if for_training:
         middle_grid_inds = readout_pars.middle_grid_ind
     else:
