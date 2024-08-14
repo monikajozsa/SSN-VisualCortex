@@ -23,7 +23,7 @@ starting_time_in_main= time.time()
 initial_parameters = None
 
 # Save scripts into scripts folder
-note=f'50 test runs on medium-long pretrainings (min 100 SGD steps) and new results files.'
+note=f'50 runs for training kappas.'
 folder_path = save_code(note=note)
 
 # Run num_training number of pretraining + training
@@ -40,7 +40,7 @@ while i < num_training and num_FailedRuns < 20:
     readout_pars_opt_dict, pretrain_pars_rand_dict, untrained_pars = randomize_params(folder_path, i)
 
     ##### Save initial parameters into initial_parameters variable #####
-    initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, readout_pars_opt_dict, pretrain_pars_rand_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =0)
+    initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, pretrain_pars_rand_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =0)
 
     ##### PRETRAINING: GENERAL ORIENTAION DISCRIMINATION #####
     results_filename = os.path.join(folder_path,'pretraining_results.csv')
@@ -61,8 +61,8 @@ while i < num_training and num_FailedRuns < 20:
         continue  
 
     ##### Save final values into initial_parameters as initial parameters for training stage #####
-    pretrained_readout_pars_dict, pretrained_pars_dict, untrained_pars = load_parameters(folder_path, run_index = i, stage =0, iloc_ind = -1)
-    initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, pretrained_readout_pars_dict, pretrained_pars_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =1)
+    _, pretrained_pars_dict, untrained_pars = load_parameters(folder_path, run_index = i, stage =0, iloc_ind = -1)
+    initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, pretrained_pars_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =1)
     
     run_indices.append(i)
     i = i + 1
@@ -72,6 +72,9 @@ while i < num_training and num_FailedRuns < 20:
 
 ############### FINE DISCRIMINATION ###############
 starting_time_training= time.time()
+if 'run_indices' not in locals():
+    run_indices = range(num_training)
+
 for i in run_indices:
     # Load the last parameters from the pretraining
     pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=0, iloc_ind = -1, for_training=True)
@@ -83,7 +86,7 @@ for i in run_indices:
         untrained_pars.loss_pars.Rmean_I = meanr_vec[1]
 
     # Set the offset to the offset threshold, where a given accuracy is achieved with the parameters from the last SGD step (loaded as offset_last)
-    untrained_pars.stimuli_pars.offset = min(offset_last,10)
+    untrained_pars.stimuli_pars.offset = min(offset_last,untrained_pars.stimuli_pars.max_train_offset)
 
     # Run training
     results_filename = os.path.join(folder_path,'training_results.csv')

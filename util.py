@@ -10,6 +10,54 @@ import os
 from training.util_gabor import BW_image_jit_noisy
 
 
+# unpacking the trained parameters and the untrained parameters
+def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, return_kappa= True):
+    if 'log_J_2x2_m' in trained_pars:
+        J_2x2_m = sep_exponentiate(trained_pars['log_J_2x2_m'])
+    elif 'J_2x2_m' in trained_pars:
+        J_2x2_m = trained_pars['J_2x2_m']
+    else:
+        J_2x2_m = untrained_pars.ssn_pars.J_2x2_m
+    if 'log_J_2x2_s' in trained_pars:
+        J_2x2_s = sep_exponentiate(trained_pars['log_J_2x2_s'])
+    elif 'J_2x2_m' in trained_pars:
+        J_2x2_s = trained_pars['J_2x2_s']
+    else:
+        J_2x2_s = untrained_pars.ssn_pars.J_2x2_s
+    if 'c_E' in trained_pars:
+        c_E = trained_pars['c_E']
+        c_I = trained_pars['c_I']
+    else:
+        c_E = untrained_pars.ssn_pars.c_E
+        c_I = untrained_pars.ssn_pars.c_I        
+    if 'log_f_E' in trained_pars:  
+        f_E = np.exp(trained_pars['log_f_E'])
+        f_I = np.exp(trained_pars['log_f_I'])
+    elif 'f_E' in trained_pars:
+        f_E = trained_pars['f_E']
+        f_I = trained_pars['f_I']
+    else:
+        f_E = untrained_pars.ssn_pars.f_E
+        f_I = untrained_pars.ssn_pars.f_I
+    if return_kappa: 
+        if 'kappa' in trained_pars:
+            kappa = trained_pars['kappa']
+        else:
+            if hasattr(untrained_pars.ssn_pars, 'kappa'): # case when during pretraining we check training task accuracy
+                kappa = untrained_pars.ssn_pars.kappa
+            else:
+                kappa = np.array([[0.0, 0.0], [0.0, 0.0]])
+    else:
+        kappa = None
+    if as_log_list:
+        log_J_2x2_m = take_log(J_2x2_m)
+        log_J_2x2_s = take_log(J_2x2_s)
+        log_f_E = np.log(f_E)
+        log_f_I = np.log(f_I)
+        return [log_J_2x2_m.ravel()], [log_J_2x2_s.ravel()], [c_E], [c_I], [log_f_E], [log_f_I], [kappa.ravel()]
+    else:
+        return J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa
+
 def cosdiff_ring(d_x, L):
     """
     Calculate the cosine-based distance.
@@ -246,10 +294,10 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     
     ###### Set the J, f and c parameters from pretraining_results.csv or training_results.csv depending on stage ######
     # define what keys the output pars_dict should have
-    if for_training==0:
-        par_keys = {attr: getattr(trained_pars, attr) for attr in dir(trained_pars)}
+    if for_training:
+        par_keys = {attr: getattr(trained_pars, attr) for attr in dir(trained_pars) if not callable(getattr(trained_pars, attr)) and not attr.startswith("__") and not attr.startswith("_")}
     else:
-        par_keys = {attr: getattr(pretrained_pars, attr) for attr in dir(pretrained_pars)}
+        par_keys = {attr: getattr(pretrained_pars, attr) for attr in dir(pretrained_pars) if not callable(getattr(pretrained_pars, attr)) and not attr.startswith("__") and not attr.startswith("_")}
 
     # Get the iloc_ind row of the pretraining_results or training_results csv file depending on stage
     if stage==0:
@@ -264,8 +312,9 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     log_J_s_keys = ['log_J_s_EE','log_J_s_EI','log_J_s_IE','log_J_s_II']
     J_m_keys = ['J_m_EE','J_m_EI','J_m_IE','J_m_II'] 
     J_s_keys = ['J_s_EE','J_s_EI','J_s_IE','J_s_II']
+    kappa_keys = ['kappa_EE','kappa_EI','kappa_IE','kappa_II']
 
-    # Create a dictionary with the trained parameters and update untrained parameters if J, c or f are not trained
+    # Create a dictionary with the trained parameters and update untrained parameters if J, c, f, or kappa is not trained
     pars_dict = {}
     if 'log_J_2x2_m' in par_keys or 'J_2x2_m' in par_keys:
         pars_dict['log_J_2x2_m'] = selected_row[log_J_m_keys].values.reshape(2, 2)
@@ -287,10 +336,15 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     else:
         ssn_pars.f_E = selected_row['f_E']
         ssn_pars.f_I = selected_row['f_I']
+    if 'kappa' in par_keys:
+        if kappa_keys[0] in selected_row.keys():
+            pars_dict['kappa'] = selected_row[kappa_keys].values.reshape(2, 2)
+        else: # case when kappa are not in selected_row but they are required in trained_pars (beginning of training)
+            pars_dict['kappa'] = trained_pars.kappa
     
     ###### Extract readout parameters from pretraining.csv and save it to readout pars ######
     # If stage is >0, then load the last row of pretraining_results.csv as readout parameters are not trained during training
-    if stage>0:
+    if stage > 0:
         df_all = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv'))
         df = filter_for_run_and_stage(df_all, run_index)
         selected_row = df.iloc[-1]

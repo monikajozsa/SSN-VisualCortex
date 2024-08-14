@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from training.model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import generate_noise
-from util import load_parameters, sep_exponentiate, filter_for_run_and_stage
+from util import load_parameters, sep_exponentiate, filter_for_run_and_stage, unpack_ssn_parameters
 from training.util_gabor import BW_image_jit_noisy, BW_image_jax_supp, BW_image_vmap
 
 ############## Analysis functions ##########
@@ -109,6 +109,8 @@ def data_from_run(folder, run_index=0, num_indices=3):
     df_train = pd.read_csv(train_filepath)
     df_pretrain_i = filter_for_run_and_stage(df_pretrain, run_index)
     df_train_i = filter_for_run_and_stage(df_train, run_index)
+    if df_train_i.empty:
+        Warning('No data for run_index = {}'.format(run_index))
     df_i = pd.concat((df_pretrain_i,df_train_i))
     df_i.reset_index(inplace=True)
     stage_time_inds = SGD_indices_at_stages(df_i, num_indices)
@@ -219,28 +221,8 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
     '''
     # Get the parameters from the trained_pars dictionary and untreatned_pars class
     ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
-    if 'log_J_2x2_m' in trained_pars:
-        J_2x2_m = sep_exponentiate(trained_pars['log_J_2x2_m'])
-        J_2x2_s = sep_exponentiate(trained_pars['log_J_2x2_s'])
-    if 'J_2x2_m' in trained_pars:
-        J_2x2_m = trained_pars['J_2x2_m']
-        J_2x2_s = trained_pars['J_2x2_s']
-    if 'c_E' in trained_pars:
-        c_E = trained_pars['c_E']
-        c_I = trained_pars['c_I']
-    else:
-        c_E = untrained_pars.ssn_pars.c_E
-        c_I = untrained_pars.ssn_pars.c_I        
-    if 'log_f_E' in trained_pars:  
-        f_E = np.exp(trained_pars['log_f_E'])
-        f_I = np.exp(trained_pars['log_f_I'])
-    elif 'f_E' in trained_pars:
-        f_E = trained_pars['f_E']
-        f_I = trained_pars['f_I']
-    else:
-        f_E = untrained_pars.ssn_pars.f_E
-        f_I = untrained_pars.ssn_pars.f_I
-    
+    J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars, untrained_pars)
+
     x_map = untrained_pars.grid_pars.x_map
     y_map = untrained_pars.grid_pars.y_map
     ssn_pars = untrained_pars.ssn_pars
@@ -275,7 +257,7 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
                 # Calculate model response for superficial layer cells and save it to responses_sup_phase_match
                 if phase_ind==0:
                     # Superficial layer response per grid point
-                    ssn_sup=SSN_sup(ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
+                    ssn_sup=SSN_sup(ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist, kappa)
                     _, [_, responses_sup],_, _, _, = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
                     sup_cell_ind = i*x_map.shape[0]+j
                     responses_sup_phase_match[:,sup_cell_ind]=responses_sup[:,sup_cell_ind]
@@ -480,7 +462,7 @@ def smooth_data(X, gridsize_Nx, sigma = 1):
     return smoothed_data
 
 
-def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, c_E = None, c_I = None, f_E = None, f_I = None):
+def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, c_E = None, c_I = None, f_E = None, f_I = None, kappa=None):
     # Generate noisy data
     ori_vec = np.repeat(ori, n_noisy_trials)
     jitter_vec = np.repeat(0, n_noisy_trials)
@@ -494,7 +476,7 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     
     # Create middle and superficial SSN layers
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
-    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist, kappa=kappa)
 
     # Calculate fixed point for data    
     _, [r_mid, r_sup], _,  _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
@@ -606,17 +588,13 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
         stage = stages[stage_ind]
         # Load parameters from csv for given epoch
         _, trained_pars_stage2, untrained_pars = load_parameters(folder, run_index=run_ind, stage=stage, iloc_ind = iloc_ind_vec[stage_ind])
-        J_2x2_m = sep_exponentiate(trained_pars_stage2['log_J_2x2_m'])
-        J_2x2_s = sep_exponentiate(trained_pars_stage2['log_J_2x2_s'])
-        c_E = trained_pars_stage2['c_E']
-        c_I = trained_pars_stage2['c_I']
-        f_E = np.exp(trained_pars_stage2['log_f_E'])
-        f_I = np.exp(trained_pars_stage2['log_f_I'])
+        # Get the parameters from the trained_pars dictionary and untreatned_pars class
+        J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa=unpack_ssn_parameters(trained_pars_stage2, untrained_pars)
         
         # Iterate over the orientations
         for ori in ori_list:
             # Calculate model response for each orientation
-            r_mid, r_sup = vmap_model_response(untrained_pars, ori, num_noisy_trials, J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I)
+            r_mid, r_sup = vmap_model_response(untrained_pars, ori, num_noisy_trials, J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa)
             if r_noise:
                 # Add noise to the responses
                 noise_mid = generate_noise(num_noisy_trials, length = r_mid.shape[1], num_readout_noise = untrained_pars.num_readout_noise)
@@ -655,7 +633,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
                 ori_df = np.concatenate((ori_df, np.repeat(ori, num_noisy_trials)))
                 stage_df = np.concatenate((stage_df, np.repeat(stage_ind, num_noisy_trials)))
 
-    # Get the responses from the center of the grid - *** check this indexing for middle box
+    # Get the responses from the center of the grid 
     min_ind = int((readout_pars.readout_grid_size[0] - readout_pars.readout_grid_size[1])/2)
     max_ind = int(readout_pars.readout_grid_size[0]) - min_ind
     filtered_r_mid_box_df = filtered_r_mid_df[:,min_ind:max_ind, min_ind:max_ind]

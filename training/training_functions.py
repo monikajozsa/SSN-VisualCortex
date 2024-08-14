@@ -13,7 +13,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from util import create_grating_training, sep_exponentiate, take_log, sigmoid, create_grating_pretraining
+from util import create_grating_training, take_log, sigmoid, create_grating_pretraining, unpack_ssn_parameters
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.model import evaluate_model_response
 
@@ -89,7 +89,7 @@ def train_ori_discr(
         training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=[0,1], has_aux=True) # train both readout pars and ssn layers pars
     else:
         opt_state_readout = optimizer.init(readout_pars_dict)
-        training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True) # train only ssn layers pars
+        training_loss_val_and_grad = jax.value_and_grad(batch_loss_ori_discr, argnums=1, has_aux=True) # train only readout layers pars for stage 1 in training - normally skipped as performance is good enough after pretraining
 
     # Define SGD_steps indices and offsets where training task accuracy is calculated
     if pretrain_on:
@@ -135,8 +135,10 @@ def train_ori_discr(
                 # i) Calculate model loss, accuracy, gradient
                 train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad)
                 if jax.numpy.isnan(train_loss):
+                    print('NaN values in loss at step', SGD_step)
                     return None, None
                 
+                # Early stopping of stage 1 in training
                 if not pretrain_on and stage==1 and SGD_step == 0:
                     if train_acc > first_stage_acc_th:
                         print("Early stop: accuracy {} reached target {} for stage 1 training".format(train_acc, first_stage_acc_th))
@@ -151,79 +153,58 @@ def train_ori_discr(
                     psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     print('Baseline acc is achieved at offset:', psychometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean, 'train_acc:', train_acc)
 
-                # ii) Store parameters and metrics 
+                # ii) Store parameters and metrics (append or initialize lists)
                 if 'stages' in locals():
                     train_losses_all.append(train_loss_all.ravel())
                     train_accs.append(train_acc)
                     train_max_rates.append(train_max_rate)
                     train_mean_rates.append(train_mean_rate)
+                    if 'log_J_2x2_m' in trained_pars_dict.keys():
+                        log_J_2x2_m.append(trained_pars_dict['log_J_2x2_m'].ravel())
+                    else:
+                        log_J_2x2_m.append(take_log(ssn_pars.J_2x2_m).ravel())
+                    if 'log_J_2x2_s' in trained_pars_dict.keys():
+                        log_J_2x2_s.append(trained_pars_dict['log_J_2x2_s'].ravel())
+                    else:
+                        log_J_2x2_s.append(take_log(ssn_pars.J_2x2_s).ravel())
+                    if 'c_E' in trained_pars_dict.keys():
+                        c_E.append(trained_pars_dict['c_E'])
+                        c_I.append(trained_pars_dict['c_I'])
+                    else:
+                        c_E.append(ssn_pars.c_E)
+                        c_I.append(ssn_pars.c_I)
+                    if 'log_f_E' in trained_pars_dict.keys():
+                        log_f_E.append(trained_pars_dict['log_f_E'])
+                        log_f_I.append(trained_pars_dict['log_f_I'])
+                    else:
+                        log_f_E.append(np.log(ssn_pars.f_E))
+                        log_f_I.append(np.log(ssn_pars.f_I))
+                    if 'kappa' in trained_pars_dict.keys():
+                        kappas.append(trained_pars_dict['kappa'].ravel())
+                    else:
+                        if hasattr(ssn_pars, 'kappa'):
+                            kappas.append(ssn_pars.kappa.ravel())
                     if pretrain_on:
                         stages.append(stage-1)
+                        w_sigs.append(readout_pars_dict['w_sig'])
+                        b_sigs.append(readout_pars_dict['b_sig'])
                     else:
                         stages.append(stage)
+                        staircase_offsets.append(stimuli_pars.offset)
                 else:
                     train_losses_all=[train_loss_all.ravel()]
                     train_accs=[train_acc]
                     train_max_rates=[train_max_rate]
                     train_mean_rates=[train_mean_rate]
+                    log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, kappas = unpack_ssn_parameters(trained_pars_dict, untrained_pars, as_log_list=True) 
                     if pretrain_on:
                         stages=[stage-1]
+                        w_sigs = [readout_pars_dict['w_sig']]
+                        b_sigs = [readout_pars_dict['b_sig']]
                     else:
                         stages=[stage]
-                if 'log_J_2x2_m' in locals():
-                        if 'log_J_2x2_m' in trained_pars_dict.keys():
-                            log_J_2x2_m.append(trained_pars_dict['log_J_2x2_m'].ravel())
-                        else:
-                            log_J_2x2_m.append(take_log(ssn_pars.J_2x2_m).ravel())
-                        if 'log_J_2x2_s' in trained_pars_dict.keys():
-                            log_J_2x2_s.append(trained_pars_dict['log_J_2x2_s'].ravel())
-                        else:
-                            log_J_2x2_s.append(take_log(ssn_pars.J_2x2_s).ravel())
-                        if 'c_E' in trained_pars_dict.keys():
-                            c_E.append(trained_pars_dict['c_E'])
-                            c_I.append(trained_pars_dict['c_I'])
-                        else:
-                            c_E.append(ssn_pars.c_E)
-                            c_I.append(ssn_pars.c_I)
-                        if 'log_f_E' in trained_pars_dict.keys():
-                            log_f_E.append(trained_pars_dict['log_f_E'])
-                            log_f_I.append(trained_pars_dict['log_f_I'])
-                        else:
-                            log_f_E.append(np.log(ssn_pars.f_E))
-                            log_f_I.append(np.log(ssn_pars.f_I))
-                else:
-                    if 'log_J_2x2_m' in trained_pars_dict.keys():
-                        log_J_2x2_m = [trained_pars_dict['log_J_2x2_m'].ravel()]
-                    else:
-                        log_J_2x2_m = [take_log(ssn_pars.J_2x2_m).ravel()]
-                    if 'log_J_2x2_s' in trained_pars_dict.keys():
-                        log_J_2x2_s = [trained_pars_dict['log_J_2x2_s'].ravel()]
-                    else:
-                        log_J_2x2_s = [take_log(ssn_pars.J_2x2_s).ravel()]
-                    if 'c_E' in trained_pars_dict.keys():
-                        c_E = [trained_pars_dict['c_E']]
-                        c_I = [trained_pars_dict['c_I']]
-                    else:
-                        c_E = [ssn_pars.c_E]
-                        c_I = [ssn_pars.c_I]
-                    if 'log_f_E' in trained_pars_dict.keys():
-                        log_f_E = [trained_pars_dict['log_f_E']]
-                        log_f_I = [trained_pars_dict['log_f_I']]
-                    else:
-                        log_f_E = [np.log(ssn_pars.f_E)]
-                        log_f_I = [np.log(ssn_pars.f_I)]
-                w_sig_temp=readout_pars_dict['w_sig']
-                if 'w_sigs' in locals():
-                    w_sigs.append(w_sig_temp)
-                    b_sigs.append(readout_pars_dict['b_sig'])
-                else:
-                    w_sigs = [w_sig_temp]
-                    b_sigs = [readout_pars_dict['b_sig']]
-                if 'staircase_offsets' in locals():
-                    staircase_offsets.append(stimuli_pars.offset)
-                else:
-                    staircase_offsets=[stimuli_pars.offset]                
-
+                        staircase_offsets=[stimuli_pars.offset] 
+                 
                 # ii) Early stopping during pre-training and training
                 # Check for early stopping during pre-training
                 if pretrain_on and SGD_step in acc_check_ind:
@@ -257,7 +238,7 @@ def train_ori_discr(
                 if not pretrain_on and stage==2:
                     if train_acc < threshold:
                         temp_threshold=0
-                        stimuli_pars.offset =  stimuli_pars.offset + offset_step
+                        stimuli_pars.offset =  min(stimuli_pars.offset + offset_step, stimuli_pars.max_train_offset)
                     else:
                         temp_threshold=1
                         if SGD_step > 2 and np.sum(np.asarray(threshold_variables[-3:])) == 3:
@@ -323,10 +304,10 @@ def train_ori_discr(
                         train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False)                        
                         print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc vec:', train_acc_test)
                     else:
-                        # Update readout parameters
+                        # Update ssn layer parameters 
                         updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
                         trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
-                        # Update ssn layer parameters       
+                        # Update readout parameters
                         updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
                         readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
                 else:
@@ -338,9 +319,9 @@ def train_ori_discr(
                         # Update ssn layer parameters
                         updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
                         trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
-                        
+           
     ############# SAVING and RETURN OUTPUT #############
-    
+
     # Define SGD_steps indices for training and validation
     if pretrain_on:
         SGD_steps = np.arange(0, len(stages))
@@ -357,32 +338,14 @@ def train_ori_discr(
         
     # Create DataFrame and save the DataFrame to a CSV file
     if pretrain_on:  
-        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, b_sigs, w_sigs, staircase_offsets, psychometric_offsets)
+        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets)
     else:
-        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets)
+        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas=kappas)
     df.insert(0, 'run_index', run_index) # insert run index as the first column 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
         df.to_csv(results_filename, mode='a', header=not file_exists, index=False)
 
-    '''
-    # *** Testing some analysis functions - this will be removed soon ***
-    run_ind=0.0
-    from util import load_parameters
-    # Fine discrimination test for within loop
-    acc_mean_test, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size=5)
-    print(acc_mean_test)
-
-    # Fine discrimination test for loading from files
-    folder_path = os.path.dirname(results_filename)
-    if stage ==1:
-        stage_ind = 0
-    else:
-        stage_ind = 0
-    readout_pars_dict_v2, trained_pars_dict_v2, untrained_pars_v2, _,_ = load_parameters(folder_path,run_index=run_ind, stage=stage_ind, iloc_ind = -1, for_training=True)
-    acc_mean_test_v2, _, _ = mean_training_task_acc_test(trained_pars_dict_v2, readout_pars_dict_v2, untrained_pars_v2, jit_on, test_offset_vec, sample_size=5)
-    print(acc_mean_test_v2)
-    '''
     return df, first_stage_final_step
 
 
@@ -446,39 +409,19 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     """
     
     pretraining = untrained_pars.pretrain_pars.is_on
-    
-    w_sig = readout_pars_dict['w_sig']
-    b_sig = readout_pars_dict['b_sig']
-
-    if 'c_E' in trained_pars_dict:
-        c_E = trained_pars_dict['c_E']
-        c_I = trained_pars_dict['c_I']
-    else:
-        c_E = untrained_pars.ssn_pars.c_E
-        c_I = untrained_pars.ssn_pars.c_I
-    if 'log_f_E' in trained_pars_dict:
-        f_E = np.exp(trained_pars_dict['log_f_E'])
-        f_I = np.exp(trained_pars_dict['log_f_I'])
-    else:
-        f_E = untrained_pars.ssn_pars.f_E
-        f_I = untrained_pars.ssn_pars.f_I
-    if 'log_J_2x2_m' in trained_pars_dict:
-        J_2x2_m = sep_exponentiate(trained_pars_dict['log_J_2x2_m'])
-    else:
-        J_2x2_m = untrained_pars.ssn_pars.J_2x2_m
-    if 'log_J_2x2_s' in trained_pars_dict:
-        J_2x2_s = sep_exponentiate(trained_pars_dict['log_J_2x2_s'])
-    else:
-        J_2x2_s = untrained_pars.ssn_pars.J_2x2_s
- 
     loss_pars = untrained_pars.loss_pars
     conv_pars = untrained_pars.conv_pars
-
-    # Create middle and superficial SSN layers
-    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
-    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
     
-    #Run reference and target through the model
+    # Create middle and superficial SSN layers
+    if pretraining:
+        J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, _ = unpack_ssn_parameters(trained_pars_dict, untrained_pars, return_kappa=False)
+        ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
+    else:
+        J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars_dict, untrained_pars)
+        ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist, kappa)
+    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)    
+    
+    # Run reference and target through the model
     [r_sup_ref, r_mid_ref], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
     [r_sup_target,r_mid_target],_, [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
     
@@ -496,7 +439,9 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     r_ref_box = r_ref_box + noise_ref*np.sqrt(jax.nn.softplus(r_ref_box))
     r_target_box = r_target_box + noise_target*np.sqrt(jax.nn.softplus(r_target_box))
     
-    # Define losses
+    # Define output from sigmoid layer and calculate losses
+    w_sig = readout_pars_dict['w_sig']
+    b_sig = readout_pars_dict['b_sig']
     # i) Multiply (reference - target) by sigmoid layer weights, add bias and apply sigmoid funciton
     sig_input = np.dot(w_sig, (r_ref_box - r_target_box)) + b_sig     
     sig_output = sigmoid(sig_input)
@@ -573,14 +518,14 @@ def batch_loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, t
 
 def binary_crossentropy_loss(n, x):
     '''
-    Loss function calculating binary cross entropy
+    Loss function calculating binary cross entropy. n is the true label and x is the predicted label.
     '''
     return -(n * np.log(x) + (1 - n) * np.log(1 - x))
 
 
 def generate_noise(batch_size, length, num_readout_noise=125, dt_readout = 0.2):
     '''
-    Creates vectors of neural noise. Function creates batch_size number of vectors, each vector of length = length. 
+    This function creates batch_size number of vectors of neural noise where each vector is of length = length. 
     '''
     sig_noise = 1/np.sqrt(num_readout_noise * dt_readout)
     return sig_noise*numpy.random.randn(batch_size, length)
@@ -595,13 +540,15 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
     - trained_pars_dict: Dictionary of parameters for the SSN layers.
     - readout_pars_dict: Dictionary of parameters for the readout layer.
     - untrained_pars: Untrained parameters used across the model.
-    - stage: The stage of training readout pars or ssn layer pars.
     - jit_on: Flag to turn on/off JIT compilation.
-    - offset_vec: A list of offsets to test the model performance.
+    - test_offset: An offset to test the model performance on.
+    - batch_size: Number of samples to test the model performance.
+    - pretrain_task: Flag to indicate whether the model is tested on the pretraining task or the training task.
     
     Returns:
-    - loss: mean and std of losses for each offset over sample_size samples.
-    - true_accuracy: mean and std of true accuracies for each offset  over sample_size samples.
+    - acc: mean true accuracy
+    - loss: mean loss
+    
     '''
     # Create copies of stimuli and readout_pars_dict because their 
     pretrain_is_on_saved = untrained_pars.pretrain_pars.is_on
@@ -700,7 +647,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
 
 ####### Function for creating DataFrame from training results #######
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas=None):
     ''' This function collects different variables from training results into a dataframe.'''
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
@@ -767,7 +714,6 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     if max_stages==1:
         psychometric_offsets=np.hstack(psychometric_offsets)
         df.loc[step_indices['acc_check_ind'],'psychometric_offset']=psychometric_offsets
-        df['staircase_offset']= staircase_offsets
     else:        
         df.loc[step_indices['val_SGD_steps'],'psychometric_offset']=psychometric_offsets
         df['staircase_offset']= staircase_offsets
@@ -788,5 +734,12 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
 
         # Add b_sig to the DataFrame
         df['b_sig'] = b_sigs
+
+    # Add kappa_pre and kappa_post to the DataFrame
+    if max_stages==2 and kappas is not None:
+        kappas_np=np.asarray(kappas)
+        kappa_names = ['kappa_EE', 'kappa_EI', 'kappa_IE', 'kappa_II']
+        for i in range(len(kappas_np[0])):
+            df[kappa_names[i]] = kappas_np[:,i]
 
     return df

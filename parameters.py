@@ -174,6 +174,8 @@ class StimuliPars:
     ''' reference orientation of the stimulus in degree '''
     offset: float = 4.0 
     ''' difference between reference and task orientation in degree (task ori is either ref_ori + offset or ref_or - offset) '''
+    max_train_offset: float = 10.0
+    ''' maximum offset for the training task '''
 
 stimuli_pars = StimuliPars()
 
@@ -226,14 +228,9 @@ class SSNPars:
     ''' relative strength of local parts of E projections in superficial layer '''
     p_local_m = [1.0, 1.0]
     ''' relative strength of local parts of E projections in middle layer '''
-    kappa_pre = np.asarray([0.0, 0.0])
-    ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
-    kappa_post = np.asarray([0.0, 0.0])
-    ''' shaping parameter for superficial layer connections - out of use when set to 0 '''
     beta = stimuli_pars.ref_ori
     ''' shaping tuning curves depending on the reference orientation of the stimulus '''
-ssn_pars = SSNPars()
-
+    
 
 # Trained SSN parameters - parameters can be moved between TrainedSSNPars and SSNPars depending on whether we want to train them or not
 @dataclass
@@ -251,8 +248,8 @@ class TrainedSSNPars:
     ''' relative strength of weights of different pre/post cell-type in superficial layer '''
     J_2x2_s = np.array([[0.0, 0.0], [0.0, 0.0]])
     ''' relative strength of weights of different pre/post cell-type in middle layer '''
-trained_pars = TrainedSSNPars()
-
+    kappa = np.array([[0.0, 0.0], [0.0, 0.0]])
+    ''' shaping parameter for superficial layer horizontal connections to achieve orientation selectivity '''
 
 @dataclass
 class PretrainedSSNPars:
@@ -269,21 +266,17 @@ class PretrainedSSNPars:
     ''' relative strength of weights of different pre/post cell-type in middle layer '''
     J_2x2_m = np.array([[0.0, 0.0], [0.0, 0.0]])
     ''' relative strength of weights of different pre/post cell-type in superficial layer '''
-    
-pretrained_pars = PretrainedSSNPars()
 
 
 class RandomizePars:
-    J_range = [np.array([4, 5]),np.array([1,2]), np.array([4.5, 5.5]),np.array([0.7,1.7])]
+    J_range = [np.array([4, 5.5]),np.array([0.7,2]), np.array([4, 5.5]),np.array([0.7,1.2])]
     ''' range of the perturbed Jm and Js parameters '''
     c_range = np.array([4.5, 5.5])
     ''' range of the perturbed c parameters '''
     f_range = np.array([0.6, 1.2])
     ''' range of the perturbed f parameters '''
-    gE_range = np.array([0.25, 0.45])
+    gE_range = np.array([0.15, 0.45])
     ''' range of the perturbed gE parameters '''
-    gI_range = np.array([0.15, 0.35])
+    gI_range = np.array([0.15, 0.45])
     ''' range of the perturbed gI parameters '''
     eta_range = np.array([3e-3, 5e-3])
-
-randomize_pars = RandomizePars()

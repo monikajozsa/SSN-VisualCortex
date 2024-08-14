@@ -112,7 +112,7 @@ class _SSN_Base(object):
 
 
 class SSN_sup(_SSN_Base):
-    def __init__(self, ssn_pars, grid_pars, J_2x2, oris, ori_dist=None, **kwargs):
+    def __init__(self, ssn_pars, grid_pars, J_2x2, oris, ori_dist, kappa= np.array([[0.0, 0.0], [0.0, 0.0]]), **kwargs):
         from util import cosdiff_ring
         Ni = Ne = grid_pars.gridsize_Nx**2
         n=ssn_pars.n
@@ -120,8 +120,7 @@ class SSN_sup(_SSN_Base):
         tauE= ssn_pars.tauE
         tauI=ssn_pars.tauI
         beta = ssn_pars.beta
-        kappa_post = ssn_pars.kappa_post
-        kappa_pre = ssn_pars.kappa_pre
+        kappa = kappa
         oris = oris
         self.tauE = tauE
         self.tauI = tauI
@@ -131,14 +130,14 @@ class SSN_sup(_SSN_Base):
                                     tau_vec=tau_vec, **kwargs)
 
         self.grid_pars = grid_pars
-        self.p_local = ssn_pars.p_local_s
-        self.s_2x2 = ssn_pars.s_2x2_s
-        self.sigma_oris = ssn_pars.sigma_oris
+        self.p_local = ssn_pars.p_local_s # relative strength of local and horizontal parts of E projections
+        self.s_2x2 = ssn_pars.s_2x2_s # ranges of weights between different pre/post cell-type
+        self.sigma_oris = ssn_pars.sigma_oris # range of weights in terms of preferred orientation difference
    
         xy_dist = grid_pars.xy_dist
         # Calculate the distance of each orientation in the map from the beta orientation
-        dist_from_single_ori = cosdiff_ring(oris - beta, 180)
-        self.W = self.make_W(J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa_pre, kappa_post)
+        dist_from_single_ori = cosdiff_ring(oris - beta, 180) # if beta is not trained then we can compute this outside of the class
+        self.W = self.make_W(J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa)
 
     @property
     def neuron_params(self):
@@ -146,14 +145,15 @@ class SSN_sup(_SSN_Base):
                     tauE=self.tau_vec[0], tauI=self.tau_vec[self.Ne])
     
         
-    def make_W(self, J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa_pre, kappa_post, MinSyn=1e-4, CellWiseNormalized=False):
+    def make_W(self, J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa, MinSyn=1e-4, CellWiseNormalized=False):
             """
-            make the full recurrent connectivity matrix W
+            Make the full recurrent connectivity matrix W
             Input:
-             J_2x2 = total strength of weights of different pre/post cell-type
-             s_2x2 = ranges of weights between different pre/post cell-type
-             p_local = relative strength of local parts of E projections
-             sigma_oris = range of weights in terms of preferred orientation difference
+                J_2x2 = total strength of weights of different pre/post cell-type
+                xy_dist = distance matrix of spatial distance between grid points
+                ori_dist = distance matrix of preferred orientation difference
+                dist_from_single_ori = distance of each orientation in the map from the beta orientation
+                kappa = strength of dist_from_single_ori contribution in the horizontal connections
             Output/side-effects:
             self.W
             """
@@ -161,12 +161,10 @@ class SSN_sup(_SSN_Base):
             s_2x2 = self.s_2x2
             sigma_oris = self.sigma_oris
             p_local = self.p_local
+            tanh_kappa = np.tanh(kappa)
             
-            # Reshape sigma_oris kappas and s_2x2 to 2x2 matrices
-            sigma_oris = sigma_oris * np.ones((2,2))
-            kappa_pre = kappa_pre * np.ones((2,2))
-            kappa_post = kappa_post * np.ones((2,2))
-            
+            # Reshape sigma_oris and s_2x2 to 2x2 matrices
+            sigma_oris = sigma_oris * np.ones((2,2))            
             if np.isscalar(s_2x2):
                 s_2x2 = s_2x2 * np.ones((2,2))
             else:
@@ -179,12 +177,15 @@ class SSN_sup(_SSN_Base):
             Wblks = [[1,1],[1,1]]
 
             # Loop over post- (a) and pre-synaptic (b) cell-types
-            for a in range(2):
-                for b in range(2):                    
+            dist_from_single_ori_rep = np.tile(dist_from_single_ori, (1, self.Ne))
+            dist_from_single_ori_rep_T = dist_from_single_ori_rep.T
+            for a in range(2): # post-synaptic cell type
+                for b in range(2): # pre-synaptic cell type  
+                    horizontal_conn_from_oris = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa[a][b]*dist_from_single_ori_rep**2/2/45**2 + tanh_kappa[a][b]*dist_from_single_ori_rep_T**2/2/45**2            
                     if b == 0: # E projections
-                        W_local = np.exp(-xy_dist/s_2x2[a,b] - ori_dist**2/(sigma_oris[a,b]**2) - dist_from_single_ori[:, 0]**2*(kappa_post[a,b]**2)  - dist_from_single_ori[:,0]**2*(kappa_pre[a,b]**2))
+                        W_local = np.exp(-xy_dist/s_2x2[a,b] - horizontal_conn_from_oris)
                     elif b == 1: # I projections 
-                        W_local = np.exp(-xy_dist**2/(s_2x2[a,b]**2) -ori_dist**2/(sigma_oris[a,b]**2) - dist_from_single_ori[:, None]**2/(kappa_post[a,b]**2)  - dist_from_single_ori[None,:]**2/(kappa_pre[a,b]**2))
+                        W_local = np.exp(-xy_dist**2/(s_2x2[a,b]**2) - horizontal_conn_from_oris)
 
                     # sparsify (set small weights to zero)
                     W_local = np.where(W_local < MinSyn, 0, W_local)
