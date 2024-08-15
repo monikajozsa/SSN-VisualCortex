@@ -24,12 +24,18 @@ def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, retur
         J_2x2_s = trained_pars['J_2x2_s']
     else:
         J_2x2_s = untrained_pars.ssn_pars.J_2x2_s
-    if 'c_E' in trained_pars:
-        c_E = trained_pars['c_E']
-        c_I = trained_pars['c_I']
+    if 'cE_m' in trained_pars:
+        cE_m = trained_pars['cE_m']
+        cI_m = trained_pars['cI_m']
     else:
-        c_E = untrained_pars.ssn_pars.c_E
-        c_I = untrained_pars.ssn_pars.c_I        
+        cE_m = untrained_pars.ssn_pars.cE_m
+        cI_m = untrained_pars.ssn_pars.cI_m
+    if 'cE_s' in trained_pars:
+        cE_s = trained_pars['cE_s']
+        cI_s = trained_pars['cI_s']
+    else:
+        cE_s = untrained_pars.ssn_pars.cE_s
+        cI_s = untrained_pars.ssn_pars.cI_s
     if 'log_f_E' in trained_pars:  
         f_E = np.exp(trained_pars['log_f_E'])
         f_I = np.exp(trained_pars['log_f_I'])
@@ -54,9 +60,9 @@ def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, retur
         log_J_2x2_s = take_log(J_2x2_s)
         log_f_E = np.log(f_E)
         log_f_I = np.log(f_I)
-        return [log_J_2x2_m.ravel()], [log_J_2x2_s.ravel()], [c_E], [c_I], [log_f_E], [log_f_I], [kappa.ravel()]
+        return [log_J_2x2_m.ravel()], [log_J_2x2_s.ravel()], [cE_m], [cI_m], [cE_s], [cI_s], [log_f_E], [log_f_I], [kappa.ravel()]
     else:
-        return J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa
+        return J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa
 
 def cosdiff_ring(d_x, L):
     """
@@ -324,12 +330,18 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
         pars_dict['log_J_2x2_s'] = selected_row[log_J_s_keys].values.reshape(2, 2)
     else:
         ssn_pars.J_2x2_s = selected_row[J_s_keys].values.reshape(2, 2)
-    if 'c_E' in par_keys:
-        pars_dict['c_E'] = selected_row['c_E']
-        pars_dict['c_I'] = selected_row['c_I']
+    if 'cE_m' in par_keys:
+        pars_dict['cE_m'] = selected_row['cE_m']
+        pars_dict['cI_m'] = selected_row['cI_m']
     else:
-        ssn_pars.c_E = selected_row['c_E']
-        ssn_pars.c_I = selected_row['c_I']
+        ssn_pars.cE_m = selected_row['cE_m']
+        ssn_pars.cI_m = selected_row['cI_m']
+    if 'cE_s' in par_keys:
+        pars_dict['cE_s'] = selected_row['cE_s']
+        pars_dict['cI_s'] = selected_row['cI_s']
+    else:
+        ssn_pars.cE_s = selected_row['cE_s']
+        ssn_pars.cI_s = selected_row['cI_s']
     if 'log_f_E' in par_keys or 'f_E' in par_keys:
         pars_dict['log_f_E'] = selected_row['log_f_E']
         pars_dict['log_f_I'] = selected_row['log_f_I']
@@ -374,7 +386,7 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     # Load orientation map
     loaded_orimap = load_orientation_map(folder_path, run_index)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                    loss_pars, training_pars, pretraining_pars, readout_pars, run_index, orimap_loaded=loaded_orimap)
+                    loss_pars, training_pars, pretraining_pars, readout_pars, orimap_loaded=loaded_orimap)
     
     ###### Get other metrics needed for training ######
     if for_training:

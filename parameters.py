@@ -54,7 +54,7 @@ class ConvPars:
     ''' step size during convergence of SSN '''
     xtol: float = 1e-04
     ''' convergence tolerance of SSN '''
-    Tmax: float = 250.0
+    Tmax: float = 300.0 
     ''' maximum number of steps to be taken during convergence of SSN '''
 
 
@@ -236,10 +236,14 @@ class SSNPars:
 @dataclass
 class TrainedSSNPars:
     # Note that these initial values are irrelevant when we randomize the parameters
-    c_E: float = 0.0 
-    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
-    c_I: float = 0.0 
-    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
+    cE_m: float = 0.0 
+    ''' baseline excitatory input (constant added to the output of excitatory neurons at middle layer) '''
+    cI_m: float = 0.0 
+    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at middle layer) '''
+    cE_s: float = 0.0 
+    ''' baseline excitatory input (constant added to the output of excitatory neurons at superficial layer) '''
+    cI_s: float = 0.0 
+    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at superficial layer) '''
     f_E: float = 0.0 
     ''' scaling constant for feedforwards connections to excitatory units in sup layer '''
     f_I: float = 0.0
@@ -254,17 +258,21 @@ class TrainedSSNPars:
 @dataclass
 class PretrainedSSNPars:
     # Note that these initial values are irrelevant when we randomize the parameters
-    c_E: float = 0.0 
-    ''' baseline excitatory input (constant added to the output of excitatory neurons at both middle and superficial layers) '''
-    c_I: float = 0.0 
-    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at both middle and superficial layers) '''
+    cE_m: float = 0.0 
+    ''' baseline excitatory input (constant added to the output of excitatory neurons at middle layer) '''
+    cI_m: float = 0.0 
+    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at middle layer) '''
+    cE_s: float = 0.0 
+    ''' baseline excitatory input (constant added to the output of excitatory neurons at superficial layer) '''
+    cI_s: float = 0.0 
+    ''' baseline inhibitory input (constant added to the output of inhibitory neurons at superficial layer) '''
     f_E: float = 0.0 
     ''' scaling constant for feedforwards connections to excitatory units in sup layer '''
     f_I: float = 0.0
     ''' scaling constant for feedforwards connections to inhibitory units in sup layer '''
-    J_2x2_s = np.array([[0.0, 0.0], [0.0, 0.0]])
-    ''' relative strength of weights of different pre/post cell-type in middle layer '''
     J_2x2_m = np.array([[0.0, 0.0], [0.0, 0.0]])
+    ''' relative strength of weights of different pre/post cell-type in middle layer '''
+    J_2x2_s = np.array([[0.0, 0.0], [0.0, 0.0]])
     ''' relative strength of weights of different pre/post cell-type in superficial layer '''
 
 
@@ -275,8 +283,6 @@ class RandomizePars:
     ''' range of the perturbed c parameters '''
     f_range = np.array([0.6, 1.2])
     ''' range of the perturbed f parameters '''
-    gE_range = np.array([0.15, 0.45])
-    ''' range of the perturbed gE parameters '''
-    gI_range = np.array([0.15, 0.45])
-    ''' range of the perturbed gI parameters '''
+    g_range = np.array([0.15, 0.45])
+    ''' range of the perturbed gE and gI parameters '''
     eta_range = np.array([3e-3, 5e-3])

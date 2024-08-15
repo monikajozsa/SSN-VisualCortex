@@ -2,7 +2,7 @@ import jax.numpy as np
 from jax import vmap
 
 def evaluate_model_response(
-    ssn_mid, ssn_sup, stimuli, conv_pars, c_E, c_I, f_E, f_I, gabor_filters
+    ssn_mid, ssn_sup, stimuli, conv_pars,  cE_m, cI_m, cE_s, cI_s, f_E, f_I, gabor_filters
 ):
     '''
     Run individual stimulus through two layer model. 
@@ -23,8 +23,8 @@ def evaluate_model_response(
      
     '''
     # Create vector using extrasynaptic constants
-    constant_vector = constant_to_vec(c_E=c_E, c_I=c_I, ssn=ssn_mid)
-    constant_vector_sup = constant_to_vec(c_E=c_E, c_I=c_I, ssn=ssn_sup, sup=True)
+    constant_vector = constant_to_vec(c_E=cE_m, c_I=cI_m, ssn=ssn_mid)
+    constant_vector_sup = constant_to_vec(c_E=cE_s, c_I=cI_s, ssn=ssn_sup, sup=True)
 
     # Apply Gabor filters to stimuli to create input of middle layer
     if stimuli.shape[0]==1:
@@ -50,7 +50,7 @@ def evaluate_model_response(
 
     return [r_sup, r_mid], [fp_mid, fp_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup]
 
-vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None))
+vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None, None, None))
 
 
 def evaluate_model_response_mid(

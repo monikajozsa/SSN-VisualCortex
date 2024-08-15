@@ -18,7 +18,7 @@ if not pretraining_pars.is_on:
 ########## Initialize orientation map and gabor filters ############
 
 # Save out initial offset and reference orientation
-num_training = 50
+num_training = 2
 starting_time_in_main= time.time()
 initial_parameters = None
 

@@ -221,7 +221,7 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
     '''
     # Get the parameters from the trained_pars dictionary and untreatned_pars class
     ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
-    J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars, untrained_pars)
+    J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars, untrained_pars)
 
     x_map = untrained_pars.grid_pars.x_map
     y_map = untrained_pars.grid_pars.y_map
@@ -249,7 +249,7 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
                 mask = BW_image_jax_inp[7]
                 stimuli = BW_image_vmap(BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori))
                 # Calculate model response for middle layer cells and save it to responses_mid_phase_match
-                _, responses_mid,_, _, _,  _, _ = vmap_evaluate_model_response_mid(ssn_mid, stimuli, untrained_pars.conv_pars, c_E, c_I, untrained_pars.gabor_filters)
+                _, responses_mid,_, _, _,  _, _ = vmap_evaluate_model_response_mid(ssn_mid, stimuli, untrained_pars.conv_pars, cE_m, cI_m, untrained_pars.gabor_filters)
                 mid_cell_ind_E = phase_ind*2*grid_size + i*x_map.shape[0]+j
                 mid_cell_ind_I = phase_ind*2*grid_size + i*x_map.shape[0]+j+grid_size
                 responses_mid_phase_match[:,mid_cell_ind_E]=responses_mid[:,mid_cell_ind_E] # E cell
@@ -258,7 +258,7 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
                 if phase_ind==0:
                     # Superficial layer response per grid point
                     ssn_sup=SSN_sup(ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist, kappa)
-                    _, [_, responses_sup],_, _, _, = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+                    _, [_, responses_sup],_, _, _, = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
                     sup_cell_ind = i*x_map.shape[0]+j
                     responses_sup_phase_match[:,sup_cell_ind]=responses_sup[:,sup_cell_ind]
                     responses_sup_phase_match[:,grid_size+sup_cell_ind]=responses_sup[:,grid_size+sup_cell_ind]
@@ -352,7 +352,7 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
     offset_pars_corr = []
     offset_staircase_pars_corr = []
     if x_labels is None:
-        x_labels = ['J_m_E', 'J_m_I', 'J_s_E', 'J_s_I', 'f_E','f_I', 'c_E', 'c_I']
+        x_labels = ['J_m_E', 'J_m_I', 'J_s_E', 'J_s_I', 'f_E','f_I', 'cE_m', 'cI_m', 'cE_s', 'cI_s']
     for i in range(len(x_labels)):
         # Calculate the Pearson correlation coefficient and the p-value
         corr, p_value = scipy.stats.pearsonr(data['psychometric_offset'], data[x_labels[i]])
@@ -368,7 +368,7 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
         for j in range(MVPA_scores_diff.shape[2]):
             corr, p_value = scipy.stats.pearsonr(data['staircase_offset'], MVPA_scores_diff[:,i,j])
             MVPA_offset_corr.append({'corr': corr, 'p_value': p_value})
-    MVPA_pars_corr = [] # (J_m_I,J_m_E,J_s_I,J_s_E,f_E,f_I,c_E,c_I) x ori_ind
+    MVPA_pars_corr = [] # (J_m_I,J_m_E,J_s_I,J_s_E,f_E,f_I,cE_m,cI_m,cE_s,cI_s) x ori_ind
     for j in range(MVPA_scores_diff.shape[2]):
         for i in range(MVPA_scores_diff.shape[1]):        
             if i==0:
@@ -376,18 +376,18 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
                 corr_m_J_E, p_val_m_J_E = scipy.stats.pearsonr(data['J_m_E'], MVPA_scores_diff[:,i,j])
                 corr_m_f_E, p_val_m_f_E = scipy.stats.pearsonr(data['f_E'], MVPA_scores_diff[:,i,j])
                 corr_m_f_I, p_val_m_f_I = scipy.stats.pearsonr(data['f_I'], MVPA_scores_diff[:,i,j])
-                corr_m_c_E, p_val_m_c_E = scipy.stats.pearsonr(data['c_E'], MVPA_scores_diff[:,i,j])
-                corr_m_c_I, p_val_m_c_I = scipy.stats.pearsonr(data['c_I'], MVPA_scores_diff[:,i,j])
+                corr_m_cE_m, p_val_m_cE_m = scipy.stats.pearsonr(data['cE_m'], MVPA_scores_diff[:,i,j])
+                corr_m_cI_m, p_val_m_cI_m = scipy.stats.pearsonr(data['cI_m'], MVPA_scores_diff[:,i,j])
             if i==1:
                 corr_s_J_I, p_val_s_J_I = scipy.stats.pearsonr(data['J_s_I'], MVPA_scores_diff[:,i,j])
                 corr_s_J_E, p_val_s_J_E = scipy.stats.pearsonr(data['J_s_E'], MVPA_scores_diff[:,i,j])                
                 corr_s_f_E, p_val_s_f_E = scipy.stats.pearsonr(data['f_E'], MVPA_scores_diff[:,i,j])
                 corr_s_f_I, p_val_s_f_I = scipy.stats.pearsonr(data['f_I'], MVPA_scores_diff[:,i,j])
-                corr_s_c_E, p_val_s_c_E = scipy.stats.pearsonr(data['c_E'], MVPA_scores_diff[:,i,j])
-                corr_s_c_I, p_val_s_c_I = scipy.stats.pearsonr(data['c_I'], MVPA_scores_diff[:,i,j])
+                corr_s_cE_s, p_val_s_cE_s = scipy.stats.pearsonr(data['cE_s'], MVPA_scores_diff[:,i,j])
+                corr_s_cI_s, p_val_s_cI_s = scipy.stats.pearsonr(data['cI_s'], MVPA_scores_diff[:,i,j])
             
-        corr = [corr_m_J_E, corr_m_J_I, corr_s_J_E, corr_s_J_I, corr_m_f_E, corr_m_f_I, corr_m_c_E, corr_m_c_I, corr_s_f_E, corr_s_f_I, corr_s_c_E, corr_s_c_I]
-        p_value = [p_val_m_J_E, p_val_m_J_I, p_val_s_J_E, p_val_s_J_I, p_val_m_f_E, p_val_m_f_I, p_val_m_c_E, p_val_m_c_I, p_val_s_f_E, p_val_s_f_I, p_val_s_c_E, p_val_s_c_I]
+        corr = [corr_m_J_E, corr_m_J_I, corr_s_J_E, corr_s_J_I, corr_m_f_E, corr_m_f_I, corr_m_cE_m, corr_m_cI_m, corr_s_f_E, corr_s_f_I, corr_s_cE_s, corr_s_cI_s]
+        p_value = [p_val_m_J_E, p_val_m_J_I, p_val_s_J_E, p_val_s_J_I, p_val_m_f_E, p_val_m_f_I, p_val_m_cE_m, p_val_m_cI_m, p_val_s_f_E, p_val_s_f_I, p_val_s_cE_s, p_val_s_cI_s]
         MVPA_pars_corr.append({'corr': corr, 'p_value': p_value})
     # combine MVPA_offset_corr and MVPA_pars_corr into a single list
     MVPA_corrs = MVPA_offset_corr + MVPA_pars_corr
@@ -462,7 +462,7 @@ def smooth_data(X, gridsize_Nx, sigma = 1):
     return smoothed_data
 
 
-def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, c_E = None, c_I = None, f_E = None, f_I = None, kappa=None):
+def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, cE_m = None, cI_m = None, cE_s=None, cI_s=None, f_E = None, f_I = None, kappa=None):
     # Generate noisy data
     ori_vec = np.repeat(ori, n_noisy_trials)
     jitter_vec = np.repeat(0, n_noisy_trials)
@@ -479,7 +479,7 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist, kappa=kappa)
 
     # Calculate fixed point for data    
-    _, [r_mid, r_sup], _,  _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    _, [r_mid, r_sup], _,  _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
 
     return r_mid, r_sup
 
@@ -589,12 +589,12 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
         # Load parameters from csv for given epoch
         _, trained_pars_stage2, untrained_pars = load_parameters(folder, run_index=run_ind, stage=stage, iloc_ind = iloc_ind_vec[stage_ind])
         # Get the parameters from the trained_pars dictionary and untreatned_pars class
-        J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa=unpack_ssn_parameters(trained_pars_stage2, untrained_pars)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa=unpack_ssn_parameters(trained_pars_stage2, untrained_pars)
         
         # Iterate over the orientations
         for ori in ori_list:
             # Calculate model response for each orientation
-            r_mid, r_sup = vmap_model_response(untrained_pars, ori, num_noisy_trials, J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa)
+            r_mid, r_sup = vmap_model_response(untrained_pars, ori, num_noisy_trials, J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa)
             if r_noise:
                 # Add noise to the responses
                 noise_mid = generate_noise(num_noisy_trials, length = r_mid.shape[1], num_readout_noise = untrained_pars.num_readout_noise)

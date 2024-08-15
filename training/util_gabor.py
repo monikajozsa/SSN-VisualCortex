@@ -13,12 +13,11 @@ from parameters import StimuliPars
 # class definition to collect parameters that are not trained
 class UntrainedPars:
     def __init__(self, grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
+                 loss_pars, training_pars, pretrain_pars, oris, ori_dist, gabor_filters, 
                  readout_pars):
         self.grid_pars = grid_pars
         self.stimuli_pars = stimuli_pars
         self.filter_pars = filter_pars
-        self.ssn_ori_map = ssn_ori_map
         self.oris = oris
         self.ori_dist = ori_dist
         self.ssn_pars = ssn_pars
@@ -146,18 +145,38 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 
 	return ori_map
 
+def save_orimap(untrained_pars, run_ind, folder_to_save=None):
+
+    # ravel ssn_ori_map and add run_ind as a first element
+    ssn_ori_map = untrained_pars.oris
+    ssn_ori_map = numpy.insert(ssn_ori_map, 0, run_ind)
+
+    # add header as the header of the file if run_ind == 0
+    if run_ind == 0:
+        orimap_header = []
+        orimap_header.append('run_index')
+        # Grid points
+        for i in range(untrained_pars.grid_pars.gridsize_Nx**2):
+            orimap_header.append(str(i))
+    else:
+        orimap_header = False
+
+    # Save the orimap to a csv file
+    ssn_ori_map_df = pd.DataFrame(ssn_ori_map.reshape(1, -1))
+    ssn_ori_map_df.to_csv(folder_to_save + '/orimap.csv', mode='a', header=orimap_header, index=False, float_format='%.4f')
+    print('Saved orimap to ' + folder_to_save + '/orimap.csv')
 
 def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, readout_pars, run_ind = 0, orimap_loaded=None, regen_extended_orimap=False, folder_to_save=None):
+                 loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=None, regen_extended_orimap=False):
     """
     Define untrained_pars with a randomly generated or given orientation map.
     """
     from util import cosdiff_ring
     if (orimap_loaded is not None):
         if (orimap_loaded.shape[0] == grid_pars.gridsize_Nx) or (orimap_loaded.shape[0] == grid_pars.gridsize_Nx**2):
-            ssn_ori_map=orimap_loaded
-            if orimap_loaded.shape[0] == grid_pars.gridsize_Nx ** 2:
-                ssn_ori_map = ssn_ori_map.reshape(grid_pars.gridsize_Nx, grid_pars.gridsize_Nx)                
+            ssn_ori_map_flat=orimap_loaded
+            if orimap_loaded.shape[0] == grid_pars.gridsize_Nx:
+                ssn_ori_map_flat = ssn_ori_map_flat.ravel()         
         else:
             ValueError('The loaded orimap does not have the correct size')
     else:
@@ -176,40 +195,19 @@ def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pa
             ssn_ori_map_flat = ssn_ori_map.ravel()
             is_uniform = test_uniformity(ssn_ori_map_flat[readout_pars.middle_grid_ind], num_bins=10, alpha=0.25)
             map_gen_ind = map_gen_ind+1
-            if map_gen_ind>50:
-                print('############## After 50 attempts the randomly generated maps did not pass the uniformity test ##############')
+            if map_gen_ind>100:
+                print(f'############## After {map_gen_ind} attempts the randomly generated maps did not pass the uniformity test ##############')
                 break
 
-    gabor_filters = create_gabor_filters_ori_map(ssn_ori_map, ssn_pars.phases, filter_pars, grid_pars, flatten=True)
-    
-    oris = ssn_ori_map.ravel()[:, None] # adding a second dimension
+    gabor_filters = create_gabor_filters_ori_map(ssn_ori_map_flat, ssn_pars.phases, filter_pars, grid_pars, flatten=True)
+    oris = ssn_ori_map_flat[:, None]
     ori_dist = cosdiff_ring(oris - oris.T, 180)
     
     # Collect parameters that are not trained into a single class
     untrained_pars = UntrainedPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                 loss_pars, training_pars, pretrain_pars, ssn_ori_map, oris, ori_dist, gabor_filters, 
+                 loss_pars, training_pars, pretrain_pars, ssn_ori_map_flat, ori_dist, gabor_filters, 
                  readout_pars)
     
-    # Save orimap if file_name is specified
-    if folder_to_save is not None:
-        # ravel ssn_ori_map and add run_ind as a first element
-        ssn_ori_map = ssn_ori_map.ravel()
-        ssn_ori_map = numpy.insert(ssn_ori_map, 0, run_ind)
-
-        # add header as the header of the file if run_ind == 0
-        if run_ind == 0:
-            orimap_header = []
-            orimap_header.append('run_index')
-            # Grid points
-            for i in range(grid_pars.gridsize_Nx**2):
-                orimap_header.append(str(i))
-        else:
-            orimap_header = False
-
-        # Save the orimap to a csv file
-        ssn_ori_map_df = pd.DataFrame(ssn_ori_map.reshape(1, -1))
-        ssn_ori_map_df.to_csv(folder_to_save + '/orimap.csv', mode='a', header=orimap_header, index=False, float_format='%.4f')
-        print('Saved orimap to ' + folder_to_save + '/orimap.csv')
     return untrained_pars
 
 
@@ -219,9 +217,9 @@ def update_untrained_pars(untrained_pars, readout_pars, gE_m, gI_m, eta= None):
     untrained_pars.filter_pars.gI_m = gI_m
     if eta is not None:
         untrained_pars.training_pars.eta = eta
-    gabor_filters = create_gabor_filters_ori_map(untrained_pars.ssn_ori_map, untrained_pars.ssn_pars.phases, untrained_pars.filter_pars, untrained_pars.grid_pars, flatten=True)
+    gabor_filters = create_gabor_filters_ori_map(untrained_pars.oris, untrained_pars.ssn_pars.phases, untrained_pars.filter_pars, untrained_pars.grid_pars, flatten=True)
     untrained_pars = UntrainedPars(untrained_pars.grid_pars, untrained_pars.stimuli_pars, untrained_pars.filter_pars, untrained_pars.ssn_pars, untrained_pars.conv_pars, 
-                 untrained_pars.loss_pars, untrained_pars.training_pars, untrained_pars.pretrain_pars, untrained_pars.ssn_ori_map, untrained_pars.oris, untrained_pars.ori_dist, gabor_filters, 
+                 untrained_pars.loss_pars, untrained_pars.training_pars, untrained_pars.pretrain_pars, untrained_pars.oris, untrained_pars.ori_dist, gabor_filters, 
                  readout_pars)
     return untrained_pars
 

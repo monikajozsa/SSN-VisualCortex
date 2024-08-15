@@ -177,7 +177,7 @@ class SSN_sup(_SSN_Base):
             Wblks = [[1,1],[1,1]]
 
             # Loop over post- (a) and pre-synaptic (b) cell-types
-            dist_from_single_ori_rep = np.tile(dist_from_single_ori, (1, self.Ne))
+            dist_from_single_ori_rep = np.tile(dist_from_single_ori[:, None], (1, self.Ne))
             dist_from_single_ori_rep_T = dist_from_single_ori_rep.T
             for a in range(2): # post-synaptic cell type
                 for b in range(2): # pre-synaptic cell type  

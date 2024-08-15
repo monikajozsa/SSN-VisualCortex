@@ -167,12 +167,18 @@ def train_ori_discr(
                         log_J_2x2_s.append(trained_pars_dict['log_J_2x2_s'].ravel())
                     else:
                         log_J_2x2_s.append(take_log(ssn_pars.J_2x2_s).ravel())
-                    if 'c_E' in trained_pars_dict.keys():
-                        c_E.append(trained_pars_dict['c_E'])
-                        c_I.append(trained_pars_dict['c_I'])
+                    if 'cE_m' in trained_pars_dict.keys():
+                        cE_m.append(trained_pars_dict['cE_m'])
+                        cI_m.append(trained_pars_dict['cI_m'])
                     else:
-                        c_E.append(ssn_pars.c_E)
-                        c_I.append(ssn_pars.c_I)
+                        cE_m.append(ssn_pars.cE_m)
+                        cI_m.append(ssn_pars.cI_m)
+                    if 'cE_s' in trained_pars_dict.keys():
+                        cE_s.append(trained_pars_dict['cE_s'])
+                        cI_s.append(trained_pars_dict['cI_s'])
+                    else:
+                        cE_s.append(ssn_pars.cE_s)
+                        cI_s.append(ssn_pars.cI_s)
                     if 'log_f_E' in trained_pars_dict.keys():
                         log_f_E.append(trained_pars_dict['log_f_E'])
                         log_f_I.append(trained_pars_dict['log_f_I'])
@@ -196,7 +202,7 @@ def train_ori_discr(
                     train_accs=[train_acc]
                     train_max_rates=[train_max_rate]
                     train_mean_rates=[train_mean_rate]
-                    log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, kappas = unpack_ssn_parameters(trained_pars_dict, untrained_pars, as_log_list=True) 
+                    log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas = unpack_ssn_parameters(trained_pars_dict, untrained_pars, as_log_list=True) 
                     if pretrain_on:
                         stages=[stage-1]
                         w_sigs = [readout_pars_dict['w_sig']]
@@ -338,9 +344,9 @@ def train_ori_discr(
         
     # Create DataFrame and save the DataFrame to a CSV file
     if pretrain_on:  
-        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets)
+        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets)
     else:
-        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas=kappas)
+        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas=kappas)
     df.insert(0, 'run_index', run_index) # insert run index as the first column 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
@@ -414,16 +420,16 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     
     # Create middle and superficial SSN layers
     if pretraining:
-        J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, _ = unpack_ssn_parameters(trained_pars_dict, untrained_pars, return_kappa=False)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _ = unpack_ssn_parameters(trained_pars_dict, untrained_pars, return_kappa=False)
         ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
     else:
-        J_2x2_m, J_2x2_s, c_E, c_I, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars_dict, untrained_pars)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars_dict, untrained_pars)
         ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist, kappa)
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)    
     
     # Run reference and target through the model
-    [r_sup_ref, r_mid_ref], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
-    [r_sup_target,r_mid_target],_, [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, c_E, c_I, f_E, f_I, untrained_pars.gabor_filters)
+    [r_sup_ref, r_mid_ref], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
+    [r_sup_target,r_mid_target],_, [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
     
     # Select the middle grid and sum the contribution from the middle and the superficial layer
     if pretraining:
@@ -550,7 +556,8 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
     - loss: mean loss
     
     '''
-    # Create copies of stimuli and readout_pars_dict because their 
+    # Create copies of offset, pretrain_pars.is_on and readout_pars_dict because their values may change in this function
+    offset_saved = untrained_pars.stimuli_pars.offset
     pretrain_is_on_saved = untrained_pars.pretrain_pars.is_on
     
     if pretrain_is_on_saved and not pretrain_task:
@@ -559,10 +566,6 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
     else:
         readout_pars_dict_copy = copy.deepcopy(readout_pars_dict)
     
-    # Save the original values of jitter, std and offset and set them to local values
-    std_saved = untrained_pars.stimuli_pars.std
-    offset_saved = untrained_pars.stimuli_pars.offset
-    untrained_pars.stimuli_pars.std = 0
     
     # Generate noise that is added to the output of the model
     noise_ref = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
@@ -585,9 +588,6 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
         untrained_pars.pretrain_pars.is_on = pretrain_is_on_saved
         untrained_pars.stimuli_pars.offset = offset_saved
         
-    # Restore the original values of jitter and std    
-    untrained_pars.stimuli_pars.std = std_saved
-    
     return acc, loss
 
 def mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec, sample_size = 1):
@@ -647,7 +647,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
 
 ####### Function for creating DataFrame from training results #######
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, c_E, c_I, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas=None):
     ''' This function collects different variables from training results into a dataframe.'''
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
@@ -701,8 +701,10 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         df[J_m_names[i]] = J_2x2_m[:,i]
     for i in range(len(log_J_2x2_s[0])):
         df[J_s_names[i]] = J_2x2_s[:,i]
-    df['c_E']=c_E
-    df['c_I']=c_I
+    df['cE_m']=cE_m
+    df['cI_m']=cI_m
+    df['cE_s']=cE_s
+    df['cI_s']=cI_s
     df['log_f_E']=log_f_E
     df['log_f_I']=log_f_I
     df['f_E']=[np.exp(log_f_E[i]) for i in range(len(log_f_E))]

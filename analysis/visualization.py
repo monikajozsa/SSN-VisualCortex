@@ -53,9 +53,7 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
                 vals_prepre=pd.concat([vals_prepre, df_i.iloc[[pretrain_start_ind]]], ignore_index=True)
     
     means_pre = vals_pre.mean()
-    means_post = vals_post.mean()
-    if num_time_inds>2:
-        means_prepre = vals_prepre.mean()        
+    means_post = vals_post.mean()    
 
     ################# Plotting bar plots of offset before and after given time indices #################
     # Create figure and axis
@@ -136,16 +134,16 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     group_labels = [
         [r'$\Delta J^{\text{mid}}_{E \rightarrow E}$', r'$\Delta J^{\text{mid}}_{E \rightarrow I}$', r'$\Delta J^{\text{mid}}_{I \rightarrow E}$', r'$\Delta J^{\text{mid}}_{I \rightarrow I}$'],
         [r'$\Delta J^{\text{sup}}_{E \rightarrow E}$', r'$\Delta J^{\text{sup}}_{E \rightarrow I}$', r'$\Delta J^{\text{sup}}_{I \rightarrow E}$', r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'],
-        [r'$\Delta c_E$', r'$\Delta c_I$', r'$\Delta f_E$', r'$\Delta f_I$']
+        [r'$\Delta cE_m$', r'$\Delta cI_m$', r'$\Delta cE_s$', r'$\Delta cI_s$', r'$\Delta f_E$', r'$\Delta f_I$']
     ]
-    keys_group = [keys_J[:4], keys_J[4:], ['c_E', 'c_I', 'f_E', 'f_I']]
+    keys_group = [keys_J[:4], keys_J[4:], ['cE_m', 'cI_m','cE_s', 'cI_s', 'f_E', 'f_I']]
     num_groups = len(group_labels)    
 
     fig, axs = plt.subplots(num_time_inds-1, num_groups, figsize=(5*num_groups, 5*(num_time_inds-1)))  # Create subplots for each group
     axes_flat = axs.flatten()
     
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
-    c_f_box_colors = ['#8B4513', '#800080', '#FF8C00',  '#006400']
+    c_f_box_colors = ['#8B4513', '#800080', '#8B4513', '#800080', '#FF8C00', '#006400']
     for j in range(num_time_inds-1):
         for i, label in enumerate(group_labels):
             group_data = numpy.zeros((num_training, len(keys_group[i])))
@@ -249,7 +247,7 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
 
     # Choosing colors for each bar
     colors_J = ['tab:red', 'tab:orange', 'tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:blue']
-    colors_cf = ['tab:red', 'tab:blue', 'tab:red', 'tab:blue']
+    colors_cf = ['tab:orange', 'tab:green','tab:red', 'tab:blue', 'tab:red', 'tab:blue']
     colors_metrics = [ 'tab:green', 'tab:orange', 'tab:brown']
     colors_r = ['tab:red', 'tab:blue', 'tab:red', 'tab:blue']
 
@@ -337,8 +335,10 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
         axes[1,1].set_xlabel('SGD steps', fontsize=20)
 
     ################ Plot changes in c and f ################
-    axes[2,1].plot(range(N), df['c_E'], label='c_E',c='tab:red',linewidth=3)
-    axes[2,1].plot(range(N), df['c_I'], label='c_I',c='tab:blue',linewidth=3)
+    axes[2,1].plot(range(N), df['cE_m'], label='cE_m',c='tab:orange',linewidth=3)
+    axes[2,1].plot(range(N), df['cI_m'], label='cI_m',c='tab:green',linewidth=3)
+    axes[2,1].plot(range(N), df['cE_s'], label='cE_s',c='tab:red',linewidth=3)
+    axes[2,1].plot(range(N), df['cI_s'], label='cI_s',c='tab:blue',linewidth=3)
     axes[2,1].plot(range(N), df['f_E'], label='f_E', linestyle='--',c='tab:red',linewidth=3)
     axes[2,1].plot(range(N), df['f_I'], label='f_I', linestyle='--',c='tab:blue',linewidth=3)
     axes[2,1].set_title('c: constant inputs, f: weights between mid and sup layers', fontsize=20)
@@ -776,28 +776,23 @@ def plot_correlations(folder, num_training, num_time_inds=3):
     plt.close()
     plt.clf()
 
-    ########## Plot the correlation between offset_th_diff and the combination of the f_E_diff, f_I_diff, c_E_diff, and c_I_diff ##########
+    ########## Plot the correlation between offset_th_diff and the combination of the f_E_diff, f_I_diff, cE_m_diff, cI_m_diff, cE_s_diff, cI_s_diff ##########
     _, axes = plt.subplots(nrows=1, ncols=2, figsize=(8, 4))
     axes_flat = axes.flatten()
 
     # x-axis labels
-    x_labels_fc = ['f_E_diff','f_I_diff', 'c_E_diff', 'c_I_diff']
+    x_labels_fc = ['f_E_diff','f_I_diff', 'cE_m_diff', 'cI_m_diff', 'cE_s_diff', 'cI_s_diff']
     E_indices = [0,2]
-    colors = ['brown', 'purple', 'orange', 'green']
-    linecolors = ['#8B4513', '#800080', '#FF8C00',  '#006400']  # Approximate dark versions of purple, green, orange, and brown
-    axes_indices = [0,0,1,1]
+    colors = ['brown', 'purple', 'orange', 'green', 'tab:orange', 'tab:green']
+    linecolors = ['#8B4513', '#800080', '#FF8C00',  '#006400', '#FF8C00',  '#006400']  # Approximate dark versions of purple, green, orange, and brown
+    axes_indices = [0,0,1,1,1,1]
     for i in range(len(x_labels_fc)):
         # Create lmplot for each pair of variables
         # Set colors to purple, green, orange and brown for the different indices
         sns.regplot(x=x_labels_fc[i], y='staircase_offset_rel_change', data=data, ax=axes_flat[axes_indices[i]], ci=95, color=colors[i],
             line_kws={'color':linecolors[i]}, scatter_kws={'alpha':0.3, 'color':colors[i]})
         # Calculate the Pearson correlation coefficient and the p-value
-        corr = offset_pars_corr[4+i]['corr']
-        p_value = offset_pars_corr[4+i]['p_value']
-        print('Correlation between staircase_offset_rel_change and', x_labels_fc[i], 'is', corr, 'with p-value', p_value)
-        # Display corr and p-value at the left bottom of the figure
-        # axes_flat[i % 2].text(0.05, 0.05, f'Corr: {corr:.2f}, p-val: {p_value:.2f}', transform=axes_flat[i % 2].transAxes, fontsize=10)    
-        axes_flat[axes_indices[i]].set_title( f'Corr: {corr:.2f}, p-val: {p_value:.2f}')
+        print('Correlation between staircase_offset_rel_change and', x_labels_fc[i])
 
     # Adjust layout and save + close the plot
     plt.tight_layout()
