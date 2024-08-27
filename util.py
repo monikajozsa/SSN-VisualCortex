@@ -266,7 +266,7 @@ def save_code(final_folder_path=None, note=None):
     figure_folder.mkdir(parents=True, exist_ok=True)
 
     # Define source folder
-    script_from_folder = os.path.dirname(__file__)
+    script_from_folder = Path(__file__).parent
 
     # Copy root files, 'training' files and 'analysis' files
     copy_files(script_from_folder, script_folder, '*.py')

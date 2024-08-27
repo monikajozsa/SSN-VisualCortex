@@ -24,12 +24,13 @@ initial_parameters = None
 
 # Save scripts into scripts folder
 note=f'Different ablation cases'
-folder_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),'results','Aug15_v0')#save_code(note=note)
+#folder_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),'results','Aug15_v0')#
+folder_path = save_code(note=note)
 
 # Run num_training number of pretraining + training
 num_FailedRuns = 0
 i=0
-'''
+
 run_indices=[]
 while i < num_training and num_FailedRuns < 20:
 
@@ -68,7 +69,7 @@ while i < num_training and num_FailedRuns < 20:
     i = i + 1
     print('runtime of {} pretraining'.format(i), time.time()-starting_time_in_main)
     print('number of failed runs = ', num_FailedRuns)
-'''
+
 
 ############### FINE DISCRIMINATION ###############
 starting_time_training= time.time()

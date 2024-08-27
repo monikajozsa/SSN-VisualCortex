@@ -349,6 +349,7 @@ def calculate_shifted_coords_mm(class_pars, x0=0, y0=0):
 
     return diff_x, diff_y, N_pixels
 
+
 def gabor_filter(x0, y0,filter_pars,angle,phase=0):
     """
     Creates Gabor filters.
@@ -374,7 +375,6 @@ def gabor_filter(x0, y0,filter_pars,angle,phase=0):
     gabor_filter= np.array(gaussian * spatial_component)
 
     return  gabor_filter
-
 
         
 def find_gabor_A(

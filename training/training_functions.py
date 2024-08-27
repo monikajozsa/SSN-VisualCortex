@@ -18,10 +18,9 @@ from training.SSN_classes import SSN_mid, SSN_sup
 from training.model import evaluate_model_response
 
 
-def exponential_decay(x, a, b, c):
-    return a * np.exp(-b * x) + c
-
 def has_plateaued(loss, der_threshold=0.001, p_threshold=0.1, window_size = 20):
+    def exponential_decay(x, a, b, c):
+        return a * np.exp(-b * x) + c
     """
     Check if the loss has plateaued by fitting an exponential decay curve, checking the derivative at the end and performing a t-test on the last 20 values.
 
@@ -379,10 +378,15 @@ def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars
         train_data = create_grating_pretraining(untrained_pars.pretrain_pars, pretrain_pars.batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=pretrain_pars.batch_size)
     else:
         training_pars=untrained_pars.training_pars
-        # Generate noise that is added to the output of the model
-        noise_ref = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
-        noise_target = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
-        train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp)
+        if untrained_pars.training_pars.pretraining_task:
+            noise_ref = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
+            noise_target = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
+            train_data = create_grating_pretraining(untrained_pars.pretrain_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=training_pars.batch_size)
+        else:
+            # Generate noise that is added to the output of the model
+            noise_ref = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
+            noise_target = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
+            train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp)
 
     # Calculate gradient, loss and accuracy
     [loss, [all_losses, accuracy, sig_input, sig_output, max_rates, mean_rates]], grad = training_loss_val_and_grad(
@@ -589,6 +593,7 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
         untrained_pars.stimuli_pars.offset = offset_saved
         
     return acc, loss
+
 
 def mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, offset_vec, sample_size = 1):
     """
