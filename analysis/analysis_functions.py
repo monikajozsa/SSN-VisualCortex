@@ -83,10 +83,12 @@ def exclude_runs(folder_path, input_vector):
     df_pretraining_results_filtered = df_pretraining_results[~df_pretraining_results['run_index'].isin(input_vector)]
     df_training_results_filtered = df_training_results[~df_training_results['run_index'].isin(input_vector)]
     df_orimap_filtered = df_orimap[~df_orimap['run_index'].isin(input_vector)]
-    df_init_params_filtered = df_init_params.drop(index=input_vector)
+    df_init_params_filtered = df_init_params[~df_init_params['run_index'].isin(input_vector)]
 
     # Adjust the 'run_index' column
     df_orimap_filtered['run_index'] = range(len(df_orimap_filtered))
+    df_init_params_filtered['run_index'][df_init_params_filtered['stage']==0] = range(len(df_orimap_filtered))
+    df_init_params_filtered['run_index'][df_init_params_filtered['stage']==1] = range(len(df_orimap_filtered))
     for i in range(df_pretraining_results_filtered['run_index'].max() + 1):
         if i not in input_vector:
             shift_val = sum(x < i for x in input_vector)
@@ -151,7 +153,7 @@ def rel_change_for_run(folder, training_ind=0, num_indices=3):
     data['EI_ratio_J_ms'] = numpy.abs((data['J_m_II']+data['J_m_EI']+data['J_s_II']+data['J_s_EI']))/numpy.abs((data['J_m_IE']+data['J_m_EE']+data['J_s_IE']+data['J_s_EE']))
     if num_indices == 3:
         pretraining_start = time_inds[0]
-        training_start = time_inds[1]
+        training_start = time_inds[1]-1
         rel_change_pretrain = {key: calc_rel_change_supp(value, pretraining_start, training_start) for key, value in data.items()}
     else:
         training_start = time_inds[0]

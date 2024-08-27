@@ -6,7 +6,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 numpy.random.seed(0)
 
-from analysis.analysis_functions import tuning_curve, tuning_curve, rel_change_for_runs
+from analysis.analysis_functions import tuning_curve, tuning_curve, rel_change_for_runs, exclude_runs
 from util import load_parameters
 from analysis.visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
 from analysis.MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
@@ -17,7 +17,7 @@ grid_pars, ssn_pars, pretraining_pars = GridPars(), SSNPars(), PretrainingPars()
 if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
-num_training = 50
+num_training = 49
 final_folder_path = os.path.join('results','Aug15_v0')
 start_time_in_main= time.time()
 
@@ -33,15 +33,15 @@ mahal_file_name = 'Mahal_dist'
 num_SGD_inds = 3
 sigma_filter = 2
 
-plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+#plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
 
 #########################################################################################
 ###### If based on the plots from plots_results_from_csvs, some runs are excluded, ######
 #### run the following two lines adjusted to the run numbers that should be excluded ####
 #########################################################################################
-#excluded_run_inds = [0,8,14,16,17,24,28,34,35,36,37,40,42,43,44,45,47,48]
-#exclude_runs(final_folder_path, excluded_run_inds)
-#num_training=num_training-len(excluded_run_inds)
+excluded_run_inds = [16,18]
+exclude_runs(final_folder_path, excluded_run_inds) # *** This does not delete the runs from initial_parameters.csv!
+num_training=num_training-len(excluded_run_inds)
 
 boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = num_SGD_inds, num_training=num_training)
 print(f'Finished run-plots and boxplots in {time.time()-start_time} seconds')

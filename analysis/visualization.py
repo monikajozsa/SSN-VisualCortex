@@ -134,16 +134,21 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     group_labels = [
         [r'$\Delta J^{\text{mid}}_{E \rightarrow E}$', r'$\Delta J^{\text{mid}}_{E \rightarrow I}$', r'$\Delta J^{\text{mid}}_{I \rightarrow E}$', r'$\Delta J^{\text{mid}}_{I \rightarrow I}$'],
         [r'$\Delta J^{\text{sup}}_{E \rightarrow E}$', r'$\Delta J^{\text{sup}}_{E \rightarrow I}$', r'$\Delta J^{\text{sup}}_{I \rightarrow E}$', r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'],
-        [r'$\Delta cE_m$', r'$\Delta cI_m$', r'$\Delta cE_s$', r'$\Delta cI_s$', r'$\Delta f_E$', r'$\Delta f_I$']
+        [r'$\Delta cE_m$', r'$\Delta cI_m$', r'$\Delta cE_s$', r'$\Delta cI_s$'],
+        [r'$\Delta f_E$', r'$\Delta f_I$'],
+        [r'$\Delta \kappa_{E \rightarrow  E}$',r'$\Delta \kappa_{E \rightarrow  I}$']
     ]
-    keys_group = [keys_J[:4], keys_J[4:], ['cE_m', 'cI_m','cE_s', 'cI_s', 'f_E', 'f_I']]
+    keys_group = [keys_J[:4], keys_J[4:], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_EE','kappa_IE']]
     num_groups = len(group_labels)    
 
     fig, axs = plt.subplots(num_time_inds-1, num_groups, figsize=(5*num_groups, 5*(num_time_inds-1)))  # Create subplots for each group
     axes_flat = axs.flatten()
     
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
-    c_f_box_colors = ['#8B4513', '#800080', '#8B4513', '#800080', '#FF8C00', '#006400']
+    c_box_colors = ['#8B4513', '#800080', '#8B4513', '#800080']
+    f_box_colors = ['#FF8C00', '#006400']
+    kappa_box_colors = ['#FF8C00', '#006400']
+    box_colors = [J_box_colors,J_box_colors,c_box_colors, f_box_colors, kappa_box_colors]
     for j in range(num_time_inds-1):
         for i, label in enumerate(group_labels):
             group_data = numpy.zeros((num_training, len(keys_group[i])))
@@ -153,15 +158,14 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
                 else:
                     group_data[:,var_ind]=rel_changes_train[keys_group[i][var_ind]].T
             bp = axes_flat[j*num_groups+i].boxplot(group_data,labels=label,patch_artist=True)
-            if i<2:
-                for box, color in zip(bp['boxes'], J_box_colors):
-                    box.set_facecolor(color)
-            else:
-                for box, color in zip(bp['boxes'], c_f_box_colors):
-                    box.set_facecolor(color)
+            for box, color in zip(bp['boxes'], box_colors[i]):
+                box.set_facecolor(color)
             axes_flat[j*num_groups+i].axhline(y=0, color='black', linestyle='--')
             axes_format(axes_flat[j*num_groups+i], fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=False)
-            axes_flat[j*num_groups+i].set_ylabel('Relative change (%)', fontsize=20)
+            if i==num_groups-1:
+                axes_flat[j*num_groups+i].set_ylabel('Change from 0 init', fontsize=20)
+            else:
+                axes_flat[j*num_groups+i].set_ylabel('Relative change (%)', fontsize=20)
     plt.tight_layout()
     
     if plot_filename is not None:

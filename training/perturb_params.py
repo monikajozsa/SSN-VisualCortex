@@ -60,8 +60,8 @@ def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pa
     ##### Check conditions on the middle layer response: call function recursively if they are not satisfied and return values if they are #####
     # 1. Calculate middle layer responses
     if train_data is None:
-        train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=3, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp) 
-        pretrain_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size=3, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
+        train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=10, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp) 
+        pretrain_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size=10, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
     ssn_mid = SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
     c_range= randomize_pars.c_range
     cE_m, cI_m = random.uniform(low=[c_range[0], c_range[0]], high=[c_range[1], c_range[1]])
