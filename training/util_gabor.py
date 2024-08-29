@@ -2,7 +2,7 @@
 import numpy
 from numpy import random
 import jax.numpy as np
-from jax import jit, lax, vmap
+from jax import jit, vmap
 import pandas as pd
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))

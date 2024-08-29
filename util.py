@@ -10,8 +10,8 @@ import os
 from training.util_gabor import BW_image_jit_noisy
 
 
-# unpacking the trained parameters and the untrained parameters
 def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, return_kappa= True):
+    '''Unpacks the trained parameters and the untrained parameters. If as_log_list is True, then the J and f parameters are returned as a list of logs. If return_kappa is True, then the kappa parameter is returned.'''
     if 'log_J_2x2_m' in trained_pars:
         J_2x2_m = sep_exponentiate(trained_pars['log_J_2x2_m'])
     elif 'J_2x2_m' in trained_pars:
@@ -65,12 +65,12 @@ def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, retur
         return J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa
 
 def cosdiff_ring(d_x, L):
-    """
+    '''
     Calculate the cosine-based distance.
     Parameters:
     d_x: The difference in the angular position.
     L: The total angle.
-    """
+    '''
     # Calculate the cosine of the scaled angular difference
     cos_angle = np.cos(d_x * 2 * np.pi / L)
 
@@ -185,37 +185,37 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
 
 ##### Other helper functions #####
 def sigmoid(x, epsilon=0.01):
-    """
+    '''
     Introduction of epsilon stops asymptote from reaching 1 (avoids NaN)
-    """
+    '''
     sig_x = 1 / (1 + np.exp(-x))
     return (1 - 2 * epsilon) * sig_x + epsilon
 
 
 def take_log(J_2x2):
+    '''Take the log of the 2x2 matrix J'''
     signs = np.array([[1, -1], [1, -1]])
     logJ_2x2 = np.log(J_2x2 * signs)
 
     return logJ_2x2
 
 
-def sep_exponentiate(J_s):
+def sep_exponentiate(J_2x2):
+    '''Exponentiate the J matrix'''
     signs = np.array([[1, -1], [1, -1]])
-    new_J = np.exp(np.array(J_s, dtype = float)) * signs
+    new_J = np.exp(np.array(J_2x2, dtype = float)) * signs
 
     return new_J
 
 
-def x_greater_than(x, constant, slope, height):
-    return np.maximum(0, (x * slope - (1 - height)))
-
-
-def x_less_than(x, constant, slope, height):
-    return constant * (x**2)
-
-
 def leaky_relu(x, R_thresh, slope, height=0.15):
-    """Customized relu function for regulating the rates"""
+    ''' Customized relu function for regulating the rates. '''
+    def x_greater_than(x, constant, slope, height):
+        return np.maximum(0, (x * slope - (1 - height)))
+
+
+    def x_less_than(x, constant, slope, height):
+        return constant * (x**2)
     constant = height / (R_thresh**2)
     # jax.lax.cond(cond, func1, func2, args - same for both functions) meaning if cond then apply func1, if not then apply func2 with the given arguments
     y = jax.lax.cond(
@@ -226,11 +226,12 @@ def leaky_relu(x, R_thresh, slope, height=0.15):
 
 
 def save_code(final_folder_path=None, note=None):
-    """
+    '''
     This function saves code files to make results replicable.
-    1) Copies specific code files into a folder called 'scripts'.
-    2) Returns the path to save the results into.
-    """
+    1) Creates a folder for results, scripts and figures.
+    2) Copies specific code files into a folder called 'scripts'.
+    3) Returns the path to save the results into.
+    '''
 
     def create_versioned_folder(base_path):
         version = 0
@@ -262,11 +263,10 @@ def save_code(final_folder_path=None, note=None):
 
     # Create subfolders
     script_folder = final_folder_path / 'scripts'
-    figure_folder = final_folder_path / 'figures'
-    figure_folder.mkdir(parents=True, exist_ok=True)
 
-    # Define source folder
+    # Define source  and destination folders
     script_from_folder = Path(__file__).parent
+
 
     # Copy root files, 'training' files and 'analysis' files
     copy_files(script_from_folder, script_folder, '*.py')
@@ -276,6 +276,7 @@ def save_code(final_folder_path=None, note=None):
     print(f"Script files copied successfully to: {script_folder}")
 
     return str(final_folder_path)
+
 
 def load_orientation_map(folder, run_ind):
     '''Loads the orientation map from the folder for the training indexed by run_ind.'''
@@ -291,7 +292,13 @@ def load_orientation_map(folder, run_ind):
 
     return orimap
 
+
 def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=False):
+    '''Loads the parameters from the pretraining_results.csv or training_results.csv file depending on the stage. 
+    If for_training is True, then the last row of pretraining_results.csv is loaded as readout parameters are not trained during training. 
+    If for_training is False, then the full last row of training_results.csv is loaded. 
+    The parameters are then used to initialize the untrained parameters and readout parameters.
+    The offset_last is the last offset value from the psychometric offsets.'''
     from training.util_gabor import init_untrained_pars
     from parameters import SSNPars, ReadoutPars, TrainedSSNPars, PretrainedSSNPars, GridPars, FilterPars, StimuliPars, ConvPars, TrainingPars, LossPars, PretrainingPars
     ssn_pars, readout_pars, trained_pars, pretrained_pars = SSNPars(), ReadoutPars(), TrainedSSNPars(), PretrainedSSNPars()
@@ -321,38 +328,38 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     kappa_keys = ['kappa_EE','kappa_EI','kappa_IE','kappa_II']
 
     # Create a dictionary with the trained parameters and update untrained parameters if J, c, f, or kappa is not trained
-    pars_dict = {}
+    trained_pars_dict = {}
     if 'log_J_2x2_m' in par_keys or 'J_2x2_m' in par_keys:
-        pars_dict['log_J_2x2_m'] = selected_row[log_J_m_keys].values.reshape(2, 2)
+        trained_pars_dict['log_J_2x2_m'] = selected_row[log_J_m_keys].values.reshape(2, 2)
     else:
         ssn_pars.J_2x2_m = selected_row[J_m_keys].values.reshape(2, 2)
     if 'log_J_2x2_s' in par_keys or 'J_2x2_s' in par_keys:
-        pars_dict['log_J_2x2_s'] = selected_row[log_J_s_keys].values.reshape(2, 2)
+        trained_pars_dict['log_J_2x2_s'] = selected_row[log_J_s_keys].values.reshape(2, 2)
     else:
         ssn_pars.J_2x2_s = selected_row[J_s_keys].values.reshape(2, 2)
     if 'cE_m' in par_keys:
-        pars_dict['cE_m'] = selected_row['cE_m']
-        pars_dict['cI_m'] = selected_row['cI_m']
+        trained_pars_dict['cE_m'] = selected_row['cE_m']
+        trained_pars_dict['cI_m'] = selected_row['cI_m']
     else:
         ssn_pars.cE_m = selected_row['cE_m']
         ssn_pars.cI_m = selected_row['cI_m']
     if 'cE_s' in par_keys:
-        pars_dict['cE_s'] = selected_row['cE_s']
-        pars_dict['cI_s'] = selected_row['cI_s']
+        trained_pars_dict['cE_s'] = selected_row['cE_s']
+        trained_pars_dict['cI_s'] = selected_row['cI_s']
     else:
         ssn_pars.cE_s = selected_row['cE_s']
         ssn_pars.cI_s = selected_row['cI_s']
     if 'log_f_E' in par_keys or 'f_E' in par_keys:
-        pars_dict['log_f_E'] = selected_row['log_f_E']
-        pars_dict['log_f_I'] = selected_row['log_f_I']
+        trained_pars_dict['log_f_E'] = selected_row['log_f_E']
+        trained_pars_dict['log_f_I'] = selected_row['log_f_I']
     else:
         ssn_pars.f_E = selected_row['f_E']
         ssn_pars.f_I = selected_row['f_I']
     if 'kappa' in par_keys:
         if kappa_keys[0] in selected_row.keys():
-            pars_dict['kappa'] = selected_row[kappa_keys].values.reshape(2, 2)
+            trained_pars_dict['kappa'] = selected_row[kappa_keys].values.reshape(2, 2)
         else: # case when kappa are not in selected_row but they are required in trained_pars (beginning of training)
-            pars_dict['kappa'] = trained_pars.kappa
+            trained_pars_dict['kappa'] = trained_pars.kappa
     
     ###### Extract readout parameters from pretraining.csv and save it to readout pars ######
     # If stage is >0, then load the last row of pretraining_results.csv as readout parameters are not trained during training
@@ -404,12 +411,13 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
         else:
             meanr_vec = None
            
-        return readout_pars_loaded, pars_dict, untrained_pars, offset_last, meanr_vec
+        return readout_pars_loaded, trained_pars_dict, untrained_pars, offset_last, meanr_vec
     else:
-        return readout_pars_loaded, pars_dict, untrained_pars
+        return readout_pars_loaded, trained_pars_dict, untrained_pars
 
 
-def filter_for_run_and_stage(df,run_index, stage=None):
+def filter_for_run_and_stage(df, run_index, stage=None):
+    '''Filters the dataframe for the run_index and stage.'''
     df['run_index'] = pd.to_numeric(df['run_index'], errors='coerce')
     mesh_i = df['run_index'] == run_index
     df_i = df[mesh_i]
@@ -424,3 +432,143 @@ def filter_for_run_and_stage(df,run_index, stage=None):
 
     return df_i
 
+
+def set_up_config_folder(results_folder_path, conf_name):
+    '''Create a folder for the training configuration and copy the necessary files to it.'''
+    config_folder_path = Path(results_folder_path + '/' + conf_name)
+    config_folder_path.mkdir(parents=True, exist_ok=True)
+    figure_folder = config_folder_path / 'figures'
+    figure_folder.mkdir(parents=True, exist_ok=True)
+
+    # copy parameters.py to the config folder
+    shutil.copy('parameters.py', config_folder_path / 'parameters.py')
+    shutil.copy(os.path.join(results_folder_path, 'orimap.csv'), config_folder_path / 'orimap.csv')
+    shutil.copy(os.path.join(results_folder_path, 'initial_parameters.csv'), config_folder_path / 'initial_parameters.csv')
+    shutil.copy(os.path.join(results_folder_path, 'pretraining_results.csv'), config_folder_path / 'pretraining_results.csv')
+    return config_folder_path
+
+
+def configure_parameters_file(config_folder, trained_pars_list, sup_mid_readout_contrib=[1.0, 0.0], pretraining_task=False):
+    '''
+    Load parameters.py, change the parameters according to the input of this function, and then save parameters.py with these new parameters.
+    '''
+    def extract_attributes(lines, class_names, keys):
+        '''Extract attributes and descriptions from a specific class based on keys.'''
+        attributes = []
+        in_class = False
+
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+
+            if any([line.startswith(f"class {class_name}") for class_name in class_names]):
+                in_class = True
+            elif line.startswith("class "):
+                in_class = False
+
+            if in_class and any(line.startswith(key) for key in keys):
+                description = lines[i + 1].strip()
+                attributes.append((line, description))
+                i += 1  # Skip the next line (description)
+            
+            i += 1
+
+        return attributes
+
+    def remove_attributes(lines, class_name, keys):
+        '''Remove specific attributes from a class based on keys.'''
+        in_class = False
+        updated_lines = []
+
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+
+            if line.startswith(f"class {class_name}"):
+                in_class = True
+            elif line.startswith("class "):
+                in_class = False
+
+            # Skip attributes that should be removed
+            if in_class and any(line.startswith(key) for key in keys):
+                i += 2  # Skip the attribute and its description
+                continue
+
+            updated_lines.append(lines[i])
+            i += 1
+
+        return updated_lines
+
+    def add_attributes(lines, class_name, attributes):
+        '''Add attributes and descriptions to a specific class.'''
+        in_class = False
+        updated_lines = []
+        added = False
+
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+
+            if line.startswith(f"class {class_name}"):
+                in_class = True
+            elif line.startswith("class "):
+                in_class = False
+
+            updated_lines.append(lines[i])
+
+            # Add attributes at the start of the class if they haven't been added yet
+            if in_class and not added:
+                for declaration, description in attributes:
+                    updated_lines.append(f"    {declaration}\n")
+                    updated_lines.append(f"    {description}\n")
+                added = True
+
+            i += 1
+
+        return updated_lines
+    
+    # Load the parameters.py file content
+    params_file_path = Path(os.path.join(config_folder,"parameters.py"))
+    if not params_file_path.exists():
+        raise FileNotFoundError(f"{params_file_path} does not exist.")
+    
+    with open(params_file_path, "r") as file:
+        lines = file.readlines()
+
+    # Create a backup of the original parameters.py
+    shutil.copy(params_file_path, params_file_path.with_suffix(".py.bak"))
+
+    #### Update the ReadoutPars and TrainingPars parameters ####
+    updated_lines = []
+    for line in lines:
+        # Update sup_mid_readout_contrib
+        if "sup_mid_readout_contrib" in line:
+            line = f"    sup_mid_readout_contrib = {sup_mid_readout_contrib}\n"
+        
+        # Update pretraining_task in TrainingPars
+        if "pretraining_task:" in line:
+            line = f"    pretraining_task: bool = {pretraining_task}\n"
+        
+        updated_lines.append(line)
+
+    #### Extract, Remove, and Add Attributes ####
+    all_keys = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_2x2_m', 'J_2x2_s', 'kappa']
+    ssnpars_keys = [key for key in all_keys if key not in trained_pars_list]
+    
+    # Extract attributes from both classes
+    ssnpars_attributes = extract_attributes(lines, ["SSNPars", "TrainedSSNPars"], ssnpars_keys)
+    trainedpars_attributes = extract_attributes(lines, ["SSNPars", "TrainedSSNPars"], trained_pars_list)
+
+    # Remove attributes from the original classes
+    updated_lines = remove_attributes(updated_lines, "SSNPars", all_keys)
+    updated_lines = remove_attributes(updated_lines, "TrainedSSNPars", all_keys)
+
+    # Add attributes to the opposite classes
+    updated_lines = add_attributes(updated_lines, "SSNPars", ssnpars_attributes)
+    updated_lines = add_attributes(updated_lines, "TrainedSSNPars", trainedpars_attributes)
+
+    # Save the updated parameters.py file
+    with open(params_file_path, "w") as file:
+        file.writelines(updated_lines)
+
+    print(f"Updated parameters.py with new parameters.")

@@ -197,8 +197,8 @@ def MVPA_Mahal_analysis(folder,num_training, num_stage_inds=2, r_noise = True, s
         # Print the results for the current run
         print(MVPA_scores[run_ind,:,:,0], 'trained vs control')
         print(MVPA_scores[run_ind,:,:,1], 'untrained vs control')
-        print([np.mean(mahal_train_control_all[run_ind,0,0,:]),np.mean(mahal_train_control_all[run_ind,0,1,:]),np.mean(mahal_train_control_all[run_ind,0,2,:])] ,'train')
-        print([np.mean(mahal_untrain_control_all[run_ind,0,0,:]),np.mean(mahal_untrain_control_all[run_ind,0,1,:]),np.mean(mahal_untrain_control_all[run_ind,0,2,:])],'untrain')
+        print([np.mean(mahal_train_control_all[run_ind,0,:,:], axis = -1)] ,'train')
+        print([np.mean(mahal_untrain_control_all[run_ind,0,:,:],axis=-1)],'untrain')
 
         print(f'runtime of run {run_ind}:',time.time()-start_time)
 

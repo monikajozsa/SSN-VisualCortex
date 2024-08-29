@@ -4,7 +4,6 @@ import numpy
 import time
 import scipy
 import jax
-import matplotlib.pyplot as plt
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -217,7 +216,7 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     return gabor_output
 
 
-def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(0,180,6), training_stage=1, run_index=0, header = False):
+def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange(0,180,6), training_stage=1, run_index=0, header = False):
     '''
     Calculate responses of middle and superficial layers to different orientations.
     '''
@@ -266,8 +265,8 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
                     responses_sup_phase_match[:,grid_size+sup_cell_ind]=responses_sup[:,grid_size+sup_cell_ind]
 
     # Save responses into csv file - overwrite the file if it already exists
-    if filename is not None:
-        if os.path.exists(filename) and header is not False:
+    if file_path is not None:
+        if os.path.exists(file_path) and header is not False:
             Warning('Tuning curve csv file will get multiple headers and will possibly have repeated rows!')
         # repeat training_stage run_index and expand dimension to add as the first two columns of the new_rows
         run_index_vec = numpy.repeat(run_index, len(ori_vec))
@@ -277,7 +276,7 @@ def tuning_curve(untrained_pars, trained_pars, filename=None, ori_vec=np.arange(
         responses_combined=np.concatenate((responses_mid_phase_match, responses_sup_phase_match), axis=1)
         new_rows = numpy.concatenate((run_index_vec, training_stage_vec, responses_combined), axis=1)
         new_rows_df = pd.DataFrame(new_rows)
-        new_rows_df.to_csv(filename, mode='a', header=header, index=False, float_format='%.4f')
+        new_rows_df.to_csv(file_path, mode='a', header=header, index=False, float_format='%.4f')
 
     untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
 
@@ -581,11 +580,11 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     readout_pars = ReadoutPars()
 
     # Iterate overs SGD_step indices (default is before and after training)
-    iloc_ind_vec=[0,0,-1]
+    iloc_ind_vec=[0,-1,-1]
     if num_stage_inds==2:
-        stages = [1,2]
+        stages = [0,2]
     else:
-        stages = [0,2,2]
+        stages = [0,0,2]
     for stage_ind in range(len(stages)):
         stage = stages[stage_ind]
         # Load parameters from csv for given epoch

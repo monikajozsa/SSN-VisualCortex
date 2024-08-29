@@ -199,6 +199,7 @@ def axes_format(axs, fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtic
 def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
     
     def annotate_bar(ax, bars, values):
+        '''Annotate each bar with its value'''
         for bar in bars:
             yval = bar.get_height()
             # Adjust text position to be inside the bar
@@ -247,7 +248,10 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
     keys_meanr = [key for key in rel_changes_train.keys() if key.startswith('meanr_')]
     values_meanr = [rel_changes_train[key] for key in keys_meanr] 
     keys_fc = [key for key in rel_changes_train.keys() if key.startswith('c_') or key.startswith('f_')]
-    values_fc = [rel_changes_train[key]for key in keys_fc] 
+    values_fc = [rel_changes_train[key]for key in keys_fc]
+
+    # exclude the run from further analysis if for both staircase and psychometric offsets more than 8 values out of the last 10 were above 10 degrees
+    exclude_run = sum(df[keys_metrics[1]][-11:-1] > 10) > 8 and sum(df[keys_metrics[2]][-11:-1] > 10) > 8
 
     # Choosing colors for each bar
     colors_J = ['tab:red', 'tab:orange', 'tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:blue']
@@ -367,6 +371,8 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
         fig.savefig(fig_filename + ".png")
     plt.close()
 
+    return exclude_run
+
 
 def plot_results_from_csvs(folder_path, num_runs=3, folder_to_save=None, starting_run=0):
     # Add folder_path to path
@@ -374,34 +380,33 @@ def plot_results_from_csvs(folder_path, num_runs=3, folder_to_save=None, startin
         sys.path.append(folder_path)
 
     # Plot loss, accuracy and trained parameters
-    for j in range(starting_run,num_runs):
+    excluded_run_inds = None
+    for j in range(starting_run, num_runs):
         if folder_to_save is not None:
             results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}')
         else:
             results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}')
-        plot_results_from_csv(folder_path,j,results_fig_filename)
+        exclude_run = plot_results_from_csv(folder_path,j,results_fig_filename)
+        if exclude_run:
+            excluded_run_inds.append(j)
+    return excluded_run_inds
 
 ################### TUNING CURVES ###################
 
 def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save, seed=0):
     '''Plot example tuning curves for middle and superficial layer cells at different stages of training'''
 
-    tc_filename = results_dir + f'/tuning_curves.csv'
+    tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
     tuning_curves = numpy.array(pd.read_csv(tc_filename))
 
     numpy.random.seed(seed)
     num_mid_cells = 648
     num_sup_cells = 164
     num_runs_plotted = min(5,num_runs)
-    tc_post_pretrain = results_dir + '/tc_postpre_0.csv'
-    pretrain_ison = os.path.exists(tc_post_pretrain)
     for i in range(num_runs_plotted):
         mesh_i = tuning_curves[:,0]==i
         tuning_curve_i = tuning_curves[mesh_i,1:]
-        if pretrain_ison:
-            mesh_stage_0 = tuning_curve_i[:,0]==0
-            tc_0 = tuning_curve_i[mesh_stage_0,1:]
-
+        
         mesh_stage_1 = tuning_curve_i[:,0]==1
         tc_1 = tuning_curve_i[mesh_stage_1,1:]
         mesh_stage_2 = tuning_curve_i[:,0]==2
@@ -427,9 +432,6 @@ def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save, seed=0):
             else:
                 ax1=axes[i,cell_ind]
                 ax2=axes[i,int(num_rnd_cells/2)+cell_ind]
-            if pretrain_ison:
-                ax1.plot(range(num_oris), tc_0[:,selected_mid_col_inds[cell_ind]], label='initial',linewidth=2)
-                ax2.plot(range(num_oris), tc_0[:,selected_sup_col_inds[cell_ind]], label='initial',linewidth=2)
             ax1.plot(range(num_oris), tc_1[:,selected_mid_col_inds[cell_ind]], label='post-pretraining',linewidth=2)
             ax2.plot(range(num_oris), tc_1[:,selected_sup_col_inds[cell_ind]], label='post-pretraining',linewidth=2)
             ax1.plot(range(num_oris), tc_2[:,selected_mid_col_inds[cell_ind]], label='post-training',linewidth=2)
@@ -438,7 +440,7 @@ def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save, seed=0):
             ax1.set_title(f'Middle layer cell {cell_ind}', fontsize=20)
             ax2.set_title(f'Superficial layer, cell {cell_ind}', fontsize=20)
     ax2.legend(loc='upper left', fontsize=20)
-    
+
     # Save plot
     if folder_to_save is not None:
         fig.savefig(os.path.join(folder_to_save,'tc_fig.png'))
