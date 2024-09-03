@@ -4,7 +4,7 @@ from jax import vmap
 def evaluate_model_response(
     ssn_mid, ssn_sup, stimuli, conv_pars,  cE_m, cI_m, cE_s, cI_s, f_E, f_I, gabor_filters
 ):
-    '''
+    """
     Run individual stimulus through two layer model. 
     
     Inputs:
@@ -15,13 +15,9 @@ def evaluate_model_response(
      f_E, f_I: feedforward connections between layers
     
     Outputs:
-     r_sup - fixed point of centre neurons in superficial layer (default 5x5)
-     loss related terms (wrt to middle and superficial layer) :
-         - r_max_": loss minimising maximum rates
-         - avg_dx_": loss minimising number of steps taken during convergence 
-     max_(E/I)_(mid/sup): maximum rate for each type of neuron in each layer 
-     
-    '''
+     r_sup, r_mid - fixed point of output neurons in middle and superficial layers (excitatory neurons in middle and center 5x5 grid in superficial layer)
+     loss related terms (wrt to middle and superficial layers)
+    """
     # Create vector using extrasynaptic constants
     constant_vector = constant_to_vec(c_E=cE_m, c_I=cI_m, ssn=ssn_mid)
     constant_vector_sup = constant_to_vec(c_E=cE_s, c_I=cI_s, ssn=ssn_sup, sup=True)
@@ -56,7 +52,7 @@ vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, No
 def evaluate_model_response_mid(
     ssn_mid, stimuli, conv_pars, c_E, c_I, gabor_filters
 ):
-    '''
+    """
     Run individual stimulus through one layer model. 
     
     Inputs:
@@ -66,13 +62,10 @@ def evaluate_model_response_mid(
      c_E, c_I: baseline inhibition for middle layer
     
     Outputs:
-     r_mid - fixed point of centre neurons in middle layer (default 5x5)
-     loss related terms (wrt to middle and superficial layer) :
-         - r_max_": loss minimising maximum rates
-         - avg_dx_": loss minimising number of steps taken during convergence 
-     max_(E/I)_(mid/sup): maximum rate for each type of neuron in each layer 
-     
-    '''
+     r_mid - fixed point of excitatory neurons in middle layer
+     fp_mid - fixed point of all neurons in middle layer
+     loss related terms (wrt to middle layer)     
+    """
     # Create vector using extrasynaptic constants
     constant_vector = constant_to_vec(c_E=c_E, c_I=c_I, ssn=ssn_mid)
 
@@ -97,6 +90,7 @@ vmap_evaluate_model_response_mid = vmap(evaluate_model_response_mid, in_axes = (
 def obtain_fixed_point(
     ssn, ssn_input, conv_pars
 ):
+    """Calculate the fixed point of an SSN model."""
     r_init = np.zeros(ssn_input.shape[0])
     dt = conv_pars.dt
     xtol = conv_pars.xtol
@@ -115,12 +109,14 @@ def obtain_fixed_point(
 
     return r_fp, avg_dx
 
+
 def middle_layer_fixed_point(
     ssn,
     ssn_input,
     conv_pars,
     return_fp=False,
-):    
+):
+    """Calculate the fixed point of the middle layer of the SSN model."""
     # Calculate layer response and SSN convergence level
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
     
@@ -151,6 +147,7 @@ def superficial_layer_fixed_point(
     conv_pars,
     return_fp=False,
 ):    
+    """Calculate the fixed point of the superficial layer of the SSN model."""
     # Calculate layer response and SSN convergence level
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
 
@@ -170,6 +167,7 @@ def superficial_layer_fixed_point(
 
 
 def constant_to_vec(c_E, c_I, ssn, sup=False):
+    """Create a vector from the baseline inihibitory and excitatory constants for the SSN model."""
     edge_length = ssn.grid_pars.gridsize_Nx
 
     matrix_E = np.ones((edge_length, edge_length)) * c_E

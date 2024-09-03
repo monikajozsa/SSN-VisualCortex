@@ -383,7 +383,7 @@ def plot_Mahal_LMI_hists(df_LMI, df_mahal, folder, num_stage_inds):
 
 
 def MVPA_Mahal_from_csv(folder, num_training, num_stage_inds=2, sigma_filter=5, r_noise=True, plot_flag=False, recalc = True):
-    ''' Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer'''
+    """ Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer"""
     # save the output into folder_to_save as npy files
     folder_to_save = folder + f'/sigmafilt_{sigma_filter}'
     # create the folder if it does not exist

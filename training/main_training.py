@@ -15,6 +15,7 @@ if not pretraining_pars.is_on:
 
 ############### PRETRAINING ###############
 def main_pretraining(folder_path, num_training, initial_parameters=None, starting_time_in_main=0):
+    """ Initialize parameters randomly and run pretraining on the general orientation discrimination task """
     # Run num_training number of pretraining + training
     num_FailedRuns = 0
     i=0
@@ -61,6 +62,7 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
 
 ############### TRAINING ###############
 def main_training(folder_path, num_training, starting_time_training=0, run_indices=None):
+    """ Run training on the discrimination task with the configuration specified in the parameters.py file and initial_parameters from the pretraining. """
     if run_indices is None:
         run_indices = range(num_training)
 

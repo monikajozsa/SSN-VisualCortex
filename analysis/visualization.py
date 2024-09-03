@@ -83,9 +83,9 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     fig, ax = plt.subplots(2,4, figsize=(20, 10))
     # Colors for bars
     colors=['red' ,'tab:red','blue', 'tab:blue' ,'red' ,'tab:red', 'blue', 'tab:blue']
-    keys_J = ['J_m_EE', 'J_m_IE', 'J_m_EI', 'J_m_II', 'J_s_EE', 'J_s_IE', 'J_s_EI', 'J_s_II']
-    J_means_pre = [means_pre['J_m_EE'], means_pre['J_m_IE'], -means_pre['J_m_EI'], -means_pre['J_m_II'], means_pre['J_s_EE'], means_pre['J_s_IE'], -means_pre['J_s_EI'], -means_pre['J_s_II']]
-    J_means_post = [means_post['J_m_EE'], means_post['J_m_IE'], -means_post['J_m_EI'], -means_post['J_m_II'], means_post['J_s_EE'], means_post['J_s_IE'], -means_post['J_s_EI'], -means_post['J_s_II']]
+    keys_J = ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']
+    J_means_pre = [means_pre['J_EE_m'], means_pre['J_IE_m'], -means_pre['J_EI_m'], -means_pre['J_II_m'], means_pre['J_EE_s'], means_pre['J_IE_s'], -means_pre['J_EI_s'], -means_pre['J_II_s']]
+    J_means_post = [means_post['J_EE_m'], means_post['J_IE_m'], -means_post['J_EI_m'], -means_post['J_II_m'], means_post['J_EE_s'], means_post['J_IE_s'], -means_post['J_EI_s'], -means_post['J_II_s']]
     ax_flat = ax.flatten()
 
     for i in range(8):
@@ -199,7 +199,7 @@ def axes_format(axs, fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtic
 def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
     
     def annotate_bar(ax, bars, values):
-        '''Annotate each bar with its value'''
+        """Annotate each bar with its value"""
         for bar in bars:
             yval = bar.get_height()
             # Adjust text position to be inside the bar
@@ -308,15 +308,15 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
     axes[1,2].legend(loc='upper right', fontsize=20)
 
     ################ Plot changes in J_m and J_s over time ################
-    axes[2,0].plot(range(N), df['J_m_EE'], label='J_m_EE', linestyle='--', c='tab:red',linewidth=3)
-    axes[2,0].plot(range(N), df['J_m_IE'], label='J_m_IE', linestyle='--', c='tab:orange',linewidth=3)
-    axes[2,0].plot(range(N), df['J_m_II'], label='J_m_II', linestyle='--', c='tab:blue',linewidth=3)
-    axes[2,0].plot(range(N), df['J_m_EI'], label='J_m_EI', linestyle='--', c='tab:green',linewidth=3)
+    axes[2,0].plot(range(N), df['J_EE_m'], label='J_EE_m', linestyle='--', c='tab:red',linewidth=3)
+    axes[2,0].plot(range(N), df['J_IE_m'], label='J_IE_m', linestyle='--', c='tab:orange',linewidth=3)
+    axes[2,0].plot(range(N), df['J_II_m'], label='J_II_m', linestyle='--', c='tab:blue',linewidth=3)
+    axes[2,0].plot(range(N), df['J_EI_m'], label='J_EI_m', linestyle='--', c='tab:green',linewidth=3)
     
-    axes[2,0].plot(range(N), df['J_s_EE'], label='J_s_EE', c='tab:red',linewidth=3)
-    axes[2,0].plot(range(N), df['J_s_IE'], label='J_s_IE', c='tab:orange',linewidth=3)
-    axes[2,0].plot(range(N), df['J_s_II'], label='J_s_II', c='tab:blue',linewidth=3)
-    axes[2,0].plot(range(N), df['J_s_EI'], label='J_s_EI', c='tab:green',linewidth=3)
+    axes[2,0].plot(range(N), df['J_EE_s'], label='J_EE_s', c='tab:red',linewidth=3)
+    axes[2,0].plot(range(N), df['J_IE_s'], label='J_IE_s', c='tab:orange',linewidth=3)
+    axes[2,0].plot(range(N), df['J_II_s'], label='J_II_s', c='tab:blue',linewidth=3)
+    axes[2,0].plot(range(N), df['J_EI_s'], label='J_EI_s', c='tab:green',linewidth=3)
     axes[2,0].legend(loc="upper right", fontsize=20)
     axes[2,0].set_title('J in middle and superficial layers', fontsize=20)
     axes[2,0].set_xlabel('SGD steps', fontsize=20)
@@ -394,7 +394,7 @@ def plot_results_from_csvs(folder_path, num_runs=3, folder_to_save=None, startin
 ################### TUNING CURVES ###################
 
 def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save, seed=0):
-    '''Plot example tuning curves for middle and superficial layer cells at different stages of training'''
+    """Plot example tuning curves for middle and superficial layer cells at different stages of training"""
 
     tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
     tuning_curves = numpy.array(pd.read_csv(tc_filename))
@@ -450,9 +450,7 @@ def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save, seed=0):
 
 
 def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num_training, title, colors=None, linecolor='black'):
-    '''
-    Scatter plot of pre vs post training values for a given set of indices
-    '''
+    """Scatter plot of pre vs post training values for a given set of indices"""
     if colors is None:
         ax.scatter(x_axis[:,indices_to_plot], y_axis[:,indices_to_plot], s=20, alpha=0.5)
     else:
@@ -493,7 +491,7 @@ def plot_tc_features(results_dir, num_training, ori_list):
     'preforis_2': []}
             
     # Load data from file
-    tc_filename = results_dir + f'/tuning_curves.csv'
+    tc_filename = os.path.join(results_dir,'tuning_curves.csv')
     tuning_curves = pd.read_csv(tc_filename)
     # Loop through each training and stage within training (pre pretraining, post pretrainig and post training)
     for i in range(num_training):
@@ -627,7 +625,7 @@ def plot_tc_features(results_dir, num_training, ori_list):
         axs[1,0].set_ylabel(r'$\Delta$ slope(55)', fontsize=fs_text)
         axs[0,0].set_ylabel(r'$\Delta$ slope(55)', fontsize=fs_text)
         plt.tight_layout(w_pad=10, h_pad=7)
-        fig.savefig(results_dir + f"/figures/tc_features_{stage_labels[training_stage]}.png", bbox_inches='tight')
+        fig.savefig(os.path.join(results_dir,'figures', f'tc_features_{stage_labels[training_stage]}.png'), bbox_inches='tight')
         plt.close()
 
         # 3 x 2 scatter plot of data[slopediff_55_0 and 1], data[slopediff_55_0 and 1] and data[slopediff_diff]
@@ -702,7 +700,7 @@ def plot_tc_features(results_dir, num_training, ori_list):
         for ax in axs.flatten():
             axes_format(ax, fs_ticks)
         plt.tight_layout(w_pad=10, h_pad=7)
-        fig.savefig(results_dir + f"/figures/tc_slope_{stage_labels[training_stage]}.png", bbox_inches='tight')
+        fig.savefig(os.path.join(results_dir,'figures',f'tc_slope_{stage_labels[training_stage]}.png'), bbox_inches='tight')
         plt.close()
 
 
@@ -821,7 +819,7 @@ def plot_correlations(folder, num_training, num_time_inds=3):
 
 
 def plot_corr_triangle(data,folder_to_save='',filename='corr_triangle.png'):
-    '''Plot a triangle with correlation plots in the middle of the edges of the triangle. Data is supposed to be a dictionary with keys corresponding to MVPA results and relative parameter changes and offset changes.'''
+    """Plot a triangle with correlation plots in the middle of the edges of the triangle. Data is supposed to be a dictionary with keys corresponding to MVPA results and relative parameter changes and offset changes."""
     # Get keys and values
     keys = data.keys()
     labels = ['rel. change in ' + keys[0], 'rel. change in '+keys[1], 'rel. change in ' + keys[2]]

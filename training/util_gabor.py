@@ -14,7 +14,7 @@ from parameters import StimuliPars
 class UntrainedPars:
     def __init__(self, grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, oris, ori_dist, gabor_filters, 
-                 readout_pars):
+                 readout_pars, dist_from_single_ori):
         self.grid_pars = grid_pars
         self.stimuli_pars = stimuli_pars
         self.filter_pars = filter_pars
@@ -31,6 +31,7 @@ class UntrainedPars:
         self.middle_grid_ind = readout_pars.middle_grid_ind
         self.sup_mid_readout_contrib = readout_pars.sup_mid_readout_contrib
         self.num_readout_noise = readout_pars.num_readout_noise
+        self.dist_from_single_ori = dist_from_single_ori
 
 
 def test_uniformity(numbers, num_bins=18, alpha=0.25):
@@ -139,14 +140,13 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 		tmp = (X * kj[0] + Y * kj[1]) * sj + phij
 		z += np.exp(1j * tmp)
 
-	# Convert the accumulated complex plane to orientation map
-	# Orientation values are in the range (0, 180] degrees
+	# Convert the accumulated complex plane to orientation map; orientation values are in the range (0, 180] degrees
 	ori_map = (np.angle(z) + np.pi) * 180 / (2 * np.pi)
 
 	return ori_map
 
 def save_orimap(untrained_pars, run_ind, folder_to_save=None):
-
+    """Save the orimap to a csv file"""
     # ravel ssn_ori_map and add run_ind as a first element
     ssn_ori_map = untrained_pars.oris
     ssn_ori_map = numpy.insert(ssn_ori_map, 0, run_ind)
@@ -165,6 +165,7 @@ def save_orimap(untrained_pars, run_ind, folder_to_save=None):
     ssn_ori_map_df = pd.DataFrame(ssn_ori_map.reshape(1, -1))
     ssn_ori_map_df.to_csv(folder_to_save + '/orimap.csv', mode='a', header=orimap_header, index=False, float_format='%.4f')
     print('Saved orimap to ' + folder_to_save + '/orimap.csv')
+
 
 def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, readout_pars, orimap_loaded=None, regen_extended_orimap=False):
@@ -201,18 +202,20 @@ def init_untrained_pars( grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pa
 
     gabor_filters = create_gabor_filters_ori_map(ssn_ori_map_flat, ssn_pars.phases, filter_pars, grid_pars, flatten=True)
     oris = ssn_ori_map_flat[:, None]
+    beta_rep = numpy.tile(ssn_pars.beta, (grid_pars.gridsize_Nx**2, 1))
+    dist_from_single_ori = cosdiff_ring(oris - beta_rep.T, 180)
     ori_dist = cosdiff_ring(oris - oris.T, 180)
     
     # Collect parameters that are not trained into a single class
     untrained_pars = UntrainedPars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                  loss_pars, training_pars, pretrain_pars, ssn_ori_map_flat, ori_dist, gabor_filters, 
-                 readout_pars)
+                 readout_pars, dist_from_single_ori)
     
     return untrained_pars
 
 
 def update_untrained_pars(untrained_pars, readout_pars, gE_m, gI_m, eta= None):
-    '''Update the gE_m and gI_m filter parameters and the gabor filters (because their normalization depend on g)'''
+    """Update the gE_m and gI_m filter parameters and the gabor filters (because their normalization depend on g)"""
     untrained_pars.filter_pars.gE_m = gE_m
     untrained_pars.filter_pars.gI_m = gI_m
     if eta is not None:
@@ -220,7 +223,7 @@ def update_untrained_pars(untrained_pars, readout_pars, gE_m, gI_m, eta= None):
     gabor_filters = create_gabor_filters_ori_map(untrained_pars.oris, untrained_pars.ssn_pars.phases, untrained_pars.filter_pars, untrained_pars.grid_pars, flatten=True)
     untrained_pars = UntrainedPars(untrained_pars.grid_pars, untrained_pars.stimuli_pars, untrained_pars.filter_pars, untrained_pars.ssn_pars, untrained_pars.conv_pars, 
                  untrained_pars.loss_pars, untrained_pars.training_pars, untrained_pars.pretrain_pars, untrained_pars.oris, untrained_pars.ori_dist, gabor_filters, 
-                 readout_pars)
+                 readout_pars, untrained_pars.dist_from_single_ori)
     return untrained_pars
 
 ###### Functions for grating generation ###### 
@@ -326,6 +329,7 @@ def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, j
 #### Functions for gabor filters ####
 
 def calculate_shifted_coords_mm(class_pars, x0=0, y0=0):
+    """Calculate the shifted coordinates of the grid points in mm centered at x0, y0."""
     # create image axis
     gridsize_deg = class_pars.gridsize_deg
     magnif_factor = class_pars.magnif_factor

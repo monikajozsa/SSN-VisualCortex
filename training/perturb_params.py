@@ -9,15 +9,23 @@ import time
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from util import take_log, create_grating_training, sep_exponentiate, create_grating_pretraining, unpack_ssn_parameters
+from util import take_log, create_grating_training, create_grating_pretraining, unpack_ssn_parameters, cosdiff_ring
 from util_gabor import update_untrained_pars, save_orimap
 from SSN_classes import SSN_mid, SSN_sup
 from model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training_functions import task_acc_test
 
+def fill_attribute_list(class_to_fill, attr_list, value_list):
+    """Fill the attributes of a class with the given values."""
+    i=0
+    for attr in attr_list:
+        if hasattr(class_to_fill, attr):
+            setattr(class_to_fill, attr, value_list[i])
+
+    return class_to_fill
 
 def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pars=None, J_2x2_m=None, cE_m=None, cI_m=None, ssn_mid=None, train_data=None, pretrain_data=None):
-   
+    """Randomize the middle layer parameters of the model and check if the inequality and response conditions are satisfied."""
     if num_calls > 300:
         raise Exception(f'More than {num_calls} calls to initialize middle layer parameters.')
 
@@ -27,15 +35,15 @@ def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pa
     J_range=randomize_pars.J_range
     g_range=randomize_pars.g_range
     while not (cond_ineq1 and cond_ineq2):
-        JEE, JEI, JIE, JII = random.uniform(low=[J_range[0][0], J_range[1][0], J_range[2][0], J_range[3][0]],high=[J_range[0][1], J_range[1][1], J_range[2][1], J_range[3][1]])
+        J_EE_m, J_EI_m_nosign, J_IE_m, J_II_m_nosign = random.uniform(low=[J_range[0][0], J_range[1][0], J_range[2][0], J_range[3][0]],high=[J_range[0][1], J_range[1][1], J_range[2][1], J_range[3][1]])
         gE_m, gI_m = random.uniform(low=[g_range[0], g_range[0]], high=[g_range[1], g_range[1]])
-        cond_ineq1 = np.abs(JEE*JII*1.1 < JEI*JIE)
-        cond_ineq2 = np.abs(JEI*gI_m)*1.1 < np.abs(JII*gE_m)
+        cond_ineq1 = np.abs(J_EE_m*J_II_m_nosign*1.1 < J_EI_m_nosign*J_IE_m)
+        cond_ineq2 = np.abs(J_EI_m_nosign*gI_m)*1.1 < np.abs(J_II_m_nosign*gE_m)
         i = i+1
         if i>200:
             raise Exception(" ########### Randomized parameters violate conditions 1 or 2 after 200 sampling. ###########")
     print(f'Parameters found that satisfy inequalities in {i} steps')
-    J_2x2_m = np.array([[JEE, -JEI],[JIE, -JII]])
+    J_2x2_m = np.array([[J_EE_m, -J_EI_m_nosign],[J_IE_m, -J_II_m_nosign]])
     
     ##### Initialize untrained parameters if they are not given #####
     if untrained_pars is None:
@@ -49,8 +57,8 @@ def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pa
         training_pars.eta = eta
         filter_pars.gE_m = gE_m
         filter_pars.gI_m = gI_m
-        if hasattr(ssn_pars,'J_2x2_m'):
-            ssn_pars.J_2x2_m = J_2x2_m
+        ssn_pars = fill_attribute_list(ssn_pars, ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m'], [J_EE_m, -J_EI_m_nosign, J_IE_m, -J_II_m_nosign])
+
         # Initialize untrained parameters
         untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                     loss_pars, training_pars, pretraining_pars, readout_pars)
@@ -94,8 +102,8 @@ def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pa
     
 
 def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True, num_mid_calls=0, num_calls=0, start_time=time.time(), J_2x2_m=None, cE_m=None, cI_m=None, ssn_mid=None, train_data=None, pretrain_data=None):
-    '''Randomize the required initial parameters of the model and optimize the readout parameters using logistic regression. 
-    The randomization is done by uniformly sampling random values from predefined ranges.'''
+    """Randomize the required initial parameters of the model and optimize the readout parameters using logistic regression. 
+    The randomization is done by uniformly sampling random values from predefined ranges."""
 
     ##### Initialize middle layer parameters such that inequality conditions and response conditions are satisfied #####        
     from parameters import RandomizePars, ReadoutPars
@@ -108,9 +116,9 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
 
     ##### Initialize superficial layer parameters such that response conditions are satisfied #####
     J_range=randomize_pars.J_range
-    JEE, JEI, JIE, JII = random.uniform(low=[J_range[0][0], J_range[1][0], J_range[2][0], J_range[3][0]],high=[J_range[0][1], J_range[1][1], J_range[2][1], J_range[3][1]])
-    J_2x2_s = np.array([[JEE, -JEI],[JIE, -JII]])
-    ssn_sup = SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
+    J_EE_s, J_EI_s_nosign, J_IE_s, J_II_s_nosign = random.uniform(low=[J_range[0][0], J_range[1][0], J_range[2][0], J_range[3][0]],high=[J_range[0][1], J_range[1][1], J_range[2][1], J_range[3][1]])
+    J_2x2_s = np.array([[J_EE_s, -J_EI_s_nosign],[J_IE_s, -J_II_s_nosign]])
+    ssn_sup = SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist)
     c_range= randomize_pars.c_range  
     f_range= randomize_pars.f_range  
     cE_s, cI_s = random.uniform(low=[c_range[0], c_range[0]], high=[c_range[1], c_range[1]])
@@ -143,9 +151,17 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
         print(f'Conditions rmax', rmax_min_sup, rmax_max_sup, ' rmean ', rmean_min_sup, rmean_max_sup, ' dx ', avg_dx_sup)
         print(f'Parameters found that satisfy conditions in {time.time() - start_time:.2f} seconds')
         # Take log of the J and f parameters (if f_I, f_E are in the randomized parameters)
+        log_J_2x2_m = take_log(J_2x2_m)
+        log_J_2x2_s = take_log(J_2x2_s)
         randomized_pars_log = dict(
-            log_J_2x2_m = take_log(J_2x2_m),
-            log_J_2x2_s = take_log(J_2x2_s),
+            log_J_EE_m = log_J_2x2_m[0,0],
+            log_J_EI_m = log_J_2x2_m[0,1],
+            log_J_IE_m = log_J_2x2_m[1,0],
+            log_J_II_m = log_J_2x2_m[1,1],
+            log_J_EE_s = log_J_2x2_s[0,0],
+            log_J_EI_s = log_J_2x2_s[0,1],
+            log_J_IE_s = log_J_2x2_s[1,0],
+            log_J_II_s = log_J_2x2_s[1,1],
             cE_m = cE_m,
             cI_m = cI_m,
             cE_s = cE_s,    
@@ -153,7 +169,7 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
             log_f_E = np.log(f_E),
             log_f_I = np.log(f_I))
 
-        # Optimize readout parameters by using log-linear regression
+        # Optimize readout parameters by using logistic regression
         if logistic_regr:
             optimized_readout_pars = readout_pars_from_regr(randomized_pars_log, untrained_pars)
         else:
@@ -161,29 +177,20 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
         optimized_readout_pars['w_sig'] = (optimized_readout_pars['w_sig'] / np.std(optimized_readout_pars['w_sig']) ) * 0.25 / int(np.sqrt(len(optimized_readout_pars['w_sig']))) # get the same std as before - see param
         
         # Update c,f or J values if they are in the untrained_pars.ssn_pars
-        if hasattr(untrained_pars.ssn_pars, 'cE_m'):
-            untrained_pars.ssn_pars.cE_m = cE_m
-            untrained_pars.ssn_pars.cI_m = cI_m
-        if hasattr(untrained_pars.ssn_pars, 'cE_s'):
-            untrained_pars.ssn_pars.cE_s = cE_s
-            untrained_pars.ssn_pars.cI_s = cI_s
-        if hasattr(untrained_pars.ssn_pars, 'f_E'):
-            untrained_pars.ssn_pars.f_E = f_E
-            untrained_pars.ssn_pars.f_I = f_I
-        if hasattr(untrained_pars.ssn_pars, 'J_2x2_s'):
-            untrained_pars.ssn_pars.J_2x2_s = J_2x2_s
-        if hasattr(untrained_pars.ssn_pars, 'J_2x2_m'):
-            untrained_pars.ssn_pars.J_2x2_m = J_2x2_m
+        attrib_keys = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']
+        attrib_vals = [cE_m, cI_m, cE_s, cI_s, f_E, f_I, J_EE_s, -J_EI_s_nosign, J_IE_s, -J_II_s_nosign]
+        untrained_pars.ssn_pars = fill_attribute_list(untrained_pars.ssn_pars, attrib_keys, attrib_vals)
 
         save_orimap(untrained_pars, run_index, folder_to_save=folder)
+
         return optimized_readout_pars, randomized_pars_log, untrained_pars
 
 
 def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000):
-    '''
-    This function sets readout_pars based on N sample data using linear regression. This method is to initialize w_sig, b_sig optimally (given limited data) for a set of randomized trained_pars_dict parameters (to be trained).
-    '''
-    # Generate stimuli and label data for setting w_sig and b_sig based on linear regression (pretraining)
+    """
+    This function sets readout_pars based on N sample data using logistic regression. This method is to initialize w_sig, b_sig optimally (given limited data) for a set of randomized trained_pars_dict parameters (to be trained).
+    """
+    # Generate stimuli and label data for setting w_sig and b_sig based on logistic regression (pretraining)
     data = create_grating_pretraining(untrained_pars.pretrain_pars, N, untrained_pars.BW_image_jax_inp, numRnd_ori1=N)
 
     # Extract trained and untrained parameters
@@ -191,7 +198,8 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000):
 
     # Define middle and superficial layers
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
-    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
+    
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist)
 
     # Run reference and target data through the two layer model
     conv_pars = untrained_pars.conv_pars
@@ -236,12 +244,18 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000):
 
 
 def create_initial_parameters_df(folder_path, initial_parameters, pretrained_parameters, randomized_eta, randomized_gE, randomized_gI, run_index=0, stage=0):
-    '''
+    """
     This function creates or appends a dataframe with the initial parameters for pretraining or training (stage 0 or 1).
-    '''
+    """
     # Take log of the J and f parameters (if f_I, f_E are in the randomized parameters)
-    J_2x2_m = sep_exponentiate(pretrained_parameters['log_J_2x2_m'])
-    J_2x2_s = sep_exponentiate(pretrained_parameters['log_J_2x2_s'])
+    J_EE_m = np.exp(pretrained_parameters['log_J_EE_m'])
+    J_EI_m = -np.exp(pretrained_parameters['log_J_EI_m'])
+    J_IE_m = np.exp(pretrained_parameters['log_J_IE_m'])
+    J_II_m = -np.exp(pretrained_parameters['log_J_II_m'])
+    J_EE_s = np.exp(pretrained_parameters['log_J_EE_s'])
+    J_EI_s = -np.exp(pretrained_parameters['log_J_EI_s'])
+    J_IE_s = np.exp(pretrained_parameters['log_J_IE_s'])
+    J_II_s = -np.exp(pretrained_parameters['log_J_II_s'])
     f_E = np.exp(pretrained_parameters['log_f_E'])
     f_I = np.exp(pretrained_parameters['log_f_I'])
     cE_m = pretrained_parameters['cE_m']
@@ -251,8 +265,7 @@ def create_initial_parameters_df(folder_path, initial_parameters, pretrained_par
     
     # Create the new row of initial_parameters as a dictionary with the new randomized parameters and the given other parameters (Note that EI is I to E connection)
     init_vals_dict = dict(run_index=run_index, stage=stage, f_E = f_E, f_I = f_I, cE_m = cE_m, cI_m = cI_m, cE_s = cE_s, cI_s = cI_s,
-                        J_m_EE=J_2x2_m[0,0], J_m_EI=J_2x2_m[0,1], J_m_IE=J_2x2_m[1,0], J_m_II=J_2x2_m[1,1],
-                        J_s_EE=J_2x2_s[0,0], J_s_EI=J_2x2_s[0,1], J_s_IE=J_2x2_s[1,0], J_s_II=J_2x2_s[1,1],
+                        J_EE_m=J_EE_m, J_EI_m=J_EI_m, J_IE_m=J_IE_m, J_II_m=J_II_m, J_EE_s=J_EE_s, J_EI_s=J_EI_s, J_IE_s=J_IE_s, J_II_s=J_II_s,
                         eta=randomized_eta, gE = randomized_gE, gI= randomized_gI)
 
     # Create a dataframe with the initial parameters

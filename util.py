@@ -11,19 +11,39 @@ from training.util_gabor import BW_image_jit_noisy
 
 
 def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, return_kappa= True):
-    '''Unpacks the trained parameters and the untrained parameters. If as_log_list is True, then the J and f parameters are returned as a list of logs. If return_kappa is True, then the kappa parameter is returned.'''
-    if 'log_J_2x2_m' in trained_pars:
-        J_2x2_m = sep_exponentiate(trained_pars['log_J_2x2_m'])
-    elif 'J_2x2_m' in trained_pars:
-        J_2x2_m = trained_pars['J_2x2_m']
-    else:
-        J_2x2_m = untrained_pars.ssn_pars.J_2x2_m
-    if 'log_J_2x2_s' in trained_pars:
-        J_2x2_s = sep_exponentiate(trained_pars['log_J_2x2_s'])
-    elif 'J_2x2_m' in trained_pars:
-        J_2x2_s = trained_pars['J_2x2_s']
-    else:
-        J_2x2_s = untrained_pars.ssn_pars.J_2x2_s
+    """Unpacks the trained parameters and the untrained parameters. If as_log_list is True, then the J and f parameters are returned as a list of logs. If return_kappa is True, then the kappa parameter is returned."""
+
+    def get_J(par_name, trained_pars, untrained_pars):
+        """
+        Returns the value of J based on the provided parameters.
+        """
+        # Check if 'log_' version of the parameter is in trained_pars
+        log_key = f'log_{par_name}'
+        if log_key in trained_pars:
+            if 'I_' in par_name:
+                J = -np.exp(trained_pars[log_key]) 
+            else:
+                J = np.exp(trained_pars[log_key])
+        # Check if the parameter itself is in trained_pars
+        elif par_name in trained_pars:
+            J = trained_pars[par_name]
+        # Return default value from untrained_pars
+        else:
+            J = getattr(untrained_pars.ssn_pars, par_name)
+
+        return J
+
+    J_II_m = get_J('J_II_m', trained_pars, untrained_pars)
+    J_IE_m = get_J('J_IE_m', trained_pars, untrained_pars)
+    J_EI_m = get_J('J_EI_m', trained_pars, untrained_pars)
+    J_EE_m = get_J('J_EE_m', trained_pars, untrained_pars)
+    J_2x2_m = np.array([[J_EE_m, J_EI_m], [J_IE_m, J_II_m]])
+    J_II_s = get_J('J_II_s', trained_pars, untrained_pars)
+    J_IE_s = get_J('J_IE_s', trained_pars, untrained_pars)
+    J_EI_s = get_J('J_EI_s', trained_pars, untrained_pars)
+    J_EE_s = get_J('J_EE_s', trained_pars, untrained_pars)
+    J_2x2_s = np.array([[J_EE_s, J_EI_s], [J_IE_s, J_II_s]])
+
     if 'cE_m' in trained_pars:
         cE_m = trained_pars['cE_m']
         cI_m = trained_pars['cI_m']
@@ -64,13 +84,14 @@ def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, retur
     else:
         return J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa
 
+
 def cosdiff_ring(d_x, L):
-    '''
+    """
     Calculate the cosine-based distance.
     Parameters:
     d_x: The difference in the angular position.
     L: The total angle.
-    '''
+    """
     # Calculate the cosine of the scaled angular difference
     cos_angle = np.cos(d_x * 2 * np.pi / L)
 
@@ -82,7 +103,7 @@ def cosdiff_ring(d_x, L):
 
 ##### Functions to create training data #####
 def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
-    '''
+    """
     Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
     Input:
        stimuli pars
@@ -90,7 +111,7 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
     
     Output:
         dictionary containing reference target and label 
-    '''
+    """
     
     #initialise empty arrays
     ref_ori = stimuli_pars.ref_ori
@@ -121,9 +142,9 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
 
 
 def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, tot_angle=180, numRnd_ori1=1, numRnd_dist=None):
-    '''
+    """
     Create batch_size number of pairs of numbers between min_value and max_value with ori distance between min_distance and max_distance. numRnd_ori1 is the number of different values for the first number. numRnd_dist is the number of different distances.
-    '''
+    """
     if max_distance==None:
         max_distance = max_value - min_value
     if numRnd_dist==None:
@@ -154,11 +175,11 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
 
 
 def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, numRnd_ori1=1):
-    '''
+    """
     Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
     Output:
         dictionary containing grating1, grating2 and difference between gratings that is calculated from features
-    '''
+    """
     
     # Initialise empty data dictionary - names are not describing the purpose of the variables but this allows for reusing code
     data_dict = {'ref': [], 'target': [], 'label':[]}
@@ -185,15 +206,15 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
 
 ##### Other helper functions #####
 def sigmoid(x, epsilon=0.01):
-    '''
+    """
     Introduction of epsilon stops asymptote from reaching 1 (avoids NaN)
-    '''
+    """
     sig_x = 1 / (1 + np.exp(-x))
     return (1 - 2 * epsilon) * sig_x + epsilon
 
 
 def take_log(J_2x2):
-    '''Take the log of the 2x2 matrix J'''
+    """Take the log of the 2x2 matrix J"""
     signs = np.array([[1, -1], [1, -1]])
     logJ_2x2 = np.log(J_2x2 * signs)
 
@@ -201,7 +222,7 @@ def take_log(J_2x2):
 
 
 def sep_exponentiate(J_2x2):
-    '''Exponentiate the J matrix'''
+    """Exponentiate the J matrix"""
     signs = np.array([[1, -1], [1, -1]])
     new_J = np.exp(np.array(J_2x2, dtype = float)) * signs
 
@@ -209,7 +230,7 @@ def sep_exponentiate(J_2x2):
 
 
 def leaky_relu(x, R_thresh, slope, height=0.15):
-    ''' Customized relu function for regulating the rates. '''
+    """ Customized relu function for regulating the rates. """
     def x_greater_than(x, constant, slope, height):
         return np.maximum(0, (x * slope - (1 - height)))
 
@@ -226,12 +247,12 @@ def leaky_relu(x, R_thresh, slope, height=0.15):
 
 
 def save_code(final_folder_path=None, note=None):
-    '''
+    """
     This function saves code files to make results replicable.
     1) Creates a folder for results, scripts and figures.
     2) Copies specific code files into a folder called 'scripts'.
     3) Returns the path to save the results into.
-    '''
+    """
 
     def create_versioned_folder(base_path):
         version = 0
@@ -279,7 +300,7 @@ def save_code(final_folder_path=None, note=None):
 
 
 def load_orientation_map(folder, run_ind):
-    '''Loads the orientation map from the folder for the training indexed by run_ind.'''
+    """Loads the orientation map from the folder for the training indexed by run_ind."""
     orimap_filename = os.path.join(folder, f"orimap.csv")
     if not os.path.exists(orimap_filename):
         orimap_filename = os.path.join(folder, f"orimap_{run_ind}.npy")
@@ -294,11 +315,11 @@ def load_orientation_map(folder, run_ind):
 
 
 def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=False):
-    '''Loads the parameters from the pretraining_results.csv or training_results.csv file depending on the stage. 
+    """Loads the parameters from the pretraining_results.csv or training_results.csv file depending on the stage. 
     If for_training is True, then the last row of pretraining_results.csv is loaded as readout parameters are not trained during training. 
     If for_training is False, then the full last row of training_results.csv is loaded. 
     The parameters are then used to initialize the untrained parameters and readout parameters.
-    The offset_last is the last offset value from the psychometric offsets.'''
+    The offset_last is the last offset value from the psychometric offsets."""
     from training.util_gabor import init_untrained_pars
     from parameters import SSNPars, ReadoutPars, TrainedSSNPars, PretrainedSSNPars, GridPars, FilterPars, StimuliPars, ConvPars, TrainingPars, LossPars, PretrainingPars
     ssn_pars, readout_pars, trained_pars, pretrained_pars = SSNPars(), ReadoutPars(), TrainedSSNPars(), PretrainedSSNPars()
@@ -320,44 +341,40 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     df = filter_for_run_and_stage(df_all, run_index, stage)
     selected_row = df.iloc[int(iloc_ind)]
 
-    # Define keys for J parameters
-    log_J_m_keys = ['log_J_m_EE','log_J_m_EI','log_J_m_IE','log_J_m_II'] 
-    log_J_s_keys = ['log_J_s_EE','log_J_s_EI','log_J_s_IE','log_J_s_II']
-    J_m_keys = ['J_m_EE','J_m_EI','J_m_IE','J_m_II'] 
-    J_s_keys = ['J_s_EE','J_s_EI','J_s_IE','J_s_II']
+    # Define parameter keys
+    log_J_keys = ['log_J_EE_m','log_J_EI_m','log_J_IE_m','log_J_II_m', 'log_J_EE_s','log_J_EI_s','log_J_IE_s','log_J_II_s'] 
+    J_keys = ['J_EE_m','J_EI_m','J_IE_m','J_II_m', 'J_EE_s','J_EI_s','J_IE_s','J_II_s']
     kappa_keys = ['kappa_EE','kappa_EI','kappa_IE','kappa_II']
 
-    # Create a dictionary with the trained parameters and update untrained parameters if J, c, f, or kappa is not trained
+    # Initialize the trained parameters dictionary with the J parameters
     trained_pars_dict = {}
-    if 'log_J_2x2_m' in par_keys or 'J_2x2_m' in par_keys:
-        trained_pars_dict['log_J_2x2_m'] = selected_row[log_J_m_keys].values.reshape(2, 2)
-    else:
-        ssn_pars.J_2x2_m = selected_row[J_m_keys].values.reshape(2, 2)
-    if 'log_J_2x2_s' in par_keys or 'J_2x2_s' in par_keys:
-        trained_pars_dict['log_J_2x2_s'] = selected_row[log_J_s_keys].values.reshape(2, 2)
-    else:
-        ssn_pars.J_2x2_s = selected_row[J_s_keys].values.reshape(2, 2)
-    if 'cE_m' in par_keys:
-        trained_pars_dict['cE_m'] = selected_row['cE_m']
-        trained_pars_dict['cI_m'] = selected_row['cI_m']
-    else:
-        ssn_pars.cE_m = selected_row['cE_m']
-        ssn_pars.cI_m = selected_row['cI_m']
-    if 'cE_s' in par_keys:
-        trained_pars_dict['cE_s'] = selected_row['cE_s']
-        trained_pars_dict['cI_s'] = selected_row['cI_s']
-    else:
-        ssn_pars.cE_s = selected_row['cE_s']
-        ssn_pars.cI_s = selected_row['cI_s']
+    for i in range(len(log_J_keys)):
+        log_J_key = log_J_keys[i]
+        J_key = J_keys[i]
+        if log_J_key in par_keys or J_key in par_keys:
+            trained_pars_dict[log_J_key] = selected_row[log_J_key]
+        else:
+            # Set the attribute J_key in ssn_pars to the value from the selected row
+            setattr(ssn_pars, J_key, selected_row[J_key])
+
+    # Set c, f and kappa parameters
+    for param in ['cE_m', 'cI_m', 'cE_s', 'cI_s']:
+        if param in par_keys or param in par_keys:
+            trained_pars_dict[param] = selected_row[param]
+        else:
+            setattr(ssn_pars, param, selected_row[param])
     if 'log_f_E' in par_keys or 'f_E' in par_keys:
         trained_pars_dict['log_f_E'] = selected_row['log_f_E']
-        trained_pars_dict['log_f_I'] = selected_row['log_f_I']
     else:
         ssn_pars.f_E = selected_row['f_E']
+    if 'log_f_E' in par_keys or 'f_E' in par_keys:
+        trained_pars_dict['log_f_I'] = selected_row['log_f_I']
+    else:
         ssn_pars.f_I = selected_row['f_I']
     if 'kappa' in par_keys:
         if kappa_keys[0] in selected_row.keys():
-            trained_pars_dict['kappa'] = selected_row[kappa_keys].values.reshape(2, 2)
+            kappa_values = [selected_row[key] for key in kappa_keys]
+            trained_pars_dict['kappa'] = np.array(kappa_values).reshape(2, 2)
         else: # case when kappa are not in selected_row but they are required in trained_pars (beginning of training)
             trained_pars_dict['kappa'] = trained_pars.kappa
     
@@ -374,7 +391,8 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     else:
         middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
     w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
-    w_sig_values = np.array(selected_row[w_sig_keys])
+    w_sig_list = [float(selected_row[key]) for key in w_sig_keys]
+    w_sig_values = np.array(w_sig_list)
     b_sig_value = float(selected_row['b_sig'])
     readout_pars_loaded = dict(w_sig=w_sig_values, b_sig=b_sig_value)
     readout_pars.b_sig = b_sig_value
@@ -417,7 +435,7 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
 
 
 def filter_for_run_and_stage(df, run_index, stage=None):
-    '''Filters the dataframe for the run_index and stage.'''
+    """Filters the dataframe for the run_index and stage."""
     df['run_index'] = pd.to_numeric(df['run_index'], errors='coerce')
     mesh_i = df['run_index'] == run_index
     df_i = df[mesh_i]
@@ -433,27 +451,27 @@ def filter_for_run_and_stage(df, run_index, stage=None):
     return df_i
 
 
-def set_up_config_folder(results_folder_path, conf_name):
-    '''Create a folder for the training configuration and copy the necessary files to it.'''
-    config_folder_path = Path(results_folder_path + '/' + conf_name)
-    config_folder_path.mkdir(parents=True, exist_ok=True)
-    figure_folder = config_folder_path / 'figures'
+def set_up_config_folder(results_folder, conf_name):
+    """Create a folder for the training configuration and copy the necessary files to it."""
+    config_folder = Path(results_folder + '/' + conf_name)
+    config_folder.mkdir(parents=True, exist_ok=True)
+    figure_folder = config_folder / 'figures'
     figure_folder.mkdir(parents=True, exist_ok=True)
 
     # copy parameters.py to the config folder
-    shutil.copy('parameters.py', config_folder_path / 'parameters.py')
-    shutil.copy(os.path.join(results_folder_path, 'orimap.csv'), config_folder_path / 'orimap.csv')
-    shutil.copy(os.path.join(results_folder_path, 'initial_parameters.csv'), config_folder_path / 'initial_parameters.csv')
-    shutil.copy(os.path.join(results_folder_path, 'pretraining_results.csv'), config_folder_path / 'pretraining_results.csv')
-    return config_folder_path
+    shutil.copy('parameters.py', config_folder / 'parameters_' + conf_name+ '.py')
+    shutil.copy(os.path.join(results_folder, 'orimap.csv'), config_folder / 'orimap.csv')
+    shutil.copy(os.path.join(results_folder, 'initial_parameters.csv'), config_folder / 'initial_parameters.csv')
+    shutil.copy(os.path.join(results_folder, 'pretraining_results.csv'), config_folder / 'pretraining_results.csv')
+    return config_folder
 
 
-def configure_parameters_file(config_folder, trained_pars_list, sup_mid_readout_contrib=[1.0, 0.0], pretraining_task=False):
-    '''
+def configure_parameters_file(root_folder, trained_pars_list, sup_mid_readout_contrib=[1.0, 0.0], pretraining_task=False):
+    """
     Load parameters.py, change the parameters according to the input of this function, and then save parameters.py with these new parameters.
-    '''
+    """
     def extract_attributes(lines, class_names, keys):
-        '''Extract attributes and descriptions from a specific class based on keys.'''
+        """Extract attributes and descriptions from a specific class based on keys."""
         attributes = []
         in_class = False
 
@@ -476,7 +494,7 @@ def configure_parameters_file(config_folder, trained_pars_list, sup_mid_readout_
         return attributes
 
     def remove_attributes(lines, class_name, keys):
-        '''Remove specific attributes from a class based on keys.'''
+        """Remove specific attributes from a class based on keys."""
         in_class = False
         updated_lines = []
 
@@ -500,7 +518,7 @@ def configure_parameters_file(config_folder, trained_pars_list, sup_mid_readout_
         return updated_lines
 
     def add_attributes(lines, class_name, attributes):
-        '''Add attributes and descriptions to a specific class.'''
+        """Add attributes and descriptions to a specific class."""
         in_class = False
         updated_lines = []
         added = False
@@ -528,7 +546,7 @@ def configure_parameters_file(config_folder, trained_pars_list, sup_mid_readout_
         return updated_lines
     
     # Load the parameters.py file content
-    params_file_path = Path(os.path.join(config_folder,"parameters.py"))
+    params_file_path = Path(os.path.join(root_folder,"parameters.py"))
     if not params_file_path.exists():
         raise FileNotFoundError(f"{params_file_path} does not exist.")
     
@@ -536,7 +554,11 @@ def configure_parameters_file(config_folder, trained_pars_list, sup_mid_readout_
         lines = file.readlines()
 
     # Create a backup of the original parameters.py
-    shutil.copy(params_file_path, params_file_path.with_suffix(".py.bak"))
+    bak_file_path = params_file_path.with_suffix(".py.bak")
+    
+    # Check if the backup file already exists
+    if not os.path.exists(bak_file_path):
+        shutil.copy(params_file_path, bak_file_path)
 
     #### Update the ReadoutPars and TrainingPars parameters ####
     updated_lines = []
@@ -552,7 +574,7 @@ def configure_parameters_file(config_folder, trained_pars_list, sup_mid_readout_
         updated_lines.append(line)
 
     #### Extract, Remove, and Add Attributes ####
-    all_keys = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_2x2_m', 'J_2x2_s', 'kappa']
+    all_keys = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_II_m', 'J_EI_m', 'J_IE_m', 'J_EE_m', 'J_II_s', 'J_EI_s', 'J_IE_s', 'J_EE_s', 'kappa']
     ssnpars_keys = [key for key in all_keys if key not in trained_pars_list]
     
     # Extract attributes from both classes

@@ -19,6 +19,7 @@ if not pretraining_pars.is_on:
 
 ########## CALCULATE TUNING CURVES ############
 def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds = range(3), tc_ori_list = numpy.arange(0,180,6), add_header=True):
+    """ Calculate tuning curves for the different runs and different stages in each run """
     from parameters import GridPars, SSNPars
     grid_pars, ssn_pars = GridPars(), SSNPars()
     # Define the filename for the tuning curves 
@@ -59,6 +60,7 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
 
 ######### PLOT RESULTS ON PARAMETERS and TUNING CURVES ############
 def plot_results_on_parameters(final_folder_path, num_training, starting_time_in_main, tc_ori_list = numpy.arange(0,180,6)):
+    """ Plot the results from the results csv files and tuning curves csv files"""
     folder_to_save = os.path.join(final_folder_path, 'figures')
 
     ######### PLOT RESULTS ############

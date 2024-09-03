@@ -11,56 +11,13 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from training.model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import generate_noise
-from util import load_parameters, sep_exponentiate, filter_for_run_and_stage, unpack_ssn_parameters
+from util import load_parameters, filter_for_run_and_stage, unpack_ssn_parameters
 from training.util_gabor import BW_image_jit_noisy, BW_image_jax_supp, BW_image_vmap
 
 ############## Analysis functions ##########
-"""
-def corr_loss_and_param_change(folder_path):
-    '''NOT TESTED Calculate the mean correlation between the loss and the parameter changes for all runs.'''
-    # Read the original CSV file
-    file_path = os.path.join(folder_path,'results.csv')
-    df_results = pd.read_csv(file_path)
-    
-    # Calculate change over time by shufting the columns and subtracting the original columns
-    df_results_shifted = df_results.shift(1)
-    df_results_change = df_results - df_results_shifted
-    df_results_change = df_results_change.dropna()
-    
-    # Correlate the loss with the parameter changes
-    loss_keys = ['loss_binary_cross_entr', 'loss_dx_max', 'loss_r_max', 'loss_r_mean', 'loss_all']
-    other_pars_keys = ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II', 'J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II', 'c_E', 'c_I', 'f_E', 'f_I']
-    corr_loss_param_change = {}
-    for loss_key in loss_keys:
-        corr_loss_param_change[loss_key] = {}
-        for other_pars_key in other_pars_keys:
-            corr_loss_param_change[loss_key][other_pars_key] = df_results_change[loss_key].corr(df_results_change[other_pars_key])
-    
-    ##### Plot the correlation matrix - will be moved to visualization if it looks interesting #####
-    # Convert the dictionary to a DataFrame
-    correlation_df = pd.DataFrame(corr_loss_param_change).T
-
-    # Plot the matrix using imshow (imagesc equivalent in matplotlib)
-    plt.figure(figsize=(24, 16))
-    plt.imshow(correlation_df, cmap='viridis', aspect='auto')
-    plt.colorbar(label='Correlation')
-
-    # Set the ticks and labels for the plot
-    plt.xticks(ticks=np.arange(len(correlation_df.columns)), labels=correlation_df.columns, rotation=90)
-    plt.yticks(ticks=np.arange(len(correlation_df.index)), labels=correlation_df.index)
-
-    # Add axis labels and title
-    plt.xlabel('Other Parameters')
-    plt.ylabel('Loss Terms')
-    plt.title('Correlation Matrix between Loss Terms and Other Parameters')
-
-    # Save the plot
-    plt.savefig(os.path.join(folder_path, 'corr_loss_param_change.png'))
-
-    return corr_loss_param_change
-"""
 
 def exclude_runs(folder_path, input_vector):
+    """Exclude runs from the analysis by removing them from the CSV files."""
     # Read the original CSV file
     folder_path_from_analysis = os.path.join(os.path.dirname(os.path.dirname(__file__)),folder_path)
     file_path = os.path.join(folder_path_from_analysis,'pretraining_results.csv')
@@ -119,7 +76,7 @@ def data_from_run(folder, run_index=0, num_indices=3):
     return df_i, stage_time_inds
 
 def calc_rel_change_supp(variable, time_start, time_end):
-    '''Calculate the relative change in a variable between two time points.'''
+    """Calculate the relative change in a variable between two time points."""
     # Find the first non-None value after training_start and the last non-None value before training_end
     start_value = None
     for i in range(time_start, len(variable)):
@@ -142,14 +99,14 @@ def calc_rel_change_supp(variable, time_start, time_end):
             return 100*(end_value - start_value) / start_value
     
 def rel_change_for_run(folder, training_ind=0, num_indices=3):
-    '''Calculate the relative changes in the parameters for a single run.'''
+    """Calculate the relative changes in the parameters for a single run."""
     data, time_inds = data_from_run(folder, training_ind, num_indices)
     training_end = time_inds[-1]
     columns_to_drop = ['stage', 'SGD_steps']  # Replace with the actual column names you want to drop
     data = data.drop(columns=columns_to_drop)
-    data['EI_ratio_J_m'] = numpy.abs((data['J_m_II']+data['J_m_EI']))/numpy.abs((data['J_m_IE']+data['J_m_EE']))
-    data['EI_ratio_J_s'] = numpy.abs((data['J_s_II']+data['J_s_EI']))/numpy.abs((data['J_s_IE']+data['J_s_EE']))
-    data['EI_ratio_J_ms'] = numpy.abs((data['J_m_II']+data['J_m_EI']+data['J_s_II']+data['J_s_EI']))/numpy.abs((data['J_m_IE']+data['J_m_EE']+data['J_s_IE']+data['J_s_EE']))
+    data['EI_ratio_J_m'] = numpy.abs((data['J_II_m']+data['J_EI_m']))/numpy.abs((data['J_IE_m']+data['J_EE_m']))
+    data['EI_ratio_J_s'] = numpy.abs((data['J_II_s']+data['J_EI_s']))/numpy.abs((data['J_IE_s']+data['J_EE_s']))
+    data['EI_ratio_J_ms'] = numpy.abs((data['J_II_m']+data['J_EI_m']+data['J_II_s']+data['J_EI_s']))/numpy.abs((data['J_IE_m']+data['J_EE_m']+data['J_IE_s']+data['J_EE_s']))
     if num_indices == 3:
         pretraining_start = time_inds[0]
         training_start = time_inds[1]-1
@@ -163,7 +120,7 @@ def rel_change_for_run(folder, training_ind=0, num_indices=3):
     return rel_change_train, rel_change_pretrain, time_inds
 
 def rel_change_for_runs(folder, num_indices=3):
-    '''Calculate the relative changes in the parameters for all runs.'''
+    """Calculate the relative changes in the parameters for all runs."""
 
     # Initialize the arrays to store the results in
     filepath = os.path.join(folder, 'pretraining_results.csv')
@@ -184,7 +141,7 @@ def rel_change_for_runs(folder, num_indices=3):
     
 
 def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
-    '''Calculate the responses of the gabor filters to stimuli with different orientations.'''
+    """Calculate the responses of the gabor filters to stimuli with different orientations."""
     gabor_filters = untrained_pars.gabor_filters
     num_ori = len(ori_vec)
     # Getting the 'blank' alpha_channel and mask for a full image version stimuli with no background
@@ -217,9 +174,7 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
 
 
 def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange(0,180,6), training_stage=1, run_index=0, header = False):
-    '''
-    Calculate responses of middle and superficial layers to different orientations.
-    '''
+    """ Calculate responses of middle and superficial layers to different orientations."""
     # Get the parameters from the trained_pars dictionary and untreatned_pars class
     ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
     J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars, untrained_pars)
@@ -258,7 +213,7 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange
                 # Calculate model response for superficial layer cells and save it to responses_sup_phase_match
                 if phase_ind==0:
                     # Superficial layer response per grid point
-                    ssn_sup=SSN_sup(ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist, kappa)
+                    ssn_sup=SSN_sup(ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa)
                     _, [_, responses_sup],_, _, _, = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
                     sup_cell_ind = i*x_map.shape[0]+j
                     responses_sup_phase_match[:,sup_cell_ind]=responses_sup[:,sup_cell_ind]
@@ -284,9 +239,7 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange
 
 
 def tc_slope(tuning_curve, x_axis, x1, x2, normalise=False):
-    """
-    Calculates slope of (normalized if normalise=True) tuning_curve between points x1 and x2. tuning_curve is given at x_axis points.
-    """
+    """ Calculates slope of (normalized if normalise=True) tuning_curve between points x1 and x2. tuning_curve is given at x_axis points. """
     #Remove baseline if normalising
     if normalise == True:
         tuning_curve = (tuning_curve - tuning_curve.min()) / tuning_curve.max()
@@ -302,9 +255,7 @@ def tc_slope(tuning_curve, x_axis, x1, x2, normalise=False):
 
 
 def full_width_half_max(vector, d_theta):
-    """
-    Calculate width of tuning curve at half-maximum. This method does not work when tuning curve has multiple bumps!
-    """
+    """ Calculate width of tuning curve at half-maximum. This method should not be applied when tuning curve has multiple bumps. """
     # Remove baseline, calculate half-max
     vector = vector-vector.min()
     half_height = vector.max()/2
@@ -345,15 +296,13 @@ def tc_features(tuning_curve, ori_list=numpy.arange(0,180,6), expand_dims=False,
 
 
 def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
-    '''
-    Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores.
-    '''
+    """ Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores."""
     data, _ = rel_change_for_runs(folder, num_indices=num_time_inds)
     ##################### Correlate offset_th_diff with the combintation of the J_m and J_s, etc. #####################      
     offset_pars_corr = []
     offset_staircase_pars_corr = []
     if x_labels is None:
-        x_labels = ['J_m_E', 'J_m_I', 'J_s_E', 'J_s_I', 'f_E','f_I', 'cE_m', 'cI_m', 'cE_s', 'cI_s']
+        x_labels = ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'f_E','f_I', 'cE_m', 'cI_m', 'cE_s', 'cI_s']
     for i in range(len(x_labels)):
         # Calculate the Pearson correlation coefficient and the p-value
         corr, p_value = scipy.stats.pearsonr(data['psychometric_offset'], data[x_labels[i]])
@@ -373,15 +322,15 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
     for j in range(MVPA_scores_diff.shape[2]):
         for i in range(MVPA_scores_diff.shape[1]):        
             if i==0:
-                corr_m_J_I, p_val_m_J_I = scipy.stats.pearsonr(data['J_m_I'], MVPA_scores_diff[:,i,j])
-                corr_m_J_E, p_val_m_J_E = scipy.stats.pearsonr(data['J_m_E'], MVPA_scores_diff[:,i,j])
+                corr_m_J_I, p_val_m_J_I = scipy.stats.pearsonr(data['J_II_m']+data['J_EI_m'], MVPA_scores_diff[:,i,j])
+                corr_m_J_E, p_val_m_J_E = scipy.stats.pearsonr(data['J_EE_m']+data['J_IE_m'], MVPA_scores_diff[:,i,j])
                 corr_m_f_E, p_val_m_f_E = scipy.stats.pearsonr(data['f_E'], MVPA_scores_diff[:,i,j])
                 corr_m_f_I, p_val_m_f_I = scipy.stats.pearsonr(data['f_I'], MVPA_scores_diff[:,i,j])
                 corr_m_cE_m, p_val_m_cE_m = scipy.stats.pearsonr(data['cE_m'], MVPA_scores_diff[:,i,j])
                 corr_m_cI_m, p_val_m_cI_m = scipy.stats.pearsonr(data['cI_m'], MVPA_scores_diff[:,i,j])
             if i==1:
-                corr_s_J_I, p_val_s_J_I = scipy.stats.pearsonr(data['J_s_I'], MVPA_scores_diff[:,i,j])
-                corr_s_J_E, p_val_s_J_E = scipy.stats.pearsonr(data['J_s_E'], MVPA_scores_diff[:,i,j])                
+                corr_s_J_I, p_val_s_J_I = scipy.stats.pearsonr(data['J_II_s']+data['J_EI_s'], MVPA_scores_diff[:,i,j])
+                corr_s_J_E, p_val_s_J_E = scipy.stats.pearsonr(data['J_EE_s']+data['J_IE_s'], MVPA_scores_diff[:,i,j])                
                 corr_s_f_E, p_val_s_f_E = scipy.stats.pearsonr(data['f_E'], MVPA_scores_diff[:,i,j])
                 corr_s_f_I, p_val_s_f_I = scipy.stats.pearsonr(data['f_I'], MVPA_scores_diff[:,i,j])
                 corr_s_cE_s, p_val_s_cE_s = scipy.stats.pearsonr(data['cE_s'], MVPA_scores_diff[:,i,j])
@@ -398,7 +347,7 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
 ############################## helper functions for MVPA and Mahal distance analysis ##############################
 
 def select_type_mid(r_mid, cell_type='E', phases=4):
-    '''Selects the excitatory or inhibitory cell responses. This function assumes that r_mid is 3D (trials x grid points x celltype and phase)'''
+    """Selects the excitatory or inhibitory cell responses. This function assumes that r_mid is 3D (trials x grid points x celltype and phase)"""
     if cell_type=='E':
         map_numbers = np.arange(1, 2 * phases, 2)-1 # 0,2,4,6
     else:
@@ -432,6 +381,7 @@ def gaussian_filter_jax(image, sigma: float):
 
 
 def smooth_trial(X_trial, num_phases, gridsize_Nx, sigma, num_grid_points):
+    """Smooths a single trial of responses over grid points."""
     smoothed_data_trial = np.zeros((gridsize_Nx,gridsize_Nx,num_phases))
     for phase in range(num_phases):
         trial_response = X_trial[phase*num_grid_points:(phase+1)*num_grid_points]
@@ -444,9 +394,7 @@ vmap_smooth_trial = jax.vmap(smooth_trial, in_axes=(0, None, None, None, None))
 
 
 def smooth_data(X, gridsize_Nx, sigma = 1):
-    '''
-    Smooth data matrix (trials x cells or single trial) over grid points. Data is reshaped into 9x9 grid before smoothing and then flattened again.
-    '''
+    """ Smooth data matrix (trials x cells or single trial) over grid points. Data is reshaped into 9x9 grid before smoothing and then flattened again. """
     # if it is a single trial, add a batch dimension for vectorization
     original_dim = X.ndim
     if original_dim == 1:
@@ -464,6 +412,7 @@ def smooth_data(X, gridsize_Nx, sigma = 1):
 
 
 def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, cE_m = None, cI_m = None, cE_s=None, cI_s=None, f_E = None, f_I = None, kappa=None):
+    """Generate model response for a given orientation and noise level using vmap_evaluate_model_response."""
     # Generate noisy data
     ori_vec = np.repeat(ori, n_noisy_trials)
     jitter_vec = np.repeat(0, n_noisy_trials)
@@ -477,7 +426,7 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     
     # Create middle and superficial SSN layers
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
-    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist, kappa=kappa)
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa=kappa)
 
     # Calculate fixed point for data    
     _, [r_mid, r_sup], _,  _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
@@ -486,6 +435,7 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
 
 
 def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
+    """Get the indices of the SGD steps at the end (and at the beginning if num_indices=3) of pretraining and at the end of training."""
     # get the number of rows in the dataframe
     num_SGD_steps = len(df)
     SGD_step_inds = numpy.zeros(num_indices, dtype=int)
@@ -510,10 +460,10 @@ def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
 ################### Functions for MVPA and Mahalanobis distance analysis ###################
 
 def select_response(responses, stage_ind, layer, ori):
-    '''
+    """
     Selects the response for a given sgd_step, layer and ori from the responses dictionary. If the dictionary has ref and target responses, it returns the difference between them.
     The response is the output from filtered_model_response or filtered_model_response_task functions.    
-    '''
+    """
     step_mask = responses['stage'] == stage_ind
     if ori is None:
         ori_mask = responses['ori'] >-1
@@ -544,13 +494,13 @@ def select_response(responses, stage_ind, layer, ori):
 
 
 def mahal(X,Y):
-    '''
+    """
     D2 = MAHAL(Y,X) returns the Mahalanobis distance (in squared units) of
     each observation (point) in Y from the sample data in X, i.e.,
     D2(I) = (Y(I,:)-MU) * SIGMA^(-1) * (Y(I,:)-MU)',
     where MU and SIGMA are the sample mean and covariance of the data in X.
     Rows of Y and X correspond to observations, and columns to variables.
-    '''
+    """
 
     rx, _ = X.shape
     ry, _ = Y.shape
@@ -573,9 +523,9 @@ def mahal(X,Y):
 
 
 def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]), num_noisy_trials = 100, num_stage_inds = 2, r_noise=True, sigma_filter = 1, plot_flag = False, noise_std=1.0):
-    '''
+    """
     Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)
-    '''
+    """
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
 
@@ -649,9 +599,9 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     return output
 
 def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio):
-    '''
+    """
     Create dataframes for Mahalanobis distance and LMI values
-    '''
+    """
     run_layer_df=np.repeat(np.arange(num_training),num_layers)
     SGD_ind_df = numpy.zeros(num_training*num_layers)
     for i in range(1, num_SGD_inds):

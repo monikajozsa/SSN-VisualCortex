@@ -3,7 +3,7 @@ import jax.numpy as np
 from jax import lax
 
 class _SSN_Base(object):
-    ''' Base class for SSN models '''
+    """ Base class for SSN models """
     def __init__(self, n: int, k: float, Ne: int, Ni: int, tau_vec=None, W=None):
         self.n = n
         self.k = k
@@ -18,25 +18,25 @@ class _SSN_Base(object):
 
     @property
     def neuron_params(self):
-        ''' Returns the two key parameters n, k, and tau_vec of the SSN class '''
+        """ Returns the two key parameters n, k, and tau_vec of the SSN class """
         return dict(n=self.n, k=self.k, tau_vec=self.tau_vec)
 
     @property
     def dim(self):
-        ''' Returns the number of neurons in the SSN class '''
+        """ Returns the number of neurons in the SSN class """
         return self.N
 
     ######## FIXED POINT FUNCTIONS ########
     def powlaw(self, u):
-        ''' Power-law nonlinearity '''
+        """ Power-law nonlinearity """
         return self.k * np.maximum(0, u) ** self.n
 
     def drdt(self, r, inp_vec):
-        ''' Differential equation for the rate vector r '''
+        """ Differential equation for the rate vector r """
         return (-r + self.powlaw(self.W @ r + inp_vec)) / self.tau_vec
 
     def fixed_point_r(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5, xmin=1e-0):
-        ''' Find the fixed point of the rate vector r '''
+        """ Find the fixed point of the rate vector r """
         if r_init is None:
             r_init = np.zeros(inp_vec.shape)
         drdt = lambda r : self.drdt(r, inp_vec)
@@ -60,9 +60,8 @@ class _SSN_Base(object):
 
 
 class SSN_sup(_SSN_Base):
-    ''' Class for the superficial SSN layer. '''
-    def __init__(self, ssn_pars, grid_pars, J_2x2, oris, ori_dist, kappa= np.array([[0.0, 0.0], [0.0, 0.0]]), **kwargs):
-        from util import cosdiff_ring
+    """ Class for the superficial SSN layer. """
+    def __init__(self, ssn_pars, grid_pars, J_2x2, dist_from_single_ori, ori_dist, kappa= np.array([[0.0, 0.0], [0.0, 0.0]]), **kwargs):
         Ni = Ne = grid_pars.gridsize_Nx**2
         tauE = ssn_pars.tauE
         tauI = ssn_pars.tauI
@@ -78,8 +77,7 @@ class SSN_sup(_SSN_Base):
         self.sigma_oris = ssn_pars.sigma_oris # range of weights in terms of preferred orientation difference
    
         xy_dist = grid_pars.xy_dist
-        # Calculate the distance of each orientation in the map from the beta orientation
-        dist_from_single_ori = cosdiff_ring(oris - ssn_pars.beta, 180) # if beta is trained then we might need to move this computation
+
         self.W = self.make_W(J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa)
     
         
@@ -109,11 +107,9 @@ class SSN_sup(_SSN_Base):
             Wblks = [[1,1],[1,1]]
 
             # Loop over post- (a) and pre-synaptic (b) cell-types
-            dist_from_single_ori_rep = np.tile(dist_from_single_ori[:, None], (1, self.Ne))
-            dist_from_single_ori_rep_T = dist_from_single_ori_rep.T
             for a in range(2): # post-synaptic cell type
                 for b in range(2): # pre-synaptic cell type  
-                    horizontal_conn_from_oris = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa[a][b]*dist_from_single_ori_rep**2/2/45**2 + tanh_kappa[a][b]*dist_from_single_ori_rep_T**2/2/45**2            
+                    horizontal_conn_from_oris = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa[a][b]*dist_from_single_ori**2/2/45**2 + tanh_kappa[a][b]*dist_from_single_ori.T**2/2/45**2            
                     if b == 0: # E projections
                         W_local = np.exp(-xy_dist/s_2x2[a,b] - horizontal_conn_from_oris)
                     elif b == 1: # I projections 
@@ -142,7 +138,7 @@ class SSN_sup(_SSN_Base):
 
 
     def select_type(self, vec, select='E'):
-        ''' Select the E or I part of the vector vec '''
+        """ Select the E or I part of the vector vec """
         assert vec.ndim == 1
         Nx = self.grid_pars.gridsize_Nx
         # reshape vector into matrix form
@@ -159,7 +155,7 @@ class SSN_sup(_SSN_Base):
 
 
 class SSN_mid(_SSN_Base):
-    ''' Class for the middle SSN layer. '''
+    """ Class for the middle SSN layer. """
     def __init__(
         self,
         ssn_pars,
@@ -180,17 +176,17 @@ class SSN_mid(_SSN_Base):
         self.make_W(J_2x2)
 
     def drdt(self, r, inp_vec):
-        ''' Differential equation for the rate vector r '''
+        """ Differential equation for the rate vector r """
         r1 = np.reshape(r, (-1, self.Nc))
         out = (-r + self.powlaw(np.ravel(self.W @ r1) + inp_vec)) / self.tau_vec
         return out
 
     def make_W(self, J_2x2):
-        '''Create the recurrent connectivity matrix W - a block diagonal matrix with J_2x2 as the block matrix.'''
+        """Create the recurrent connectivity matrix W - a block diagonal matrix with J_2x2 as the block matrix."""
         self.W = np.kron(np.eye(self.phases), np.asarray(J_2x2))
 
     def select_type(self, vec, map_numbers):
-        ''' Select the E or I part of the vector vec '''
+        """ Select the E or I part of the vector vec """
         # Calculate start and end indices for each map_number (corresponding to a phase)
         start_indices = (map_numbers - 1) * self.Nc
         

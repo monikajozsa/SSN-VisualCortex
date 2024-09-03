@@ -51,6 +51,28 @@ def has_plateaued(loss, der_threshold=0.001, p_threshold=0.1, window_size = 20):
     return int(abs(end_derivative) < der_threshold and p_value > p_threshold)
 
 
+def append_parameter_lists(trained_pars_dict, ssn_pars, key_list, value_list, as_log=False, flatten=False):
+    """
+    Appends the value list by the new values that is in either the trained_pars_dict or the ssn_pars.
+    """
+    new_values = []
+    for key in key_list:
+        if key in trained_pars_dict.keys():
+            # no need to handle log because when as_log is True (only for J and f), the trained_pars_dict stores the log values
+            new_values.append(float(trained_pars_dict[key]))
+        else:
+            if as_log:
+                new_values.append(float(np.log(getattr(ssn_pars, key))))
+            else:
+                new_values.append(float(getattr(ssn_pars, key)))
+    if len(new_values) > 1:
+        value_list.append(np.array(new_values))
+    else:
+        value_list.append(new_values[0])
+    
+    return value_list
+
+
 def train_ori_discr(
     readout_pars_dict,
     trained_pars_dict,
@@ -158,37 +180,18 @@ def train_ori_discr(
                     train_accs.append(train_acc)
                     train_max_rates.append(train_max_rate)
                     train_mean_rates.append(train_mean_rate)
-                    if 'log_J_2x2_m' in trained_pars_dict.keys():
-                        log_J_2x2_m.append(trained_pars_dict['log_J_2x2_m'].ravel())
-                    else:
-                        log_J_2x2_m.append(take_log(ssn_pars.J_2x2_m).ravel())
-                    if 'log_J_2x2_s' in trained_pars_dict.keys():
-                        log_J_2x2_s.append(trained_pars_dict['log_J_2x2_s'].ravel())
-                    else:
-                        log_J_2x2_s.append(take_log(ssn_pars.J_2x2_s).ravel())
-                    if 'cE_m' in trained_pars_dict.keys():
-                        cE_m.append(trained_pars_dict['cE_m'])
-                        cI_m.append(trained_pars_dict['cI_m'])
-                    else:
-                        cE_m.append(ssn_pars.cE_m)
-                        cI_m.append(ssn_pars.cI_m)
-                    if 'cE_s' in trained_pars_dict.keys():
-                        cE_s.append(trained_pars_dict['cE_s'])
-                        cI_s.append(trained_pars_dict['cI_s'])
-                    else:
-                        cE_s.append(ssn_pars.cE_s)
-                        cI_s.append(ssn_pars.cI_s)
-                    if 'log_f_E' in trained_pars_dict.keys():
-                        log_f_E.append(trained_pars_dict['log_f_E'])
-                        log_f_I.append(trained_pars_dict['log_f_I'])
-                    else:
-                        log_f_E.append(np.log(ssn_pars.f_E))
-                        log_f_I.append(np.log(ssn_pars.f_I))
+                    append_parameter_lists(trained_pars_dict, ssn_pars, ['log_J_EE_m', 'log_J_EI_m', 'log_J_IE_m', 'log_J_II_m'], log_J_2x2_m, as_log=True)
+                    append_parameter_lists(trained_pars_dict, ssn_pars, ['log_J_EE_s', 'log_J_EI_s', 'log_J_IE_s', 'log_J_II_s'], log_J_2x2_s, as_log=True)
+                    append_parameter_lists(trained_pars_dict, ssn_pars, ['cE_m'], cE_m)
+                    append_parameter_lists(trained_pars_dict, ssn_pars, ['cI_m'], cI_m)
+                    append_parameter_lists(trained_pars_dict, ssn_pars, ['cE_s'], cE_s)
+                    append_parameter_lists(trained_pars_dict, ssn_pars, ['cI_s'], cI_s)
+                    append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_E'], log_f_E, as_log=True)
+                    append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_I'], log_f_I, as_log=True)
                     if 'kappa' in trained_pars_dict.keys():
                         kappas.append(trained_pars_dict['kappa'].ravel())
-                    else:
-                        if hasattr(ssn_pars, 'kappa'):
-                            kappas.append(ssn_pars.kappa.ravel())
+                    elif hasattr(ssn_pars, 'kappa'):
+                        kappas.append(ssn_pars.kappa)
                     if pretrain_on:
                         stages.append(stage-1)
                         w_sigs.append(readout_pars_dict['w_sig'])
@@ -425,10 +428,10 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     # Create middle and superficial SSN layers
     if pretraining:
         J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _ = unpack_ssn_parameters(trained_pars_dict, untrained_pars, return_kappa=False)
-        ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist)
+        ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist)
     else:
         J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars_dict, untrained_pars)
-        ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.oris, untrained_pars.ori_dist, kappa)
+        ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa)
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)    
     
     # Run reference and target through the model
@@ -527,23 +530,21 @@ def batch_loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, t
 ############### Other supporting functions ###############
 
 def binary_crossentropy_loss(n, x):
-    '''
-    Loss function calculating binary cross entropy. n is the true label and x is the predicted label.
-    '''
+    """Loss function calculating binary cross entropy. n is the true label and x is the predicted label."""
     return -(n * np.log(x) + (1 - n) * np.log(1 - x))
 
 
 def generate_noise(batch_size, length, num_readout_noise=125, dt_readout = 0.2):
-    '''
+    """
     This function creates batch_size number of vectors of neural noise where each vector is of length = length. 
-    '''
+    """
     sig_noise = 1/np.sqrt(num_readout_noise * dt_readout)
     return sig_noise*numpy.random.randn(batch_size, length)
 
 
 ####### Functions for testing training task accuracy for different offsets and finding the offset value where it crosses baseline accuracy 
 def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset, batch_size=300, pretrain_task= False):
-    '''
+    """
     This function tests the accuracy of the training orientation discrimination task given a set of parameters across different stimulus offsets.
     
     Parameters:
@@ -559,7 +560,7 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
     - acc: mean true accuracy
     - loss: mean loss
     
-    '''
+    """
     # Create copies of offset, pretrain_pars.is_on and readout_pars_dict because their values may change in this function
     offset_saved = untrained_pars.stimuli_pars.offset
     pretrain_is_on_saved = untrained_pars.pretrain_pars.is_on
@@ -618,9 +619,9 @@ def mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_
 
 
 def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=numpy.linspace(1, 90, 300), baseline_acc=0.794):
-    '''
+    """
     This function fits a log-linear curve to x=offset_vec, y=acc_vec data and returns the x value, where the curve crosses baseline_acc.
-    '''
+    """
         
     # Fit a log-linear learning curve
     offset_vec = numpy.array(offset_vec)
@@ -653,7 +654,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
 ####### Function for creating DataFrame from training results #######
 def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas=None):
-    ''' This function collects different variables from training results into a dataframe.'''
+    """ This function collects different variables from training results into a dataframe."""
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
     # Create an empty DataFrame and initialize it with stages, SGD steps, and training accuracies
@@ -692,10 +693,10 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         df[mean_rates_names[i]]=train_mean_rates[:,i]
     
     # Add parameters that are trained in two stages during training and in one stage during pretraining
-    log_J_m_names = ['log_J_m_EE', 'log_J_m_EI', 'log_J_m_IE', 'log_J_m_II']
-    log_J_s_names = ['log_J_s_EE', 'log_J_s_EI', 'log_J_s_IE', 'log_J_s_II']
-    J_m_names = ['J_m_EE', 'J_m_EI', 'J_m_IE', 'J_m_II']
-    J_s_names = ['J_s_EE', 'J_s_EI', 'J_s_IE', 'J_s_II']
+    log_J_m_names = ['log_J_EE_m', 'log_J_EI_m', 'log_J_IE_m', 'log_J_II_m']
+    log_J_s_names = ['log_J_EE_s', 'log_J_EI_s', 'log_J_IE_s', 'log_J_II_s']
+    J_m_names = ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m']
+    J_s_names = ['J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']
     J_2x2_m=np.transpose(np.array([np.exp(log_J_2x2_m[:,0]),-np.exp(log_J_2x2_m[:,1]),np.exp(log_J_2x2_m[:,2]),-np.exp(log_J_2x2_m[:,3])]))
     J_2x2_s=np.transpose(np.array([np.exp(log_J_2x2_s[:,0]),-np.exp(log_J_2x2_s[:,1]),np.exp(log_J_2x2_s[:,2]),-np.exp(log_J_2x2_s[:,3])]))
     for i in range(len(log_J_2x2_m[0])):
