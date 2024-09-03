@@ -1,4 +1,4 @@
-# Documentation on Perceptual Learning model for understanding layer specific mechanisms in V1
+# Documentation on a NN model for Perceptual Learning to better understand layer specific mechanisms in V1
 
 ## Table of Contents
 - [Project description](#introduction)
@@ -8,6 +8,9 @@
 
 ## Project description
 
+**Contributors**
+
+This project was conceived by Yashar Ahmadian and Zoe Kourtzi and was developped by Clara Pecci and myself (Monika Jozsa). The relevant experiments that gave the fundamental questions to this project were done by Ke Jia and Mengxin Wang. We also acknowledge all the participants of the experiments.
 
 **Motivation for our computational model**
 
@@ -15,7 +18,7 @@ Our project aims to replicate experimental results on perceptual learning and pr
 
 **Experimental results behind this study**
 
-Jia et al. (2024, under review) used ultra-high-field (UHF-7T) brain imaging and magnetic resonance spectroscopy (MRS) to explore how perceptual decision-making influences functional and neurochemical plasticity. Their study found that participants' ability to discriminate orientations improved with training, particularly for trained orientations. UHF-7T imaging revealed increased signal-to-noise ratios in the superficial layers of V1, while MRS showed a rise in the GABA-to-glutamate ratio across visual areas, linked to performance gains. These findings suggest that enhanced inhibition in V1's superficial layers may drive the learning process. 
+Jia et al. (2024, Science Advances) used ultra-high-field (UHF-7T) brain imaging and magnetic resonance spectroscopy (MRS) to explore how perceptual decision-making influences functional and neurochemical plasticity. Their study found that participants' ability to discriminate orientations improved with training, particularly for trained orientations. UHF-7T imaging revealed increased signal-to-noise ratios in the superficial layers of V1, while MRS showed a rise in the GABA-to-glutamate ratio across visual areas, linked to performance gains. These findings suggest that enhanced inhibition in V1's superficial layers may drive the learning process. 
 
 **Results of the computational model**
 We found that inihibition indeed increases specifically in the superficial layer. Ablation studies showed that the direct readout from superficial layer is the the primary reason for this phenomenon as opposed to other structural differences between the middle and the superficial layers.
