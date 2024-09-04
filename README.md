@@ -151,7 +151,7 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 ### Training Folder
 - **`main_training.py`**: Contains the main flow for pretraining and training in two functions (`main_pretraining` and `main_training`).
 - **`perturb_params.py`**:  Randomizes parameters in the model, while ensuring that predefined inequality and response conditions are met.
-- **`training_functions.py`**: 
+- **`training_functions.py`**: Implements training and evaluation of a two-layer SSN model for the general and the fine orientation discrimination tasks. It includes functions for managing model parameters, calculating loss and accuracy, training the model with SGD, logging results into a DataFrame and saving it to a csv file.
 - **`SSN_classes.py`**: Defines classes for modeling Stabilized Supralinear Networks (SSN), focusing on two layers. These classes represent and simulate the dynamics of neural circuits based on shared parameters of neurons and parameters describing the connectivities between neurons.
 - **`model.py`**: Provides functions for simulating the response (fixed point) of neurons in both the middle and superficial layers. It includes vectorized versions of these functions to handle batch processing. The functions also compute maximum and mean firing rates that are homeostatic terms in the loss function.
 - **`util_gabor.py`**: Utility functions to handle orientation maps, Gabor filters and 
@@ -181,17 +181,19 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 <details>
 <summary> Functions in `training_functions.py`</summary>
 
-- **`has_plateaued`**: 
-- **`train_ori_discr`**: 
-- **`loss_and_grad_ori_discr`**: 
-- **`loss_ori_discr`**: 
-- **`batch_loss_ori_discr`**: 
-- **`binary_crossentropy_loss`**: 
-- **`task_acc_test`**: 
-- **`mean_training_task_acc_test`**: 
-- **`offset_at_baseline_acc`**: 
-- **`make_dataframe`**:  This function collects different variables from training results into a dataframe.
-- **`generate_noise`**: 
+- **`has_plateaued`**: Checks if the loss or accuracy has plateaued by fitting an exponential decay curve, evaluating the derivative, and performing a Mann-Whitney U test.
+- **`append_parameter_lists`**: Appends new values from a parameter dictionary or object to a given list, with optional logarithmic transformation and flattening.
+- **`train_ori_discr`**: Trains a two-layer SSN model for orientation discrimination task with settings for either training or pretraining.
+- **`loss_and_grad_ori_discr`**: Computes the losses, accuracies, gradients, and other metrics for the orientation discrimination task by generating training data and applying the `jax.loss_and_grad` function to `batch_loss_ori_discr`.
+- **`loss_ori_discr`**: Calculates loss, accuracy, and other metrics by evaluating the model response for reference and target data, including noise and applying the sigmoid function.
+- **`batch_loss_ori_discr`**: Calls `loss_ori_discr` in a vectorized version to allow for batch processing. Includes optional JIT compilation.
+- **`binary_crossentropy_loss`**: Computes binary cross-entropy loss given true and predicted labels.
+- **`generate_noise`**: Generates random noise vectors for a batch, serving as an additive noise to the model response.
+- **`task_acc_test`**: Tests the model's accuracy on either the general or the fine orientation discrimination task for different stimulus offsets.
+- **`mean_training_task_acc_test`**: Averages model accuracy (by calling `task_acc_test`) over multiple samples for a given set of parameters and stimulus offsets.
+- **`offset_at_baseline_acc`**: Fits a log-linear curve to accuracy vs. offset data and finds the offset where the curve crosses a threshold accuracy.
+- **`make_dataframe`**: Creates a DataFrame from training results, including accuracies, losses, and parameter values, and saves it to a CSV file if specified.
+
 </details>
 
 <details>

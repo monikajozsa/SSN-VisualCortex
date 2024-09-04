@@ -557,6 +557,7 @@ def plot_tc_features(results_dir, num_training, ori_list):
     
     # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
     stage_labels = ['pretrain', 'train']
+    
     for training_stage in range(2):# change to range(2) for both pretrain and train
         fig, axs = plt.subplots(2, 2, figsize=(25, 25))
         for layer_j in [0,2]:            
@@ -627,9 +628,9 @@ def plot_tc_features(results_dir, num_training, ori_list):
         plt.tight_layout(w_pad=10, h_pad=7)
         fig.savefig(os.path.join(results_dir,'figures', f'tc_features_{stage_labels[training_stage]}.png'), bbox_inches='tight')
         plt.close()
-
+        
         # 3 x 2 scatter plot of data[slopediff_55_0 and 1], data[slopediff_55_0 and 1] and data[slopediff_diff]
-        fig, axs = plt.subplots(2, 3, figsize=(25, 25))
+        fig, axs = plt.subplots(2, 3, figsize=(30, 20))
         # Middle layer
         for k in [0,2]:
             # k=0 superficial layer, k=2 middle layer
@@ -648,8 +649,8 @@ def plot_tc_features(results_dir, num_training, ori_list):
                     axs[0,0].scatter(x_I_55, data[f'slopediff_{55}_{training_stage}'][:,indices_phase_I].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
                     axs[0,1].scatter(x_E_125, data[f'slopediff_{125}_{training_stage}'][:,indices_phase_E].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
                     axs[0,1].scatter(x_I_125, data[f'slopediff_{125}_{training_stage}'][:,indices_phase_I].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
-                    axs[0,2].scatter(x_E_90, data[f'slopediff_diff_{training_stage}'][:,indices_phase_E].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
-                    axs[0,2].scatter(x_I_90, data[f'slopediff_diff_{training_stage}'][:,indices_phase_I].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
+                    #axs[0,2].scatter(x_E_90, data[f'slopediff_diff_{training_stage}'][:,indices_phase_E].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
+                    #axs[0,2].scatter(x_I_90, data[f'slopediff_diff_{training_stage}'][:,indices_phase_I].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
                 # Line plots for middle layer: merge phases
                 x_E_55 = shift_x_data(data[f'preforis_{training_stage}'], E_mid, shift_value=55)
                 x_I_55 = shift_x_data(data[f'preforis_{training_stage}'], I_mid, shift_value=55)
@@ -676,8 +677,8 @@ def plot_tc_features(results_dir, num_training, ori_list):
                 axs[axs_ind_1,0].scatter(x_I_55, data[f'slopediff_{55}_{training_stage}'][:,indices[k+1]].flatten(), s=30, alpha=0.7, color='blue')
                 axs[axs_ind_1,1].scatter(x_E_125, data[f'slopediff_{125}_{training_stage}'][:,indices[k]].flatten(), s=30, alpha=0.7, color='red')
                 axs[axs_ind_1,1].scatter(x_I_125, data[f'slopediff_{125}_{training_stage}'][:,indices[k+1]].flatten(), s=30, alpha=0.7, color='blue')
-                axs[axs_ind_1,2].scatter(x_E_90, data[f'slopediff_diff_{training_stage}'][:,indices[k]].flatten(), s=30, alpha=0.7, color='red')
-                axs[axs_ind_1,2].scatter(x_I_90, data[f'slopediff_diff_{training_stage}'][:,indices[k+1]].flatten(), s=30, alpha=0.7, color='blue')
+                #axs[axs_ind_1,2].scatter(x_E_90, data[f'slopediff_diff_{training_stage}'][:,indices[k]].flatten(), s=30, alpha=0.7, color='red')
+                #axs[axs_ind_1,2].scatter(x_I_90, data[f'slopediff_diff_{training_stage}'][:,indices[k+1]].flatten(), s=30, alpha=0.7, color='blue')
                 
                 # Line plots for superficial layer: define x and y values and shift x to have 0 in its center
                 lowess_E_55 = sm.nonparametric.lowess(data[f'slopediff_{55}_{training_stage}'][:,indices[k]].flatten(), x_E_55, frac=0.15)  # Example with frac=0.2 for more local averaging
@@ -688,10 +689,14 @@ def plot_tc_features(results_dir, num_training, ori_list):
                 lowess_I_diff = sm.nonparametric.lowess(data[f'slopediff_diff_{training_stage}'][:,indices[k+1]].flatten(), x_I_90, frac=0.15)
             axs[axs_ind_1,0].plot(lowess_E_55[:, 0], lowess_E_55[:, 1], color='red', linewidth=4)
             axs[axs_ind_1,0].plot(lowess_I_55[:, 0], lowess_I_55[:, 1], color='blue', linewidth=4)
-            axs[axs_ind_1,1].plot(lowess_E_125[:, 0], lowess_E_125[:, 1], color='red', linewidth=4)
-            axs[axs_ind_1,1].plot(lowess_I_125[:, 0], lowess_I_125[:, 1], color='blue', linewidth=4)
-            axs[axs_ind_1,2].plot(lowess_E_diff[:, 0], lowess_E_diff[:, 1], color='red', linewidth=4)
-            axs[axs_ind_1,2].plot(lowess_I_diff[:, 0], lowess_I_diff[:, 1], color='blue', linewidth=4)
+            axs[axs_ind_1,1].plot(lowess_E_125[:, 0], lowess_E_125[:, 1], color='tab:red', linewidth=4)
+            axs[axs_ind_1,1].plot(lowess_I_125[:, 0], lowess_I_125[:, 1], color='tab:blue', linewidth=4)
+            axs[axs_ind_1,2].plot(lowess_E_55[:, 0], lowess_E_55[:, 1], color='red', linewidth=4)
+            axs[axs_ind_1,2].plot(lowess_I_55[:, 0], lowess_I_55[:, 1], color='blue', linewidth=4)
+            axs[axs_ind_1,2].plot(lowess_E_125[:, 0], lowess_E_125[:, 1], color='tab:red', linewidth=4)
+            axs[axs_ind_1,2].plot(lowess_I_125[:, 0], lowess_I_125[:, 1], color='tab:blue', linewidth=4)
+            #axs[axs_ind_1,2].plot(lowess_E_diff[:, 0], lowess_E_diff[:, 1], color='red', linewidth=4)
+            #axs[axs_ind_1,2].plot(lowess_I_diff[:, 0], lowess_I_diff[:, 1], color='blue', linewidth=4)
             # Set titles
             axs[axs_ind_1,0].set_title(r'$\Delta$' + 'slope(55)', fontsize=fs_text)
             axs[axs_ind_1,1].set_title(r'$\Delta$' + 'slope(125)', fontsize=fs_text)
@@ -700,7 +705,7 @@ def plot_tc_features(results_dir, num_training, ori_list):
         for ax in axs.flatten():
             axes_format(ax, fs_ticks)
         plt.tight_layout(w_pad=10, h_pad=7)
-        fig.savefig(os.path.join(results_dir,'figures',f'tc_slope_{stage_labels[training_stage]}.png'), bbox_inches='tight')
+        fig.savefig(os.path.join(results_dir,'figures',f'tc_slope_{stage_labels[training_stage]}_v2.png'), bbox_inches='tight')
         plt.close()
 
 
