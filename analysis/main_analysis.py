@@ -59,31 +59,32 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
 
 
 ######### PLOT RESULTS ON PARAMETERS and TUNING CURVES ############
-def plot_results_on_parameters(final_folder_path, num_training, starting_time_in_main, tc_ori_list = numpy.arange(0,180,6)):
+def plot_results_on_parameters(final_folder_path, num_training, starting_time_in_main, tc_ori_list = numpy.arange(0,180,6), plot_per_run = True, plot_boxplots = True, plot_tc = True):
     """ Plot the results from the results csv files and tuning curves csv files"""
     folder_to_save = os.path.join(final_folder_path, 'figures')
 
     ######### PLOT RESULTS ############
-    
-    excluded_run_inds = plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
-    # save excluded_run_inds into a csv in final_folder_path
-    excluded_run_inds_df = pd.DataFrame(excluded_run_inds)
-    excluded_run_inds_df.to_csv(os.path.join(final_folder_path, 'excluded_runs.csv'))
-    if excluded_run_inds is not None:
-        exclude_runs(final_folder_path, excluded_run_inds)
-        num_training=num_training-len(excluded_run_inds)
-    
-    boxplot_file_name = 'boxplot_pretraining'
-    boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 3, num_training=num_training)
-    print(f'Finished run-plots and boxplots in {time.time()-starting_time_in_main} seconds')
+    if plot_per_run:
+        excluded_run_inds = plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+        # save excluded_run_inds into a csv in final_folder_path
+        excluded_run_inds_df = pd.DataFrame(excluded_run_inds)
+        excluded_run_inds_df.to_csv(os.path.join(final_folder_path, 'excluded_runs.csv'))
+        if excluded_run_inds is not None:
+            exclude_runs(final_folder_path, excluded_run_inds)
+            num_training=num_training-len(excluded_run_inds)
+    if plot_boxplots:
+        boxplot_file_name = 'boxplot_pretraining'
+        boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 3, num_training=num_training)
+        print(f'Finished run-plots and boxplots in {time.time()-starting_time_in_main} seconds')
     
     ######### PLOT TUNING CURVES ############
-    '''start_time = time.time()
-    tc_cells=[10,40,100,130,650,690,740,760] # these are representative cells from the different layers and types in the network
-    plot_tuning_curves(final_folder_path, tc_cells, num_training, folder_to_save)
-    plot_tc_features(final_folder_path, num_training, tc_ori_list)
-    print(f'Finished plotting tuning curves and features in {time.time()-start_time} seconds')
-    '''
+    if plot_tc:
+        start_time = time.time()
+        tc_cells=[10,40,100,130,650,690,740,760] # these are representative cells from the different layers and types in the network
+        plot_tuning_curves(final_folder_path, tc_cells, num_training, folder_to_save)
+        plot_tc_features(final_folder_path, num_training, tc_ori_list)
+        print(f'Finished plotting tuning curves and features in {time.time()-start_time} seconds')
+
 '''
 ###########################################################
 ######### CALCULATE MVPA AND PLOT CORRELATIONS ############

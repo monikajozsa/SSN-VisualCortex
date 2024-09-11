@@ -77,7 +77,7 @@ for conf in [conf_Js_excluded, conf_Jm_only, conf_Js_only, conf_JE_only, conf_f_
         main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
 
     # plot results on parameters and tuning curves
-    plot_results_on_parameters(config_folder, num_training, starting_time_in_main, tc_ori_list = tc_ori_list)
+    plot_results_on_parameters(config_folder, num_training, starting_time_in_main, tc_ori_list = tc_ori_list, plot_tc = False)
     i += 1
     
     print('\n')
