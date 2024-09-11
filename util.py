@@ -10,10 +10,10 @@ import os
 from training.util_gabor import BW_image_jit_noisy
 
 
-def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, return_kappa= True):
+def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kappa= True):
     """Unpacks the trained parameters and the untrained parameters. If as_log_list is True, then the J and f parameters are returned as a list of logs. If return_kappa is True, then the kappa parameter is returned."""
 
-    def get_J(par_name, trained_pars, untrained_pars):
+    def get_J(par_name, trained_pars, ssn_pars):
         """
         Returns the value of J based on the provided parameters.
         """
@@ -29,33 +29,33 @@ def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, retur
             J = trained_pars[par_name]
         # Return default value from untrained_pars
         else:
-            J = getattr(untrained_pars.ssn_pars, par_name)
+            J = getattr(ssn_pars, par_name)
 
         return J
 
-    J_II_m = get_J('J_II_m', trained_pars, untrained_pars)
-    J_IE_m = get_J('J_IE_m', trained_pars, untrained_pars)
-    J_EI_m = get_J('J_EI_m', trained_pars, untrained_pars)
-    J_EE_m = get_J('J_EE_m', trained_pars, untrained_pars)
+    J_II_m = get_J('J_II_m', trained_pars, ssn_pars)
+    J_IE_m = get_J('J_IE_m', trained_pars, ssn_pars)
+    J_EI_m = get_J('J_EI_m', trained_pars, ssn_pars)
+    J_EE_m = get_J('J_EE_m', trained_pars, ssn_pars)
     J_2x2_m = np.array([[J_EE_m, J_EI_m], [J_IE_m, J_II_m]])
-    J_II_s = get_J('J_II_s', trained_pars, untrained_pars)
-    J_IE_s = get_J('J_IE_s', trained_pars, untrained_pars)
-    J_EI_s = get_J('J_EI_s', trained_pars, untrained_pars)
-    J_EE_s = get_J('J_EE_s', trained_pars, untrained_pars)
+    J_II_s = get_J('J_II_s', trained_pars, ssn_pars)
+    J_IE_s = get_J('J_IE_s', trained_pars, ssn_pars)
+    J_EI_s = get_J('J_EI_s', trained_pars, ssn_pars)
+    J_EE_s = get_J('J_EE_s', trained_pars, ssn_pars)
     J_2x2_s = np.array([[J_EE_s, J_EI_s], [J_IE_s, J_II_s]])
 
     if 'cE_m' in trained_pars:
         cE_m = trained_pars['cE_m']
         cI_m = trained_pars['cI_m']
     else:
-        cE_m = untrained_pars.ssn_pars.cE_m
-        cI_m = untrained_pars.ssn_pars.cI_m
+        cE_m = ssn_pars.cE_m
+        cI_m = ssn_pars.cI_m
     if 'cE_s' in trained_pars:
         cE_s = trained_pars['cE_s']
         cI_s = trained_pars['cI_s']
     else:
-        cE_s = untrained_pars.ssn_pars.cE_s
-        cI_s = untrained_pars.ssn_pars.cI_s
+        cE_s = ssn_pars.cE_s
+        cI_s = ssn_pars.cI_s
     if 'log_f_E' in trained_pars:  
         f_E = np.exp(trained_pars['log_f_E'])
         f_I = np.exp(trained_pars['log_f_I'])
@@ -63,14 +63,14 @@ def unpack_ssn_parameters(trained_pars, untrained_pars, as_log_list=False, retur
         f_E = trained_pars['f_E']
         f_I = trained_pars['f_I']
     else:
-        f_E = untrained_pars.ssn_pars.f_E
-        f_I = untrained_pars.ssn_pars.f_I
+        f_E = ssn_pars.f_E
+        f_I = ssn_pars.f_I
     if return_kappa: 
         if 'kappa' in trained_pars:
             kappa = trained_pars['kappa']
         else:
-            if hasattr(untrained_pars.ssn_pars, 'kappa'): # case when during pretraining we check training task accuracy
-                kappa = untrained_pars.ssn_pars.kappa
+            if hasattr(ssn_pars, 'kappa'): # case when during pretraining we check training task accuracy
+                kappa = ssn_pars.kappa
             else:
                 kappa = np.array([[0.0, 0.0], [0.0, 0.0]])
     else:
@@ -459,7 +459,7 @@ def set_up_config_folder(results_folder, conf_name):
     figure_folder.mkdir(parents=True, exist_ok=True)
 
     # copy parameters.py to the config folder
-    shutil.copy('parameters.py', config_folder / 'parameters_' + conf_name+ '.py')
+    shutil.copy('parameters.py', os.path.join(config_folder, 'parameters_' + conf_name+ '.py'))
     shutil.copy(os.path.join(results_folder, 'orimap.csv'), config_folder / 'orimap.csv')
     shutil.copy(os.path.join(results_folder, 'initial_parameters.csv'), config_folder / 'initial_parameters.csv')
     shutil.copy(os.path.join(results_folder, 'pretraining_results.csv'), config_folder / 'pretraining_results.csv')

@@ -213,14 +213,6 @@ class ReadoutPars:
 # general SSN parameters
 @dataclass
 class SSNPars:
-    J_EI_m: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in middle layer """
-    J_II_m: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in middle layer """
-    J_EE_m: float = 0.0
-    """ relative strength of weights of E/E pre/post cell-type in middle layer """
-    J_IE_m: float = 0.0
-    """ relative strength of weights of E/I pre/post cell-type in middle layer """
     n: float = 2.0  
     """ power law parameter """
     k: float = 0.04  
@@ -246,12 +238,6 @@ class SSNPars:
 # Trained SSN parameters - parameters can be moved between TrainedSSNPars and SSNPars depending on whether we want to train them or not
 @dataclass
 class TrainedSSNPars:
-    f_E: float = 0.0
-    """ scaling constant for feedforwards connections to excitatory units in sup layer """
-    f_I: float = 0.0
-    """ scaling constant for feedforwards connections to inhibitory units in sup layer """
-    kappa = np.array([[0.0, 0.0], [0.0, 0.0]])
-    """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity """
     cE_m: float = 0.0
     """ baseline excitatory input (constant added to the output of excitatory neurons at middle layer) """
     cI_m: float = 0.0
@@ -260,14 +246,28 @@ class TrainedSSNPars:
     """ baseline excitatory input (constant added to the output of excitatory neurons at superficial layer) """
     cI_s: float = 0.0
     """ baseline inhibitory input (constant added to the output of inhibitory neurons at superficial layer) """
-    J_EI_s: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in superficial layer """
-    J_II_s: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in superficial layer """
+    f_E: float = 0.0
+    """ scaling constant for feedforwards connections to excitatory units in sup layer """
+    f_I: float = 0.0
+    """ scaling constant for feedforwards connections to inhibitory units in sup layer """
+    J_EE_m: float = 0.0
+    """ relative strength of weights of E/E pre/post cell-type in middle layer """
+    J_IE_m: float = 0.0
+    """ relative strength of weights of E/I pre/post cell-type in middle layer """
+    J_EI_m: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in middle layer """
+    J_II_m: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in middle layer """
     J_EE_s: float = 0.0
     """ relative strength of weights of E/E pre/post cell-type in superficial layer """
     J_IE_s: float = 0.0
     """ relative strength of weights of E/I pre/post cell-type in superficial layer """
+    J_EI_s: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in superficial layer """
+    J_II_s: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in superficial layer """
+    kappa = np.array([[0.0, 0.0], [0.0, 0.0]])
+    """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity """
 
 
 @dataclass

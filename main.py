@@ -11,35 +11,47 @@ from training.main_training import main_pretraining, main_training
 from analysis.main_analysis import main_tuning_curves, plot_results_on_parameters
 
 ## Set up number of runs and starting time
-num_training = 2
+num_training = 49
 starting_time_in_main= time.time()
 
 # Set up results folder and save note and scripts
-note=f'Different ablation cases'
+note=f'Getting as much data with corrected kappas over the weekend as possible'
 root_folder = os.path.dirname(__file__)
-folder_path = save_code(note=note)
+#folder_path = save_code(note=note)
+folder_path = os.path.join(root_folder, 'results', 'Aug15_v0')
 
 ## Run pretraining
-main_pretraining(folder_path, num_training, starting_time_in_main=starting_time_in_main)
+#main_pretraining(folder_path, num_training, starting_time_in_main=starting_time_in_main)
 
 ## Define the configurations for training
-conf_0 = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False) # training all parameters (baseline case)
-conf_1 = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], True) # training with general discrimination task (control case)
-conf_2 = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.0, 1.0], False) # reading out from middle layer (ablation)
-conf_3 = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s'], [1.0, 0.0], False) # training all parameters but kappa (ablation)
-conf_4 = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'kappa'], [1.0, 0.0], False) # training all but J_2x2_s (ablation)
-conf_5 = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_2x2_s', 'kappa'], [1.0, 0.0], False) # training all but J_2x2_m (ablation)
-conf_6 = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'J_2x2_m', 'J_2x2_s', 'kappa'], [1.0, 0.0], False) # training all but f_E, f_I (ablation)
-conf_7 = (['cE_m', 'cI_m', 'f_E', 'f_I', 'J_2x2_m', 'J_2x2_s', 'kappa'], [1.0, 0.0], False) # training all but  cE_s, cI_s (ablation)
-conf_8 = (['f_E', 'f_I', 'J_2x2_m', 'J_2x2_s', 'kappa'], [1.0, 0.0], False) # training all but cE_m, cI_m (ablation)
+conf_baseline = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False) # training all parameters (baseline case)
+#conf_gentask = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], True) # training with general discrimination task (control case)
+#conf_midonly = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.0, 1.0], False) # reading out from middle layer (ablation)
+# Additional case where labels are shuffled is handled with a separate util/py file
 
-conf_names = ['conf_0', 'conf_1', 'conf_2', 'conf_3', 'conf_4', 'conf_5', 'conf_6', 'conf_7', 'conf_8']
+## Training all parameters but a few
+#conf_kappa_a = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s'], [1.0, 0.0], False) # training all parameters but kappa (ablation)
+conf_cms_excluded = (['f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False) # training all but cE_m, cI_m, cE_s, cI_s (ablation)
+conf_JI_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_IE_m', 'J_EE_s', 'J_IE_s', 'kappa'], [1.0, 0.0], False) # training all but JI (ablation)
+conf_JE_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_II_m', 'J_EI_m', 'J_II_s', 'J_EI_s', 'kappa'], [1.0, 0.0], False) # training all but JI (ablation)
+conf_Jm_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False) # training all but Jm (ablation)
+conf_Js_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'kappa'], [1.0, 0.0], False) # training all but Js (ablation)
+conf_f_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False) # training all but f_E, f_I (ablation)
+
+## Training only a few
+conf_cms_only = (['cE_m', 'cI_m', 'cE_s', 'cI_s'], [1.0, 0.0], False) # training only cE_m, cI_m, cE_s, cI_s (ablation)
+conf_JI_only = (['J_II_m', 'J_EI_m', 'J_II_s', 'J_EI_s'], [1.0, 0.0], False) # training only JI
+conf_JE_only = (['J_EE_m', 'J_IE_m', 'J_EE_s', 'J_IE_s'], [1.0, 0.0], False) # training only JE
+conf_Jm_only = (['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m'], [1.0, 0.0], False) # training only Jm
+conf_Js_only = (['J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s'], [1.0, 0.0], False) # training only Js
+conf_f_only = (['f_E','f_I'], [1.0, 0.0], False) # training only f
+
+conf_names = ['conf_Js_excluded', 'conf_Jm_only', 'conf_Js_only', 'conf_JE_only', 'conf_f_only']
 
 ## Run training and analysis on the different configurations
 i = 0
 tc_ori_list = numpy.arange(0,180,6)
-for conf in [conf_0, conf_1, conf_2, conf_3, conf_4, conf_5, conf_6, conf_7, conf_8]:
-    
+for conf in [conf_Js_excluded, conf_Jm_only, conf_Js_only, conf_JE_only, conf_f_only]:
     # create a configuration folder and copy relevant files to it
     config_folder = set_up_config_folder(folder_path, conf_names[i])
     
@@ -63,7 +75,7 @@ for conf in [conf_0, conf_1, conf_2, conf_3, conf_4, conf_5, conf_6, conf_7, con
         destination_file = os.path.join(config_folder, 'tuning_curves.csv')
         os.system(f'copy "{source_file}" "{destination_file}"')
         main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
-    
+
     # plot results on parameters and tuning curves
     plot_results_on_parameters(config_folder, num_training, starting_time_in_main, tc_ori_list = tc_ori_list)
     i += 1

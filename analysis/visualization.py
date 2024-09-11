@@ -83,7 +83,7 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     fig, ax = plt.subplots(2,4, figsize=(20, 10))
     # Colors for bars
     colors=['red' ,'tab:red','blue', 'tab:blue' ,'red' ,'tab:red', 'blue', 'tab:blue']
-    keys_J = ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']
+    keys_J = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m', 'J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']
     J_means_pre = [means_pre['J_EE_m'], means_pre['J_IE_m'], -means_pre['J_EI_m'], -means_pre['J_II_m'], means_pre['J_EE_s'], means_pre['J_IE_s'], -means_pre['J_EI_s'], -means_pre['J_II_s']]
     J_means_post = [means_post['J_EE_m'], means_post['J_IE_m'], -means_post['J_EI_m'], -means_post['J_II_m'], means_post['J_EE_s'], means_post['J_IE_s'], -means_post['J_EI_s'], -means_post['J_II_s']]
     ax_flat = ax.flatten()
@@ -136,9 +136,9 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
         [r'$\Delta J^{\text{sup}}_{E \rightarrow E}$', r'$\Delta J^{\text{sup}}_{E \rightarrow I}$', r'$\Delta J^{\text{sup}}_{I \rightarrow E}$', r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'],
         [r'$\Delta cE_m$', r'$\Delta cI_m$', r'$\Delta cE_s$', r'$\Delta cI_s$'],
         [r'$\Delta f_E$', r'$\Delta f_I$'],
-        [r'$\Delta \kappa_{E \rightarrow  E}$',r'$\Delta \kappa_{E \rightarrow  I}$']
+        [r'$\Delta \kappa_{E \rightarrow  E}^{pre}$',r'$\Delta \kappa_{E \rightarrow  I}^{pre}$',r'$\Delta \kappa_{E \rightarrow  E}^{post}$',r'$\Delta \kappa_{E \rightarrow  I}^{post}$']
     ]
-    keys_group = [keys_J[:4], keys_J[4:], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_EE','kappa_IE']]
+    keys_group = [keys_J[:4], keys_J[4:], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_EE_pre','kappa_IE_pre','kappa_EE_post','kappa_IE_post']]
     num_groups = len(group_labels)    
 
     fig, axs = plt.subplots(num_time_inds-1, num_groups, figsize=(5*num_groups, 5*(num_time_inds-1)))  # Create subplots for each group
@@ -251,7 +251,7 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
     values_fc = [rel_changes_train[key]for key in keys_fc]
 
     # exclude the run from further analysis if for both staircase and psychometric offsets more than 8 values out of the last 10 were above 10 degrees
-    exclude_run = sum(df[keys_metrics[1]][-11:-1] > 10) > 8 and sum(df[keys_metrics[2]][-11:-1] > 10) > 8
+    exclude_run = sum(df[keys_metrics[1]][-11:-1] > 9) > 8 and sum(df[keys_metrics[2]][-11:-1] > 9) > 8
 
     # Choosing colors for each bar
     colors_J = ['tab:red', 'tab:orange', 'tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:blue']
@@ -398,6 +398,8 @@ def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save, seed=0):
 
     tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
     tuning_curves = numpy.array(pd.read_csv(tc_filename))
+    pretrain_tc_filename = os.path.join(os.path.dirname(results_dir), 'pretraining_tuning_curves.csv')
+    pretrain_tuning_curves = numpy.array(pd.read_csv(tc_filename))
 
     numpy.random.seed(seed)
     num_mid_cells = 648

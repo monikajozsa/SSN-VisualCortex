@@ -82,59 +82,61 @@ class SSN_sup(_SSN_Base):
     
         
     def make_W(self, J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa, MinSyn=1e-4, CellWiseNormalized=False):
-            """
-            Make the full recurrent connectivity matrix W
-            Input:
-                J_2x2 = total strength of weights of different pre/post cell-type
-                xy_dist = distance matrix of spatial distance between grid points
-                ori_dist = distance matrix of preferred orientation difference
-                dist_from_single_ori = distance of each orientation in the map from the beta orientation
-                kappa = strength of dist_from_single_ori contribution in the horizontal connections
-            Output:
-            self.W
-            """
-            # Unpack parameters  
-            p_local = self.p_local
-            tanh_kappa = np.tanh(kappa)
-            sigma_oris = self.sigma_oris * np.ones((2,2))
-            if np.isscalar(self.s_2x2):
-                s_2x2 = self.s_2x2 * np.ones((2,2))
-            else:
-                s_2x2 = self.s_2x2
-                assert s_2x2.shape == (2,2)
+        """
+        Make the full recurrent connectivity matrix W
+        Input:
+            J_2x2 = total strength of weights of different pre/post cell-type
+            xy_dist = distance matrix of spatial distance between grid points
+            ori_dist = distance matrix of preferred orientation difference
+            dist_from_single_ori = distance of each orientation in the map from the beta orientation
+            kappa = strength of dist_from_single_ori contribution in the horizontal connections
+        Output:
+        self.W
+        """
+        # Unpack parameters  
+        p_local = self.p_local
+        tanh_kappa = np.tanh(kappa)
+        tanh_kappa_pre = [[tanh_kappa[0][0], 0], [tanh_kappa[0][1], 0]]
+        tanh_kappa_post = [[tanh_kappa[1][0], 0], [tanh_kappa[1][1], 0]]
+        sigma_oris = self.sigma_oris * np.ones((2,2))
+        if np.isscalar(self.s_2x2):
+            s_2x2 = self.s_2x2 * np.ones((2,2))
+        else:
+            s_2x2 = self.s_2x2
+            assert s_2x2.shape == (2,2)
 
-            # Create matrix for possible connections between E and I cells
-            Wblks = [[1,1],[1,1]]
+        # Create matrix for possible connections between E and I cells
+        Wblks = [[1,1],[1,1]]
 
-            # Loop over post- (a) and pre-synaptic (b) cell-types
-            for a in range(2): # post-synaptic cell type
-                for b in range(2): # pre-synaptic cell type  
-                    horizontal_conn_from_oris = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa[a][b]*dist_from_single_ori**2/2/45**2 + tanh_kappa[a][b]*dist_from_single_ori.T**2/2/45**2            
-                    if b == 0: # E projections
-                        W_local = np.exp(-xy_dist/s_2x2[a,b] - horizontal_conn_from_oris)
-                    elif b == 1: # I projections 
-                        W_local = np.exp(-xy_dist**2/(s_2x2[a,b]**2) - horizontal_conn_from_oris)
+        # Loop over post- (a) and pre-synaptic (b) cell-types
+        for a in range(2): # post-synaptic cell type
+            for b in range(2): # pre-synaptic cell type  
+                horizontal_conn_from_oris = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa_pre[a][b]*dist_from_single_ori**2/2/45**2 + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/2/45**2            
+                if b == 0: # E projections
+                    W_local = np.exp(-xy_dist/s_2x2[a,b] - horizontal_conn_from_oris)
+                elif b == 1: # I projections 
+                    W_local = np.exp(-xy_dist**2/(s_2x2[a,b]**2) - horizontal_conn_from_oris)
 
-                    # sparsify (set small weights to zero)
-                    W_local = np.where(W_local < MinSyn, 0, W_local)
+                # sparsify (set small weights to zero)
+                W_local = np.where(W_local < MinSyn, 0, W_local)
 
-                    # row-wise normalize
-                    tW = np.sum(W_local, axis=1)
-                    if not CellWiseNormalized:
-                        tW = np.mean(tW)
-                        W_local =  W_local / tW
-                    else:
-                        W_local = W_local / tW[:, None]
+                # row-wise normalize
+                tW = np.sum(W_local, axis=1)
+                if not CellWiseNormalized:
+                    tW = np.mean(tW)
+                    W_local =  W_local / tW
+                else:
+                    W_local = W_local / tW[:, None]
 
-                    # for E projections, add the local part
-                    # NOTE: alterntaively could do this before normalizing
-                    if b == 0:
-                        W = p_local[a] * np.eye(*W_local.shape) + (1-p_local[a]) * W_local
+                # for E projections, add the local part
+                # NOTE: alterntaively could do this before normalizing
+                if b == 0:
+                    W = p_local[a] * np.eye(*W_local.shape) + (1-p_local[a]) * W_local
 
-                    Wblks[a][b] = J_2x2[a, b] * W          
-            
-            W_out = np.block(Wblks)
-            return W_out
+                Wblks[a][b] = J_2x2[a, b] * W          
+
+        W_out = np.block(Wblks)
+        return W_out
 
 
     def select_type(self, vec, select='E'):

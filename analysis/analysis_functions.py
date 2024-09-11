@@ -177,7 +177,7 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange
     """ Calculate responses of middle and superficial layers to different orientations."""
     # Get the parameters from the trained_pars dictionary and untreatned_pars class
     ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
-    J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars, untrained_pars)
+    J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars, untrained_pars.ssn_pars)
 
     x_map = untrained_pars.grid_pars.x_map
     y_map = untrained_pars.grid_pars.y_map
@@ -293,6 +293,67 @@ def tc_features(tuning_curve, ori_list=numpy.arange(0,180,6), expand_dims=False,
         pref_ori = numpy.expand_dims(pref_ori, axis=0)
 
     return avg_slope_vec, full_width_half_max_vec, pref_ori
+
+
+
+def save_tc_features(folder_path, num_runs=1, ori_list=numpy.arange(0,180,6), expand_dims=False, ori_to_center_slope=[55, 125]):
+    """ TESTING IN PROGRESS Calculate tuning curve features for all runs in the folder and save them into a csv file. """
+
+    # Load tuning curve data
+    tc_filename = os.path.join(folder_path, 'tuning_curves.csv')
+    tuning_curves_all_run = numpy.array(pd.read_csv(tc_filename))
+
+    num_mid_cells = 648
+    num_sup_cells = 164
+
+    tc_features_df = pd.DataFrame()
+
+    for run_index in range(num_runs):
+        mesh_run = tuning_curves_all_run[:,0] == run_index
+        tuning_curves = tuning_curves_all_run[mesh_run,1:]        
+
+        # Tuning curve of given cell indices
+        num_cells = tuning_curves.shape[1]
+
+        # Full width half height
+        full_width_half_max_vec = numpy.zeros(num_cells) 
+        delta_oris = ori_list[1]-ori_list[0]
+        for i in range(0, num_cells):
+            full_width_half_max_vec[i] = full_width_half_max(tuning_curves[:,i], d_theta = delta_oris)
+
+        # Preferred orientation
+        pref_ori = ori_list[np.argmax(tuning_curves, axis = 0)]
+
+        # Norm slope
+        slope_mtx =numpy.zeros((num_cells, len(ori_to_center_slope)))
+        for i in range(num_cells):
+            for j in range(len(ori_to_center_slope)):
+                ori_ctr = ori_to_center_slope[j]
+                slope_mtx[i,j] = tc_slope(tuning_curves[:, i], x_axis = ori_list, x1 = ori_ctr-3, x2 = ori_ctr+3, normalise =False)
+        
+        # Minimum, maximum, max/(max-min), mean, std of the tuning curves
+        min_tc = numpy.min(tuning_curves, axis=0)
+        max_tc = numpy.max(tuning_curves, axis=0)
+        max_min_ratio_tc = (max_tc - min_tc) / max_tc
+        mean_tc = numpy.mean(tuning_curves, axis=0)
+        std_tc = numpy.std(tuning_curves, axis=0)
+        loc_max = numpy.argmax(tuning_curves[:,i], axis=0)
+        num_oris = tuning_curves.shape[0]
+
+        # Slope at half_max level: find point closest to full_width_half_max_vec to the left and right of the peak and calculate the slope
+        slope_hm_left = numpy.zeros(num_cells)
+        slope_hm_right = numpy.zeros(num_cells)
+        concatenated_ori_list = numpy.concatenate((ori_list, ori_list, ori_list))
+        for i in range(num_cells):
+            hm = (tuning_curves[:,i] - min_tc[i]).max()/2 + min_tc[i]
+            concatenated_tc = numpy.concatenate((tuning_curves[:,i], tuning_curves[:,i], tuning_curves[:,i]))
+            loc_hm_right = numpy.argmin(numpy.abs(concatenated_tc[loc_max+num_oris:loc_max+num_oris*3/2] - hm))
+            loc_hm_left = numpy.argmin(numpy.abs(concatenated_tc[loc_max+num_oris/2:loc_max+num_oris] - hm))
+            slope_hm_right[i] = tc_slope(concatenated_tc[:, i], x_axis = concatenated_ori_list, x1 = loc_hm_right-2, x2 = loc_hm_right+2, normalise =False)
+            slope_hm_left[i] = tc_slope(concatenated_tc[:, i], x_axis = concatenated_ori_list, x1 = loc_hm_left-2, x2 = loc_hm_left+2, normalise =False)
+
+    return slope_mtx, full_width_half_max_vec, pref_ori, min_tc, max_tc, max_min_ratio_tc, mean_tc, std_tc, slope_hm_left, slope_hm_right
+
 
 
 def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
@@ -540,7 +601,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
         # Load parameters from csv for given epoch
         _, trained_pars_stage2, untrained_pars = load_parameters(folder, run_index=run_ind, stage=stage, iloc_ind = iloc_ind_vec[stage_ind])
         # Get the parameters from the trained_pars dictionary and untreatned_pars class
-        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa=unpack_ssn_parameters(trained_pars_stage2, untrained_pars)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa=unpack_ssn_parameters(trained_pars_stage2, untrained_pars.ssn_pars)
         
         # Iterate over the orientations
         for ori in ori_list:
