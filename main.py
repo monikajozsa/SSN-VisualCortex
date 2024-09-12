@@ -89,3 +89,13 @@ os.system(f'del "{root_folder}/parameters.py"')
 os.system(f'rename "{root_folder}/parameters.py.bak" "{root_folder}/parameters.py"')
 
 print('Finished all configurations')
+print('Starting calculation of tuning curve features')
+from analysis.analysis_functions import save_tc_features
+
+'''
+for conf_name in conf_names:
+    folder_path = 'results/Aug15_v0/' + conf_name
+    save_tc_features(folder_path, num_runs=49, ori_list=numpy.arange(0,180,6), expand_dims=False, ori_to_center_slope=[55, 125])
+    
+print('Finished calculation of tuning curve features')
+'''

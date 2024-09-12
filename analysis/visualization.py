@@ -480,7 +480,7 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
 
 def plot_tc_features(results_dir, num_training, ori_list):
     def shift_x_data(x_data, indices, shift_value=90):
-        # Shift x_data by shift_value and center it around 0 (that is, around shift_value)
+        """ Shift circular x_data by shift_value and center it around the new 0 (around shift_value) """
         x_data_shifted = x_data[:, indices].flatten() - shift_value
         x_data_shifted = numpy.where(x_data_shifted > 90, x_data_shifted - 180, x_data_shifted)
         x_data_shifted = numpy.where(x_data_shifted < -90, x_data_shifted + 180, x_data_shifted)
