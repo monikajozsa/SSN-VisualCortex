@@ -392,23 +392,125 @@ def plot_results_from_csvs(folder_path, num_runs=3, folder_to_save=None, startin
     return excluded_run_inds
 
 ################### TUNING CURVES ###################
+def plot_tuning_curves_all_cells(results_dir, run_index, folder_to_save, num_rnd_cells=81):
+    """Plot example tuning curves for middle and superficial layer cells at different stages of training"""
+    if num_rnd_cells == 81:
+        tc_cells = numpy.arange(81)
+    else:
+        tc_cells_unsorted = numpy.random.choice(81, num_rnd_cells, replace=False)
+        tc_cells = numpy.sort(tc_cells_unsorted)
 
-def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save, seed=0):
+    # Load tuning curves
+    train_tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
+    train_tuning_curves = numpy.array(pd.read_csv(train_tc_filename, header=None))
+    pretrain_tc_filename = os.path.join(os.path.dirname(results_dir), 'pretraining_tuning_curves.csv')
+    pretrain_tuning_curves = numpy.array(pd.read_csv(pretrain_tc_filename, header=0))
+
+    # Combine pretraining and training tuning curves
+    tuning_curves = numpy.vstack((pretrain_tuning_curves, train_tuning_curves))
+
+    # Select tuning curves for the current run
+    mesh_i = tuning_curves[:,0]==run_index
+    tuning_curve_i = tuning_curves[mesh_i,1:]
+    
+    # Select tuning curves for each stage of training
+    mesh_stage_0 = tuning_curve_i[:,0]==0
+    tc_0 = tuning_curve_i[mesh_stage_0,1:]
+    mesh_stage_1 = tuning_curve_i[:,0]==1
+    tc_1 = tuning_curve_i[mesh_stage_1,1:]
+    mesh_stage_2 = tuning_curve_i[:,0]==2
+    tc_2 = tuning_curve_i[mesh_stage_2,1:]
+
+    # Create figure of 2 x 5 subplot arranged as E-I for the two rows and mid-phase0, mid-phase1, mid-phase2, mid-phase3, and sup for the columns
+    fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(5*5, 5*2))
+    num_oris = tc_1.shape[0]
+    # Plot tuning curves
+    for cell_ind in range(len(tc_cells)):
+        for i in range(2):
+            # Middle layer cells
+            for j in range(4):
+                axes[i,j].plot(numpy.arange(num_oris)*180/num_oris, tc_0[:,j*162+i*81+cell_ind], label='pretraining',linewidth=2, color='black', alpha=0.2)
+                axes[i,j].plot(numpy.arange(num_oris)*180/num_oris, tc_1[:,j*162+i*81+cell_ind], label='post-pretraining',linewidth=2, color='orange', alpha=0.4)
+                axes[i,j].plot(numpy.arange(num_oris)*180/num_oris, tc_2[:,j*162+i*81+cell_ind], label='post-training',linewidth=2, color='green', alpha=0.6)
+                # emphasize 55 on the x-axis
+                axes[i,j].axvline(x=55, color='black', linestyle='--', alpha=0.5)
+            
+            # Superficial layer cells        
+            axes[i,4].plot(numpy.arange(num_oris)*180/num_oris, tc_0[:,648+i*81+cell_ind], label='pretraining',linewidth=2, color='black', alpha=0.2)
+            axes[i,4].plot(numpy.arange(num_oris)*180/num_oris, tc_1[:,648+i*81+cell_ind], label='post-pretraining',linewidth=2, color='orange', alpha=0.4)
+            axes[i,4].plot(numpy.arange(num_oris)*180/num_oris, tc_2[:,648+i*81+cell_ind], label='post-training',linewidth=2, color='green', alpha=0.6)
+            # emphasize 55 on the x-axis
+            axes[i,4].axvline(x=55, color='black', linestyle='--')
+    # axes[0,0].legend(loc='upper left', fontsize=20)
+    # Set main title
+    fig.suptitle('Top: E, Bottom: I, Left 4: mid, Right 1: sup, Black: prepre, Orange: pre, Green:post', fontsize=20)
+
+    # Save plot
+    if folder_to_save is not None:
+        fig.savefig(os.path.join(folder_to_save,f'tc_fig_all_cells_run{run_index}.png'))
+    else:
+        fig.savefig(os.path.join(results_dir,f'tc_fig_all_cells_run{run_index}.png'))
+    plt.close()
+
+def plot_slope_config_groups(results_dir, config_groups, folder_to_save):
+    slope_data = pd.read_csv(os.path.join(results_dir, 'tc_slopediff_train.csv'))
+    fig, axes = plt.subplots(nrows=2, ncols=len(config_groups), figsize=(15*len(config_groups), 10*2))
+    layers = ['mid', 'sup']
+    color_shades_of_blue = ['slategray', 'blue', 'teal', 'deepskyblue', 'darkblue']
+    color_shades_of_red = ['rosybrown', 'red', 'salmon', 'darkred', 'orangered']
+    for i, config_group in enumerate(config_groups):
+        for j in range(len(config_group)):
+            mesh_config = slope_data['configuration']==config_group[j]
+            slope_data_config = slope_data[mesh_config]
+            for ori in ['57', '123']:
+                if ori == '57':
+                    linestyle = '-'
+                else:
+                    linestyle = '--'
+                for type in ['E', 'I']:
+                    if type == 'E':
+                        color = color_shades_of_blue[j]
+                    else:
+                        color = color_shades_of_red[j]
+                    for layer_ind in range(2):
+                        layer = layers[layer_ind]
+                        x_data = slope_data_config[f'slope_{ori}_diff_{type}_{layer}_x']
+                        y_data = slope_data_config[f'slope_{ori}_diff_{type}_{layer}_y']
+                        label = f'{config_group[j]} ({type}, ori {ori})'
+                        axes[layer_ind, i].plot(x_data, y_data, label=label, linewidth=2, color=color, linestyle=linestyle)
+                        # Add legend outside the axes
+                        axes[layer_ind, i].legend(loc='upper left', bbox_to_anchor=(1.05, 1), fontsize=12, borderaxespad=0.)
+    plt.tight_layout(rect=[0, 0, 0.85, 0.95]) # Adjust rect to make space for legends
+    fig.suptitle('Top: Mid, Bottom: Sup, Blue: I, Red: E, Solid: 57, Dashed: 123', fontsize=25)
+    if folder_to_save is not None:
+        fig.savefig(os.path.join(folder_to_save,'slope_fig_config_groups.png'))
+    else:
+        fig.savefig(os.path.join(results_dir,'slope_fig_config_groups.png'))
+
+
+def plot_tuning_curves(results_dir, tc_cells, num_runs, folder_to_save, seed=0, tc_cell_labels=None):
     """Plot example tuning curves for middle and superficial layer cells at different stages of training"""
 
-    tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
-    tuning_curves = numpy.array(pd.read_csv(tc_filename))
+    train_tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
+    train_tuning_curves = numpy.array(pd.read_csv(train_tc_filename, header=None))
     pretrain_tc_filename = os.path.join(os.path.dirname(results_dir), 'pretraining_tuning_curves.csv')
-    pretrain_tuning_curves = numpy.array(pd.read_csv(tc_filename))
+    pretrain_tuning_curves = numpy.array(pd.read_csv(pretrain_tc_filename, header=0))
+
+    # Combine pretraining and training tuning curves
+    tuning_curves = numpy.vstack((pretrain_tuning_curves, train_tuning_curves))
 
     numpy.random.seed(seed)
     num_mid_cells = 648
     num_sup_cells = 164
     num_runs_plotted = min(5,num_runs)
     for i in range(num_runs_plotted):
+        # Select tuning curves for the current run
         mesh_i = tuning_curves[:,0]==i
         tuning_curve_i = tuning_curves[mesh_i,1:]
         
+        # Select tuning curves for each stage of training
+        mesh_stage_0 = tuning_curve_i[:,0]==0
+        tc_0 = tuning_curve_i[mesh_stage_0,1:]
         mesh_stage_1 = tuning_curve_i[:,0]==1
         tc_1 = tuning_curve_i[mesh_stage_1,1:]
         mesh_stage_2 = tuning_curve_i[:,0]==2
@@ -417,31 +519,26 @@ def plot_tuning_curves(results_dir,tc_cells,num_runs,folder_to_save, seed=0):
         # Select num_rnd_cells randomly selected cells to plot from both middle and superficial layer cells
         if i==0:
             if isinstance(tc_cells,int):
-                num_rnd_cells=tc_cells
-                selected_mid_col_inds = numpy.random.randint(0, num_mid_cells, size=int(num_rnd_cells/2), replace=False)
-                selected_sup_col_inds = numpy.random.randint(0, num_sup_cells, size=num_rnd_cells-int(num_rnd_cells/2), replace=False)
+                num_cells_plotted=tc_cells
+                mid_cells = numpy.random.randint(0, num_mid_cells, size=int(num_cells_plotted/2), replace=False)
+                sup_cells = numpy.random.randint(num_mid_cells, num_mid_cells+num_sup_cells, size=int(num_cells_plotted/2), replace=False)
+                tc_cells = numpy.concatenate((mid_cells, sup_cells))
+                tc_cell_labels = ['mid_'+str(cell) for cell in mid_cells] + ['sup_'+str(cell) for cell in sup_cells]
             else:
-                num_rnd_cells=len(tc_cells)
-                selected_mid_col_inds = numpy.array(tc_cells[:int(len(tc_cells)/2)])-1
-                selected_sup_col_inds = numpy.array(tc_cells[int(len(tc_cells)/2):])-1
-            fig, axes = plt.subplots(nrows=num_runs_plotted, ncols=num_rnd_cells, figsize=(5*num_rnd_cells, 5*num_runs_plotted))
+                num_cells_plotted=len(tc_cells)
+                if tc_cell_labels is None:
+                    tc_cell_labels = ['mid_'+str(cell) if cell<num_mid_cells else 'sup_'+str(cell-num_mid_cells) for cell in tc_cells]
+            fig, axes = plt.subplots(nrows=num_runs_plotted, ncols=num_cells_plotted, figsize=(5*num_cells_plotted, 5*num_runs_plotted))
+        axes_flatten = axes.flatten()
         num_oris = tc_1.shape[0]
         # Plot tuning curves
-        for cell_ind in range(int(num_rnd_cells/2)):
-            if num_runs_plotted==1:
-                ax1=axes[cell_ind]
-                ax2=axes[int(num_rnd_cells/2)+cell_ind]
-            else:
-                ax1=axes[i,cell_ind]
-                ax2=axes[i,int(num_rnd_cells/2)+cell_ind]
-            ax1.plot(range(num_oris), tc_1[:,selected_mid_col_inds[cell_ind]], label='post-pretraining',linewidth=2)
-            ax2.plot(range(num_oris), tc_1[:,selected_sup_col_inds[cell_ind]], label='post-pretraining',linewidth=2)
-            ax1.plot(range(num_oris), tc_2[:,selected_mid_col_inds[cell_ind]], label='post-training',linewidth=2)
-            ax2.plot(range(num_oris), tc_2[:,selected_sup_col_inds[cell_ind]], label='post-training',linewidth=2)
+        for cell_ind in range(num_cells_plotted):
+            axes_flatten[i*num_cells_plotted+cell_ind].plot(range(num_oris), tc_0[:,tc_cells[cell_ind]], label='pretraining',linewidth=2)
+            axes_flatten[i*num_cells_plotted+cell_ind].plot(range(num_oris), tc_1[:,tc_cells[cell_ind]], label='post-pretraining',linewidth=3)
+            axes_flatten[i*num_cells_plotted+cell_ind].plot(range(num_oris), tc_2[:,tc_cells[cell_ind]], label='post-training',linewidth=4)
             
-            ax1.set_title(f'Middle layer cell {cell_ind}', fontsize=20)
-            ax2.set_title(f'Superficial layer, cell {cell_ind}', fontsize=20)
-    ax2.legend(loc='upper left', fontsize=20)
+            axes_flatten[i*num_cells_plotted+cell_ind].set_title(tc_cell_labels[cell_ind], fontsize=20)
+    axes_flatten[i*num_cells_plotted+cell_ind].legend(loc='upper left', fontsize=20)
 
     # Save plot
     if folder_to_save is not None:

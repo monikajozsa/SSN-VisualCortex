@@ -301,15 +301,22 @@ def save_tc_features(folder_path, num_runs=1, ori_list=numpy.arange(0,180,6), or
     start_time = time.time()
     # Load training tuning curve data (no headers)
     tc_filename = os.path.join(folder_path, 'tuning_curves.csv')
-    training_tc_all_run_df = pd.read_csv(tc_filename, header=None)
-    training_tc_all_run = training_tc_all_run_df.to_numpy()
 
+    # Check if the first row contains any non-numeric values (indicating a header)
+    first_row = pd.read_csv(tc_filename, nrows=1, header=None).iloc[0]
+    if first_row.apply(lambda x: isinstance(x, str)).any():
+        header = 0
+    else:
+        header = None
+
+    training_tc_all_run_df = pd.read_csv(tc_filename, header=header)
+    training_tc_all_run = training_tc_all_run_df.to_numpy()
+    
     # Load pretraining tuning curve data (with headers)
     tc_filename = os.path.join(os.path.dirname(folder_path), 'pretraining_tuning_curves.csv')
     pretraining_tc_all_run_df = pd.read_csv(tc_filename, header=0)
     header = pretraining_tc_all_run_df.columns  # Use this for cell headers
     cell_headers = header[2:]  # The headers for the 810 cells
-
     pretraining_tc_all_run = pretraining_tc_all_run_df.to_numpy()
 
     tc_features_df = None

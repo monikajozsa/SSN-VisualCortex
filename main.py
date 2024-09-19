@@ -5,10 +5,12 @@ import os
 import time
 import pandas as pd
 import numpy
+import shutil
 
 from util import configure_parameters_file, save_code, set_up_config_folder
 from training.main_training import main_pretraining, main_training
 from analysis.main_analysis import main_tuning_curves, plot_results_on_parameters
+from analysis.analysis_functions import save_tc_features
 
 ## Set up number of runs and starting time
 num_training = 49
@@ -25,12 +27,12 @@ folder_path = os.path.join(root_folder, 'results', 'Aug15_v0')
 
 ## Define the configurations for training
 conf_baseline = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False) # training all parameters (baseline case)
-#conf_gentask = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], True) # training with general discrimination task (control case)
-#conf_midonly = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.0, 1.0], False) # reading out from middle layer (ablation)
+conf_gentask = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], True) # training with general discrimination task (control case)
+conf_midonly = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.0, 1.0], False) # reading out from middle layer (ablation)
 # Additional case where labels are shuffled is handled with a separate util/py file
 
-## Training all parameters but a few
-#conf_kappa_a = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s'], [1.0, 0.0], False) # training all parameters but kappa (ablation)
+## Training with all parameters but a few
+conf_kappa_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s'], [1.0, 0.0], False) # training all parameters but kappa (ablation)
 conf_cms_excluded = (['f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False) # training all but cE_m, cI_m, cE_s, cI_s (ablation)
 conf_JI_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_IE_m', 'J_EE_s', 'J_IE_s', 'kappa'], [1.0, 0.0], False) # training all but JI (ablation)
 conf_JE_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_II_m', 'J_EI_m', 'J_II_s', 'J_EI_s', 'kappa'], [1.0, 0.0], False) # training all but JI (ablation)
@@ -38,7 +40,8 @@ conf_Jm_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_s', 'J_
 conf_Js_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'kappa'], [1.0, 0.0], False) # training all but Js (ablation)
 conf_f_excluded = (['cE_m', 'cI_m', 'cE_s', 'cI_s', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False) # training all but f_E, f_I (ablation)
 
-## Training only a few
+## Training with only a few parameters
+conf_kappa_only = (['kappa'], [1.0, 0.0], False) # training only kappa (ablation)
 conf_cms_only = (['cE_m', 'cI_m', 'cE_s', 'cI_s'], [1.0, 0.0], False) # training only cE_m, cI_m, cE_s, cI_s (ablation)
 conf_JI_only = (['J_II_m', 'J_EI_m', 'J_II_s', 'J_EI_s'], [1.0, 0.0], False) # training only JI
 conf_JE_only = (['J_EE_m', 'J_IE_m', 'J_EE_s', 'J_IE_s'], [1.0, 0.0], False) # training only JE
@@ -46,12 +49,14 @@ conf_Jm_only = (['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m'], [1.0, 0.0], False) # t
 conf_Js_only = (['J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s'], [1.0, 0.0], False) # training only Js
 conf_f_only = (['f_E','f_I'], [1.0, 0.0], False) # training only f
 
-conf_names = ['conf_Js_excluded', 'conf_Jm_only', 'conf_Js_only', 'conf_JE_only', 'conf_f_only']
+conf_dict = {'conf_baseline': conf_baseline,'conf_kappa_excluded': conf_gentask,'conf_gentask': conf_gentask,'conf_midonly': conf_midonly, 'conf_kappa_excluded': conf_kappa_excluded, 'conf_cms_excluded': conf_cms_excluded, 'conf_JI_excluded': conf_JI_excluded, 'conf_JE_excluded': conf_JE_excluded, 'conf_Jm_excluded': conf_Jm_excluded, 'conf_Js_excluded': conf_Js_excluded, 'conf_f_excluded': conf_f_excluded, 'conf_kappa_only': conf_kappa_only, 'conf_cms_only': conf_cms_only, 'conf_JI_only': conf_JI_only, 'conf_JE_only': conf_JE_only, 'conf_Jm_only': conf_Jm_only, 'conf_Js_only': conf_Js_only, 'conf_f_only': conf_f_only}
 
-## Run training and analysis on the different configurations
+conf_names = list(conf_dict.keys())
+conf_list = list(conf_dict.values())
 i = 0
 tc_ori_list = numpy.arange(0,180,6)
-for conf in [conf_Js_excluded, conf_Jm_only, conf_Js_only, conf_JE_only, conf_f_only]:
+for conf in conf_list:
+
     # create a configuration folder and copy relevant files to it
     config_folder = set_up_config_folder(folder_path, conf_names[i])
     
@@ -75,27 +80,21 @@ for conf in [conf_Js_excluded, conf_Jm_only, conf_Js_only, conf_JE_only, conf_f_
         destination_file = os.path.join(config_folder, 'tuning_curves.csv')
         os.system(f'copy "{source_file}" "{destination_file}"')
         main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
-
-    # plot results on parameters and tuning curves
+    
+    ## Calculate tuning curve features
+    save_tc_features(folder_path, num_runs=49, ori_list=numpy.arange(0,180,6), ori_to_center_slope=[55, 125])
+    
+    ## Plot results on parameters and tuning curves
     plot_results_on_parameters(config_folder, num_training, starting_time_in_main, tc_ori_list = tc_ori_list, plot_tc = False)
+    
     i += 1
     
     print('\n')
     print(f'Configuration {i} done')
     print('\n')
 
-# delete parameters.py file and make the parameters.py.bak file the parameters.py file
-os.system(f'del "{root_folder}/parameters.py"')
-os.system(f'rename "{root_folder}/parameters.py.bak" "{root_folder}/parameters.py"')
-
 print('Finished all configurations')
-print('Starting calculation of tuning curve features')
-from analysis.analysis_functions import save_tc_features
 
-'''
-for conf_name in conf_names:
-    folder_path = 'results/Aug15_v0/' + conf_name
-    save_tc_features(folder_path, num_runs=49, ori_list=numpy.arange(0,180,6), expand_dims=False, ori_to_center_slope=[55, 125])
-    
-print('Finished calculation of tuning curve features')
-'''
+## Delete parameters.py file and make the parameters.py.bak file the parameters.py file
+if os.path.exists(f'{root_folder}/parameters.py.bak'):
+    shutil.copy(f'{root_folder}/parameters.py.bak', f'{root_folder}/parameters.py')
