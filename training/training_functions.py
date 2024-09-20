@@ -176,7 +176,7 @@ def train_ori_discr(
                     acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size =5)
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                     psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
-                    print('Baseline acc is achieved at offset:', psychometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean, 'train_acc:', train_acc)
+                    #print('Baseline acc is achieved at offset:', psychometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean, 'train_acc:', train_acc)
 
                 # ii) Store parameters and metrics (append or initialize lists)
                 if 'stages' in locals():
@@ -195,7 +195,7 @@ def train_ori_discr(
                     if 'kappa' in trained_pars_dict.keys():
                         kappas.append(trained_pars_dict['kappa'].ravel())
                     elif hasattr(ssn_pars, 'kappa'):
-                        kappas.append(ssn_pars.kappa)
+                        kappas.append(ssn_pars.kappa.ravel())
                     if pretrain_on:
                         stages.append(stage-1)
                         w_sigs.append(readout_pars_dict['w_sig'])

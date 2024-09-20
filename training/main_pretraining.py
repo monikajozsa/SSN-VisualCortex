@@ -1,19 +1,26 @@
 import numpy
 from numpy import random
+import pandas as pd
+import time
+import os
+import sys
 import jax.numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
-import pandas as pd
-import time
-import os, sys
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from util import take_log, create_grating_training, create_grating_pretraining, unpack_ssn_parameters, cosdiff_ring
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(os.path.dirname(__file__))
+
+from util import load_parameters, take_log, create_grating_training, create_grating_pretraining, unpack_ssn_parameters
 from util_gabor import update_untrained_pars, save_orimap
+from training_functions import train_ori_discr, task_acc_test
 from SSN_classes import SSN_mid, SSN_sup
 from model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
-from training_functions import task_acc_test
+from parameters import PretrainingPars
+pretraining_pars = PretrainingPars() # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
+if not pretraining_pars.is_on:
+    raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 def fill_attribute_list(class_to_fill, attr_list, value_list):
     """Fill the attributes of a class with the given values."""
@@ -278,3 +285,49 @@ def create_initial_parameters_df(folder_path, initial_parameters, pretrained_par
     initial_parameters_df.to_csv(os.path.join(folder_path, 'initial_parameters.csv'), index=False)
 
     return initial_parameters_df
+
+############### PRETRAINING ###############
+def main_pretraining(folder_path, num_training, initial_parameters=None, starting_time_in_main=0):
+    """ Initialize parameters randomly and run pretraining on the general orientation discrimination task """
+    # Run num_training number of pretraining + training
+    num_FailedRuns = 0
+    i=0
+
+    run_indices=[]
+    while i < num_training and num_FailedRuns < 20:
+
+        ##### RANDOM INITIALIZATION #####
+        numpy.random.seed(i)
+        
+        ##### Randomize readout_pars, trained_pars, eta such that they satisfy certain conditions #####
+        readout_pars_opt_dict, pretrain_pars_rand_dict, untrained_pars = randomize_params(folder_path, i)
+
+        ##### Save initial parameters into initial_parameters variable #####
+        initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, pretrain_pars_rand_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =0)
+
+        ##### PRETRAINING ON GENERAL ORIENTAION DISCRIMINATION TASK #####
+        results_filename = os.path.join(folder_path,'pretraining_results.csv')
+        training_output_df = train_ori_discr(
+                readout_pars_opt_dict,
+                pretrain_pars_rand_dict,
+                untrained_pars,
+                results_filename=results_filename,
+                jit_on=True,
+                offset_step = 0.1,
+                run_index = i
+            )
+        
+        # Handle the case when pretraining failed (possible reason can be the divergence of ssn diff equations)
+        if training_output_df is None:
+            print('######### Stopped run {} because of NaN values  - num failed runs = {} #########'.format(i, num_FailedRuns))
+            num_FailedRuns = num_FailedRuns + 1
+            continue  
+
+        ##### Save final values into initial_parameters as initial parameters for training stage #####
+        _, pretrained_pars_dict, untrained_pars = load_parameters(folder_path, run_index = i, stage =0, iloc_ind = -1)
+        initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, pretrained_pars_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =1)
+        
+        run_indices.append(i)
+        i = i + 1
+        print('runtime of {} pretraining'.format(i), time.time()-starting_time_in_main)
+        print('number of failed runs = ', num_FailedRuns)

@@ -458,15 +458,14 @@ def set_up_config_folder(results_folder, conf_name):
     figure_folder = config_folder / 'figures'
     figure_folder.mkdir(parents=True, exist_ok=True)
 
-    # copy parameters.py to the config folder
-    shutil.copy('parameters.py', os.path.join(config_folder, 'parameters_' + conf_name+ '.py'))
+    # copy pretraining related files to the config folder
     shutil.copy(os.path.join(results_folder, 'orimap.csv'), config_folder / 'orimap.csv')
     shutil.copy(os.path.join(results_folder, 'initial_parameters.csv'), config_folder / 'initial_parameters.csv')
     shutil.copy(os.path.join(results_folder, 'pretraining_results.csv'), config_folder / 'pretraining_results.csv')
     return config_folder
 
 
-def configure_parameters_file(root_folder, trained_pars_list, sup_mid_readout_contrib=[1.0, 0.0], pretraining_task=False):
+def configure_parameters_file(root_folder, conf):
     """
     Load parameters.py, change the parameters according to the input of this function, and then save parameters.py with these new parameters.
     """
@@ -481,7 +480,7 @@ def configure_parameters_file(root_folder, trained_pars_list, sup_mid_readout_co
 
             if any([line.startswith(f"class {class_name}") for class_name in class_names]):
                 in_class = True
-            elif line.startswith("class "):
+            elif line.startswith("class "): # switch off in_class when we get to a new class that is not of interest
                 in_class = False
 
             if in_class and any(line.startswith(key) for key in keys):
@@ -545,6 +544,9 @@ def configure_parameters_file(root_folder, trained_pars_list, sup_mid_readout_co
 
         return updated_lines
     
+    # Extract input - handles default values
+    trained_pars_list, sup_mid_readout_contrib, pretraining_task, p_local_s = (conf + [[1.0, 0.0], False, [0.4, 0.7]])[:4]
+
     # Load the parameters.py file content
     params_file_path = Path(os.path.join(root_folder,"parameters.py"))
     if not params_file_path.exists():
@@ -556,7 +558,7 @@ def configure_parameters_file(root_folder, trained_pars_list, sup_mid_readout_co
     # Create a backup of the original parameters.py
     bak_file_path = params_file_path.with_suffix(".py.bak")
     
-    # Check if the backup file already exists
+    # Copy backup if the backup file does not exist
     if not os.path.exists(bak_file_path):
         shutil.copy(params_file_path, bak_file_path)
 
@@ -570,6 +572,11 @@ def configure_parameters_file(root_folder, trained_pars_list, sup_mid_readout_co
         # Update pretraining_task in TrainingPars
         if "pretraining_task:" in line:
             line = f"    pretraining_task: bool = {pretraining_task}\n"
+
+        # Update p_local_s in SSNPars
+        if "p_local_s" in line:
+            line = f"    p_local_s = {p_local_s}\n"
+
         
         updated_lines.append(line)
 

@@ -59,7 +59,7 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
 
 
 ######### PLOT RESULTS ON PARAMETERS and TUNING CURVES ############
-def plot_results_on_parameters(final_folder_path, num_training, starting_time_in_main, tc_ori_list = numpy.arange(0,180,6), plot_per_run = True, plot_boxplots = True, plot_tc = True):
+def plot_results_on_parameters(final_folder_path, num_training, starting_time_in_main, plot_per_run = True, plot_boxplots = True):
     """ Plot the results from the results csv files and tuning curves csv files"""
     folder_to_save = os.path.join(final_folder_path, 'figures')
 
@@ -76,16 +76,6 @@ def plot_results_on_parameters(final_folder_path, num_training, starting_time_in
         boxplot_file_name = 'boxplot_pretraining'
         boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 3, num_training=num_training)
         print(f'Finished run-plots and boxplots in {time.time()-starting_time_in_main} seconds')
-    
-    ######### PLOT TUNING CURVES ############
-    if plot_tc:
-        start_time = time.time()
-        tc_cells=[10,40,100,130,172,202,262,292,334,364,424,454,496,526,586,616,650,690,740,760] 
-        # these are indices of representative cells from the different layers and types: every pair is for off center and center from 
-        # mEph0(1-2), mIph0(3-4), mEph1(5-6), mIph1(7-8), mEph2(9-10), mIph2(11-12), mEph3(13-14), mIph3(15-16), sE(17-18), sI(19-20)
-        plot_tuning_curves(final_folder_path, tc_cells, num_training, folder_to_save)
-        plot_tc_features(final_folder_path, num_training, tc_ori_list)
-        print(f'Finished plotting tuning curves and features in {time.time()-start_time} seconds')
 
 '''
 ###########################################################

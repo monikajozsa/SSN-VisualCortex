@@ -149,26 +149,25 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 
 
 ### Training Folder
-- **`main_training.py`**: Contains the main flow for pretraining and training in two functions (`main_pretraining` and `main_training`).
-- **`perturb_params.py`**:  Randomizes parameters in the model, while ensuring that predefined inequality and response conditions are met.
+- **`main_training.py`**: Contains the main flow for training (`main_training`) with a given configuration. Called with subprocess module and takes inputs through command line arguments. This is to enable redefining jax-jit functions that rely on parameters.py.
+- **`main_pretraining.py`**: Trains the model (including readout weights) for the general discrimination task on randomized parameters.
 - **`training_functions.py`**: Implements training and evaluation of a two-layer SSN model for the general and the fine orientation discrimination tasks. It includes functions for managing model parameters, calculating loss and accuracy, training the model with SGD, logging results into a DataFrame and saving it to a csv file.
 - **`SSN_classes.py`**: Defines classes for modeling Stabilized Supralinear Networks (SSN), focusing on two layers. These classes represent and simulate the dynamics of neural circuits based on shared parameters of neurons and parameters describing the connectivities between neurons.
 - **`model.py`**: Provides functions for simulating the response (fixed point) of neurons in both the middle and superficial layers. It includes vectorized versions of these functions to handle batch processing. The functions also compute maximum and mean firing rates that are homeostatic terms in the loss function.
 - **`util_gabor.py`**: Utility functions to handle orientation maps, Gabor filters and 
 
 <details>
-<summary>Functions called from `main_pretraining` and `main_training` functions</summary>
+<summary>Functions called from `main_training` functions</summary>
 
-- **`randomize_params`**: Location: `training/perturb_params.py`
-- **`create_initial_parameters_df`**: Location: `training/perturb_params.py`
 - **`train_ori_discr`**: Location: `training/training_functions.py`
 - **`load_parameters`**: Location: `util.py`
 
 </details>
 
 <details>
-<summary>Functions in `perturb_params.py`</summary>
+<summary>Functions in `main_pretraining.py`</summary>
 
+- **`randomize_params`**: Randomizes parameters while ensuring that predefined inequality and response conditions are met. 
 - **`fill_attribute_list`**: Fills the attributes of a class with the provided values.
 - **`randomize_mid_params`**: Randomizes parameters for the middle layer of the model, checking that certain inequality and response conditions are met. If conditions are violated, it recursively attempts to find suitable parameters.
 - **`randomize_params`**: Randomizes initial parameters for the model, including both middle (by calling `randomize_mid_params`) and superficial layers. It also optimizes readout parameters using logistic regression (by calling `readout_pars_from_regr`), and ensures all randomized parameters satisfy the required conditions.
