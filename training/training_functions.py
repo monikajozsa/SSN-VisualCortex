@@ -1,4 +1,5 @@
 #import matplotlib.pyplot as plt
+import gc
 import jax
 import jax.numpy as np
 from jax import vmap
@@ -100,6 +101,7 @@ def train_ori_discr(
     - jit_on (bool): If True, enables JIT compilation for performance improvement.
     """
      # Unpack training_pars and stimuli_pars from untrained_pars
+    clear_cache = False
     ssn_pars = untrained_pars.ssn_pars
     training_pars = untrained_pars.training_pars
     stimuli_pars = untrained_pars.stimuli_pars
@@ -158,7 +160,9 @@ def train_ori_discr(
             # STOCHASTIC GRADIENT DESCENT LOOP
             for SGD_step in range(numSGD_steps):
                 # i) Calculate model loss, accuracy, gradient
-                train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad)
+                if SGD_step==numSGD_steps-1:
+                    clear_cache = True # Clear cache data from jitted function used for input data generation
+                train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, clear_cache)
                 if jax.numpy.isnan(train_loss):
                     print('NaN values in loss at step', SGD_step)
                     return None, None
@@ -331,6 +335,8 @@ def train_ori_discr(
                         # Update ssn layer parameters
                         updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
                         trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
+                # Clear python cache data
+                gc.collect()
            
     ############# SAVING and RETURN OUTPUT #############
 
@@ -358,10 +364,13 @@ def train_ori_discr(
         file_exists = os.path.isfile(results_filename)
         df.to_csv(results_filename, mode='a', header=not file_exists, index=False)
 
+    # Clear up cash data from jitted functions
+    jit_ori_discrimination._clear_cache()
+
     return df, first_stage_final_step
 
 
-def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad):
+def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, clear_cache):
     """
     Top level function to calculate losses, accuracies and other relevant metrics. It generates noises and training data and then applies the function training_loss_val_and_grad.
 
@@ -382,18 +391,18 @@ def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars
         # Generate training data and noise that is added to the output of the model
         noise_ref = generate_noise(pretrain_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
         noise_target = generate_noise(pretrain_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
-        train_data = create_grating_pretraining(untrained_pars.pretrain_pars, pretrain_pars.batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=pretrain_pars.batch_size)
+        train_data = create_grating_pretraining(untrained_pars.pretrain_pars, pretrain_pars.batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=pretrain_pars.batch_size, clear_cache=clear_cache)
     else:
         training_pars=untrained_pars.training_pars
         if untrained_pars.training_pars.pretraining_task:
             noise_ref = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
             noise_target = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
-            train_data = create_grating_pretraining(untrained_pars.pretrain_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=training_pars.batch_size)
+            train_data = create_grating_pretraining(untrained_pars.pretrain_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=training_pars.batch_size, clear_cache=clear_cache)
         else:
             # Generate noise that is added to the output of the model
             noise_ref = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
             noise_target = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
-            train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp)
+            train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp, clear_cache=clear_cache)
 
     # Calculate gradient, loss and accuracy
     [loss, [all_losses, accuracy, sig_input, sig_output, max_rates, mean_rates]], grad = training_loss_val_and_grad(

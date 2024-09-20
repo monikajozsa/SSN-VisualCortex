@@ -230,7 +230,7 @@ BW_image_vmap = vmap(BW_image_jax, in_axes=(None,None,None,None,None,0,0))
 BW_image_jit = jit(BW_image_vmap, static_argnums=[0])
 
 
-def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, jitter):
+def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, jitter, clear_cache=False):
     """
     Calls BW_image_jit function and adds Gaussian noise to its output.
     """
@@ -242,6 +242,10 @@ def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, j
         noisy_images = images + np.array(random.normal(loc=0, scale=BW_image_const_inp[3], size=images.shape))
     else:
          noisy_images = images
+    
+    if clear_cache:
+        BW_image_jit._clear_cache()
+        
     return noisy_images
 
 

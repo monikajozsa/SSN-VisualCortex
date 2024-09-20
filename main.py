@@ -86,7 +86,9 @@ conf_names = list(conf_dict.keys())
 conf_list = list(conf_dict.values())
 
 for i, conf in enumerate(conf_list):
-
+    
+    numpy.random.seed(0)
+    
     # create a configuration folder and copy relevant files to it
     config_folder = set_up_config_folder(folder_path, conf_names[i])
     
@@ -115,7 +117,7 @@ if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
 ########## ########## ##########
 ######### Tuning curves ########
 ########## ########## ##########
-
+'''
 tc_ori_list = numpy.arange(0,180,5)
 start_time = time.time()
 for i, conf in enumerate(conf_list):
@@ -149,3 +151,4 @@ for i, conf in enumerate(conf_list):
     print('\n')
     print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')
     print('\n')
+'''
