@@ -110,7 +110,7 @@ def cosdiff_ring(d_x, L):
 
 
 ##### Functions to create training data #####
-def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all, clear_cache=False):
+def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
     """
     Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
     Input:
@@ -141,7 +141,7 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all, clea
     alpha_channel = BW_image_jit_inp_all[6]
     mask = BW_image_jit_inp_all[7]
     ref = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ref_ori_vec, jitter_vec)
-    target = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, target_ori_vec, jitter_vec, clear_cache)
+    target = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, target_ori_vec, jitter_vec)
     data_dict['ref']=ref
     data_dict['target']=target
     data_dict['label']=labels
@@ -182,7 +182,7 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     return np.array(num1), np.array(num2), rnd_distances
 
 
-def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, numRnd_ori1=1, clear_cache=False):
+def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, numRnd_ori1=1):
     """
     Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
     Output:
@@ -202,7 +202,7 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
     
     # Generate noisy stimulus1 and stimulus2 with no jitter
     stim1 = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ori1, jitter=np.zeros_like(ori1))
-    stim2 = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ori2, jitter=np.zeros_like(ori1), clear_cache=clear_cache)
+    stim2 = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ori2, jitter=np.zeros_like(ori1))
     data_dict['ref']=stim1
     data_dict['target']=stim2
 
@@ -559,7 +559,7 @@ def configure_parameters_file(root_folder, conf):
         return updated_lines
     
     # Extract input - handles default values
-    trained_pars_list, sup_mid_readout_contrib, pretraining_task, p_local_s = (conf + [[1.0, 0.0], False, [0.4, 0.7]])[:4]
+    trained_pars_list, sup_mid_readout_contrib, pretraining_task, p_local_s = (conf + [[1.0, 0.0], False, [0.4, 0.7]])[len(conf)-1:4]
 
     # Load the parameters.py file content
     params_file_path = Path(os.path.join(root_folder,"parameters.py"))
