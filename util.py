@@ -110,7 +110,7 @@ def cosdiff_ring(d_x, L):
 
 
 ##### Functions to create training data #####
-def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
+def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all, shuffle_labels=False):
     """
     Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
     Input:
@@ -144,6 +144,11 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all):
     target = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, target_ori_vec, jitter_vec)
     data_dict['ref']=ref
     data_dict['target']=target
+
+    if shuffle_labels:
+        dlabel_length = len(labels)
+        labels = np.array(numpy.random.randint(2, size=dlabel_length))
+    
     data_dict['label']=labels
             
     return data_dict
@@ -559,7 +564,7 @@ def configure_parameters_file(root_folder, conf):
         return updated_lines
     
     # Extract input - handles default values
-    trained_pars_list, sup_mid_readout_contrib, pretraining_task, p_local_s = (conf + [[1.0, 0.0], False, [0.4, 0.7]])[len(conf)-1:4]
+    trained_pars_list, sup_mid_readout_contrib, pretraining_task, p_local_s, shuffle_labels = conf + ([[1.0, 0.0], False, [0.4, 0.7], False])[len(conf)-1:5]
 
     # Load the parameters.py file content
     params_file_path = Path(os.path.join(root_folder,"parameters.py"))
@@ -591,6 +596,9 @@ def configure_parameters_file(root_folder, conf):
         if "p_local_s" in line:
             line = f"    p_local_s = {p_local_s}\n"
 
+        # Update shuffle_labels in TrainingPars
+        if "shuffle_labels" in line:
+            line = f"    shuffle_labels: bool = {shuffle_labels}\n"
         
         updated_lines.append(line)
 

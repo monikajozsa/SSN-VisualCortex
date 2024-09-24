@@ -94,6 +94,7 @@ def train_ori_discr(
     stimuli_pars = untrained_pars.stimuli_pars
     pretrain_on = untrained_pars.pretrain_pars.is_on
     pretrain_offset_threshold = untrained_pars.pretrain_pars.offset_threshold
+    shuffle_labels = untrained_pars.training_pars.shuffle_labels
 
     # Initialise optimizer and set first stage accuracy threshold
     optimizer = optax.adam(training_pars.eta)
@@ -146,7 +147,7 @@ def train_ori_discr(
         # STOCHASTIC GRADIENT DESCENT LOOP
         for SGD_step in range(numSGD_steps):
             # i) Calculate model loss, accuracy, gradient
-            train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad)
+            train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=shuffle_labels)
             if jax.numpy.isnan(train_loss):
                 print('NaN values in loss at step', SGD_step)
                 return None, None
@@ -354,7 +355,7 @@ def train_ori_discr(
     return df, first_stage_final_step
 
 
-def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad):
+def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=False):
     """
     Top level function to calculate losses, accuracies and other relevant metrics. It generates noises and training data and then applies the function training_loss_val_and_grad.
 
@@ -386,7 +387,7 @@ def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars
             # Generate noise that is added to the output of the model
             noise_ref = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
             noise_target = generate_noise(training_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
-            train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp)
+            train_data = create_grating_training(untrained_pars.stimuli_pars, training_pars.batch_size, untrained_pars.BW_image_jax_inp, shuffle_labels= shuffle_labels)
 
     # Calculate gradient, loss and accuracy
     [loss, [all_losses, accuracy, sig_input, sig_output, max_rates, mean_rates]], grad = training_loss_val_and_grad(

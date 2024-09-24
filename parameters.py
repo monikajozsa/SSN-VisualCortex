@@ -14,7 +14,7 @@ class PretrainingPars:
     """ interval where the absolute orientation difference between reference and target is randomly chosen from """
     acc_th: float = 0.749
     """ accuracy threshold to calculate corresponding offset (training task) """
-    acc_check_freq: int = 2
+    acc_check_freq: int = 20
     """ frequency (in SGD step) of accuracy check for the training task """
     min_acc_check_ind: int = 1
     """ minimum SGD step where accuracy check happens for the training task """
@@ -22,9 +22,9 @@ class PretrainingPars:
     """ threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining """
     batch_size: int = 100
     """ number of trials per SGD step during pretraining """
-    SGD_steps: int = 1000
+    SGD_steps: int = 100
     """ maximum number of SGD steps during pretraining """
-    min_stop_ind: int = 100
+    min_stop_ind: int = 80
     """ minimum SGD step where pretraining can stop """
 
 pretraining_pars = PretrainingPars()
@@ -43,9 +43,9 @@ class TrainingPars:
     """ frequency of validation loss and accuracy calculation """
     first_stage_acc_th: float = 0.51
     """ accuracy threshold for early stopping criterium for the first stage of training """
-    SGD_steps: int = 2000
+    SGD_steps: int = 50
     """ number of SGD step """
-    min_stop_ind: int = 1000
+    min_stop_ind: int = 30
     """ minimum SGD step where training can stop """
 
 
@@ -238,14 +238,6 @@ class SSNPars:
 # Trained SSN parameters - parameters can be moved between TrainedSSNPars and SSNPars depending on whether we want to train them or not
 @dataclass
 class TrainedSSNPars:
-    J_EI_m: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in middle layer """
-    J_II_m: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in middle layer """
-    J_EI_s: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in superficial layer """
-    J_II_s: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in superficial layer """
     cE_m: float = 0.0
     """ baseline excitatory input (constant added to the output of excitatory neurons at middle layer) """
     cI_m: float = 0.0
@@ -262,10 +254,18 @@ class TrainedSSNPars:
     """ relative strength of weights of E/E pre/post cell-type in middle layer """
     J_IE_m: float = 0.0
     """ relative strength of weights of E/I pre/post cell-type in middle layer """
+    J_EI_m: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in middle layer """
+    J_II_m: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in middle layer """
     J_EE_s: float = 0.0
     """ relative strength of weights of E/E pre/post cell-type in superficial layer """
     J_IE_s: float = 0.0
     """ relative strength of weights of E/I pre/post cell-type in superficial layer """
+    J_EI_s: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in superficial layer """
+    J_II_s: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in superficial layer """
     kappa = np.array([[0.0, 0.0], [0.0, 0.0]])
     """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity """
 
