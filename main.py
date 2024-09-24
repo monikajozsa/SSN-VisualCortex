@@ -99,7 +99,7 @@ for i, conf in enumerate(conf_list):
     subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
      
     # plot results on parameters and tuning curves
-    #plot_results_on_parameters(config_folder, num_training, starting_time_in_main)
+    plot_results_on_parameters(config_folder, num_training, starting_time_in_main)
     
     print('\n')
     print(f'Configuration {i} done')

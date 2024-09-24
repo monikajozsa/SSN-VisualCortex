@@ -43,9 +43,9 @@ class TrainingPars:
     """ frequency of validation loss and accuracy calculation """
     first_stage_acc_th: float = 0.51
     """ accuracy threshold for early stopping criterium for the first stage of training """
-    SGD_steps: int = 10
+    SGD_steps: int = 2000
     """ number of SGD step """
-    min_stop_ind: int = 5
+    min_stop_ind: int = 1000
     """ minimum SGD step where training can stop """
 
 
@@ -227,7 +227,7 @@ class SSNPars:
     """ range of weights in terms of preferred orientation difference (in degree) """
     s_2x2_s = np.array([[0.2, 0.09], [0.4, 0.09]])
     """ ranges of weights between different pre/post cell-type """
-    p_local_s = [1.0, 0.0]
+    p_local_s = [0.4, 0.7]
     """ relative strength of local parts of E projections in superficial layer """
     p_local_m = [1.0, 1.0]
     """ relative strength of local parts of E projections in middle layer """
