@@ -35,6 +35,8 @@ pretraining_pars = PretrainingPars()
 class TrainingPars:
     pretraining_task: bool = False
     """ flag for training for the pretraining (general) task or the training (fine) discrimination task """
+    shuffle_labels: bool = False
+    """ flag for shuffling the labels of the training data """
     eta: float = 0.0
     """ learning rate - the maximum rate of parameter change in one SGD step; note that this initial values are irrelevant when we randomize the parameters """
     batch_size: int = 50
