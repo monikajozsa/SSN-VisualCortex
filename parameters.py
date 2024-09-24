@@ -43,9 +43,9 @@ class TrainingPars:
     """ frequency of validation loss and accuracy calculation """
     first_stage_acc_th: float = 0.51
     """ accuracy threshold for early stopping criterium for the first stage of training """
-    SGD_steps: int = 2000
+    SGD_steps: int = 10
     """ number of SGD step """
-    min_stop_ind: int = 1000
+    min_stop_ind: int = 5
     """ minimum SGD step where training can stop """
 
 
@@ -227,7 +227,7 @@ class SSNPars:
     """ range of weights in terms of preferred orientation difference (in degree) """
     s_2x2_s = np.array([[0.2, 0.09], [0.4, 0.09]])
     """ ranges of weights between different pre/post cell-type """
-    p_local_s = [0.4, 0.7]
+    p_local_s = [1.0, 0.0]
     """ relative strength of local parts of E projections in superficial layer """
     p_local_m = [1.0, 1.0]
     """ relative strength of local parts of E projections in middle layer """
@@ -238,6 +238,14 @@ class SSNPars:
 # Trained SSN parameters - parameters can be moved between TrainedSSNPars and SSNPars depending on whether we want to train them or not
 @dataclass
 class TrainedSSNPars:
+    J_EI_m: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in middle layer """
+    J_II_m: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in middle layer """
+    J_EI_s: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in superficial layer """
+    J_II_s: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in superficial layer """
     cE_m: float = 0.0
     """ baseline excitatory input (constant added to the output of excitatory neurons at middle layer) """
     cI_m: float = 0.0
@@ -260,14 +268,6 @@ class TrainedSSNPars:
     """ relative strength of weights of E/I pre/post cell-type in superficial layer """
     kappa = np.array([[0.0, 0.0], [0.0, 0.0]])
     """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity """
-    J_EI_m: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in middle layer """
-    J_II_m: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in middle layer """
-    J_EI_s: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in superficial layer """
-    J_II_s: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in superficial layer """
 
 
 @dataclass

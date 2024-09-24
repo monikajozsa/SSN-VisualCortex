@@ -1,6 +1,7 @@
 import time
 import os
 import sys
+import numpy
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.dirname(__file__))
 import argparse
@@ -15,6 +16,8 @@ def main_training(folder_path, num_training, starting_time_training=0, run_indic
         run_indices = range(num_training)
 
     for i in run_indices:
+        numpy.random.seed(i)
+
         # Load the last parameters from the pretraining
         pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=0, iloc_ind = -1, for_training=True)
         
