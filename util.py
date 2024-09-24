@@ -545,7 +545,7 @@ def configure_parameters_file(root_folder, conf):
         return updated_lines
     
     # Extract input - handles default values
-    trained_pars_list, sup_mid_readout_contrib, pretraining_task, p_local_s = (conf + [[1.0, 0.0], False, [0.4, 0.7]])[:4]
+    trained_pars_list, sup_mid_readout_contrib, pretraining_task, p_local_s = (conf + [[1.0, 0.0], False, [0.4, 0.7]])[len(conf)-1:4]
 
     # Load the parameters.py file content
     params_file_path = Path(os.path.join(root_folder,"parameters.py"))
