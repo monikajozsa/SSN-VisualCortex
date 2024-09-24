@@ -99,7 +99,7 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 <details>
 <summary>Functions called from `main.py`</summary>
 
-- **`main_pretraining`**: Location: `training\main_training.py`
+- **`main_pretraining`**: Location: `training\main_pretraining.py`
 - **`set_up_config_folder`**: Location: `util.py`
 - **`configure_parameters_file`**: Location: `util.py`
 - **`main_training`**: Location: `training\main_training.py`

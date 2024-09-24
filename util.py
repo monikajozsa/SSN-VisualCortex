@@ -9,6 +9,14 @@ import os
 
 from training.util_gabor import BW_image_jit_noisy
 
+def check_header(filename):
+    """Checking if csv file has a header or not"""
+    first_row = pd.read_csv(filename, nrows=1, header=None).iloc[0]
+    if first_row.apply(lambda x: isinstance(x, str)).any():
+        header = 0
+    else:
+        header = None
+    return header
 
 def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kappa= True):
     """Unpacks the trained parameters and the untrained parameters. If as_log_list is True, then the J and f parameters are returned as a list of logs. If return_kappa is True, then the kappa parameter is returned."""
@@ -463,6 +471,12 @@ def set_up_config_folder(results_folder, conf_name):
     shutil.copy(os.path.join(results_folder, 'initial_parameters.csv'), config_folder / 'initial_parameters.csv')
     shutil.copy(os.path.join(results_folder, 'pretraining_results.csv'), config_folder / 'pretraining_results.csv')
     return config_folder
+
+def del_pretrain_files_from_config_folder(config_folder):
+    """Delete the pretraining related files from the config folder."""
+    os.remove(os.path.join(config_folder, 'orimap.csv'))
+    os.remove(os.path.join(config_folder, 'initial_parameters.csv'))
+    os.remove(os.path.join(config_folder, 'pretraining_results.csv'))
 
 
 def configure_parameters_file(root_folder, conf):

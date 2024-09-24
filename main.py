@@ -8,29 +8,30 @@ import numpy
 import shutil
 import subprocess
 
-from util import configure_parameters_file, save_code, set_up_config_folder
+from util import configure_parameters_file, save_code, set_up_config_folder, del_pretrain_files_from_config_folder
 from training.main_pretraining import main_pretraining
-from analysis.main_analysis import main_tuning_curves, plot_results_on_parameters
+from analysis.main_analysis import main_tuning_curves, main_MVPA
 from analysis.analysis_functions import save_tc_features
+from analysis.visualization import plot_tuning_curves, plot_tc_features, plot_MVPA, plot_corr_triangles, plot_results_on_parameters
 
 ## Set up number of runs and starting time
-num_training = 49
+num_training = 2
 starting_time_in_main= time.time()
 
 # Set up results folder and save note and scripts
 note=f'Getting as much data with corrected kappas over the weekend as possible'
 root_folder = os.path.dirname(__file__)
 #folder_path = save_code(note=note)
-folder_path = os.path.join(root_folder, 'results', 'Aug15_v0')
+folder_path = os.path.join(root_folder, 'results', 'Sep24_v0')
 
 ########## ########## ########## 
 ######### Pretraining ##########
 ########## ########## ##########  
 # main_pretraining(folder_path, num_training, starting_time_in_main=starting_time_in_main)
 
-########## ########## ##########
-##########  Training  ##########
-########## ########## ########## 
+########## ########## ########## ##########
+########  Training configurations  ########
+########## ########## ########## ##########
 ## Define the configurations for training.
 ## Each configuration list contains the following elements:
 ## 1. Training parameters (e.g., 'cE_m', 'cI_m', etc.).
@@ -82,9 +83,14 @@ conf_dict = {'conf_baseline': conf_baseline,
              'conf_Jm_only': conf_Jm_only, 
              'conf_Js_only': conf_Js_only, 
              'conf_f_only': conf_f_only}
+
+conf_dict = {'conf_cms_only': conf_cms_only}
 conf_names = list(conf_dict.keys())
 conf_list = list(conf_dict.values())
 
+########## ########## ##########
+##########  Training  ##########
+########## ########## ########## 
 for i, conf in enumerate(conf_list):
     
     # create a configuration folder and copy relevant files to it
@@ -96,11 +102,11 @@ for i, conf in enumerate(conf_list):
     
     # run training with the configured parameters.py file
     main_training_source = os.path.join(root_folder, "training", "main_training.py")
-    subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
-     
-    # plot results on parameters and tuning curves
-    #plot_results_on_parameters(config_folder, num_training, starting_time_in_main)
+    subprocess.run(["python", str(main_training_source), config_folder, str(num_training), str(time.time())])
     
+    # plot results on parameters and tuning curves
+    plot_results_on_parameters(config_folder, num_training, starting_time_in_main)
+
     print('\n')
     print(f'Configuration {i} done')
     print('\n')
@@ -115,25 +121,19 @@ if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
 ########## ########## ##########
 ######### Tuning curves ########
 ########## ########## ##########
-'''
-tc_ori_list = numpy.arange(0,180,5)
+
+tc_ori_list = numpy.arange(0,180,60)
 start_time = time.time()
-for i, conf in enumerate(conf_list):
-    # calculate tuning curves
-    if i == 0:
-        # include calculation of tuning curves before and after pretraining
-        main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(3), tc_ori_list = tc_ori_list, add_header=True)
-        tc_df = pd.read_csv(f'{config_folder}/tuning_curves.csv')
-        mesh_i = tc_df['training_stage'] < 2
-        tc_df = tc_df[mesh_i]
-        tc_df = tc_df.reset_index(drop=True)
-        tc_df.to_csv(f'{folder_path}/pretraining_tuning_curves.csv', index=False)
-    else:
-        # copy pretraining tuning curve file from the first configuration and only calculate tuning curves after training
-        source_file = os.path.join(folder_path, 'pretraining_tuning_curves.csv')
-        destination_file = os.path.join(config_folder, 'tuning_curves.csv')
-        os.system(f'copy "{source_file}" "{destination_file}"')
-        main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
+
+# calculate tuning curves for before and after pretraining
+main_tuning_curves(folder_path, num_training, starting_time_in_main, stage_inds = range(2), tc_ori_list = tc_ori_list, add_header=True, filename='pretraining_tuning_curves.csv')
+
+# calculate tuning curves and features for the different configurations
+for i, conf in enumerate(conf_names):
+    config_folder = os.path.join(folder_path, conf)
+    
+    # calculate tuning curves for after training
+    main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
     
     # calculate tuning curve features
     save_tc_features(config_folder, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125])
@@ -143,10 +143,33 @@ for i, conf in enumerate(conf_list):
     # these are indices of representative cells from the different layers and types: every pair is for off center and center from 
     # mEph0(1-2), mIph0(3-4), mEph1(5-6), mIph1(7-8), mEph2(9-10), mIph2(11-12), mEph3(13-14), mIph3(15-16), sE(17-18), sI(19-20)
     folder_to_save=os.path.join(config_folder, 'figures')
-    #plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
-    #plot_tc_features(config_folder, num_training, tc_ori_list)
+    plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
+    plot_tc_features(config_folder, num_training, tc_ori_list)
     
     print('\n')
     print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')
     print('\n')
-'''
+
+########## ########## ##########
+##########    MVPA    #########
+########## ########## ##########
+
+sigma_filter = 2
+for i, conf in enumerate(conf_names):
+    config_folder = os.path.join(folder_path, conf)
+    folder_to_save = config_folder + f'/MVPA'
+    if not os.path.exists(folder_to_save):
+        os.makedirs(folder_to_save)
+    main_MVPA(config_folder, num_training, folder_to_save, 3, sigma_filter=sigma_filter,r_noise=True, num_noisy_trials=20, plot_flag=True, recalc=True)
+    plot_MVPA(folder_to_save, num_training)
+    plot_corr_triangles(config_folder, sigma_filter, folder_to_save)
+
+
+########## ########## ########## ##########
+######### Clean up redundant files ########
+########## ########## ########## ##########
+
+for i, conf in enumerate(conf_names):
+    config_folder = os.path.join(folder_path, conf)
+    # delete pretraining related files from the configuration folder
+    del_pretrain_files_from_config_folder(config_folder)

@@ -10,8 +10,8 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, tc_features, MVPA_param_offset_correlations, data_from_run
-from util import filter_for_run_and_stage
+from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, tc_features, MVPA_param_offset_correlations, data_from_run, exclude_runs
+from util import filter_for_run_and_stage, check_header
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
 plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels
@@ -128,7 +128,7 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
 
     ################# Boxplots for relative parameter changes #################
 
-    rel_changes_train, rel_changes_pretrain = rel_change_for_runs(folder, num_indices=3)
+    rel_changes_train, rel_changes_pretrain = rel_change_for_runs(folder, num_indices=3, num_runs=num_training)
 
     # Define groups of parameters and plot each parameter group
     group_labels = [
@@ -492,7 +492,9 @@ def plot_tuning_curves(results_dir, tc_cells, num_runs, folder_to_save, seed=0, 
     """Plot example tuning curves for middle and superficial layer cells at different stages of training"""
 
     train_tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
-    train_tuning_curves = numpy.array(pd.read_csv(train_tc_filename, header=None))
+    # Specify header based on what type of data there is in the first row of the csv file
+    train_tc_header = check_header(train_tc_filename)
+    train_tuning_curves = numpy.array(pd.read_csv(train_tc_filename, header=train_tc_header))
     pretrain_tc_filename = os.path.join(os.path.dirname(results_dir), 'pretraining_tuning_curves.csv')
     pretrain_tuning_curves = numpy.array(pd.read_csv(pretrain_tc_filename, header=0))
 
@@ -589,20 +591,25 @@ def plot_tc_features(results_dir, num_training, ori_list):
     'preforis_0': [],
     'preforis_2': []}
             
-    # Load data from file
-    tc_filename = os.path.join(results_dir,'tuning_curves.csv')
-    tuning_curves = pd.read_csv(tc_filename)
+    # Load tuning curves
+    train_tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
+    train_tc_header = check_header(train_tc_filename)
+    train_tuning_curves = numpy.array(pd.read_csv(train_tc_filename, header=train_tc_header))
+    pretrain_tc_filename = os.path.join(os.path.dirname(results_dir), 'pretraining_tuning_curves.csv')
+    pretrain_tuning_curves = numpy.array(pd.read_csv(pretrain_tc_filename, header=0))
+
+    # Combine pretraining and training tuning curves
+    tuning_curves = numpy.vstack((pretrain_tuning_curves, train_tuning_curves))
+
     # Loop through each training and stage within training (pre pretraining, post pretrainig and post training)
     for i in range(num_training):
         # Filter tuning curves for the current run
-        tuning_curves_i = filter_for_run_and_stage(tuning_curves,i)
-        tuning_curves_i['training_stage'] = pd.to_numeric(tuning_curves_i['training_stage'], errors='coerce')
+        mesh_i = tuning_curves[:,0]==i
+        tuning_curves_i = tuning_curves[mesh_i,1:]
         for training_stage in range(3):      
             # Filter tuning curves for the current training stage      
-            mesh_stage = tuning_curves_i['training_stage']==training_stage
-            tuning_curve = tuning_curves_i[mesh_stage]
-            tuning_curve = tuning_curve.drop(columns=['training_stage'])
-            tuning_curve = tuning_curve.to_numpy()
+            mesh_stage = tuning_curves_i[:,0]==training_stage
+            tuning_curve = tuning_curves_i[mesh_stage,1:]
 
             # Calculate features for the current tuning curve: slope of normalized tuning_curve
             slope, fwhm, orientations = tc_features(tuning_curve, ori_list=ori_list, expand_dims=True, ori_to_center_slope=[55, 125])
@@ -996,4 +1003,231 @@ def plot_corr_triangle(data,folder_to_save='',filename='corr_triangle.png'):
     # Save the figure
     file_path = os.path.join(folder_to_save, filename)
     plt.savefig(file_path, bbox_inches='tight')
+    plt.close()
+
+
+######### PLOT RESULTS ON PARAMETERS and TUNING CURVES ############
+def plot_results_on_parameters(final_folder_path, num_training, plot_per_run = True, plot_boxplots = True):
+    """ Plot the results from the results csv files and tuning curves csv files"""
+    folder_to_save = os.path.join(final_folder_path, 'figures')
+
+    ######### PLOT RESULTS ############
+    if plot_per_run:
+        excluded_run_inds = plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+        # save excluded_run_inds into a csv in final_folder_path
+        excluded_run_inds_df = pd.DataFrame(excluded_run_inds)
+        excluded_run_inds_df.to_csv(os.path.join(final_folder_path, 'excluded_runs.csv'))
+        if excluded_run_inds is not None:
+            exclude_runs(final_folder_path, excluded_run_inds)
+            num_training=num_training-len(excluded_run_inds)
+    if plot_boxplots:
+        boxplot_file_name = 'boxplot_pretraining'
+        boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 3, num_training=num_training)
+
+
+################## MVPA related plots ##################
+
+def plot_corr_triangles(final_folder_path, sigma_filter, folder_to_save):
+    """ Plot the correlation triangles for the MVPA results """
+
+    data_rel_changes, _ = rel_change_for_runs(final_folder_path, num_indices = 3)
+    MVPA_scores = numpy.load(final_folder_path + f'/sigmafilt_{sigma_filter}/MVPA_scores.npy') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
+    data_sup_55 = pd.DataFrame({
+        'MVPA': (MVPA_scores[:,0,-1,0]- MVPA_scores[:,0,-2,0])/MVPA_scores[:,0,-2,0],
+        'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
+        'offset_th': data_rel_changes['staircase_offset']
+    })
+    plot_corr_triangle(data_sup_55, folder_to_save, 'corr_triangle_sup_55')
+    data_sup_125 = pd.DataFrame({
+        'MVPA': (MVPA_scores[:,0,-1,1]- MVPA_scores[:,0,-2,1])/MVPA_scores[:,0,-2,1],
+        'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
+        'offset_th': data_rel_changes['staircase_offset']
+    })
+    plot_corr_triangle(data_sup_125, folder_to_save, 'corr_triangle_sup_125')
+    data_mid_55 = pd.DataFrame({
+        'MVPA': (MVPA_scores[:,1,-1,0]- MVPA_scores[:,1,-2,0])/MVPA_scores[:,1,-2,0],
+        'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
+        'offset_th': data_rel_changes['staircase_offset']
+    })
+    plot_corr_triangle(data_mid_55, folder_to_save, 'corr_triangle_mid_55')
+    data_mid_125 = pd.DataFrame({
+        'MVPA': (MVPA_scores[:,1,-1,1]- MVPA_scores[:,1,-2,1])/MVPA_scores[:,1,-2,1],
+        'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
+        'offset_th': data_rel_changes['staircase_offset']
+    })
+    plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
+
+
+def plot_Mahalanobis_dist(num_trainings, num_stage_inds, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, folder_to_save, file_to_save):
+    ori_list = numpy.asarray([55, 125, 0])
+    num_oris = len(ori_list)
+    num_layers=2
+    colors = ['black','blue', 'red']
+    labels = ['pre-pretrained', 'post-pretrained','post-trained']
+
+    # Histogram plots (samples are per trial)
+    mahal_SNR_train = mahal_train_control / mahal_within_train # dimensions are: run x layer x stages x trial
+    mahal_SNR_untrain = mahal_untrain_control / mahal_within_untrain
+
+    for run_ind in range(num_trainings):
+        fig, axs = plt.subplots(2*num_layers, num_oris-1, figsize=(20, 30))  # Plot for Mahalanobis distances and SNR
+        layer_labels = ['Sup', 'Mid']
+        for layer in range(num_layers):
+            for stage_ind in range(num_stage_inds):
+                # Plotting Mahal distances for trained ori
+                axs[layer,0].set_title(f'Mahalanobis dist: {layer_labels[layer]} layer, ori {ori_list[0]}')
+                axs[layer,0].hist(mahal_train_control[run_ind,layer,stage_ind,:], label=labels[stage_ind], color=colors[stage_ind], alpha=0.4) 
+                mean_val=numpy.mean(mahal_train_control[run_ind,layer,stage_ind,:])
+                axs[layer,0].axvline(mean_val, color=colors[stage_ind], linestyle='dashed', linewidth=1)
+                axs[layer,0].text(mean_val, axs[layer,0].get_ylim()[1]*0.95, f'{mean_val:.2f}', color=colors[stage_ind], ha='center')
+                axs[layer,0].legend(loc='lower left')
+                # Plotting Mahal distances for untrained ori
+                axs[layer,1].set_title(f'Mahal dist: {layer_labels[layer]} layer, ori {ori_list[1]}')
+                axs[layer,1].hist(mahal_untrain_control[run_ind,layer,stage_ind,:], label=labels[stage_ind], color=colors[stage_ind], alpha=0.4)
+                mean_val=numpy.mean(mahal_untrain_control[run_ind,layer,stage_ind,:]) 
+                axs[layer,1].axvline(mean_val, color=colors[stage_ind], linestyle='dashed', linewidth=1)
+                axs[layer,1].text(mean_val, axs[layer,0].get_ylim()[1]*0.95, f'{mean_val:.2f}', color=colors[stage_ind], ha='center')
+                axs[layer,1].legend(loc='lower left')
+                # Plotting SNR for trained ori
+                axs[2+layer,0].set_title(f'SNR: layer {layer_labels[layer]}, ori {ori_list[0]}')
+                axs[2+layer,0].hist(mahal_SNR_train[run_ind,layer,stage_ind,:], label=labels[stage_ind], color=colors[stage_ind], alpha=0.4)
+                mean_val = numpy.mean(mahal_SNR_train[run_ind,layer,stage_ind,:])
+                axs[2+layer,0].axvline(mean_val, color=colors[stage_ind], linestyle='dashed', linewidth=1)
+                axs[2+layer,0].text(mean_val, axs[2+layer,0].get_ylim()[1]*0.95, f'{mean_val:.2f}', color=colors[stage_ind], ha='center')
+                axs[2+layer,0].legend(loc='lower left')
+                # Plotting SNR for untrained ori
+                axs[2+layer,1].set_title(f'SNR: {layer_labels[layer]} layer, ori {ori_list[1]}')
+                axs[2+layer,1].hist(mahal_SNR_untrain[run_ind,layer,stage_ind,:], label=labels[stage_ind], color=colors[stage_ind], alpha=0.4)
+                mean_val = numpy.mean(mahal_SNR_untrain[run_ind,layer,stage_ind,:])
+                axs[2+layer,1].axvline(mean_val, color=colors[stage_ind], linestyle='dashed', linewidth=1)
+                axs[2+layer,1].text(mean_val, axs[2+layer,1].get_ylim()[1]*0.90, f'{mean_val:.2f}', color=colors[stage_ind], ha='center')
+                axs[2+layer,1].legend(loc='lower left')
+                
+        fig.savefig(folder_to_save + '/' + file_to_save + f"_{run_ind}_control_{ori_list[2]}")
+    
+    # Boxplots - boxes within a subplot correspond to different orientations over different runs
+    colors = ['black','tab:green']
+    labels = [f'ori:{ori_list[0]}', f'ori:{ori_list[1]}']
+    training_type_text = ['training']
+    mahal_diff_train_l0_0=np.mean(mahal_train_control[:,0,1,:]-mahal_train_control[:,0,0,:], axis=1)/np.mean(mahal_train_control[:,0,1,:], axis=1)
+    mahal_diff_untrain_l0_0=np.mean(mahal_untrain_control[:,0,1,:]-mahal_untrain_control[:,0,0,:], axis=1)/np.mean(mahal_untrain_control[:,0,1,:], axis=1)
+    mahal_diff_l0=np.stack((mahal_diff_train_l0_0,mahal_diff_untrain_l0_0), axis=1)
+    
+    mahal_diff_train_l1_0=np.mean(mahal_train_control[:,1,1,:]-mahal_train_control[:,1,0,:], axis=1)/np.mean(mahal_train_control[:,1,1,:], axis=1)
+    mahal_diff_untrain_l1_0=np.mean(mahal_untrain_control[:,1,1,:]-mahal_untrain_control[:,1,0,:], axis=1)/np.mean(mahal_untrain_control[:,1,1,:], axis=1)
+    mahal_diff_l1=np.stack((mahal_diff_train_l1_0,mahal_diff_untrain_l1_0), axis=1)
+    
+    # define the matrices to plot for trainig when pretraining was present
+    num_training_type=mahal_train_control.shape[2]-1
+    if num_training_type==2:
+        training_type_text = ['pretraining','training']
+        mahal_diff_train_l0_1=np.mean(mahal_train_control[:,0,2,:]-mahal_train_control[:,0,1,:], axis=1)/np.mean(mahal_train_control[:,0,2,:], axis=1)
+        mahal_diff_untrain_l0_1=np.mean(mahal_untrain_control[:,0,2,:]-mahal_untrain_control[:,0,1,:], axis=1)/np.mean(mahal_untrain_control[:,0,2,:], axis=1)
+        mahal_diff_l0_traintype2=np.stack((mahal_diff_train_l0_1,mahal_diff_untrain_l0_1), axis=1)
+        mahal_diff_l0=np.concatenate((mahal_diff_l0,mahal_diff_l0_traintype2),axis=1) 
+        mahal_diff_train_l1_1=np.mean(mahal_train_control[:,1,2,:]-mahal_train_control[:,1,1,:], axis=1)/np.mean(mahal_train_control[:,1,2,:], axis=1)
+        mahal_diff_untrain_l1_1=np.mean(mahal_untrain_control[:,1,2,:]-mahal_untrain_control[:,1,1,:], axis=1)/np.mean(mahal_untrain_control[:,1,2,:], axis=1)
+        mahal_diff_l1_traintype2=np.stack((mahal_diff_train_l1_1,mahal_diff_untrain_l1_1), axis=1) 
+        mahal_diff_l1=np.concatenate((mahal_diff_l1,mahal_diff_l1_traintype2),axis=1) # num_trainings x (55ori-pretrain, 125ori-pretrain, 55ori-train, 125ori-train)
+    fig, axs = plt.subplots(num_training_type, num_layers, figsize=(num_training_type*5, num_layers*5))
+    # within a subplot, the two boxplots are for the trained and untrained orientation
+    for training_type in range(num_training_type):
+        try:
+            bp = axs[training_type,0].boxplot(mahal_diff_l0[:,training_type*2:training_type*2+2], labels=labels ,patch_artist=True)
+        except:
+            bp = axs[training_type,0].boxplot(mahal_diff_l0[:,training_type*2:training_type*2+2].T, labels=labels ,patch_artist=True)
+        axs[training_type,0].set_title(f'{layer_labels[0]} layer, {training_type_text[training_type]}', fontsize=20)
+        for box, color in zip(bp['boxes'], colors):
+            box.set_facecolor(color)
+        try:
+            bp = axs[training_type,1].boxplot(mahal_diff_l1[:,training_type*2:training_type*2+2], labels=labels, patch_artist=True)
+        except:
+            bp = axs[training_type,1].boxplot(mahal_diff_l1[:,training_type*2:training_type*2+2].T, labels=labels, patch_artist=True)
+        axs[training_type,1].set_title(f'{layer_labels[1]} layer', fontsize=20)
+        for box, color in zip(bp['boxes'], colors):
+            box.set_facecolor(color)
+        
+    fig.savefig(f"{folder_to_save}/Mahal_dist_diff")
+    
+    
+def plot_MVPA(final_folder_path,num_runs):
+    MVPA_scores = numpy.load(os.path.join(final_folder_path, 'MVPA_scores.npy'))
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    # iterate over the two layers
+    layer_label = ['sup', 'mid']
+    for layer in range(2):
+        # create a list of the 4 conditions
+        data = [MVPA_scores[:,layer,1, 0], MVPA_scores[:,layer,2, 0], MVPA_scores[:,layer,1, 1], MVPA_scores[:,layer,2, 1]]
+        # draw the boxplot
+        ax[layer].boxplot(data, positions=[1, 2, 3, 4])
+        ax[layer].set_xticklabels(['55 pre', '55 post', '125 pre', '125 post'])
+        ax[layer].set_title(f'Layer {layer_label[layer]}')
+        ax[layer].set_ylabel('MVPA score')
+        # draw lines to connect the pre and post training for each sample
+        for i in range(num_runs):
+            #gray lines
+            ax[layer].plot([1, 2], [data[0][i], data[1][i]], color='gray', alpha=0.5, linewidth=0.5)
+            ax[layer].plot([3, 4], [data[2][i], data[3][i]], color='gray', alpha=0.5, linewidth=0.5)
+    plt.savefig(final_folder_path+'/MVPA_boxplot.png')
+    plt.close()
+
+def plot_Mahal_LMI_hists(df_LMI, df_mahal, folder, num_stage_inds):
+    num_layers=2
+    LMI_across=numpy.array(df_LMI['LMI_across'].values.reshape(-1,num_layers,num_stage_inds-1))
+    LMI_within=numpy.array(df_LMI['LMI_within'].values.reshape(-1,num_layers,num_stage_inds-1))
+    LMI_ratio=numpy.array(df_LMI['LMI_ratio'].values.reshape(-1,num_layers,num_stage_inds-1))
+    mahal_train_control_mean = numpy.array(df_mahal['ori55_across'].values.reshape(-1,num_layers,num_stage_inds))
+    mahal_untrain_control_mean = numpy.array(df_mahal['ori125_across'].values.reshape(-1,num_layers,num_stage_inds))
+    mahal_within_train_mean = numpy.array(df_mahal['ori55_within'].values.reshape(-1,num_layers,num_stage_inds))
+    mahal_within_untrain_mean = numpy.array(df_mahal['ori125_within'].values.reshape(-1,num_layers,num_stage_inds))
+    
+    fig, axs = plt.subplots(num_layers, 3, figsize=(30, 20))
+    for layer in range(num_layers):
+        for stage_ind in range(num_stage_inds-1):
+            axs[layer,0].hist(LMI_across[:,layer,stage_ind], label='across', color='blue', alpha=0.5*(stage_ind+1)) #  fainter for the pretraining
+            axs[layer,1].hist(LMI_within[:,layer,stage_ind], label='within', color='red', alpha=0.5*(stage_ind+1))
+            axs[layer,2].hist(LMI_ratio[:,layer,stage_ind], label='ratio', color='green', alpha=0.5*(stage_ind+1))
+            # add mean values as vertical lines
+            mean_LMI_across = numpy.mean(LMI_across[:,layer,stage_ind])
+            mean_LMI_within = numpy.mean(LMI_within[:,layer,stage_ind])
+            mean_LMI_ratio = numpy.mean(LMI_ratio[:,layer,stage_ind])
+            axs[layer,0].axvline(mean_LMI_across, color='blue', linestyle='dashed', linewidth=0.6*(stage_ind+1))
+            axs[layer,1].axvline(mean_LMI_within, color='red', linestyle='dashed', linewidth=0.6*(stage_ind+1))
+            axs[layer,2].axvline(mean_LMI_ratio, color='green', linestyle='dashed', linewidth=0.6*(stage_ind+1))
+        axs[layer,0].set_title(f'LMI for layer {layer}, stage ind {stage_ind}')
+        axs[layer,0].legend()
+        axs[layer,1].legend()
+        axs[layer,2].legend()
+        # Add black vertical lines at 0
+        axs[layer,0].axvline(0, color='black', linestyle='dashed', linewidth=1)
+        axs[layer,1].axvline(0, color='black', linestyle='dashed', linewidth=1)
+        axs[layer,2].axvline(0, color='black', linestyle='dashed', linewidth=1)
+    fig.savefig(folder + f"/figures/LMI_histograms")
+    plt.close()
+
+    # Plot histograms of the mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean across the runs
+    fig, axs = plt.subplots(num_layers, 4, figsize=(40, 20))
+    for layer in range(num_layers):
+        for stage_ind in range(num_stage_inds-1):
+            # plot histograms with contoured colors
+            axs[layer,0].hist(mahal_train_control_mean[:,layer,stage_ind], label='train-control', color='blue', alpha=0.33*(stage_ind+1))
+            axs[layer,1].hist(mahal_untrain_control_mean[:,layer,stage_ind], label='untrain-control', color='red', alpha=0.33*(stage_ind+1))
+            axs[layer,2].hist(mahal_within_train_mean[:,layer,stage_ind], label='within-train', color='green', alpha=0.33*(stage_ind+1))
+            axs[layer,3].hist(mahal_within_untrain_mean[:,layer,stage_ind], label='within-untrain', color='purple', alpha=0.33*(stage_ind+1))
+            # add mean values as vertical lines
+            mean_mahal_train_control = numpy.mean(mahal_train_control_mean[:,layer,stage_ind])
+            mean_mahal_untrain_control = numpy.mean(mahal_untrain_control_mean[:,layer,stage_ind])
+            mean_mahal_within_train = numpy.mean(mahal_within_train_mean[:,layer,stage_ind])
+            mean_mahal_within_untrain = numpy.mean(mahal_within_untrain_mean[:,layer,stage_ind])
+            axs[layer,0].axvline(mean_mahal_train_control, color='blue', linestyle='dashed', linewidth=0.6*(stage_ind+1))
+            axs[layer,1].axvline(mean_mahal_untrain_control, color='red', linestyle='dashed', linewidth=0.6*(stage_ind+1))
+            axs[layer,2].axvline(mean_mahal_within_train, color='green', linestyle='dashed', linewidth=0.6*(stage_ind+1))
+            axs[layer,3].axvline(mean_mahal_within_untrain, color='purple', linestyle='dashed', linewidth=0.6*(stage_ind+1))
+            
+            axs[layer,0].set_title(f'train-control Mahal dist, layer {layer}')
+            axs[layer,1].set_title(f'untrain-control Mahal dist, layer {layer}')
+            axs[layer,2].set_title(f'within-train Mahal dist, layer {layer}')
+            axs[layer,3].set_title(f'within-untrain Mahal dist, layer {layer}')
+            axs[layer,0].legend()
+    fig.savefig(folder + f"/figures/Mahal_histograms")
     plt.close()

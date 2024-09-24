@@ -5,11 +5,11 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 numpy.random.seed(0)
+import jax.numpy as np
 
-from analysis.analysis_functions import tuning_curve, tuning_curve, rel_change_for_runs, exclude_runs
+from analysis.analysis_functions import tuning_curve, MVPA_Mahal_analysis
 from util import load_parameters
-from analysis.visualization import plot_results_from_csvs, boxplots_from_csvs, plot_tuning_curves, plot_tc_features, plot_corr_triangle
-from analysis.MVPA_Mahal_combined import MVPA_Mahal_from_csv, plot_MVPA
+from analysis.visualization import plot_Mahal_LMI_hists, plot_Mahalanobis_dist
 from parameters import GridPars, SSNPars, PretrainingPars
 grid_pars, ssn_pars, pretraining_pars = GridPars(), SSNPars(), PretrainingPars()
 
@@ -18,12 +18,15 @@ if not pretraining_pars.is_on:
     raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 ########## CALCULATE TUNING CURVES ############
-def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds = range(3), tc_ori_list = numpy.arange(0,180,6), add_header=True):
+def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds = range(3), tc_ori_list = numpy.arange(0,180,6), add_header=True, filename=None):
     """ Calculate tuning curves for the different runs and different stages in each run """
     from parameters import GridPars, SSNPars
     grid_pars, ssn_pars = GridPars(), SSNPars()
     # Define the filename for the tuning curves 
-    tc_file_path = os.path.join(folder_path, 'tuning_curves.csv')
+    if filename is not None:
+        tc_file_path = os.path.join(folder_path, filename)
+    else:
+        tc_file_path = os.path.join(folder_path, 'tuning_curves.csv')
 
     if add_header:
         # Define the header for the tuning curves
@@ -58,66 +61,34 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
         print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
 
 
-######### PLOT RESULTS ON PARAMETERS and TUNING CURVES ############
-def plot_results_on_parameters(final_folder_path, num_training, starting_time_in_main, plot_per_run = True, plot_boxplots = True):
-    """ Plot the results from the results csv files and tuning curves csv files"""
-    folder_to_save = os.path.join(final_folder_path, 'figures')
+########## CALCULATE MVPA SCORES AND MAHALANOBIS DISTANCES ############
+def main_MVPA(folder, num_training, folder_to_save=None, num_stage_inds=2, sigma_filter=5, r_noise=True, num_noisy_trials=100, plot_flag=False, recalc = True):
+    """ Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer"""
+    if folder_to_save is None:
+        # save the output into folder_to_save as npy files
+        folder_to_save = folder + f'/sigmafilt_{sigma_filter}'
+        # create the folder if it does not exist
+        if not os.path.exists(folder_to_save):
+            os.makedirs(folder_to_save)
+    
+    if recalc:
+        MVPA_scores, df_mahal, df_LMI, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain = MVPA_Mahal_analysis(folder,num_training, num_stage_inds, r_noise = r_noise, sigma_filter=sigma_filter, num_noisy_trials=num_noisy_trials, plot_flag=plot_flag)
+    
+        numpy.save(folder_to_save +'/MVPA_scores.npy', MVPA_scores)    
+        df_mahal.to_csv(folder_to_save + '/df_mahal.csv', index=False)
+        df_LMI.to_csv(folder_to_save + '/df_LMI.csv', index=False)
+    else:
+        MVPA_scores = numpy.load(folder_to_save +'/MVPA_scores.npy')
+        df_mahal = pd.read_csv(folder_to_save + '/df_mahal.csv')
+        df_LMI = pd.read_csv(folder_to_save + '/df_LMI.csv')
+    
+    print('Pre-pre, pre and post training for 55~0, sup layer:',[np.mean(MVPA_scores[:,0,0,0]),np.mean(MVPA_scores[:,0,1,0]),np.mean(MVPA_scores[:,0,-1,0])])
+    print('Pre-pre, pre and post training for 55~0, mid layer:',[np.mean(MVPA_scores[:,1,0,0]),np.mean(MVPA_scores[:,1,1,0]),np.mean(MVPA_scores[:,1,-1,0])])
+    print('Pre-pre, pre and post training for 125~0, sup layer:',[np.mean(MVPA_scores[:,0,0,1]),np.mean(MVPA_scores[:,0,1,1]),np.mean(MVPA_scores[:,0,-1,1])])
+    print('Pre-pre, pre and post training for 125~0, mid layer:',[np.mean(MVPA_scores[:,1,0,1]),np.mean(MVPA_scores[:,1,1,1]),np.mean(MVPA_scores[:,1,-1,1])])
 
-    ######### PLOT RESULTS ############
-    if plot_per_run:
-        excluded_run_inds = plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
-        # save excluded_run_inds into a csv in final_folder_path
-        excluded_run_inds_df = pd.DataFrame(excluded_run_inds)
-        excluded_run_inds_df.to_csv(os.path.join(final_folder_path, 'excluded_runs.csv'))
-        if excluded_run_inds is not None:
-            exclude_runs(final_folder_path, excluded_run_inds)
-            num_training=num_training-len(excluded_run_inds)
-    if plot_boxplots:
-        boxplot_file_name = 'boxplot_pretraining'
-        boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 3, num_training=num_training)
-        print(f'Finished run-plots and boxplots in {time.time()-starting_time_in_main} seconds')
-
-'''
-###########################################################
-######### CALCULATE MVPA AND PLOT CORRELATIONS ############
-###########################################################
-tc_cells=[10,40,100,130,650,690,740,760]
-mahal_file_name = 'Mahal_dist'
-num_SGD_inds = 3
-sigma_filter = 2
-MVPA_Mahal_from_csv(final_folder_path, num_training, num_SGD_inds,sigma_filter=sigma_filter,r_noise=True, plot_flag=True, recalc=True)
-
-folder_to_save=os.path.join(final_folder_path, 'figures')
-data_rel_changes, _ = rel_change_for_runs(final_folder_path, num_indices=3)
-data_rel_changes['staircase_offset']=-data_rel_changes['staircase_offset']
-
-plot_MVPA(final_folder_path + f'/sigmafilt_{sigma_filter}',num_training)
-
-MVPA_scores = numpy.load(final_folder_path + f'/sigmafilt_{sigma_filter}/MVPA_scores.npy') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
-data_sup_55 = pd.DataFrame({
-    'MVPA': (MVPA_scores[:,0,-1,0]- MVPA_scores[:,0,-2,0])/MVPA_scores[:,0,-2,0],
-    'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
-    'offset_th': data_rel_changes['staircase_offset']
-})
-plot_corr_triangle(data_sup_55, folder_to_save, 'corr_triangle_sup_55')
-data_sup_125 = pd.DataFrame({
-    'MVPA': (MVPA_scores[:,0,-1,1]- MVPA_scores[:,0,-2,1])/MVPA_scores[:,0,-2,1],
-    'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
-    'offset_th': data_rel_changes['staircase_offset']
-})
-plot_corr_triangle(data_sup_125, folder_to_save, 'corr_triangle_sup_125')
-data_mid_55 = pd.DataFrame({
-    'MVPA': (MVPA_scores[:,1,-1,0]- MVPA_scores[:,1,-2,0])/MVPA_scores[:,1,-2,0],
-    'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
-    'offset_th': data_rel_changes['staircase_offset']
-})
-plot_corr_triangle(data_mid_55, folder_to_save, 'corr_triangle_mid_55')
-data_mid_125 = pd.DataFrame({
-    'MVPA': (MVPA_scores[:,1,-1,1]- MVPA_scores[:,1,-2,1])/MVPA_scores[:,1,-2,1],
-    'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
-    'offset_th': data_rel_changes['staircase_offset']
-})
-plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
-
-print(f'Finished calculating and plotting MVPA results in {time.time()-start_time_in_main} seconds')
-'''
+    # Plot histograms of the LMI acorss the runs
+    if plot_flag:
+        plot_Mahal_LMI_hists(df_LMI, df_mahal, folder, num_stage_inds)
+        file_name = 'Mahal_dist'
+        plot_Mahalanobis_dist(num_training, num_stage_inds, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, folder_to_save, file_name)
