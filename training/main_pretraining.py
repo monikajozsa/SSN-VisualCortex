@@ -4,6 +4,7 @@ import pandas as pd
 import time
 import os
 import sys
+import jax
 import jax.numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
@@ -14,7 +15,7 @@ sys.path.append(os.path.dirname(__file__))
 
 from util import load_parameters, take_log, create_grating_training, create_grating_pretraining, unpack_ssn_parameters
 from util_gabor import update_untrained_pars, save_orimap
-from training_functions import train_ori_discr, task_acc_test
+from training_functions import train_ori_discr, task_acc_test, generate_noise
 from SSN_classes import SSN_mid, SSN_sup
 from model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from parameters import PretrainingPars
@@ -193,7 +194,7 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
         return optimized_readout_pars, randomized_pars_log, untrained_pars
 
 
-def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000):
+def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_training=False):
     """
     This function sets readout_pars based on N sample data using logistic regression. This method is to initialize w_sig, b_sig optimally (given limited data) for a set of randomized trained_pars_dict parameters (to be trained).
     """
@@ -204,20 +205,33 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000):
     J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _= unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars, return_kappa=False)
 
     # Define middle and superficial layers
-    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)
-    
+    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)    
+
     ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist)
 
     # Run reference and target data through the two layer model
     conv_pars = untrained_pars.conv_pars
-    [r_ref, _], _,_, _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
-    [r_target, _], _, _, _, _= vmap_evaluate_model_response(ssn_mid, ssn_sup, data['target'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
+    [r_sup_ref, r_mid_ref], _,_, _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
+    [r_sup_target, r_mid_target], _, _, _, _= vmap_evaluate_model_response(ssn_mid, ssn_sup, data['target'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
     
-    # Define data for logistic regression
-    from training_functions import generate_noise
-    import jax
-    noise_ref = generate_noise(batch_size = N, length = len(untrained_pars.oris), num_readout_noise = untrained_pars.num_readout_noise)
-    noise_target = generate_noise(batch_size = N, length = len(untrained_pars.oris), num_readout_noise = untrained_pars.num_readout_noise)
+    if for_training:
+        sup_mid_contrib = untrained_pars.sup_mid_readout_contrib
+        middle_grid_ind = untrained_pars.middle_grid_ind
+        if sup_mid_contrib[0] == 0 or sup_mid_contrib[1] == 0:
+            r_ref = sup_mid_contrib[0] * r_sup_ref[:,middle_grid_ind] + sup_mid_contrib[1] * r_mid_ref[:,middle_grid_ind]
+            r_target = sup_mid_contrib[0] * r_sup_target[:,middle_grid_ind] + sup_mid_contrib[1] * r_mid_target[:,middle_grid_ind]
+            noise_ref = generate_noise(batch_size = N, length = len(middle_grid_ind), num_readout_noise = untrained_pars.num_readout_noise)
+            noise_target = generate_noise(batch_size = N, length = len(middle_grid_ind), num_readout_noise = untrained_pars.num_readout_noise)
+        else: # concatenate the two layers
+            r_ref = np.concatenate((sup_mid_contrib[1] * r_mid_ref[:,middle_grid_ind], sup_mid_contrib[0] * r_sup_ref[:,middle_grid_ind]), axis=1)
+            r_target = np.concatenate((sup_mid_contrib[1] * r_mid_target[:,middle_grid_ind], sup_mid_contrib[0] * r_sup_target[:,middle_grid_ind]), axis=1)
+            noise_ref = generate_noise(batch_size = N, length = 2*len(middle_grid_ind), num_readout_noise = untrained_pars.num_readout_noise)
+            noise_target = generate_noise(batch_size = N, length = 2*len(middle_grid_ind), num_readout_noise = untrained_pars.num_readout_noise)
+    else:
+        # Define data for logistic regression
+        noise_ref = generate_noise(batch_size = N, length = len(untrained_pars.oris), num_readout_noise = untrained_pars.num_readout_noise)
+        noise_target = generate_noise(batch_size = N, length = len(untrained_pars.oris), num_readout_noise = untrained_pars.num_readout_noise)
+    
     noisy_r_ref = r_ref+noise_ref*np.sqrt(jax.nn.softplus(r_ref))
     noisy_r_target = r_target+noise_target*np.sqrt(jax.nn.softplus(r_target))
     X = noisy_r_ref - noisy_r_target
@@ -237,7 +251,7 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000):
     w_sig = log_reg.coef_.T
     w_sig = w_sig.squeeze()
 
-    if untrained_pars.pretrain_pars.is_on:
+    if untrained_pars.pretrain_pars.is_on or for_training:
         readout_pars_opt['w_sig'] = w_sig
     else:
         readout_pars_opt['w_sig'] = w_sig[untrained_pars.middle_grid_ind]

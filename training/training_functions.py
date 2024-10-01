@@ -443,8 +443,12 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
         middle_grid_ind = untrained_pars.middle_grid_ind
     
     sup_mid_contrib = untrained_pars.sup_mid_readout_contrib
-    r_ref_box = sup_mid_contrib[0] * r_sup_ref[middle_grid_ind] + sup_mid_contrib[1] * r_mid_ref[middle_grid_ind]
-    r_target_box = sup_mid_contrib[0] * r_sup_target[middle_grid_ind] + sup_mid_contrib[1] * r_mid_target[middle_grid_ind]
+    if sup_mid_contrib[0] == 0 or sup_mid_contrib[1] == 0:
+        r_ref_box = sup_mid_contrib[0] * r_sup_ref[middle_grid_ind] + sup_mid_contrib[1] * r_mid_ref[middle_grid_ind]
+        r_target_box = sup_mid_contrib[0] * r_sup_target[middle_grid_ind] + sup_mid_contrib[1] * r_mid_target[middle_grid_ind]
+    else: # concatenate the two layers
+        r_ref_box = np.concatenate((sup_mid_contrib[1] * r_mid_ref[middle_grid_ind], sup_mid_contrib[0] * r_sup_ref[middle_grid_ind]))
+        r_target_box = np.concatenate((sup_mid_contrib[1] * r_mid_target[middle_grid_ind], sup_mid_contrib[0] * r_sup_target[middle_grid_ind]))
     
     # Add noise
     r_ref_box = r_ref_box + noise_ref*np.sqrt(jax.nn.softplus(r_ref_box))
@@ -572,8 +576,7 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
         readout_pars_dict_copy['w_sig'] = readout_pars_dict_copy['w_sig'][untrained_pars.middle_grid_ind]
     else:
         readout_pars_dict_copy = copy.deepcopy(readout_pars_dict)
-    
-    
+        
     # Generate noise that is added to the output of the model
     noise_ref = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)
     noise_target = generate_noise(batch_size = batch_size, length = readout_pars_dict_copy["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)

@@ -564,7 +564,7 @@ def configure_parameters_file(root_folder, conf):
         return updated_lines
     
     # Extract input - handles default values
-    trained_pars_list, sup_mid_readout_contrib, pretraining_task, p_local_s, shuffle_labels = conf + ([[1.0, 0.0], False, [0.4, 0.7], False])[len(conf)-1:5]
+    trained_pars_list, sup_mid_readout_contrib, pretraining_task, p_local_s, shuffle_labels, opt_readout_before_training = conf + ([[1.0, 0.0], False, [0.4, 0.7], False, False])[len(conf)-1:6]
 
     # Load the parameters.py file content
     params_file_path = Path(os.path.join(root_folder,"parameters.py"))
@@ -599,6 +599,10 @@ def configure_parameters_file(root_folder, conf):
         # Update shuffle_labels in TrainingPars
         if "shuffle_labels" in line:
             line = f"    shuffle_labels: bool = {shuffle_labels}\n"
+
+        # Update opt_readout_before_training in TrainingPars
+        if "opt_readout_before_training" in line:
+            line = f"    opt_readout_before_training: bool = {opt_readout_before_training}\n"
         
         updated_lines.append(line)
 

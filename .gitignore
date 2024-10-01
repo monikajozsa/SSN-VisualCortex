@@ -11,3 +11,4 @@ Apr 10 scripts/
 *.csv
 *.db
 *.db-journal
+parameters.py.bak

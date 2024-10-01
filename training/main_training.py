@@ -2,12 +2,14 @@ import time
 import os
 import sys
 import numpy
+import pandas as pd
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.dirname(__file__))
 import argparse
 
 from util import load_parameters
 from training_functions import train_ori_discr
+from main_pretraining import readout_pars_from_regr
 
 ############### TRAINING ###############
 def main_training(folder_path, num_training, starting_time_training=0, run_indices=None):
@@ -16,11 +18,27 @@ def main_training(folder_path, num_training, starting_time_training=0, run_indic
         run_indices = range(num_training)
 
     for i in run_indices:
+        # Setting the same seed for different configurations
         numpy.random.seed(i)
 
         # Load the last parameters from the pretraining
         pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=0, iloc_ind = -1, for_training=True)
-        
+        if untrained_pars.training_pars.opt_readout_before_training:
+            # Apply logistic regression to the readout weights and bias and save them to pretrained_readout_pars_dict
+            # This needs to be adjusted if we mix the layers because the readout weights are just 5x5 at the moment - check if readout_pars_from_regr needs to be adjusted for reading out from middle layer or if contrib variable takes care of it already 
+            pretrained_readout_pars_dict = readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_training=True)
+            # Save the readout parameters to the folder
+            if untrained_pars.sup_mid_readout_contrib[0] == 0:
+                columns = {f'w{i}_mid': pretrained_readout_pars_dict['w_sig'][i] for i in range(len(pretrained_readout_pars_dict['w_sig']))}
+            elif untrained_pars.sup_mid_readout_contrib[1] == 0:
+                columns = {f'w{i}_sup': pretrained_readout_pars_dict['w_sig'][i] for i in range(len(pretrained_readout_pars_dict['w_sig']))}
+            else:
+                columns = {f'w{i}_mid': pretrained_readout_pars_dict['w_sig'][i] for i in range(len(pretrained_readout_pars_dict['w_sig'])//2)}
+                columns.update({f'w{i}_sup': pretrained_readout_pars_dict['w_sig'][i] for i in range(len(pretrained_readout_pars_dict['w_sig'])//2,len(pretrained_readout_pars_dict['w_sig']))})
+            columns['b'] = pretrained_readout_pars_dict['b_sig']
+            df = pd.DataFrame([columns])
+            df.to_csv(os.path.join(folder_path,'readout_params.csv'), index=False)
+
         # Change mean rate homeostatic loss
         if meanr_vec is not None:
             untrained_pars.loss_pars.lambda_r_mean = 0.25
