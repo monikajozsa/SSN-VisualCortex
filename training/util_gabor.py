@@ -162,14 +162,14 @@ def BW_image_jax_supp(stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=False)
     ##### Calculating alpha_channel_jax, mask_bool and background_jax #####
     x_pix = np.round(2 * x_mm /(stimuli_pars.magnif_factor * degree_per_pixel))
     y_pix = np.round(2 * y_mm /(stimuli_pars.magnif_factor * degree_per_pixel))
-    edge_control_dist = numpy.sqrt(numpy.power(x_pix, 2) + numpy.power(y_pix, 2))
-    edge_control = numpy.divide(edge_control_dist, pixel_per_degree)
+    edge_control_dist = np.sqrt(np.power(x_pix, 2) + np.power(y_pix, 2))
+    edge_control = np.divide(edge_control_dist, pixel_per_degree)
     # Define a matrix (alpha_channel) that is 255 (white) within the inner_radius and exponentially fades to 0 as the radius increases
     overrado = edge_control > stimuli_pars.inner_radius
     annulus = numpy.ones((N_pixs, N_pixs))
     if not full_grating:
         exponent_part = -1 * ((edge_control[overrado] - stimuli_pars.inner_radius) * pixel_per_degree) ** 2 / (2 * (smooth_sd**2))
-        annulus[overrado] *= numpy.exp(exponent_part)
+        annulus[overrado] *= np.exp(exponent_part)
     alpha_channel = annulus.reshape(N_pixs,N_pixs) * _WHITE
     alpha_channel_jax = np.array(alpha_channel)
 

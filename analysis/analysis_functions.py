@@ -1,9 +1,10 @@
-import pandas as pd
-import jax.numpy as np
-import numpy
-import time
-import scipy
 import jax
+import jax.numpy as np
+from jax import vmap
+import numpy
+import pandas as pd
+import scipy
+import time
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -15,7 +16,6 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
-
 
 from training.model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
@@ -186,69 +186,105 @@ def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     return gabor_output
 
 
+def tc_grid_point(inds_maps_flat, ssn_mid, ssn_sup, num_phases, untrained_pars, ori_vec, num_ori, grid_size, cE_m, cI_m, cE_s, cI_s, f_E, f_I):
+    """Calculate the responses of the middle and superficial layers to gratings at a single grid point - used for phase matched tuning curve calculation."""
+    
+    x_ind = inds_maps_flat[0]
+    y_ind = inds_maps_flat[1]
+    x_grid = inds_maps_flat[2]
+    y_grid = inds_maps_flat[3]
+    grid_size_1D = np.sqrt(grid_size).astype(int)
+    
+    # Initialize the arrays to store the responses
+    responses_mid_phase_match = np.zeros((num_ori, 2, num_phases))
+    responses_sup_phase_match = np.zeros((num_ori, 2))
+
+    # Loop over the different phases
+    for phase_ind in range(num_phases):
+        phase = phase_ind * np.pi / 2
+        
+        # Generate stimulus
+        BW_image_jax_inp = BW_image_jax_supp(untrained_pars.stimuli_pars, x0=x_grid, y0=y_grid, phase=phase, full_grating=True)
+        x = BW_image_jax_inp[4]
+        y = BW_image_jax_inp[5]
+        alpha_channel = BW_image_jax_inp[6]
+        mask = BW_image_jax_inp[7]
+        
+        stimuli = BW_image_jit(BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori))
+        
+        # Calculate model response for superficial layer cells (phase-invariant)
+        if phase_ind == 0:
+            _, [responses_mid, responses_sup], _, _, _, = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
+            # Fill in the responses_sup_phase_match array at the indices corresponding to the grid point
+            sup_cell_ind = np.array(x_ind*grid_size_1D+y_ind).astype(int)
+            responses_sup_phase_match = responses_sup_phase_match.at[:,sup_cell_ind].set(responses_sup[:, sup_cell_ind]) # E cell
+            responses_sup_phase_match = responses_sup_phase_match.at[:,sup_cell_ind+1].set(responses_sup[:, grid_size+sup_cell_ind]) # I cell
+        else:
+            # Calculate model response for middle layer cells
+            _, responses_mid, _, _, _, _, _ = vmap_evaluate_model_response_mid(ssn_mid, stimuli, untrained_pars.conv_pars, cE_m, cI_m, untrained_pars.gabor_filters)
+        # Fill in the responses_mid_phase_match array at the indices corresponding to the grid point
+        mid_cell_ind_E = np.array(phase_ind*2*grid_size + x_ind*grid_size_1D+y_ind).astype(int)
+        mid_cell_ind_I = np.array(phase_ind*2*grid_size + x_ind*grid_size_1D+y_ind+grid_size).astype(int)
+        responses_mid_phase_match = responses_mid_phase_match.at[:, 0, phase_ind].set(responses_mid[:, mid_cell_ind_E])
+        responses_mid_phase_match = responses_mid_phase_match.at[:, 1, phase_ind].set(responses_mid[:, mid_cell_ind_I])
+    
+    return responses_mid_phase_match, responses_sup_phase_match
+
+# Vectorizing over the flattened indices of the grid
+vmapped_tc_grid_point = vmap(tc_grid_point, in_axes=(0, None, None, None, None, None, None, None, None, None, None, None, None, None))
+
+
 def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange(0,180,6), training_stage=1, run_index=0, header = False):
     """ Calculate responses of middle and superficial layers to gratings (of full images without added noise) with different orientations."""
     # Get the parameters from the trained_pars dictionary and untreatned_pars class
     ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
     J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars, untrained_pars.ssn_pars)
-
+    ssn_pars = untrained_pars.ssn_pars
+    num_ori = len(ori_vec)
     x_map = untrained_pars.grid_pars.x_map
     y_map = untrained_pars.grid_pars.y_map
-    ssn_pars = untrained_pars.ssn_pars
-
-    ssn_mid=SSN_mid(ssn_pars=ssn_pars, grid_pars=untrained_pars.grid_pars, J_2x2=J_2x2_m)
-    
-    num_ori = len(ori_vec)
-    new_rows = []
-    
     grid_size = x_map.shape[0]*x_map.shape[1]
-    responses_mid_phase_match = numpy.zeros((len(ori_vec),grid_size*ssn_pars.phases*2))
-    responses_sup_phase_match = numpy.zeros((len(ori_vec),grid_size*2))
-    for i in range(x_map.shape[0]):
-        for j in range(x_map.shape[1]):
-            x0 = x_map[i, j]
-            y0 = y_map[i, j]
-            for phase_ind in range(ssn_pars.phases):
-                # Generate stimulus
-                phase = phase_ind * np.pi/2
-                BW_image_jax_inp = BW_image_jax_supp(untrained_pars.stimuli_pars, x0=x0, y0=y0, phase=phase, full_grating=True)
-                x = BW_image_jax_inp[4]
-                y = BW_image_jax_inp[5]
-                alpha_channel = BW_image_jax_inp[6]
-                mask = BW_image_jax_inp[7]
-                stimuli = BW_image_jit(BW_image_jax_inp[0:4], x, y, alpha_channel, mask, ori_vec, np.zeros(num_ori))
-                # Calculate model response for middle layer cells and save it to responses_mid_phase_match
-                _, responses_mid,_, _, _,  _, _ = vmap_evaluate_model_response_mid(ssn_mid, stimuli, untrained_pars.conv_pars, cE_m, cI_m, untrained_pars.gabor_filters)
-                mid_cell_ind_E = phase_ind*2*grid_size + i*x_map.shape[0]+j
-                mid_cell_ind_I = phase_ind*2*grid_size + i*x_map.shape[0]+j+grid_size
-                responses_mid_phase_match[:,mid_cell_ind_E]=responses_mid[:,mid_cell_ind_E] # E cell
-                responses_mid_phase_match[:,mid_cell_ind_I]=responses_mid[:,mid_cell_ind_I] # I cell
-                # Calculate model response for superficial layer cells and save it to responses_sup_phase_match
-                if phase_ind==0:
-                    # Superficial layer response per grid point (phase-invariant)
-                    ssn_sup=SSN_sup(ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa)
-                    _, [_, responses_sup],_, _, _, = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
-                    sup_cell_ind = i*x_map.shape[0]+j
-                    responses_sup_phase_match[:,sup_cell_ind]=responses_sup[:,sup_cell_ind]
-                    responses_sup_phase_match[:,grid_size+sup_cell_ind]=responses_sup[:,grid_size+sup_cell_ind]
+    
+    # Define the SSN layers
+    ssn_mid = SSN_mid(ssn_pars, untrained_pars.grid_pars, J_2x2_m)
+    ssn_sup = SSN_sup(ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa)
+    
+    # Flatten the grid indices and the x, y coordinates for vmap    
+    num_rows, num_cols = x_map.shape
+    i_indices, j_indices = numpy.meshgrid(np.arange(num_rows), np.arange(num_cols), indexing='ij')
+    inds_maps_flat_0 = i_indices.flatten()  # i index (row index)
+    inds_maps_flat_1 = j_indices.flatten()  # j index (column index)
+    inds_maps_flat_2 = x_map.flatten()
+    inds_maps_flat_3 = y_map.flatten()
+    inds_maps_flat = np.stack((inds_maps_flat_0, inds_maps_flat_1, inds_maps_flat_2, inds_maps_flat_3), axis=1)
+
+    responses_mid_phase_match, responses_sup_phase_match = vmapped_tc_grid_point(inds_maps_flat, ssn_mid, ssn_sup, ssn_pars.phases, untrained_pars, ori_vec, num_ori, grid_size, cE_m, cI_m, cE_s, cI_s, f_E, f_I)
+    
+    # rearrange responses to 2D, where first dim is oris and second dim is cells
+    responses_sup_phase_match_2D = numpy.zeros((num_ori,grid_size*2))
+    responses_mid_phase_match_2D = numpy.zeros((num_ori,grid_size*ssn_pars.phases*2))
+    for i in range(num_ori):
+        responses_sup_phase_match_2D[i,:] = responses_sup_phase_match[:, i, :].flatten(order='F')
+        responses_mid_phase_match_2D[i,:] = responses_mid_phase_match[:, i, :, :].flatten(order='F')
 
     # Save responses into csv file - overwrite the file if it already exists
     if file_path is not None:
         if os.path.exists(file_path) and header is not False:
             Warning('Tuning curve csv file will get multiple headers and will possibly have repeated rows!')
         # repeat training_stage run_index and expand dimension to add as the first two columns of the new_rows
-        run_index_vec = numpy.repeat(run_index, len(ori_vec))
-        training_stage_vec = numpy.repeat(training_stage, len(ori_vec))
+        run_index_vec = numpy.repeat(run_index, num_ori)
+        training_stage_vec = numpy.repeat(training_stage, num_ori)
         run_index_vec = numpy.expand_dims(run_index_vec, axis=1)
         training_stage_vec = numpy.expand_dims(training_stage_vec, axis=1)
-        responses_combined=np.concatenate((responses_mid_phase_match, responses_sup_phase_match), axis=1)
+        
+        responses_combined=np.concatenate((responses_mid_phase_match_2D, responses_sup_phase_match_2D), axis=1)
         new_rows = numpy.concatenate((run_index_vec, training_stage_vec, responses_combined), axis=1)
         new_rows_df = pd.DataFrame(new_rows)
         new_rows_df.to_csv(file_path, mode='a', header=header, index=False, float_format='%.4f')
 
     untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
 
-    return responses_sup, responses_mid
+    return responses_sup_phase_match_2D, responses_mid_phase_match_2D
 
 
 def tc_slope(tuning_curve, x_axis, x1, x2, normalise=False):
@@ -838,28 +874,27 @@ def MVPA_Mahal_analysis(folder,num_training, num_stage_inds=2, r_noise = True, s
                 control_data = r_pca[mesh_control_ & stage_mask,:]
                 ############################# MVPA analysis #############################
                 
-                # MVPA for distinguishing trained orientation and control orientation
-                # Combine the responses for the 0 and 2 oris (along axis-0)
+                # MVPA for distinguishing trained or untrained orientations (55 and 125) and control orientation (0)
                 train_control_data = numpy.concatenate((train_data, control_data))
                 train_control_data = train_control_data.reshape(train_control_data.shape[0],-1)
                 train_control_label = numpy.concatenate((numpy.zeros(num_noisy_trials), numpy.ones(num_noisy_trials)))
-                # make test-train split
-                X_train, X_test, y_train, y_test = train_test_split(train_control_data, train_control_label, test_size=0.5, random_state=42)
-                MVPA_scores[run_ind,layer,stage_ind, 0] = clf.fit(X_train, y_train).score(X_test, y_test)
                 
-                # MVPA for distinguishing untrained orientation and control orientation
-                # Combine the responses for the 1 and 2 oris
                 untrain_control_data = numpy.concatenate((untrain_data, control_data))
                 untrain_control_data = untrain_control_data.reshape(untrain_control_data.shape[0],-1)
                 untrain_control_label = numpy.concatenate((numpy.zeros(num_noisy_trials), numpy.ones(num_noisy_trials)))
                               
                 # fit the classifier for 10 randomly selected trial and test data and average the scores
-                scores = []
+                scores_untrain = []
+                scores_train = []
                 for i in range(10):
-                    X_train, X_test, y_train, y_test = train_test_split(untrain_control_data, untrain_control_label, test_size=0.5, random_state=i)
-                    score_i = clf.fit(X_train, y_train).score(X_test, y_test)
-                    scores.append(score_i)
-                MVPA_scores[run_ind,layer,stage_ind, 1] = np.mean(np.array(scores))#clf.fit(X_train, y_train).score(X_test, y_test)
+                    X_untrain, X_test_untrain, y_untrain, y_test_untrain = train_test_split(untrain_control_data, untrain_control_label, test_size=0.5, random_state=i)
+                    X_train, X_test_train, y_train, y_test_train = train_test_split(train_control_data, train_control_label, test_size=0.5, random_state=i)
+                    score_train = clf.fit(X_train, y_train).score(X_test_train, y_test_train)
+                    score_untrain = clf.fit(X_untrain, y_untrain).score(X_test_untrain, y_test_untrain)
+                    scores_untrain.append(score_untrain)
+                    scores_train.append(score_train)
+                MVPA_scores[run_ind,layer,stage_ind, 1] = np.mean(np.array(scores_untrain))
+                MVPA_scores[run_ind,layer,stage_ind, 0] = np.mean(np.array(scores_train))
 
                 ############################# Mahalanobis distance analysis #############################
                 # Calculate Mahalanobis distance - mean and std of control data is calculated (along axis 0) and compared to the train and untrain data

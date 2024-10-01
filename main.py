@@ -45,11 +45,20 @@ conf_baseline = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_
 conf_gentask = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], True] # training with general discrimination task (control case)
 conf_no_horiconn = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False, [1.0, 1.0]] 
 conf_shuffled_labels = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False, [0.4, 0.7], True]
+conf_special_dict = {'conf_baseline': conf_baseline,
+                    'conf_gentask': conf_gentask,
+                    'conf_no_horiconn': conf_no_horiconn,
+                    'conf_shuffled_labels': conf_shuffled_labels}
 
 # changed readout configurations - readout is optimized with logistic regression before training
 conf_suponly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False] # reading out from middle layer (ablation)
 conf_mixed_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.5, 0.5], False] # training all parameters but reading out from both middle and superficial layers
 conf_midonly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.0, 1.0], False] # reading out from middle layer (ablation)
+conf_suponly_no_hori_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False, [1.0, 1.0]] # reading out from middle layer (ablation)
+conf_readout_dict = {'conf_suponly_readout': conf_suponly_readout,
+                    'conf_mixed_readout': conf_mixed_readout,
+                    'conf_midonly_readout': conf_midonly_readout,
+                    'conf_suponly_no_hori_readout': conf_suponly_no_hori_readout}
 
 # training with all parameters but a few
 conf_kappa_excluded = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']] # training all parameters but kappa (ablation)
@@ -59,6 +68,13 @@ conf_JE_excluded = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_II_m', 'J_
 conf_Jm_excluded = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa']] # training all but Jm (ablation)
 conf_Js_excluded = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'kappa']] # training all but Js (ablation)
 conf_f_excluded = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa']] # training all but f_E, f_I (ablation)
+conf_excluded_dict = {'conf_kappa_excluded': conf_kappa_excluded,
+                    'conf_cms_excluded': conf_cms_excluded,
+                    'conf_JI_excluded': conf_JI_excluded,
+                    'conf_JE_excluded': conf_JE_excluded,
+                    'conf_Jm_excluded': conf_Jm_excluded,
+                    'conf_Js_excluded': conf_Js_excluded,
+                    'conf_f_excluded': conf_f_excluded}
 
 # training with only a few parameters
 conf_kappa_only = [['kappa']] # training only kappa (ablation)
@@ -68,26 +84,16 @@ conf_JE_only = [['J_EE_m', 'J_IE_m', 'J_EE_s', 'J_IE_s']] # training only JE
 conf_Jm_only = [['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m']] # training only Jm
 conf_Js_only = [['J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']] # training only Js
 conf_f_only = [['f_E','f_I']] # training only f
+conf_only_dict = {'conf_kappa_only': conf_kappa_only,
+                    'conf_cms_only': conf_cms_only,
+                    'conf_JI_only': conf_JI_only,
+                    'conf_JE_only': conf_JE_only,
+                    'conf_Jm_only': conf_Jm_only,
+                    'conf_Js_only': conf_Js_only,
+                    'conf_f_only': conf_f_only}
 
 # create dictionary of configurations to loop over
-conf_dict = {'conf_baseline': conf_baseline,
-             'conf_gentask': conf_gentask,
-             'conf_no_horiconn': conf_no_horiconn,
-             'conf_shuffled_labels': conf_shuffled_labels,
-             'conf_kappa_excluded': conf_kappa_excluded, 
-             'conf_cms_excluded': conf_cms_excluded, 
-             'conf_JI_excluded': conf_JI_excluded, 
-             'conf_JE_excluded': conf_JE_excluded, 
-             'conf_Jm_excluded': conf_Jm_excluded, 
-             'conf_Js_excluded': conf_Js_excluded, 
-             'conf_f_excluded': conf_f_excluded, 
-             'conf_kappa_only': conf_kappa_only, 
-             'conf_cms_only': conf_cms_only, 
-             'conf_JI_only': conf_JI_only,
-             'conf_JE_only': conf_JE_only, 
-             'conf_Jm_only': conf_Jm_only, 
-             'conf_Js_only': conf_Js_only, 
-             'conf_f_only': conf_f_only}
+conf_dict = {**conf_special_dict, **conf_readout_dict, **conf_excluded_dict, **conf_only_dict}
 
 conf_names = list(conf_dict.keys())
 conf_list = list(conf_dict.values())
@@ -126,7 +132,7 @@ if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
 ######### Tuning curves ########
 ########## ########## ##########
 
-tc_ori_list = numpy.arange(0,180,60)
+tc_ori_list = numpy.arange(0,180,5)
 start_time = time.time()
 
 # calculate tuning curves for before and after pretraining
