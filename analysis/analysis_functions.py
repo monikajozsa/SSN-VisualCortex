@@ -16,6 +16,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+from scipy.interpolate import interp1d
 
 from training.model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
@@ -217,8 +218,8 @@ def tc_grid_point(inds_maps_flat, ssn_mid, ssn_sup, num_phases, untrained_pars, 
             _, [responses_mid, responses_sup], _, _, _, = vmap_evaluate_model_response(ssn_mid, ssn_sup, stimuli, untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
             # Fill in the responses_sup_phase_match array at the indices corresponding to the grid point
             sup_cell_ind = np.array(x_ind*grid_size_1D+y_ind).astype(int)
-            responses_sup_phase_match = responses_sup_phase_match.at[:,sup_cell_ind].set(responses_sup[:, sup_cell_ind]) # E cell
-            responses_sup_phase_match = responses_sup_phase_match.at[:,sup_cell_ind+1].set(responses_sup[:, grid_size+sup_cell_ind]) # I cell
+            responses_sup_phase_match = responses_sup_phase_match.at[:,0].set(responses_sup[:, sup_cell_ind]) # E cell
+            responses_sup_phase_match = responses_sup_phase_match.at[:,1].set(responses_sup[:, grid_size+sup_cell_ind]) # I cell
         else:
             # Calculate model response for middle layer cells
             _, responses_mid, _, _, _, _, _ = vmap_evaluate_model_response_mid(ssn_mid, stimuli, untrained_pars.conv_pars, cE_m, cI_m, untrained_pars.gabor_filters)
@@ -287,22 +288,6 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange
     return responses_sup_phase_match_2D, responses_mid_phase_match_2D
 
 
-def tc_slope(tuning_curve, x_axis, x1, x2, normalise=False):
-    """ Calculates slope of (normalized if normalise=True) tuning_curve between points x1 and x2. tuning_curve is given at x_axis points. """
-    #Remove baseline if normalising
-    if normalise == True:
-        tuning_curve = (tuning_curve - tuning_curve.min()) / tuning_curve.max()
-    
-    #Find indices corresponding to desired x values
-    idx_1 = (np.abs(x_axis - x1)).argmin()
-    idx_2 = (np.abs(x_axis - x2)).argmin()
-    x1, x2 = x_axis[[idx_1, idx_2]]
-     
-    grad =np.abs((tuning_curve[idx_2] - tuning_curve[idx_1])/(x2-x1)) if x2 != x1 else None
-    
-    return grad
-
-
 def full_width_half_max(vector, d_theta):
     """ Calculate width of tuning curve at half-maximum. This method should not be applied when tuning curve has multiple bumps. """
     # Remove baseline, calculate half-max
@@ -316,131 +301,123 @@ def full_width_half_max(vector, d_theta):
     return distance
 
 
-def tc_features(tuning_curve, ori_list=numpy.arange(0,180,6), expand_dims=False, ori_to_center_slope=[55, 125]):
-    
-    # Tuning curve of given cell indices
-    num_cells = tuning_curve.shape[1]
+def tc_cubic(x,y, d_theta=0.5):
+    """ Cubic interpolation of tuning curve data. """
 
-    # Full width half height
-    full_width_half_max_vec = numpy.zeros(num_cells) 
-    d_theta = ori_list[1]-ori_list[0]
-    for i in range(0, num_cells):
-        full_width_half_max_vec[i] = full_width_half_max(tuning_curve[:,i], d_theta = d_theta)
+    # add first value as last value to make the interpolation periodic
+    x = numpy.append(x, 180)
+    y = numpy.append(y, y[0])
 
-    # Preferred orientation
-    pref_ori = ori_list[np.argmax(tuning_curve, axis = 0)]
+    # Create cubic interpolation object
+    cubic_interpolator = interp1d(x, y, kind='cubic')
 
-    # Norm slope
-    avg_slope_vec =numpy.zeros((num_cells, len(ori_to_center_slope)))
-    for i in range(num_cells):
-        for j in range(len(ori_to_center_slope)):
-            ori_ctr = ori_to_center_slope[j]
-            avg_slope_vec[i,j] = tc_slope(tuning_curve[:, i], x_axis = ori_list, x1 = ori_ctr-3, x2 = ori_ctr+3, normalise =False)
-    if expand_dims:
-        avg_slope_vec = numpy.expand_dims(avg_slope_vec, axis=0)
-        full_width_half_max_vec = numpy.expand_dims(full_width_half_max_vec, axis=0)
-        pref_ori = numpy.expand_dims(pref_ori, axis=0)
+    # Create new x values and get interpolated values
+    x_new = numpy.arange(0, 180, d_theta)
+    y_new = cubic_interpolator(x_new)
 
-    return avg_slope_vec, full_width_half_max_vec, pref_ori
+    return x_new, y_new
 
 
+def save_tc_features(training_tc_file, num_runs=1, ori_list=np.arange(0,180,6), ori_to_center_slope=[55, 125], stages=[1, 2], filename='tuning_curve_features.csv'):
+    """
+    Calls compute_features for each stage and run index and saves the results into a CSV file.
+    """
 
-def save_tc_features(folder_path, num_runs=1, ori_list=numpy.arange(0,180,6), ori_to_center_slope=[55, 125]):
-    """ Calculate tuning curve features for all runs in the folder and save them into a csv file. """
-    start_time = time.time()
     # Load training tuning curve data (no headers)
-    tc_filename = os.path.join(folder_path, 'tuning_curves.csv')
-
-    # Check if the first row contains any non-numeric values (indicating a header)
-    header = check_header(tc_filename)
-
-    training_tc_all_run_df = pd.read_csv(tc_filename, header=header)
+    header_flag = check_header(training_tc_file)
+    training_tc_all_run_df = pd.read_csv(training_tc_file, header=header_flag)
     training_tc_all_run = training_tc_all_run_df.to_numpy()
-    
-    # Load pretraining tuning curve data (with headers)
-    tc_filename = os.path.join(os.path.dirname(folder_path), 'pretraining_tuning_curves.csv')
-    pretraining_tc_all_run_df = pd.read_csv(tc_filename, header=0)
-    header = pretraining_tc_all_run_df.columns  # Use this for cell headers
-    cell_headers = header[2:]  # The headers for the 810 cells
-    pretraining_tc_all_run = pretraining_tc_all_run_df.to_numpy()
 
-    tc_features_df = None
+    if header_flag is None:
+        # get header from the pretraining tuning curve file
+        pretraining_tc_file = os.path.join(os.path.dirname(os.path.dirname(training_tc_file)), 'pretraining_tuning_curves.csv')
+        pretraining_tc_all_run_df = pd.read_csv(pretraining_tc_file, header=0)
+        headers = pretraining_tc_all_run_df.columns  # Use this for cell headers
+    else:
+        headers = training_tc_all_run_df.columns
+    cell_headers = headers[2:]  # The headers for the 810 cells
 
-    for stage in range(3):
-        if stage < 2:
-            tuning_curves_all_run = pretraining_tc_all_run
-        else:
-            tuning_curves_all_run = training_tc_all_run
-        for run_index in range(num_runs):
-            mesh_run = tuning_curves_all_run[:,0] == run_index
-            tuning_curves = tuning_curves_all_run[mesh_run, 1:]  # Skipping run_index
-            mesh_stage = tuning_curves[:, 0] == stage
-            tuning_curves = tuning_curves[mesh_stage, 1:]  # Skipping stage
+    feature_rows = []
+    num_cells = training_tc_all_run.shape[1] - 2  # Subtracting run_index and stage
+    for run_index in range(num_runs):
+        # Filtering tuning curves for run_index
+        run_mask = training_tc_all_run[:, 0] == run_index
+        tuning_curves_run = training_tc_all_run[run_mask, 1:]
+        for stage in stages:        
+            # Filtering tuning curves for stage
+            stage_mask = tuning_curves_run[:, 0] == stage
+            tuning_curves = tuning_curves_run[stage_mask, 1:]
 
-            # Use tuning curve shape to get the number of cells and the delta angle
-            num_cells = tuning_curves.shape[1]
-            delta_oris = ori_list[1]-ori_list[0]
+            # Skip if there is no tc data for this stage
+            if tuning_curves.shape[0] == 0:
+                continue
 
-            # Initialize the feature vectors
-            full_width_half_max_vec = numpy.zeros(num_cells)
-            slope_55 = numpy.zeros(num_cells)
-            slope_125 = numpy.zeros(num_cells)
-            pref_ori = numpy.zeros(num_cells)
-            min_tc = numpy.zeros(num_cells)
-            max_tc = numpy.zeros(num_cells)
-            max_min_ratio_tc = numpy.zeros(num_cells)
-            mean_tc = numpy.zeros(num_cells)
-            std_tc = numpy.zeros(num_cells)
-            slope_hm_2nd_top = numpy.zeros(num_cells)
-            slope_hm_top = numpy.zeros(num_cells)
+            # Calculate tuning curve features
+            features = compute_features(tuning_curves, num_cells, ori_list, ori_to_center_slope)
 
-            for i in range(num_cells):
-                # Full width half max calculation
-                full_width_half_max_vec[i] = full_width_half_max(tuning_curves[:, i], d_theta=delta_oris)
+            # Prepare data for DataFrame insertion
+            for feature_name, feature_values in features.items():
+                row_data = {'run_index': run_index, 'stage': stage, 'feature': feature_name}
+                row_data.update({cell: value for cell, value in zip(cell_headers, feature_values)})
+                feature_rows.append(row_data)
 
-                # Preferred orientation
-                pref_ori[i] = ori_list[np.argmax(tuning_curves[:, i])]
-
-                # Slope calculations at specific orientations
-                slope_55[i] = tc_slope(tuning_curves[:, i], x_axis=ori_list, x1=ori_to_center_slope[0] - 3, x2=ori_to_center_slope[0] + 3, normalise=False)
-                slope_125[i] = tc_slope(tuning_curves[:, i], x_axis=ori_list, x1=ori_to_center_slope[1] - 3, x2=ori_to_center_slope[1] + 3, normalise=False)
-                
-                # Other tuning curve statistics: minimum, maximum, (max-min)/max, mean, std, slope at half-max level to the left and right of the peak
-                min_tc[i] = numpy.min(tuning_curves[:, i])
-                max_tc[i] = numpy.max(tuning_curves[:, i])
-                max_min_ratio_tc[i] = (max_tc[i] - min_tc[i]) / max_tc[i] if max_tc[i] != 0 else 0
-                mean_tc[i] = numpy.mean(tuning_curves[:, i])
-                std_tc[i] = numpy.std(tuning_curves[:, i])
-                    
-                loc_max = int(numpy.argmax(tuning_curves[:,i], axis=0))
-                num_oris = tuning_curves.shape[0]
-
-                # Slope at half_max level: find point closest to full_width_half_max_vec to the left and right of the peak and calculate the slope                
-                concatenated_ori_list = numpy.concatenate((ori_list, ori_list, ori_list))
-                hm = (tuning_curves[:,i] - min_tc[i]).max()/2 + min_tc[i]
-                concatenated_tc = numpy.concatenate((tuning_curves[:,i], tuning_curves[:,i], tuning_curves[:,i]))
-                loc_hm_top = (numpy.argmin(numpy.abs(concatenated_tc[loc_max + num_oris : loc_max + int(num_oris*3/2)] - hm)) + loc_max) % num_oris
-                loc_hm_2nd_top = (numpy.argmin(numpy.abs(concatenated_tc[loc_hm_top + 1 : loc_hm_top + num_oris] - hm)) + loc_hm_top + 1) % num_oris
-                slope_hm_top[i] = tc_slope(concatenated_tc, x_axis = concatenated_ori_list, x1 = (loc_hm_top - 2) * delta_oris, x2 = (loc_hm_top + 2) * delta_oris, normalise =False)
-                slope_hm_2nd_top[i] = tc_slope(concatenated_tc, x_axis = concatenated_ori_list, x1 = (loc_hm_2nd_top - 2) * delta_oris, x2 = (loc_hm_2nd_top + 2) * delta_oris, normalise =False)
-        
-            # Add each feature to the DataFrame
-            for feature, values in zip(
-                ['slope_55', 'slope_125', 'fwhm', 'pref_ori', 'min', 'max', 'max_min_ratio', 'mean', 'std', 'slope_hm_left', 'slope_hm_right'],
-                [slope_55, slope_125, full_width_half_max_vec, pref_ori, min_tc, max_tc, max_min_ratio_tc, mean_tc, std_tc, slope_hm_2nd_top, slope_hm_top]
-            ):
-                row_data = {'run_index': run_index,'stage': stage,'feature': feature}
-                row_data.update({cell: value for cell, value in zip(cell_headers, values)})
-                if tc_features_df is None:
-                    tc_features_df = pd.DataFrame([row_data])
-                else:
-                    tc_features_df = pd.concat([tc_features_df, pd.DataFrame([row_data])], ignore_index=True)
-        print(f'Stage {stage} done in {time.time() - start_time} seconds')
-    # Save the DataFrame to CSV and return it
-    output_filename = os.path.join(folder_path, 'tuning_curve_features.csv')
+    # Create DataFrame from rows and save to CSV
+    tc_features_df = pd.DataFrame(feature_rows)
+    output_filename = os.path.join(os.path.dirname(training_tc_file), filename)
     tc_features_df.to_csv(output_filename, index=False)
 
     return tc_features_df
+
+
+def compute_features(tuning_curves, num_cells, ori_list, ori_to_center_slope, d_theta_interp=0.5):
+    """
+    Computes tuning curve features for each cell.
+    """
+    # Initialize feature arrays
+    features = {
+        'fwhm': numpy.zeros(num_cells),
+        'slope_55': numpy.zeros(num_cells),
+        'slope_125': numpy.zeros(num_cells),
+        'pref_ori': numpy.zeros(num_cells),
+        'min': numpy.zeros(num_cells),
+        'max': numpy.zeros(num_cells),
+        'max_min_ratio': numpy.zeros(num_cells),
+        'mean': numpy.zeros(num_cells),
+        'std': numpy.zeros(num_cells),
+        'slope_hm': numpy.zeros(num_cells)
+    }
+
+    for i in range(num_cells):
+        tc_i = tuning_curves[:, i]
+
+        # Perform cubic interpolation
+        x_interp, y_interp = tc_cubic(ori_list, tc_i, d_theta_interp)
+
+        # Full width half max
+        features['fwhm'][i] = full_width_half_max(y_interp, d_theta=d_theta_interp)
+
+        # Preferred orientation
+        features['pref_ori'][i] = x_interp[numpy.argmax(y_interp)]
+
+        # Gradient for slope calculations
+        grad_y_interp = numpy.gradient(y_interp, x_interp)
+
+        # Slope at 55 and 125 degrees
+        features['slope_55'][i] = grad_y_interp[numpy.argmin(numpy.abs(x_interp - ori_to_center_slope[0]))]
+        features['slope_125'][i] = grad_y_interp[numpy.argmin(numpy.abs(x_interp - ori_to_center_slope[1]))]
+
+        # Statistics: min, max, max-min ratio, mean, std
+        features['min'][i] = numpy.min(y_interp)
+        features['max'][i] = numpy.max(y_interp)
+        features['max_min_ratio'][i] = (features['max'][i] - features['min'][i]) / features['max'][i] if features['max'][i] != 0 else 0
+        features['mean'][i] = numpy.mean(y_interp)
+        features['std'][i] = numpy.std(y_interp)
+
+        # Slope at half-max
+        half_max = (features['max'][i] + features['min'][i]) / 2
+        features['slope_hm'][i] = grad_y_interp[numpy.argmin(numpy.abs(y_interp - half_max))]
+
+    return features
 
 
 def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):

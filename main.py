@@ -12,7 +12,7 @@ from util import configure_parameters_file, save_code, set_up_config_folder, del
 from training.main_pretraining import main_pretraining
 from analysis.main_analysis import main_tuning_curves, main_MVPA
 from analysis.analysis_functions import save_tc_features
-from analysis.visualization import plot_tuning_curves, plot_tc_features, plot_MVPA, plot_corr_triangles, plot_results_on_parameters
+from analysis.visualization import plot_tuning_curves, plot_MVPA, plot_corr_triangles, plot_results_on_parameters
 
 ## Set up number of runs and starting time
 num_training = 49
@@ -48,7 +48,8 @@ conf_shuffled_labels = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m',
 conf_special_dict = {'conf_baseline': conf_baseline,
                     'conf_gentask': conf_gentask,
                     'conf_no_horiconn': conf_no_horiconn,
-                    'conf_shuffled_labels': conf_shuffled_labels}
+                    'conf_shuffled_labels': conf_shuffled_labels
+                    }
 
 # changed readout configurations - readout is optimized with logistic regression before training
 conf_suponly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False] # reading out from middle layer (ablation)
@@ -58,7 +59,8 @@ conf_suponly_no_hori_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', '
 conf_readout_dict = {'conf_suponly_readout': conf_suponly_readout,
                     'conf_mixed_readout': conf_mixed_readout,
                     'conf_midonly_readout': conf_midonly_readout,
-                    'conf_suponly_no_hori_readout': conf_suponly_no_hori_readout}
+                    'conf_suponly_no_hori_readout': conf_suponly_no_hori_readout
+                    }
 
 # training with all parameters but a few
 conf_kappa_excluded = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']] # training all parameters but kappa (ablation)
@@ -74,7 +76,8 @@ conf_excluded_dict = {'conf_kappa_excluded': conf_kappa_excluded,
                     'conf_JE_excluded': conf_JE_excluded,
                     'conf_Jm_excluded': conf_Jm_excluded,
                     'conf_Js_excluded': conf_Js_excluded,
-                    'conf_f_excluded': conf_f_excluded}
+                    'conf_f_excluded': conf_f_excluded
+                    }
 
 # training with only a few parameters
 conf_kappa_only = [['kappa']] # training only kappa (ablation)
@@ -85,15 +88,16 @@ conf_Jm_only = [['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m']] # training only Jm
 conf_Js_only = [['J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']] # training only Js
 conf_f_only = [['f_E','f_I']] # training only f
 conf_only_dict = {'conf_kappa_only': conf_kappa_only,
-                    'conf_cms_only': conf_cms_only,
-                    'conf_JI_only': conf_JI_only,
-                    'conf_JE_only': conf_JE_only,
-                    'conf_Jm_only': conf_Jm_only,
-                    'conf_Js_only': conf_Js_only,
-                    'conf_f_only': conf_f_only}
+                'conf_cms_only': conf_cms_only,
+                'conf_JI_only': conf_JI_only,
+                'conf_JE_only': conf_JE_only,
+                'conf_Jm_only': conf_Jm_only,
+                'conf_Js_only': conf_Js_only,
+                'conf_f_only': conf_f_only
+                }
 
 # create dictionary of configurations to loop over
-conf_dict = {**conf_special_dict, **conf_readout_dict, **conf_excluded_dict, **conf_only_dict}
+conf_dict = {**conf_special_dict, **conf_excluded_dict, **conf_only_dict, **conf_readout_dict}
 
 conf_names = list(conf_dict.keys())
 conf_list = list(conf_dict.values())
@@ -135,8 +139,10 @@ if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
 tc_ori_list = numpy.arange(0,180,5)
 start_time = time.time()
 
-# calculate tuning curves for before and after pretraining
+# calculate tuning curves and features for before and after pretraining
 main_tuning_curves(folder_path, num_training, starting_time_in_main, stage_inds = range(2), tc_ori_list = tc_ori_list, add_header=True, filename='pretraining_tuning_curves.csv')
+tc_file_name = os.path.join(folder_path, 'pretraining_tuning_curves.csv')
+save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125], stages=[0], filename = 'pretraining_tuning_curve_features.csv')
 
 # calculate tuning curves and features for the different configurations
 for i, conf in enumerate(conf_names):
@@ -146,15 +152,14 @@ for i, conf in enumerate(conf_names):
     main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
     
     # calculate tuning curve features
-    save_tc_features(config_folder, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125])
-    
+    tc_file_name = os.path.join(config_folder, 'tuning_curves.csv')
+    save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125])
     # plot tuning curves and features
     tc_cells=[10,40,100,130,172,202,262,292,334,364,424,454,496,526,586,616,650,690,740,760] 
     # these are indices of representative cells from the different layers and types: every pair is for off center and center from 
     # mEph0(1-2), mIph0(3-4), mEph1(5-6), mIph1(7-8), mEph2(9-10), mIph2(11-12), mEph3(13-14), mIph3(15-16), sE(17-18), sI(19-20)
     folder_to_save=os.path.join(config_folder, 'figures')
     plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
-    plot_tc_features(config_folder, num_training, tc_ori_list)
     
     print('\n')
     print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')

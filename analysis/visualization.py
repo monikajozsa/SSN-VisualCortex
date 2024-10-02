@@ -10,7 +10,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, tc_features, MVPA_param_offset_correlations, data_from_run, exclude_runs
+from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, MVPA_param_offset_correlations, data_from_run, exclude_runs
 from util import filter_for_run_and_stage, check_header
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
@@ -576,7 +576,7 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
     ax.set_ylabel('Post training')
     ax.set_title(title)
 
-
+'''
 def plot_tc_features(results_dir, num_training, ori_list):
     def shift_x_data(x_data, indices, shift_value=90):
         """ Shift circular x_data by shift_value and center it around the new 0 (around shift_value) """
@@ -813,7 +813,7 @@ def plot_tc_features(results_dir, num_training, ori_list):
         plt.tight_layout(w_pad=10, h_pad=7)
         fig.savefig(os.path.join(results_dir,'figures',f'tc_slope_{stage_labels[training_stage]}_v2.png'), bbox_inches='tight')
         plt.close()
-
+'''
 
 ################### CORRELATION ANALYSIS ###################
 
