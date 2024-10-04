@@ -10,7 +10,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, MVPA_param_offset_correlations, data_from_run, exclude_runs
+from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, MVPA_param_offset_correlations, data_from_run, exclude_runs, param_offset_correlations
 from util import filter_for_run_and_stage, check_header
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
@@ -576,87 +576,118 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
     ax.set_ylabel('Post training')
     ax.set_title(title)
 
-'''
-def plot_tc_features(results_dir, num_training, ori_list):
+
+def plot_tc_features(results_dir, stages=[0,1,2]):
     def shift_x_data(x_data, indices, shift_value=90):
         """ Shift circular x_data by shift_value and center it around the new 0 (around shift_value) """
         x_data_shifted = x_data[:, indices].flatten() - shift_value
         x_data_shifted = numpy.where(x_data_shifted > 90, x_data_shifted - 180, x_data_shifted)
         x_data_shifted = numpy.where(x_data_shifted < -90, x_data_shifted + 180, x_data_shifted)
         return x_data_shifted
-    # Initialize dictionaries to store the data arrays
-    data = {
-    'fwhm_0': [],
-    'fwhm_2': [],
-    'preforis_0': [],
-    'preforis_2': []}
+    
+    def scatter_feature(ax, y, x, indices_E, indices_I, shift_val=55, fs_ticks=40, feature=None):
+        """Scatter plot of feature for E and I cells. If we shift, x is the pref ori that is centered around shift_val."""
+        if shift_val is not None:
+            x_I = shift_x_data(x, indices_I, shift_value=shift_val)
+            x_E = shift_x_data(x, indices_E, shift_value=shift_val)
+        else:
+            x_I = x[:,indices_I].flatten()
+            x_E = x[:,indices_E].flatten()
             
+        ax.scatter(x_E, y[:,indices_E].flatten(), s=50, alpha=0.5, color='red')
+        ax.scatter(x_I, y[:,indices_I].flatten(), s=50, alpha=0.5, color='blue')
+        if shift_val is None:
+            xpoints = ypoints = ax.get_xlim()
+            ax.plot(xpoints, ypoints, color='black', linewidth=2)
+            ax.set_xlabel('Pre training', fontsize=fs_ticks)
+            ax.set_ylabel('Post training', fontsize=fs_ticks)
+            axes_format(ax, fs_ticks)
+            
+        if feature is not None:
+            ax.set_title(feature, fontsize=fs_ticks)
+
+    def lowess_feature(ax, y, x, indices_E, indices_I, shift_val=55, frac=0.15, shades='', abs_flag=False):
+        """Plot lowess smoothed feature for E and I cells. Overcomplicated at the moment to check how robust a phenomenon is."""
+        y_E= y[:,indices_E].flatten()
+        y_I= y[:,indices_I].flatten()
+        if shift_val is not None:
+            x_E= shift_x_data(x, indices_E, shift_value=shift_val)
+            x_I= shift_x_data(x, indices_I, shift_value=shift_val)
+        else:
+            x_E = x[:,indices_E].flatten()
+            x_I = x[:,indices_I].flatten()
+        num_points = 100
+        smoothed_x_I = np.linspace(min(x_I), max(x_I), num_points)
+        smoothed_x_E = np.linspace(min(x_E), max(x_E), num_points)
+        smoothed_y_I = numpy.zeros(num_points)
+        smoothed_y_E = numpy.zeros(num_points)
+        for i in range(num_points-1):
+            x_center = (smoothed_x_I[i] + smoothed_x_I[i+1]) / 2
+            x_I_indices = (x_I >= smoothed_x_I[i]) & (x_I <= smoothed_x_I[i+1])
+            weights_I = numpy.abs(x_I[x_I_indices] - x_center)
+            weights_I_norm = weights_I / numpy.sum(weights_I)
+            smoothed_y_I[i] = numpy.mean(y_I[x_I_indices] @ weights_I_norm)
+            x_center = (smoothed_x_E[i] + smoothed_x_E[i+1]) / 2
+            x_E_indices = (x_E >= smoothed_x_E[i]) & (x_E <= smoothed_x_E[i+1])
+            weights_E = numpy.abs(x_E[x_E_indices] - x_center)
+            weights_E_norm = weights_E / numpy.sum(weights_E)
+            smoothed_y_E[i] = numpy.mean(y_E[x_E_indices] @ weights_E_norm)
+        lowess_I = numpy.array([smoothed_x_I, smoothed_y_I]).T
+        lowess_E = numpy.array([smoothed_x_E, smoothed_y_E]).T
+        # fit curves separately for the smoothed_x_E<0 and smoothed_x_E>0
+        x_pos = smoothed_x_E[smoothed_x_E>0]
+        lowess_E_pos = sm.nonparametric.lowess(smoothed_y_E[smoothed_x_E>0], x_pos, frac=frac)
+        x_neg = smoothed_x_E[smoothed_x_E<0]
+        lowess_E_neg = sm.nonparametric.lowess(smoothed_y_E[smoothed_x_E<0], x_neg, frac=frac)
+        lowess_E = numpy.concatenate((lowess_E_neg, lowess_E_pos), axis=0)
+        x_pos = smoothed_x_I[smoothed_x_I>0]
+        lowess_I_pos = sm.nonparametric.lowess(smoothed_y_I[smoothed_x_I>0], x_pos, frac=frac)
+        x_neg = smoothed_x_I[smoothed_x_I<0]
+        lowess_I_neg = sm.nonparametric.lowess(smoothed_y_I[smoothed_x_I<0], x_neg, frac=frac)
+        lowess_I = numpy.concatenate((lowess_I_neg, lowess_I_pos), axis=0)
+        # local averaging with frac bins
+        
+        if abs_flag:
+            ax.plot(lowess_E[:, 0], numpy.abs(lowess_E[:, 1]), color=shades+'red', linewidth=10, alpha=0.8)
+            ax.plot(lowess_I[:, 0], numpy.abs(lowess_I[:, 1]), color=shades+'blue', linewidth=10, alpha=0.8)
+        else:
+            ax.plot(lowess_E[:, 0], lowess_E[:, 1], color=shades+'red', linewidth=10, alpha=0.8)
+            ax.plot(lowess_I[:, 0], lowess_I[:, 1], color=shades+'blue', linewidth=10, alpha=0.8)
+
+    def mesh_for_feature(data, feature, mesh_cells):
+        mesh_feature = data['feature']==feature
+        feature_data = data[mesh_feature]
+        feature_data = feature_data.loc[:,mesh_cells]
+        return feature_data.to_numpy()
+              
     # Load tuning curves
-    train_tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
-    train_tc_header = check_header(train_tc_filename)
-    train_tuning_curves = numpy.array(pd.read_csv(train_tc_filename, header=train_tc_header))
-    pretrain_tc_filename = os.path.join(os.path.dirname(results_dir), 'pretraining_tuning_curves.csv')
-    pretrain_tuning_curves = numpy.array(pd.read_csv(pretrain_tc_filename, header=0))
+    train_tc_features_filename = os.path.join(results_dir, 'tuning_curve_features.csv')
+    train_tc_header = check_header(train_tc_features_filename)
+    train_tc_features = pd.read_csv(train_tc_features_filename, header=train_tc_header)
+    pretrain_tc_features_filename = os.path.join(os.path.dirname(results_dir), 'pretraining_tuning_curve_features.csv')
+    pretrain_tc_features = pd.read_csv(pretrain_tc_features_filename, header=0)
 
-    # Combine pretraining and training tuning curves
-    tuning_curves = numpy.vstack((pretrain_tuning_curves, train_tuning_curves))
-
-    # Loop through each training and stage within training (pre pretraining, post pretrainig and post training)
-    for i in range(num_training):
-        # Filter tuning curves for the current run
-        mesh_i = tuning_curves[:,0]==i
-        tuning_curves_i = tuning_curves[mesh_i,1:]
-        for training_stage in range(3):      
-            # Filter tuning curves for the current training stage      
-            mesh_stage = tuning_curves_i[:,0]==training_stage
-            tuning_curve = tuning_curves_i[mesh_stage,1:]
-
-            # Calculate features for the current tuning curve: slope of normalized tuning_curve
-            slope, fwhm, orientations = tc_features(tuning_curve, ori_list=ori_list, expand_dims=True, ori_to_center_slope=[55, 125])
-            # Save features: if first iteration, initialize; else, concatenate
-            if  i==0:
-                data[f'slope_55_{training_stage}'] = slope[:,:,0]
-                data[f'slope_125_{training_stage}'] = slope[:,:,1]
-                data[f'fwhm_{training_stage}'] = fwhm
-                data[f'preforis_{training_stage}'] = orientations
-            else:
-                data[f'slope_55_{training_stage}'] = numpy.concatenate((data[f'slope_55_{training_stage}'], slope[:,:,0]), axis=0)
-                data[f'slope_125_{training_stage}'] = numpy.concatenate((data[f'slope_125_{training_stage}'], slope[:,:,1]), axis=0)
-                data[f'fwhm_{training_stage}'] = numpy.concatenate((data[f'fwhm_{training_stage}'], fwhm), axis=0)
-                data[f'preforis_{training_stage}'] = numpy.concatenate((data[f'preforis_{training_stage}'], orientations), axis=0)
-            if training_stage > 0:
-                data[f'slopediff_55_{training_stage-1}'] = data[f'slope_55_{training_stage}'] - data[f'slope_55_{training_stage-1}']
-                data[f'slopediff_125_{training_stage-1}'] = data[f'slope_125_{training_stage}'] - data[f'slope_125_{training_stage-1}']
-                data[f'slopediff_diff_{training_stage-1}'] = data[f'slopediff_55_{training_stage-1}'] - data[f'slopediff_125_{training_stage-1}']
-
-############## Plots about changes before vs after training and pretraining (per layer and per centered or all) ##############
+    ############## Plots about changes before vs after training and pretraining (per layer and per centered or all) ##############
              
     # Define indices for each group of cells
-    E_sup = 648+numpy.linspace(0, 80, 81).astype(int) 
-    I_sup = 648+numpy.linspace(81, 161, 81).astype(int) 
-    E_mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
-    E_mid = E_mid_array[:,0,:].ravel().astype(int)
-    I_mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
-    I_mid = I_mid_array[:,1,:].ravel().astype(int)
+    E_sup = numpy.linspace(0, 80, 81).astype(int) + 648 
+    I_sup = numpy.linspace(81, 161, 81).astype(int) + 648
+    mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
+    E_mid = mid_array[:,0,:].ravel().astype(int)
+    I_mid = mid_array[:,1,:].ravel().astype(int)
     indices = [E_sup, I_sup, E_mid, I_mid]
-    #E_sup_centre = 648+numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
-    #I_sup_centre = (E_sup_centre+81).astype(int)
-    #E_mid_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
-    #I_mid_centre = (E_mid_centre+81).astype(int)
     
     # Create legends for the plot
     patches = []
     cmap = plt.get_cmap('rainbow')
     colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
     bins = ['0-4', '4-12', '12-20', '20-28', '28-36', '36-44', '44-50', '+50']
-    for layer_j in range(0,len(colors)):
-        patches.append(mpatches.Patch(color=colors[layer_j], label=bins[layer_j]))
+    for layer in range(0,len(colors)):
+        patches.append(mpatches.Patch(color=colors[layer], label=bins[layer]))
 
-    #############################################################################
-    ######### Schoups-style scatter plots - coloring based on cell type #########
-    #############################################################################
-    phase_colors_E = [ 'red', 'yellow', 'darkred', 'orange']
-    phase_colors_I = [ 'blue', 'green', 'darkblue', 'darkgreen']
+    ###############################################
+    ######### Schoups-style scatter plots #########
+    ###############################################
     colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
     fs_text = 40
     fs_ticks = 30
@@ -664,158 +695,140 @@ def plot_tc_features(results_dir, num_training, ori_list):
     # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
     stage_labels = ['pretrain', 'train']
     
-    for training_stage in range(2):# change to range(2) for both pretrain and train
-        fig, axs = plt.subplots(2, 2, figsize=(25, 25))
-        for layer_j in [0,2]:            
-            ##### Plot fwhm before vs after training for E_sup and E_mid #####
-            # add a little jitter to x and y to avoid overlapping points
-            x = data[f'fwhm_{training_stage}'] # + numpy.random.normal(0, 0.1, data[f'fwhm_{training_stage}'].shape) 
-            y = data[f'fwhm_{training_stage+1}'] # + numpy.random.normal(0, 0.1, data[f'fwhm_{training_stage+1}'].shape)
-            ax = axs[abs((2-layer_j))//2,1]
-            if layer_j==2:
-                for phase_ind in range(4):
-                    indices_phase_E = I_mid_array[phase_ind,0,:]
-                    indices_phase_I = I_mid_array[phase_ind,1,:]
-                    ax.scatter(x[:,indices_phase_E], y[:,indices_phase_E], s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
-                    ax.scatter(x[:,indices_phase_I], y[:,indices_phase_I], s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
-            else:
-                ax.scatter(x[:,I_sup], y[:,I_sup], s=30, alpha=0.5, color='blue')
-                ax.scatter(x[:,E_sup], y[:,E_sup], s=30, alpha=0.5, color='red')
-            xpoints = ypoints = ax.get_xlim()
-            ax.plot(xpoints, ypoints, color='black', linewidth=2)
-            ax.set_xlabel('Pre training')
-            ax.set_ylabel('Post training')
-            
-            # Format axes
-            axes_format(axs[abs((2-layer_j))//2,1], fs_ticks)
-            
-            ##### Plot orientation vs slope #####
-            if layer_j==2:
-                # Middle layer scatter plots with added colors to the different cell categories
-                for phase_ind in range(4):
-                    indices_phase_E = E_mid_array[phase_ind,0,:]
-                    indices_phase_I = I_mid_array[phase_ind,1,:]
-                    y_E= data[f'slopediff_55_{training_stage}'][:,indices_phase_E].flatten()
-                    y_I= data[f'slopediff_55_{training_stage}'][:,indices_phase_I].flatten()
-                    x_I_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_I, shift_value=55)
-                    x_E_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_E, shift_value=55)
-                    axs[abs((2-layer_j)) // 2,0].scatter(x_E_90, y_E, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
-                    axs[abs((2-layer_j)) // 2,0].scatter(x_I_90, y_I, s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
-            else:
-                # Superficial layer scatter plots
-                y_E= data[f'slopediff_55_{training_stage}'][:,E_sup].flatten()
-                y_I= data[f'slopediff_55_{training_stage}'][:,I_sup].flatten()
-                x_E_90= shift_x_data(data[f'preforis_{training_stage}'], E_sup, shift_value=55)
-                x_I_90= shift_x_data(data[f'preforis_{training_stage}'], I_sup, shift_value=55)
-                axs[abs((2-layer_j)) // 2,0].scatter(x_E_90, y_E, s=30, alpha=0.7, color='red')
-                axs[abs((2-layer_j)) // 2,0].scatter(x_I_90, y_I, s=30, alpha=0.7, color='blue')
-            # Line plots for both layers: define x and y values and shift x to have 0 in its center
-            y_E= data[f'slopediff_55_{training_stage}'][:,indices[layer_j]].flatten()
-            y_I= data[f'slopediff_55_{training_stage}'][:,indices[layer_j+1]].flatten()
-            x_E= shift_x_data(data[f'preforis_{training_stage}'], indices[layer_j], shift_value=55)
-            x_I= shift_x_data(data[f'preforis_{training_stage}'], indices[layer_j+1], shift_value=55)
-            lowess_E = sm.nonparametric.lowess(y_E, x_E, frac=0.15)  # Example with frac=0.2 for more local averaging
-            lowess_I = sm.nonparametric.lowess(y_I, x_I, frac=0.15)
-            axs[abs((2-layer_j)) // 2,0].plot(lowess_E[:, 0], lowess_E[:, 1], color='darkred', linewidth=8)
-            axs[abs((2-layer_j)) // 2,0].plot(lowess_I[:, 0], lowess_I[:, 1], color='darkblue', linewidth=8)
-            axes_format(axs[abs((2-layer_j)) // 2,0], fs_ticks)
+    for training_stage in stages[0:-1]:# change to range(3) for both pretrain and train
+        fig, axs = plt.subplots(2, 5, figsize=(50, 20))
         
-        axs[0,1].set_title('Full width \n at half maximum (deg.)', fontsize=fs_text)
-        axs[0,1].set_xlabel('')
-        axs[1,1].set_xlabel('Pre FWHM', fontsize=fs_text, labelpad=20)
-        axs[1,1].set_ylabel('Post FWHM', fontsize=fs_text)
-        axs[0,1].set_ylabel('Post FWHM', fontsize=fs_text)
+        mesh_stage_pre = pretrain_tc_features['stage']==training_stage
+        data_pre = pretrain_tc_features[mesh_stage_pre]
+        mesh_cells = data_pre.columns.str.startswith('G')
+        if training_stage == 1:
+            mesh_stage_post = train_tc_features['stage']==training_stage+1
+            data_post = train_tc_features[mesh_stage_post]
+        else:
+            mesh_stage_post = pretrain_tc_features['stage']==training_stage+1
+            data_post = pretrain_tc_features[mesh_stage_post]    
+        
+        min_pre = mesh_for_feature(data_pre, 'min', mesh_cells)
+        min_post = mesh_for_feature(data_post, 'min', mesh_cells)
+        max_min_ratio_pre = mesh_for_feature(data_pre, 'max_min_ratio', mesh_cells) # (max-min)/max
+        max_min_ratio_post = mesh_for_feature(data_post, 'max_min_ratio', mesh_cells)
+        mean_pre = mesh_for_feature(data_pre, 'mean', mesh_cells)
+        mean_post = mesh_for_feature(data_post, 'mean', mesh_cells)
+        slope_hm_pre = mesh_for_feature(data_pre, 'slope_hm', mesh_cells)
+        slope_hm_post = mesh_for_feature(data_post, 'slope_hm', mesh_cells)
+        fwhm_pre = mesh_for_feature(data_pre, 'fwhm', mesh_cells)      
+        fwhm_post = mesh_for_feature(data_post, 'fwhm', mesh_cells)
+        slope_55_pre = mesh_for_feature(data_pre, 'slope_55', mesh_cells)
+        slope_55_post = mesh_for_feature(data_post, 'slope_55', mesh_cells)
+        slope_125_pre = mesh_for_feature(data_pre, 'slope_125', mesh_cells)
+        slope_125_post = mesh_for_feature(data_post, 'slope_125', mesh_cells)
+        slopediff_55 = numpy.abs(slope_55_post) - numpy.abs(slope_55_pre)
+        slopediff_125 = numpy.abs(slope_125_post) - numpy.abs(slope_125_pre)
 
-        axs[0,0].set_title('Tuning curve slope:\n'+ r'$\Delta$' + 'slope(55)', fontsize=fs_text)
-        axs[0,0].set_xlabel('')
-        axs[1,0].set_xlabel('pref. ori - trained ori', fontsize=fs_text, labelpad=20)
-        axs[1,0].set_ylabel(r'$\Delta$ slope(55)', fontsize=fs_text)
-        axs[0,0].set_ylabel(r'$\Delta$ slope(55)', fontsize=fs_text)
+        mesh_pref_ori = data_post['feature']=='pref_ori'
+        pref_ori = data_post[mesh_pref_ori]
+        pref_ori = pref_ori.loc[:,mesh_cells].to_numpy()
+        for layer in range(2):            
+            ##### Plot features before vs after training per layer and cell type #####
+            ax_row_ind = 0 if layer == 1 else 1  # For clearer readability
+            scatter_feature(axs[ax_row_ind,0], slope_hm_post, slope_hm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_hm')
+            scatter_feature(axs[ax_row_ind,1], fwhm_post, fwhm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='fwhm')
+            scatter_feature(axs[ax_row_ind,2], min_post, min_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='min')
+            scatter_feature(axs[ax_row_ind,3], max_min_ratio_post, max_min_ratio_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='max_min_ratio')
+            scatter_feature(axs[ax_row_ind,4], mean_post, mean_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='mean')
+
         plt.tight_layout(w_pad=10, h_pad=7)
         fig.savefig(os.path.join(results_dir,'figures', f'tc_features_{stage_labels[training_stage]}.png'), bbox_inches='tight')
         plt.close()
+
+    # 3 x 2 scatter plot of data[slopediff_55_0 and 1], data[slopediff_55_0 and 1] and data[slopediff_diff]
+    fig, axs = plt.subplots(2, 3, figsize=(30, 20))
+    # Middle layer
+    for layer in range(2):
+        scatter_feature(axs[layer,0], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], feature='slope_55')
+        scatter_feature(axs[layer,1], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, feature='slope_125')
+        lowess_feature(axs[layer,0], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shades='dark')
+        lowess_feature(axs[layer,1], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, shades='tab:')
+        lowess_feature(axs[layer,2], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shades='dark', abs_flag=True)
+        lowess_feature(axs[layer,2], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, shades='tab:', abs_flag=True)
         
-        # 3 x 2 scatter plot of data[slopediff_55_0 and 1], data[slopediff_55_0 and 1] and data[slopediff_diff]
-        fig, axs = plt.subplots(2, 3, figsize=(30, 20))
-        # Middle layer
-        for k in [0,2]:
-            # k=0 superficial layer, k=2 middle layer
-            # Middle layer scatter plots
-            if k==2:
-                for phase_ind in range(4):
-                    indices_phase_E = E_mid_array[phase_ind,0,:]
-                    indices_phase_I = E_mid_array[phase_ind,1,:]
-                    x_E_55 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_E, shift_value=55)
-                    x_I_55 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_I, shift_value=55)
-                    x_E_125 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_E, shift_value=125)
-                    x_I_125 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_I, shift_value=125)
-                    x_E_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_E, shift_value=90)
-                    x_I_90 = shift_x_data(data[f'preforis_{training_stage}'], indices_phase_I, shift_value=90)
-                    axs[0,0].scatter(x_E_55, data[f'slopediff_{55}_{training_stage}'][:,indices_phase_E].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
-                    axs[0,0].scatter(x_I_55, data[f'slopediff_{55}_{training_stage}'][:,indices_phase_I].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
-                    axs[0,1].scatter(x_E_125, data[f'slopediff_{125}_{training_stage}'][:,indices_phase_E].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
-                    axs[0,1].scatter(x_I_125, data[f'slopediff_{125}_{training_stage}'][:,indices_phase_I].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
-                    #axs[0,2].scatter(x_E_90, data[f'slopediff_diff_{training_stage}'][:,indices_phase_E].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_E[phase_ind])
-                    #axs[0,2].scatter(x_I_90, data[f'slopediff_diff_{training_stage}'][:,indices_phase_I].flatten(), s=(50-10*phase_ind), alpha=0.5, color=phase_colors_I[phase_ind])
-                # Line plots for middle layer: merge phases
-                x_E_55 = shift_x_data(data[f'preforis_{training_stage}'], E_mid, shift_value=55)
-                x_I_55 = shift_x_data(data[f'preforis_{training_stage}'], I_mid, shift_value=55)
-                x_E_125 = shift_x_data(data[f'preforis_{training_stage}'], E_mid, shift_value=125)
-                x_I_125 = shift_x_data(data[f'preforis_{training_stage}'], I_mid, shift_value=125)
-                x_E_90 = shift_x_data(data[f'preforis_{training_stage}'], E_mid, shift_value=90)
-                x_I_90 = shift_x_data(data[f'preforis_{training_stage}'], I_mid, shift_value=90)
-                lowess_E_55 = sm.nonparametric.lowess(data[f'slopediff_{55}_{training_stage}'][:,indices[k]].flatten(), x_E_55, frac=0.15)  # Example with frac=0.2 for more local averaging
-                lowess_I_55 = sm.nonparametric.lowess(data[f'slopediff_{55}_{training_stage}'][:,indices[k+1]].flatten(), x_I_55, frac=0.15)
-                lowess_E_125 = sm.nonparametric.lowess(data[f'slopediff_{125}_{training_stage}'][:,indices[k]].flatten(), x_E_125, frac=0.15)
-                lowess_I_125 = sm.nonparametric.lowess(data[f'slopediff_{125}_{training_stage}'][:,indices[k+1]].flatten(), x_I_125, frac=0.15)
-                lowess_E_diff = sm.nonparametric.lowess(data[f'slopediff_diff_{training_stage}'][:,indices[k]].flatten(), x_E_90, frac=0.15)
-                lowess_I_diff = sm.nonparametric.lowess(data[f'slopediff_diff_{training_stage}'][:,indices[k+1]].flatten(), x_I_90, frac=0.15)
-            # Superficial layer scatter plots
-            axs_ind_1 = abs((2-k))//2           
-            if k==0:
-                x_E_55 = shift_x_data(data[f'preforis_{training_stage}'], E_sup, shift_value=55)
-                x_I_55 = shift_x_data(data[f'preforis_{training_stage}'], I_sup, shift_value=55)
-                x_E_125 = shift_x_data(data[f'preforis_{training_stage}'], E_sup, shift_value=125)
-                x_I_125 = shift_x_data(data[f'preforis_{training_stage}'], I_sup, shift_value=125)
-                x_E_90 = shift_x_data(data[f'preforis_{training_stage}'], E_sup, shift_value=90)
-                x_I_90 = shift_x_data(data[f'preforis_{training_stage}'], I_sup, shift_value=90)
-                axs[axs_ind_1,0].scatter(x_E_55, data[f'slopediff_{55}_{training_stage}'][:,indices[k]].flatten(), s=30, alpha=0.7, color='red')
-                axs[axs_ind_1,0].scatter(x_I_55, data[f'slopediff_{55}_{training_stage}'][:,indices[k+1]].flatten(), s=30, alpha=0.7, color='blue')
-                axs[axs_ind_1,1].scatter(x_E_125, data[f'slopediff_{125}_{training_stage}'][:,indices[k]].flatten(), s=30, alpha=0.7, color='red')
-                axs[axs_ind_1,1].scatter(x_I_125, data[f'slopediff_{125}_{training_stage}'][:,indices[k+1]].flatten(), s=30, alpha=0.7, color='blue')
-                #axs[axs_ind_1,2].scatter(x_E_90, data[f'slopediff_diff_{training_stage}'][:,indices[k]].flatten(), s=30, alpha=0.7, color='red')
-                #axs[axs_ind_1,2].scatter(x_I_90, data[f'slopediff_diff_{training_stage}'][:,indices[k+1]].flatten(), s=30, alpha=0.7, color='blue')
-                
-                # Line plots for superficial layer: define x and y values and shift x to have 0 in its center
-                lowess_E_55 = sm.nonparametric.lowess(data[f'slopediff_{55}_{training_stage}'][:,indices[k]].flatten(), x_E_55, frac=0.15)  # Example with frac=0.2 for more local averaging
-                lowess_I_55 = sm.nonparametric.lowess(data[f'slopediff_{55}_{training_stage}'][:,indices[k+1]].flatten(), x_I_55, frac=0.15)
-                lowess_E_125 = sm.nonparametric.lowess(data[f'slopediff_{125}_{training_stage}'][:,indices[k]].flatten(), x_E_125, frac=0.15)
-                lowess_I_125 = sm.nonparametric.lowess(data[f'slopediff_{125}_{training_stage}'][:,indices[k+1]].flatten(), x_I_125, frac=0.15)
-                lowess_E_diff = sm.nonparametric.lowess(data[f'slopediff_diff_{training_stage}'][:,indices[k]].flatten(), x_E_90, frac=0.15)
-                lowess_I_diff = sm.nonparametric.lowess(data[f'slopediff_diff_{training_stage}'][:,indices[k+1]].flatten(), x_I_90, frac=0.15)
-            axs[axs_ind_1,0].plot(lowess_E_55[:, 0], lowess_E_55[:, 1], color='red', linewidth=4)
-            axs[axs_ind_1,0].plot(lowess_I_55[:, 0], lowess_I_55[:, 1], color='blue', linewidth=4)
-            axs[axs_ind_1,1].plot(lowess_E_125[:, 0], lowess_E_125[:, 1], color='tab:red', linewidth=4)
-            axs[axs_ind_1,1].plot(lowess_I_125[:, 0], lowess_I_125[:, 1], color='tab:blue', linewidth=4)
-            axs[axs_ind_1,2].plot(lowess_E_55[:, 0], lowess_E_55[:, 1], color='red', linewidth=4)
-            axs[axs_ind_1,2].plot(lowess_I_55[:, 0], lowess_I_55[:, 1], color='blue', linewidth=4)
-            axs[axs_ind_1,2].plot(lowess_E_125[:, 0], lowess_E_125[:, 1], color='tab:red', linewidth=4)
-            axs[axs_ind_1,2].plot(lowess_I_125[:, 0], lowess_I_125[:, 1], color='tab:blue', linewidth=4)
-            #axs[axs_ind_1,2].plot(lowess_E_diff[:, 0], lowess_E_diff[:, 1], color='red', linewidth=4)
-            #axs[axs_ind_1,2].plot(lowess_I_diff[:, 0], lowess_I_diff[:, 1], color='blue', linewidth=4)
-            # Set titles
-            axs[axs_ind_1,0].set_title(r'$\Delta$' + 'slope(55)', fontsize=fs_text)
-            axs[axs_ind_1,1].set_title(r'$\Delta$' + 'slope(125)', fontsize=fs_text)
-            axs[axs_ind_1,2].set_title(r'$\Delta$' + 'slope(55) - '+ r'$\Delta$' + 'slope(125)', fontsize=fs_text)
-        # Format and save plot
-        for ax in axs.flatten():
-            axes_format(ax, fs_ticks)
-        plt.tight_layout(w_pad=10, h_pad=7)
-        fig.savefig(os.path.join(results_dir,'figures',f'tc_slope_{stage_labels[training_stage]}_v2.png'), bbox_inches='tight')
-        plt.close()
-'''
+        # Set titles
+        axs[layer,0].set_title(r'$\Delta$' + 'slope(55)', fontsize=fs_text)
+        axs[layer,1].set_title(r'$\Delta$' + 'slope(125)', fontsize=fs_text)
+        axs[layer,2].set_title(r'$\Delta$' + 'slope(55), '+ r'$\Delta$' + 'slope(125)', fontsize=fs_text)
+    # Format and save plot
+    for ax in axs.flatten():
+        axes_format(ax, fs_ticks)
+    plt.tight_layout(w_pad=10, h_pad=7)
+    fig.savefig(os.path.join(results_dir,'figures',f'tc_slope_{stage_labels[training_stage]}.png'), bbox_inches='tight')
+    plt.close()
 
 ################### CORRELATION ANALYSIS ###################
+
+def plot_param_offset_correlations(folder):
+    """Plot the correlations between the offset parameters and the psychometric, staircase, and loss parameters"""
+    # Helper functions
+    def get_color(corr_and_p):
+        """Determine the color based on correlation value and significance."""
+        if corr_and_p[1] < 0.05:  # Significant correlation
+            if corr_and_p[0] > 0:
+                return 'darkgreen', 'lightgreen'  # Significantly positive
+            else:
+                return 'darkred', 'lightcoral'    # Significantly negative
+        else:
+            return 'gray', 'lightgray'  # Insignificant correlation
+        
+    def regplots(param_key, rel_changes_train, corr_and_p_1, corr_and_p_2, corr_and_p_3, axes1, axes2, axes3, i, j):
+        line_color1, scatter_color1 = get_color(corr_and_p_1)
+        line_color2, scatter_color2 = get_color(corr_and_p_2)
+        line_color3, scatter_color3 = get_color(corr_and_p_3)
+        sns.regplot(x=param_key, y='psychometric_offset', data=rel_changes_train, ax=axes1[i,j], ci=95, color='red', 
+            line_kws={'color':line_color1}, scatter_kws={'alpha':0.3, 'color':scatter_color1})
+        sns.regplot(x=param_key, y='staircase_offset', data=rel_changes_train, ax=axes2[i,j], ci=95, color='blue', 
+            line_kws={'color':line_color2}, scatter_kws={'alpha':0.3, 'color':scatter_color2})
+        sns.regplot(x=param_key, y='loss_binary_cross_entr', data=rel_changes_train, ax=axes3[i,j], ci=95, color='green', 
+            line_kws={'color':line_color3}, scatter_kws={'alpha':0.3, 'color':scatter_color3})
+        # add label to x-axis
+        axes1[i,j].set_xlabel(param_key, fontsize=20)
+        axes2[i,j].set_xlabel(param_key, fontsize=20)
+        axes3[i,j].set_xlabel(param_key, fontsize=20)
+        # display corr in the right bottom of the figure
+        axes1[i,j].text(0.05, 0.05, f'r= {corr_and_p_1[0]:.2f}', transform=axes1[i,j].transAxes, fontsize=20)
+        axes2[i,j].text(0.05, 0.05, f'r= {corr_and_p_2[0]:.2f}', transform=axes2[i,j].transAxes, fontsize=20)
+        axes3[i,j].text(0.05, 0.05, f'r= {corr_and_p_3[0]:.2f}', transform=axes3[i,j].transAxes, fontsize=20)
+
+    def save_fig(fig, folder, filename, title=None):
+        if title is not None:
+            fig.suptitle(title, fontsize=20)
+        fig.tight_layout()
+        fig.savefig(folder + filename)
+        plt.close(fig)
+
+    corr_psychometric_offset_param, corr_staircase_offset_param, corr_loss_param, rel_changes_train = param_offset_correlations(folder)
+    # Make three plots of the correlations between the offset parameters and the psychometric, staircase, and loss parameters
+    fig1, axes1 = plt.subplots(nrows=3, ncols=9, figsize=(9*5, 3*5))
+    fig2, axes2 = plt.subplots(nrows=3, ncols=9, figsize=(9*5, 3*5))
+    fig3, axes3 = plt.subplots(nrows=3, ncols=9, figsize=(9*5, 3*5))
+    
+    j1, j2, j3 = 0, 0, 0
+    for param_key, corr_and_p_1 in corr_psychometric_offset_param.items():
+        # rows of the plot collect types of parameters: 1) mid, 2) sup, 3) f and kappa, 4) J combined
+        corr_and_p_2 = corr_staircase_offset_param[param_key]
+        corr_and_p_3 = corr_loss_param[param_key]
+        if param_key.endswith('_m'):
+            regplots(param_key, rel_changes_train, corr_and_p_1, corr_and_p_2, corr_and_p_3, axes1, axes2, axes3, 0, j1)
+            j1 += 1
+        elif param_key.endswith('_s'):
+            regplots(param_key, rel_changes_train, corr_and_p_1, corr_and_p_2, corr_and_p_3, axes1, axes2, axes3, 1, j2)
+            j2 += 1
+        else:
+            regplots(param_key, rel_changes_train, corr_and_p_1, corr_and_p_2, corr_and_p_3, axes1, axes2, axes3, 2, j3)
+            j3 += 1
+    # Adjust layout and save + close the plot
+    save_fig(fig1, folder, '/figures/Offset_corr_psychometric.png', title='Paramaters vs psychometric_offset')
+    save_fig(fig2, folder, '/figures/Offset_corr_staircase.png', title='Paramaters vs staircase_offset')
+    save_fig(fig3, folder, '/figures/Offset_corr_loss_binary.png', title='Paramaters vs BCE loss')
+
 
 def plot_correlations(folder, num_training, num_time_inds=3):
     offset_pars_corr, offset_staircase_pars_corr, MVPA_corrs, data = MVPA_param_offset_correlations(folder, num_training, num_time_inds, mesh_for_valid_offset=False)
@@ -1031,7 +1044,7 @@ def plot_corr_triangles(final_folder_path, sigma_filter, folder_to_save):
     """ Plot the correlation triangles for the MVPA results """
 
     data_rel_changes, _ = rel_change_for_runs(final_folder_path, num_indices = 3)
-    MVPA_scores = numpy.load(final_folder_path + f'/sigmafilt_{sigma_filter}/MVPA_scores.npy') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
+    MVPA_scores = pd.read_csv(final_folder_path +'/MVPA_scores.csv').to_numpy() # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
     data_sup_55 = pd.DataFrame({
         'MVPA': (MVPA_scores[:,0,-1,0]- MVPA_scores[:,0,-2,0])/MVPA_scores[:,0,-2,0],
         'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
@@ -1056,178 +1069,26 @@ def plot_corr_triangles(final_folder_path, sigma_filter, folder_to_save):
         'offset_th': data_rel_changes['staircase_offset']
     })
     plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
-
-
-def plot_Mahalanobis_dist(num_trainings, num_stage_inds, mahal_train_control, mahal_untrain_control, mahal_within_train, mahal_within_untrain, folder_to_save, file_to_save):
-    ori_list = numpy.asarray([55, 125, 0])
-    num_oris = len(ori_list)
-    num_layers=2
-    colors = ['black','blue', 'red']
-    labels = ['pre-pretrained', 'post-pretrained','post-trained']
-
-    # Histogram plots (samples are per trial)
-    mahal_SNR_train = mahal_train_control / mahal_within_train # dimensions are: run x layer x stages x trial
-    mahal_SNR_untrain = mahal_untrain_control / mahal_within_untrain
-
-    for run_ind in range(num_trainings):
-        fig, axs = plt.subplots(2*num_layers, num_oris-1, figsize=(20, 30))  # Plot for Mahalanobis distances and SNR
-        layer_labels = ['Sup', 'Mid']
-        for layer in range(num_layers):
-            for stage_ind in range(num_stage_inds):
-                # Plotting Mahal distances for trained ori
-                axs[layer,0].set_title(f'Mahalanobis dist: {layer_labels[layer]} layer, ori {ori_list[0]}')
-                axs[layer,0].hist(mahal_train_control[run_ind,layer,stage_ind,:], label=labels[stage_ind], color=colors[stage_ind], alpha=0.4) 
-                mean_val=numpy.mean(mahal_train_control[run_ind,layer,stage_ind,:])
-                axs[layer,0].axvline(mean_val, color=colors[stage_ind], linestyle='dashed', linewidth=1)
-                axs[layer,0].text(mean_val, axs[layer,0].get_ylim()[1]*0.95, f'{mean_val:.2f}', color=colors[stage_ind], ha='center')
-                axs[layer,0].legend(loc='lower left')
-                # Plotting Mahal distances for untrained ori
-                axs[layer,1].set_title(f'Mahal dist: {layer_labels[layer]} layer, ori {ori_list[1]}')
-                axs[layer,1].hist(mahal_untrain_control[run_ind,layer,stage_ind,:], label=labels[stage_ind], color=colors[stage_ind], alpha=0.4)
-                mean_val=numpy.mean(mahal_untrain_control[run_ind,layer,stage_ind,:]) 
-                axs[layer,1].axvline(mean_val, color=colors[stage_ind], linestyle='dashed', linewidth=1)
-                axs[layer,1].text(mean_val, axs[layer,0].get_ylim()[1]*0.95, f'{mean_val:.2f}', color=colors[stage_ind], ha='center')
-                axs[layer,1].legend(loc='lower left')
-                # Plotting SNR for trained ori
-                axs[2+layer,0].set_title(f'SNR: layer {layer_labels[layer]}, ori {ori_list[0]}')
-                axs[2+layer,0].hist(mahal_SNR_train[run_ind,layer,stage_ind,:], label=labels[stage_ind], color=colors[stage_ind], alpha=0.4)
-                mean_val = numpy.mean(mahal_SNR_train[run_ind,layer,stage_ind,:])
-                axs[2+layer,0].axvline(mean_val, color=colors[stage_ind], linestyle='dashed', linewidth=1)
-                axs[2+layer,0].text(mean_val, axs[2+layer,0].get_ylim()[1]*0.95, f'{mean_val:.2f}', color=colors[stage_ind], ha='center')
-                axs[2+layer,0].legend(loc='lower left')
-                # Plotting SNR for untrained ori
-                axs[2+layer,1].set_title(f'SNR: {layer_labels[layer]} layer, ori {ori_list[1]}')
-                axs[2+layer,1].hist(mahal_SNR_untrain[run_ind,layer,stage_ind,:], label=labels[stage_ind], color=colors[stage_ind], alpha=0.4)
-                mean_val = numpy.mean(mahal_SNR_untrain[run_ind,layer,stage_ind,:])
-                axs[2+layer,1].axvline(mean_val, color=colors[stage_ind], linestyle='dashed', linewidth=1)
-                axs[2+layer,1].text(mean_val, axs[2+layer,1].get_ylim()[1]*0.90, f'{mean_val:.2f}', color=colors[stage_ind], ha='center')
-                axs[2+layer,1].legend(loc='lower left')
-                
-        fig.savefig(folder_to_save + '/' + file_to_save + f"_{run_ind}_control_{ori_list[2]}")
-    
-    # Boxplots - boxes within a subplot correspond to different orientations over different runs
-    colors = ['black','tab:green']
-    labels = [f'ori:{ori_list[0]}', f'ori:{ori_list[1]}']
-    training_type_text = ['training']
-    mahal_diff_train_l0_0=np.mean(mahal_train_control[:,0,1,:]-mahal_train_control[:,0,0,:], axis=1)/np.mean(mahal_train_control[:,0,1,:], axis=1)
-    mahal_diff_untrain_l0_0=np.mean(mahal_untrain_control[:,0,1,:]-mahal_untrain_control[:,0,0,:], axis=1)/np.mean(mahal_untrain_control[:,0,1,:], axis=1)
-    mahal_diff_l0=np.stack((mahal_diff_train_l0_0,mahal_diff_untrain_l0_0), axis=1)
-    
-    mahal_diff_train_l1_0=np.mean(mahal_train_control[:,1,1,:]-mahal_train_control[:,1,0,:], axis=1)/np.mean(mahal_train_control[:,1,1,:], axis=1)
-    mahal_diff_untrain_l1_0=np.mean(mahal_untrain_control[:,1,1,:]-mahal_untrain_control[:,1,0,:], axis=1)/np.mean(mahal_untrain_control[:,1,1,:], axis=1)
-    mahal_diff_l1=np.stack((mahal_diff_train_l1_0,mahal_diff_untrain_l1_0), axis=1)
-    
-    # define the matrices to plot for trainig when pretraining was present
-    num_training_type=mahal_train_control.shape[2]-1
-    if num_training_type==2:
-        training_type_text = ['pretraining','training']
-        mahal_diff_train_l0_1=np.mean(mahal_train_control[:,0,2,:]-mahal_train_control[:,0,1,:], axis=1)/np.mean(mahal_train_control[:,0,2,:], axis=1)
-        mahal_diff_untrain_l0_1=np.mean(mahal_untrain_control[:,0,2,:]-mahal_untrain_control[:,0,1,:], axis=1)/np.mean(mahal_untrain_control[:,0,2,:], axis=1)
-        mahal_diff_l0_traintype2=np.stack((mahal_diff_train_l0_1,mahal_diff_untrain_l0_1), axis=1)
-        mahal_diff_l0=np.concatenate((mahal_diff_l0,mahal_diff_l0_traintype2),axis=1) 
-        mahal_diff_train_l1_1=np.mean(mahal_train_control[:,1,2,:]-mahal_train_control[:,1,1,:], axis=1)/np.mean(mahal_train_control[:,1,2,:], axis=1)
-        mahal_diff_untrain_l1_1=np.mean(mahal_untrain_control[:,1,2,:]-mahal_untrain_control[:,1,1,:], axis=1)/np.mean(mahal_untrain_control[:,1,2,:], axis=1)
-        mahal_diff_l1_traintype2=np.stack((mahal_diff_train_l1_1,mahal_diff_untrain_l1_1), axis=1) 
-        mahal_diff_l1=np.concatenate((mahal_diff_l1,mahal_diff_l1_traintype2),axis=1) # num_trainings x (55ori-pretrain, 125ori-pretrain, 55ori-train, 125ori-train)
-    fig, axs = plt.subplots(num_training_type, num_layers, figsize=(num_training_type*5, num_layers*5))
-    # within a subplot, the two boxplots are for the trained and untrained orientation
-    for training_type in range(num_training_type):
-        try:
-            bp = axs[training_type,0].boxplot(mahal_diff_l0[:,training_type*2:training_type*2+2], labels=labels ,patch_artist=True)
-        except:
-            bp = axs[training_type,0].boxplot(mahal_diff_l0[:,training_type*2:training_type*2+2].T, labels=labels ,patch_artist=True)
-        axs[training_type,0].set_title(f'{layer_labels[0]} layer, {training_type_text[training_type]}', fontsize=20)
-        for box, color in zip(bp['boxes'], colors):
-            box.set_facecolor(color)
-        try:
-            bp = axs[training_type,1].boxplot(mahal_diff_l1[:,training_type*2:training_type*2+2], labels=labels, patch_artist=True)
-        except:
-            bp = axs[training_type,1].boxplot(mahal_diff_l1[:,training_type*2:training_type*2+2].T, labels=labels, patch_artist=True)
-        axs[training_type,1].set_title(f'{layer_labels[1]} layer', fontsize=20)
-        for box, color in zip(bp['boxes'], colors):
-            box.set_facecolor(color)
-        
-    fig.savefig(f"{folder_to_save}/Mahal_dist_diff")
     
     
-def plot_MVPA(final_folder_path,num_runs):
-    MVPA_scores = numpy.load(os.path.join(final_folder_path, 'MVPA_scores.npy'))
+def plot_MVPA_or_Mahal_scores(final_folder_path, num_runs, scores, file_name):
+    """ Plot the MVPA scores or Mahalanobis distances for the two layers and two orientations """
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     # iterate over the two layers
     layer_label = ['sup', 'mid']
     for layer in range(2):
         # create a list of the 4 conditions
-        data = [MVPA_scores[:,layer,1, 0], MVPA_scores[:,layer,2, 0], MVPA_scores[:,layer,1, 1], MVPA_scores[:,layer,2, 1]]
+        data = [scores[:,layer,1, 0], scores[:,layer,2, 0], scores[:,layer,1, 1], scores[:,layer,2, 1]]
         # draw the boxplot
         ax[layer].boxplot(data, positions=[1, 2, 3, 4])
         ax[layer].set_xticklabels(['55 pre', '55 post', '125 pre', '125 post'])
         ax[layer].set_title(f'Layer {layer_label[layer]}')
-        ax[layer].set_ylabel('MVPA score')
+        ylabel_text = 'MVPA score' if 'MVPA' in file_name else 'Mahalanobis distance'
+        ax[layer].set_ylabel(ylabel_text)
         # draw lines to connect the pre and post training for each sample
         for i in range(num_runs):
             #gray lines
             ax[layer].plot([1, 2], [data[0][i], data[1][i]], color='gray', alpha=0.5, linewidth=0.5)
             ax[layer].plot([3, 4], [data[2][i], data[3][i]], color='gray', alpha=0.5, linewidth=0.5)
-    plt.savefig(final_folder_path+'/MVPA_boxplot.png')
-    plt.close()
-
-def plot_Mahal_LMI_hists(df_LMI, df_mahal, folder, num_stage_inds):
-    num_layers=2
-    LMI_across=numpy.array(df_LMI['LMI_across'].values.reshape(-1,num_layers,num_stage_inds-1))
-    LMI_within=numpy.array(df_LMI['LMI_within'].values.reshape(-1,num_layers,num_stage_inds-1))
-    LMI_ratio=numpy.array(df_LMI['LMI_ratio'].values.reshape(-1,num_layers,num_stage_inds-1))
-    mahal_train_control_mean = numpy.array(df_mahal['ori55_across'].values.reshape(-1,num_layers,num_stage_inds))
-    mahal_untrain_control_mean = numpy.array(df_mahal['ori125_across'].values.reshape(-1,num_layers,num_stage_inds))
-    mahal_within_train_mean = numpy.array(df_mahal['ori55_within'].values.reshape(-1,num_layers,num_stage_inds))
-    mahal_within_untrain_mean = numpy.array(df_mahal['ori125_within'].values.reshape(-1,num_layers,num_stage_inds))
-    
-    fig, axs = plt.subplots(num_layers, 3, figsize=(30, 20))
-    for layer in range(num_layers):
-        for stage_ind in range(num_stage_inds-1):
-            axs[layer,0].hist(LMI_across[:,layer,stage_ind], label='across', color='blue', alpha=0.5*(stage_ind+1)) #  fainter for the pretraining
-            axs[layer,1].hist(LMI_within[:,layer,stage_ind], label='within', color='red', alpha=0.5*(stage_ind+1))
-            axs[layer,2].hist(LMI_ratio[:,layer,stage_ind], label='ratio', color='green', alpha=0.5*(stage_ind+1))
-            # add mean values as vertical lines
-            mean_LMI_across = numpy.mean(LMI_across[:,layer,stage_ind])
-            mean_LMI_within = numpy.mean(LMI_within[:,layer,stage_ind])
-            mean_LMI_ratio = numpy.mean(LMI_ratio[:,layer,stage_ind])
-            axs[layer,0].axvline(mean_LMI_across, color='blue', linestyle='dashed', linewidth=0.6*(stage_ind+1))
-            axs[layer,1].axvline(mean_LMI_within, color='red', linestyle='dashed', linewidth=0.6*(stage_ind+1))
-            axs[layer,2].axvline(mean_LMI_ratio, color='green', linestyle='dashed', linewidth=0.6*(stage_ind+1))
-        axs[layer,0].set_title(f'LMI for layer {layer}, stage ind {stage_ind}')
-        axs[layer,0].legend()
-        axs[layer,1].legend()
-        axs[layer,2].legend()
-        # Add black vertical lines at 0
-        axs[layer,0].axvline(0, color='black', linestyle='dashed', linewidth=1)
-        axs[layer,1].axvline(0, color='black', linestyle='dashed', linewidth=1)
-        axs[layer,2].axvline(0, color='black', linestyle='dashed', linewidth=1)
-    fig.savefig(folder + f"/figures/LMI_histograms")
-    plt.close()
-
-    # Plot histograms of the mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean across the runs
-    fig, axs = plt.subplots(num_layers, 4, figsize=(40, 20))
-    for layer in range(num_layers):
-        for stage_ind in range(num_stage_inds-1):
-            # plot histograms with contoured colors
-            axs[layer,0].hist(mahal_train_control_mean[:,layer,stage_ind], label='train-control', color='blue', alpha=0.33*(stage_ind+1))
-            axs[layer,1].hist(mahal_untrain_control_mean[:,layer,stage_ind], label='untrain-control', color='red', alpha=0.33*(stage_ind+1))
-            axs[layer,2].hist(mahal_within_train_mean[:,layer,stage_ind], label='within-train', color='green', alpha=0.33*(stage_ind+1))
-            axs[layer,3].hist(mahal_within_untrain_mean[:,layer,stage_ind], label='within-untrain', color='purple', alpha=0.33*(stage_ind+1))
-            # add mean values as vertical lines
-            mean_mahal_train_control = numpy.mean(mahal_train_control_mean[:,layer,stage_ind])
-            mean_mahal_untrain_control = numpy.mean(mahal_untrain_control_mean[:,layer,stage_ind])
-            mean_mahal_within_train = numpy.mean(mahal_within_train_mean[:,layer,stage_ind])
-            mean_mahal_within_untrain = numpy.mean(mahal_within_untrain_mean[:,layer,stage_ind])
-            axs[layer,0].axvline(mean_mahal_train_control, color='blue', linestyle='dashed', linewidth=0.6*(stage_ind+1))
-            axs[layer,1].axvline(mean_mahal_untrain_control, color='red', linestyle='dashed', linewidth=0.6*(stage_ind+1))
-            axs[layer,2].axvline(mean_mahal_within_train, color='green', linestyle='dashed', linewidth=0.6*(stage_ind+1))
-            axs[layer,3].axvline(mean_mahal_within_untrain, color='purple', linestyle='dashed', linewidth=0.6*(stage_ind+1))
-            
-            axs[layer,0].set_title(f'train-control Mahal dist, layer {layer}')
-            axs[layer,1].set_title(f'untrain-control Mahal dist, layer {layer}')
-            axs[layer,2].set_title(f'within-train Mahal dist, layer {layer}')
-            axs[layer,3].set_title(f'within-untrain Mahal dist, layer {layer}')
-            axs[layer,0].legend()
-    fig.savefig(folder + f"/figures/Mahal_histograms")
+    plt.savefig(os.path.join(final_folder_path ,'MVPA', file_name+'.png'))
     plt.close()

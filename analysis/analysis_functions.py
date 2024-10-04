@@ -3,7 +3,8 @@ import jax.numpy as np
 from jax import vmap
 import numpy
 import pandas as pd
-import scipy
+import scipy.stats
+from scipy.interpolate import interp1d
 import time
 import os
 import sys
@@ -16,7 +17,6 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
-from scipy.interpolate import interp1d
 
 from training.model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
@@ -116,41 +116,84 @@ def rel_change_for_run(folder, training_ind=0, num_indices=3):
     training_end = time_inds[-1]
     columns_to_drop = ['stage', 'SGD_steps']  # Replace with the actual column names you want to drop
     data = data.drop(columns=columns_to_drop)
-    data['EI_ratio_J_m'] = numpy.abs((data['J_II_m']+data['J_EI_m']))/numpy.abs((data['J_IE_m']+data['J_EE_m']))
-    data['EI_ratio_J_s'] = numpy.abs((data['J_II_s']+data['J_EI_s']))/numpy.abs((data['J_IE_s']+data['J_EE_s']))
-    data['EI_ratio_J_ms'] = numpy.abs((data['J_II_m']+data['J_EI_m']+data['J_II_s']+data['J_EI_s']))/numpy.abs((data['J_IE_m']+data['J_EE_m']+data['J_IE_s']+data['J_EE_s']))
+    data['J_I_m'] = numpy.abs(data['J_II_m'] + data['J_EI_m'])
+    data['J_I_s'] = numpy.abs(data['J_II_s'] + data['J_EI_s'])
+    data['J_E_m'] = numpy.abs(data['J_IE_m'] + data['J_EE_m'])
+    data['J_E_s'] = numpy.abs(data['J_IE_s'] + data['J_EE_s'])
+
+    data['EI_ratio_J_m'] = data['J_I_m'] / data['J_E_m']
+    data['EI_ratio_J_s'] = data['J_I_s'] / data['J_E_s']
+    data['EI_ratio_J_ms'] = (data['J_I_m'] + data['J_I_s']) / (data['J_E_m'] + data['J_E_s'])
     if num_indices == 3:
         pretraining_start = time_inds[0]
         training_start = time_inds[1]-1
-        rel_change_pretrain = {key: calc_rel_change_supp(value, pretraining_start, training_start) for key, value in data.items()}
+        rel_change_pretrain = {}
+        for key, value in data.items():
+            item_rel_change = calc_rel_change_supp(value, pretraining_start, training_start)
+            if item_rel_change is not None:
+                rel_change_pretrain[key] = item_rel_change
     else:
         training_start = time_inds[0]
         rel_change_pretrain = None
-
-    rel_change_train = {key: calc_rel_change_supp(value, training_start, training_end) for key, value in data.items()}        
-    
+    rel_change_train = {}
+    for key, value in data.items():
+        item_rel_change = calc_rel_change_supp(value, training_start, training_end)
+        if item_rel_change is not None:
+            rel_change_train[key] = item_rel_change 
     return rel_change_train, rel_change_pretrain, time_inds
 
 
 def rel_change_for_runs(folder, num_indices=3, num_runs=None):
     """Calculate the relative changes in the parameters for all runs."""
+    # if os.path.join(folder, 'rel_changes_train.csv') exists, load it and return the data
+    if os.path.exists(os.path.join(folder, 'rel_changes_train.csv')):
+        rel_changes_train_df = pd.read_csv(os.path.join(folder, 'rel_changes_train.csv'))
+        rel_changes_train = {key: rel_changes_train_df[key].to_numpy() for key in rel_changes_train_df.columns}
+        if num_indices==3 and os.path.exists(os.path.join(folder, 'rel_changes_pretrain.csv')):
+            rel_changes_pretrain_df = pd.read_csv(os.path.join(folder, 'rel_changes_pretrain.csv'))
+            rel_changes_pretrain = {key: rel_changes_pretrain_df[key].to_numpy() for key in rel_changes_pretrain_df.columns}
+        elif num_indices==3:
+            if num_runs is None:
+                df = pd.read_csv(os.path.join(os.path.dirname(folder), 'pretraining_results.csv'))
+                num_runs = df['run_index'].iloc[-1]+1
+            for i in range(num_runs):
+                _, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_indices)
+                if i == 0:
+                    rel_changes_pretrain = {key: numpy.zeros(num_runs) for key in rel_change_pretrain.keys()}
+                else:
+                    for key, value in rel_changes_pretrain.items():
+                        rel_changes_pretrain[key][i] = rel_change_pretrain[key]
+        else:
+            rel_changes_pretrain = None
+    else:
+        # Initialize the arrays to store the results in
+        if num_runs is None:
+            filepath = os.path.join(folder, 'pretraining_results.csv')
+            df = pd.read_csv(filepath)
+            num_runs = df['run_index'].iloc[-1]+1
 
-    # Initialize the arrays to store the results in
-    filepath = os.path.join(folder, 'pretraining_results.csv')
-    df = pd.read_csv(filepath)
-    if num_runs is None:
-        num_runs = df['run_index'].iloc[-1]+1
-
-    # Calculate the relative changes for all runs
-    for i in range(num_runs):
-        rel_change_train, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_indices)
-        if i == 0:
-            rel_changes_train = {key: numpy.zeros(num_runs) for key in rel_change_train.keys()}
-            rel_changes_pretrain = {key: numpy.zeros(num_runs) for key in rel_change_pretrain.keys()}
-        for key, value in rel_change_train.items():
-            rel_changes_train[key][i] = value
-            rel_changes_pretrain[key][i] = rel_change_pretrain[key]
+        # Calculate the relative changes for all runs
+        for i in range(num_runs):
+            rel_change_train, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_indices)
+            if i == 0:
+                # Initialize the arrays to store the results in
+                rel_changes_train = {key: numpy.zeros(num_runs) for key in rel_change_train.keys()}
+                if rel_change_pretrain is not None:
+                    rel_changes_pretrain = {key: numpy.zeros(num_runs) for key in rel_change_pretrain.keys()}
+                else:
+                    rel_changes_pretrain = None
+            for key, value in rel_change_train.items():
+                rel_changes_train[key][i] = value
+                if rel_change_pretrain is not None:
+                    rel_changes_pretrain[key][i] = rel_change_pretrain[key]
         
+        # Save the results into a csv file
+        rel_changes_train_df = pd.DataFrame(rel_changes_train)
+        rel_changes_train_df.to_csv(os.path.join(folder, 'rel_changes_train.csv'), index=False)
+        if rel_change_pretrain is not None:
+            rel_changes_pretrain_df = pd.DataFrame(rel_changes_pretrain)
+            rel_changes_pretrain_df.to_csv(os.path.join(folder, 'rel_changes_pretrain.csv'), index=False)
+            
     return rel_changes_train, rel_changes_pretrain
     
 
@@ -369,7 +412,7 @@ def save_tc_features(training_tc_file, num_runs=1, ori_list=np.arange(0,180,6), 
     return tc_features_df
 
 
-def compute_features(tuning_curves, num_cells, ori_list, ori_to_center_slope, d_theta_interp=0.5):
+def compute_features(tuning_curves, num_cells, ori_list, ori_to_center_slope, d_theta_interp=0.2):
     """
     Computes tuning curve features for each cell.
     """
@@ -420,6 +463,41 @@ def compute_features(tuning_curves, num_cells, ori_list, ori_to_center_slope, d_
     return features
 
 
+def param_offset_correlations(folder, num_time_inds=2):
+    """ Calculate the Pearson correlation coefficient between the offset threshold and the parameters."""
+    
+    # Helper function to calculate Pearson correlation
+    def calculate_correlations(main_var, params, result_dict):
+        for _, main_value in main_var.items():
+            for param_key, param_values in params.items():
+                corr, p_value = scipy.stats.pearsonr(main_value, param_values)
+                result_dict[param_key] = [corr, p_value]
+        return result_dict
+
+    # Load the relative changes and drop items with NaN values
+    rel_changes_train, _ = rel_change_for_runs(folder, num_indices=num_time_inds)
+    
+    # Separate offsets, losses, and params
+    offsets_rel_change = {key: value for key, value in rel_changes_train.items() if key.endswith('_offset')}
+    params_keys = ['J_', 'c', 'f_', 'kappa', 'EI_ratio_J_']
+    params_rel_change = {key: value for key, value in rel_changes_train.items() if any([key.startswith(param) for param in params_keys])}
+    
+    # Correlation results dictionaries
+    corr_psychometric_offset_param = {}
+    corr_staircase_offset_param = {}
+    
+    # Calculate correlations for offset parameters
+    for offset_key, offset_values in offsets_rel_change.items():
+        result_dict = corr_psychometric_offset_param if offset_key == 'psychometric_offset' else corr_staircase_offset_param
+        result_dict = calculate_correlations({offset_key: offset_values}, params_rel_change, result_dict)
+    
+    # Calculate correlations for loss parameters
+    corr_loss_binary_param = {}
+    corr_loss_binary_param = calculate_correlations({'loss_binary': rel_changes_train['loss_binary_cross_entr']}, params_rel_change, corr_loss_binary_param)
+
+    return corr_psychometric_offset_param, corr_staircase_offset_param, corr_loss_binary_param, rel_changes_train
+
+
 def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
     """ Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores."""
     data, _ = rel_change_for_runs(folder, num_indices=num_time_inds)
@@ -436,7 +514,7 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
         offset_staircase_pars_corr.append({'corr': corr, 'p_value': p_value})
     
     # Load MVPA_scores and correlate them with the offset threshold and the parameter differences (samples are the different trainings)
-    MVPA_scores = numpy.load(folder + '/MVPA_scores.npy') # num_trainings x layer x SGD_ind x ori_ind
+    MVPA_scores = pd.read_csv(folder + '/MVPA_scores.csv').to_numpy() # num_trainings x layer x SGD_ind x ori_ind
     MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
     MVPA_offset_corr = []
     for i in range(MVPA_scores_diff.shape[1]):
@@ -665,7 +743,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
         # Load parameters from csv for given epoch
         _, trained_pars_stage2, untrained_pars = load_parameters(folder, run_index=run_ind, stage=stage, iloc_ind = iloc_ind_vec[stage_ind])
         # Get the parameters from the trained_pars dictionary and untreatned_pars class
-        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa=unpack_ssn_parameters(trained_pars_stage2, untrained_pars.ssn_pars)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars_stage2, untrained_pars.ssn_pars)
         
         # Iterate over the orientations
         for ori in ori_list:
@@ -773,7 +851,7 @@ def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mea
 
 
 ######### Calculate MVPA and Mahalanobis distance for before pretraining, after pretraining and after training #########
-def MVPA_Mahal_analysis(folder,num_training, num_stage_inds=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, plot_flag=False):
+def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, plot_flag=False):
     # Shared parameters
     ori_list = numpy.asarray([55, 125, 0])
     num_layers=2 # number of layers
@@ -782,39 +860,40 @@ def MVPA_Mahal_analysis(folder,num_training, num_stage_inds=2, r_noise = True, s
     clf = make_pipeline(StandardScaler(), SGDClassifier(max_iter=1000, tol=1e-3)) # SVM classifier
 
     # Initialize the MVPA scores matrix
-    MVPA_scores = numpy.zeros((num_training, num_layers, num_stage_inds, len(ori_list)-1))
+    MVPA_scores = numpy.zeros((num_runs, num_layers, num_stages, len(ori_list)-1))
+    Mahal_scores = numpy.zeros((num_runs, num_layers, num_stages, len(ori_list)-1))
 
     ####### Setup for the Mahalanobis distance analysis #######
-    num_PC_used=15 # number of principal components used for the analysis
+    num_PC_used=20 # number of principal components used for the analysis
     
     # Initialize arrays to store Mahalanobis distances and related metrics
-    LMI_across = numpy.zeros((num_training,num_layers,num_stage_inds-1))
-    LMI_within = numpy.zeros((num_training,num_layers,num_stage_inds-1))
-    LMI_ratio = numpy.zeros((num_training,num_layers,num_stage_inds-1))
+    LMI_across = numpy.zeros((num_runs,num_layers,num_stages-1))
+    LMI_within = numpy.zeros((num_runs,num_layers,num_stages-1))
+    LMI_ratio = numpy.zeros((num_runs,num_layers,num_stages-1))
     
-    mahal_within_train_all = numpy.zeros((num_training,num_layers,num_stage_inds, num_noisy_trials))
-    mahal_within_untrain_all = numpy.zeros((num_training,num_layers,num_stage_inds, num_noisy_trials))
-    mahal_train_control_all = numpy.zeros((num_training,num_layers,num_stage_inds, num_noisy_trials))
-    mahal_untrain_control_all = numpy.zeros((num_training,num_layers,num_stage_inds, num_noisy_trials))
-    train_SNR_all=numpy.zeros((num_training,num_layers,num_stage_inds, num_noisy_trials))
-    untrain_SNR_all=numpy.zeros((num_training,num_layers,num_stage_inds, num_noisy_trials))
+    mahal_within_train_all = numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
+    mahal_within_untrain_all = numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
+    mahal_train_control_all = numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
+    mahal_untrain_control_all = numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
+    train_SNR_all=numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
+    untrain_SNR_all=numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
 
-    mahal_train_control_mean = numpy.zeros((num_training,num_layers,num_stage_inds))
-    mahal_untrain_control_mean = numpy.zeros((num_training,num_layers,num_stage_inds))
-    mahal_within_train_mean = numpy.zeros((num_training,num_layers,num_stage_inds))
-    mahal_within_untrain_mean = numpy.zeros((num_training,num_layers,num_stage_inds))
-    train_SNR_mean = numpy.zeros((num_training,num_layers,num_stage_inds))
-    untrain_SNR_mean = numpy.zeros((num_training,num_layers,num_stage_inds))
+    mahal_train_control_mean = numpy.zeros((num_runs,num_layers,num_stages))
+    mahal_untrain_control_mean = numpy.zeros((num_runs,num_layers,num_stages))
+    mahal_within_train_mean = numpy.zeros((num_runs,num_layers,num_stages))
+    mahal_within_untrain_mean = numpy.zeros((num_runs,num_layers,num_stages))
+    train_SNR_mean = numpy.zeros((num_runs,num_layers,num_stages))
+    untrain_SNR_mean = numpy.zeros((num_runs,num_layers,num_stages))
     
     # Define pca model
     pca = PCA(n_components=num_PC_used)
       
     # Iterate over the different parameter initializations (runs)
-    for run_ind in range(num_training):
+    for run_ind in range(num_runs):
         start_time=time.time()
                 
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_stage_inds rows)
-        r_mid_sup = filtered_model_response(folder, run_ind, ori_list= ori_list, num_noisy_trials = num_noisy_trials, num_stage_inds=num_stage_inds,r_noise=r_noise, sigma_filter = sigma_filter)
+        r_mid_sup = filtered_model_response(folder, run_ind, ori_list= ori_list, num_noisy_trials = num_noisy_trials, num_stage_inds=num_stages,r_noise=r_noise, sigma_filter = sigma_filter)
         # Note: r_mid_sup is a dictionary with the oris and stages saved in them
         r_ori = r_mid_sup['ori']
         mesh_train_ = r_ori == ori_list[0] 
@@ -824,7 +903,7 @@ def MVPA_Mahal_analysis(folder,num_training, num_stage_inds=2, r_noise = True, s
         num_PCA_plots= 6
         if plot_flag and run_ind<num_PCA_plots:
             # make grid of plots for each layer and stage
-            fig, axs = plt.subplots(num_layers, num_stage_inds+1, figsize=(5*(num_stage_inds+2), 5*num_layers))
+            fig, axs = plt.subplots(num_layers, num_stages+1, figsize=(5*(num_stages+2), 5*num_layers))
         for layer in range(num_layers):
             if layer == 0:
                 r_l = r_mid_sup['r_sup']
@@ -841,7 +920,7 @@ def MVPA_Mahal_analysis(folder,num_training, num_stage_inds=2, r_noise = True, s
             r_pca = score[:, :num_PC_used_run]
             print(f"Variance explained by {num_PC_used_run+1} PCs: {numpy.sum(variance_explained[0:num_PC_used_run+1]):.2%}")
 
-            for stage_ind in range(num_stage_inds): 
+            for stage_ind in range(num_stages): 
                 # Define filter to select the responses corresponding to stage_ind
                 stage_mask = r_mid_sup['stage'] == stage_ind
                  
@@ -932,17 +1011,19 @@ def MVPA_Mahal_analysis(folder,num_training, num_stage_inds=2, r_noise = True, s
                 train_SNR_mean[run_ind,layer,stage_ind] = numpy.mean(train_SNR_all[run_ind,layer,stage_ind,:])
                 untrain_SNR_mean[run_ind,layer,stage_ind] = numpy.mean(untrain_SNR_all[run_ind,layer,stage_ind,:])
 
-            # Add Mahal distances as the last column of the plot as bar plots
+            '''
+            # 2D-PCA scatter plots where the three conditions have different colors
             if plot_flag and run_ind < num_PCA_plots:
-                axs[layer,num_stage_inds].bar([1,2,3],mahal_train_control_mean[run_ind,layer,:], color='blue', alpha=0.5)
-                axs[layer,num_stage_inds].bar([5,6,7],mahal_untrain_control_mean[run_ind,layer,:], color='red', alpha=0.5)
-                axs[layer,num_stage_inds].set_xticks([1,2,3,5,6,7])
-                axs[layer,num_stage_inds].set_xticklabels(['tr0', 'tr1', 'tr2', 'ut0', 'ut1', 'ut2'])
+                axs[layer,num_stages].bar([1,2,3],mahal_train_control_mean[run_ind,layer,:], color='blue', alpha=0.5)
+                axs[layer,num_stages].bar([5,6,7],mahal_untrain_control_mean[run_ind,layer,:], color='red', alpha=0.5)
+                axs[layer,num_stages].set_xticks([1,2,3,5,6,7])
+                axs[layer,num_stages].set_xticklabels(['tr0', 'tr1', 'tr2', 'ut0', 'ut1', 'ut2'])
                 fig.savefig(folder + f"/figures/PCA_{run_ind}")
                 plt.close()
+            '''
 
             # Calculate learning modulation indices (LMI)
-            for stage_ind_ in range(num_stage_inds-1):
+            for stage_ind_ in range(num_stages-1):
                 LMI_across[run_ind,layer,stage_ind_] = (mahal_train_control_mean[run_ind,layer,stage_ind_+1] - mahal_train_control_mean[run_ind,layer,stage_ind_]) - (mahal_untrain_control_mean[run_ind,layer,stage_ind_+1] - mahal_untrain_control_mean[run_ind,layer,stage_ind_] )
                 LMI_within[run_ind,layer,stage_ind_] = (mahal_within_train_mean[run_ind,layer,stage_ind_+1] - mahal_within_train_mean[run_ind,layer,stage_ind_]) - (mahal_within_untrain_mean[run_ind,layer,stage_ind_+1] - mahal_within_untrain_mean[run_ind,layer,stage_ind_] )
                 LMI_ratio[run_ind,layer,stage_ind_] = (train_SNR_mean[run_ind,layer,stage_ind_+1] - train_SNR_mean[run_ind,layer,stage_ind_]) - (untrain_SNR_mean[run_ind,layer,stage_ind_+1] - untrain_SNR_mean[run_ind,layer,stage_ind_] )
@@ -956,6 +1037,8 @@ def MVPA_Mahal_analysis(folder,num_training, num_stage_inds=2, r_noise = True, s
         print(f'runtime of run {run_ind}:',time.time()-start_time)
 
     ################# Create dataframes for the Mahalanobis distances and LMI #################
-    df_mahal, df_LMI = LMI_Mahal_df(num_training, num_layers, num_stage_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio)
+    #df_mahal, df_LMI = LMI_Mahal_df(num_training, num_layers, num_stage_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio)
+    Mahal_scores[:,:,:,0] = mahal_train_control_mean
+    Mahal_scores[:,:,:,1] = mahal_untrain_control_mean
 
-    return MVPA_scores, df_mahal, df_LMI, mahal_train_control_all, mahal_untrain_control_all, mahal_within_train_all, mahal_within_untrain_all
+    return MVPA_scores, Mahal_scores

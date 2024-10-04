@@ -12,7 +12,7 @@ from util import configure_parameters_file, save_code, set_up_config_folder, del
 from training.main_pretraining import main_pretraining
 from analysis.main_analysis import main_tuning_curves, main_MVPA
 from analysis.analysis_functions import save_tc_features
-from analysis.visualization import plot_tuning_curves, plot_MVPA, plot_corr_triangles, plot_results_on_parameters
+from analysis.visualization import plot_tuning_curves, plot_corr_triangles, plot_results_on_parameters, plot_tc_features, plot_param_offset_correlations
 
 ## Set up number of runs and starting time
 num_training = 49
@@ -118,8 +118,9 @@ for i, conf in enumerate(conf_list):
     main_training_source = os.path.join(root_folder, "training", "main_training.py")
     subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
     
-    # plot results on parameters and tuning curves
+    # plot results on parameters
     plot_results_on_parameters(config_folder, num_training, starting_time_in_main)
+    plot_param_offset_correlations(config_folder)
 
     print('\n')
     print(f'Configuration {i} done')
@@ -131,7 +132,7 @@ print('Finished all configurations')
 if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
     shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
 
-'''
+
 ########## ########## ##########
 ######### Tuning curves ########
 ########## ########## ##########
@@ -142,7 +143,7 @@ start_time = time.time()
 # calculate tuning curves and features for before and after pretraining
 main_tuning_curves(folder_path, num_training, starting_time_in_main, stage_inds = range(2), tc_ori_list = tc_ori_list, add_header=True, filename='pretraining_tuning_curves.csv')
 tc_file_name = os.path.join(folder_path, 'pretraining_tuning_curves.csv')
-save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125], stages=[0], filename = 'pretraining_tuning_curve_features.csv')
+save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125], stages=[0, 1], filename = 'pretraining_tuning_curve_features.csv')
 
 # calculate tuning curves and features for the different configurations
 for i, conf in enumerate(conf_names):
@@ -160,10 +161,11 @@ for i, conf in enumerate(conf_names):
     # mEph0(1-2), mIph0(3-4), mEph1(5-6), mIph1(7-8), mEph2(9-10), mIph2(11-12), mEph3(13-14), mIph3(15-16), sE(17-18), sI(19-20)
     folder_to_save=os.path.join(config_folder, 'figures')
     plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
-    
+    plot_tc_features(config_folder)
     print('\n')
     print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')
     print('\n')
+
 
 ########## ########## ##########
 ##########    MVPA    #########
@@ -172,11 +174,8 @@ for i, conf in enumerate(conf_names):
 sigma_filter = 2
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
-    folder_to_save = config_folder + f'/MVPA'
-    if not os.path.exists(folder_to_save):
-        os.makedirs(folder_to_save)
-    main_MVPA(config_folder, num_training, folder_to_save, 3, sigma_filter=sigma_filter,r_noise=True, num_noisy_trials=20, plot_flag=True, recalc=True)
-    plot_MVPA(folder_to_save, num_training)
+    folder_to_save = config_folder + f'/figures'
+    main_MVPA(config_folder, num_training, folder_to_save, 3, sigma_filter=sigma_filter,r_noise=True, num_noisy_trials=200, plot_flag=True) 
     plot_corr_triangles(config_folder, sigma_filter, folder_to_save)
 
 
@@ -188,4 +187,3 @@ for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
     # delete pretraining related files from the configuration folder
     del_pretrain_files_from_config_folder(config_folder)
-'''
