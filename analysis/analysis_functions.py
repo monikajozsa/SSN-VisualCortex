@@ -149,22 +149,6 @@ def rel_change_for_runs(folder, num_indices=3, num_runs=None):
     if os.path.exists(os.path.join(folder, 'rel_changes_train.csv')):
         rel_changes_train_df = pd.read_csv(os.path.join(folder, 'rel_changes_train.csv'))
         rel_changes_train = {key: rel_changes_train_df[key].to_numpy() for key in rel_changes_train_df.columns}
-        if num_indices==3 and os.path.exists(os.path.join(folder, 'rel_changes_pretrain.csv')):
-            rel_changes_pretrain_df = pd.read_csv(os.path.join(folder, 'rel_changes_pretrain.csv'))
-            rel_changes_pretrain = {key: rel_changes_pretrain_df[key].to_numpy() for key in rel_changes_pretrain_df.columns}
-        elif num_indices==3:
-            if num_runs is None:
-                df = pd.read_csv(os.path.join(os.path.dirname(folder), 'pretraining_results.csv'))
-                num_runs = df['run_index'].iloc[-1]+1
-            for i in range(num_runs):
-                _, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_indices)
-                if i == 0:
-                    rel_changes_pretrain = {key: numpy.zeros(num_runs) for key in rel_change_pretrain.keys()}
-                else:
-                    for key, value in rel_changes_pretrain.items():
-                        rel_changes_pretrain[key][i] = rel_change_pretrain[key]
-        else:
-            rel_changes_pretrain = None
     else:
         # Initialize the arrays to store the results in
         if num_runs is None:
@@ -190,10 +174,31 @@ def rel_change_for_runs(folder, num_indices=3, num_runs=None):
         # Save the results into a csv file
         rel_changes_train_df = pd.DataFrame(rel_changes_train)
         rel_changes_train_df.to_csv(os.path.join(folder, 'rel_changes_train.csv'), index=False)
-        if rel_change_pretrain is not None:
-            rel_changes_pretrain_df = pd.DataFrame(rel_changes_pretrain)
-            rel_changes_pretrain_df.to_csv(os.path.join(folder, 'rel_changes_pretrain.csv'), index=False)
-            
+    
+    save_pretrain = False
+    
+    if num_indices==3 and os.path.exists(os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv')):
+        rel_changes_pretrain_df = pd.read_csv(os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv'))
+        rel_changes_pretrain = {key: rel_changes_pretrain_df[key].to_numpy() for key in rel_changes_pretrain_df.columns}
+    elif num_indices==3:
+        if num_runs is None:
+            df = pd.read_csv(os.path.join(os.path.dirname(folder), 'pretraining_results.csv'))
+            num_runs = df['run_index'].iloc[-1]+1
+        for i in range(num_runs):
+            _, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_indices)
+            if i == 0:
+                rel_changes_pretrain = {key: numpy.zeros(num_runs) for key in rel_change_pretrain.keys()}
+            else:
+                for key, value in rel_changes_pretrain.items():
+                    rel_changes_pretrain[key][i] = rel_change_pretrain[key]
+        save_pretrain = True
+    else:
+        rel_changes_pretrain = None
+    
+    if save_pretrain:
+        rel_changes_pretrain_df = pd.DataFrame(rel_changes_pretrain)
+        rel_changes_pretrain_df.to_csv(os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv'), index=False)
+        
     return rel_changes_train, rel_changes_pretrain
     
 
@@ -412,7 +417,7 @@ def save_tc_features(training_tc_file, num_runs=1, ori_list=np.arange(0,180,6), 
     return tc_features_df
 
 
-def compute_features(tuning_curves, num_cells, ori_list, ori_to_center_slope, d_theta_interp=0.2):
+def compute_features(tuning_curves, num_cells, ori_list, oris_to_calc_slope_at, d_theta_interp=0.2):
     """
     Computes tuning curve features for each cell.
     """
@@ -443,11 +448,12 @@ def compute_features(tuning_curves, num_cells, ori_list, ori_to_center_slope, d_
         features['pref_ori'][i] = x_interp[numpy.argmax(y_interp)]
 
         # Gradient for slope calculations
-        grad_y_interp = numpy.gradient(y_interp, x_interp)
+        y_interp_scaled = y_interp/numpy.max(y_interp)
+        grad_y_interp_scaled = numpy.gradient(y_interp_scaled, x_interp)
 
         # Slope at 55 and 125 degrees
-        features['slope_55'][i] = grad_y_interp[numpy.argmin(numpy.abs(x_interp - ori_to_center_slope[0]))]
-        features['slope_125'][i] = grad_y_interp[numpy.argmin(numpy.abs(x_interp - ori_to_center_slope[1]))]
+        features['slope_55'][i] = grad_y_interp_scaled[numpy.argmin(numpy.abs(x_interp - oris_to_calc_slope_at[0]))]
+        features['slope_125'][i] = grad_y_interp_scaled[numpy.argmin(numpy.abs(x_interp - oris_to_calc_slope_at[1]))]
 
         # Statistics: min, max, max-min ratio, mean, std
         features['min'][i] = numpy.min(y_interp)
@@ -458,7 +464,7 @@ def compute_features(tuning_curves, num_cells, ori_list, ori_to_center_slope, d_
 
         # Slope at half-max
         half_max = (features['max'][i] + features['min'][i]) / 2
-        features['slope_hm'][i] = grad_y_interp[numpy.argmin(numpy.abs(y_interp - half_max))]
+        features['slope_hm'][i] = grad_y_interp_scaled[numpy.argmin(numpy.abs(y_interp - half_max))]
 
     return features
 

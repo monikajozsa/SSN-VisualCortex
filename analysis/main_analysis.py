@@ -27,38 +27,40 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
         tc_file_path = os.path.join(folder_path, filename)
     else:
         tc_file_path = os.path.join(folder_path, 'tuning_curves.csv')
-
-    if add_header:
-        # Define the header for the tuning curves
-        tc_headers = []
-        tc_headers.append('run_index')
-        tc_headers.append('training_stage')
-        # Headers for middle layer cells - order matches the gabor filters
-        type_str = ['_E_','_I_']
-        for phase_ind in range(ssn_pars.phases):
+    if os.path.exists(tc_file_path):
+        print(f'Tuning curves already exist in {tc_file_path}.')
+    else:      
+        if add_header:
+            # Define the header for the tuning curves
+            tc_headers = []
+            tc_headers.append('run_index')
+            tc_headers.append('training_stage')
+            # Headers for middle layer cells - order matches the gabor filters
+            type_str = ['_E_','_I_']
+            for phase_ind in range(ssn_pars.phases):
+                for type_ind in range(2):
+                    for i in range(grid_pars.gridsize_Nx**2):
+                        tc_header = 'G'+ str(i+1) + type_str[type_ind] + 'Ph' + str(phase_ind) + '_M'
+                        tc_headers.append(tc_header)
+            # Headers for superficial layer cells
             for type_ind in range(2):
                 for i in range(grid_pars.gridsize_Nx**2):
-                    tc_header = 'G'+ str(i+1) + type_str[type_ind] + 'Ph' + str(phase_ind) + '_M'
+                    tc_header = 'G'+str(i+1) + type_str[type_ind] +'S'
                     tc_headers.append(tc_header)
-        # Headers for superficial layer cells
-        for type_ind in range(2):
-            for i in range(grid_pars.gridsize_Nx**2):
-                tc_header = 'G'+str(i+1) + type_str[type_ind] +'S'
-                tc_headers.append(tc_header)
-    else:
-        tc_headers = False
-
-    # Loop over the different runs
-    iloc_ind_vec = [0,-1,-1]
-    stages = [0,0,2]
-    for i in range(0, num_training):    
-        # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
-        for stage_ind in stage_inds:
-            _, trained_pars_dict, untrained_pars = load_parameters(folder_path, run_index=i, stage=stages[stage_ind], iloc_ind=iloc_ind_vec[stage_ind])
-            _, _ = tuning_curve(untrained_pars, trained_pars_dict, tc_file_path, ori_vec=tc_ori_list, training_stage=stage_ind, run_index=i, header=tc_headers)
+        else:
             tc_headers = False
-            
-        print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
+
+        # Loop over the different runs
+        iloc_ind_vec = [0,-1,-1]
+        stages = [0,0,2]
+        for i in range(0, num_training):    
+            # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
+            for stage_ind in stage_inds:
+                _, trained_pars_dict, untrained_pars = load_parameters(folder_path, run_index=i, stage=stages[stage_ind], iloc_ind=iloc_ind_vec[stage_ind])
+                _, _ = tuning_curve(untrained_pars, trained_pars_dict, tc_file_path, ori_vec=tc_ori_list, training_stage=stage_ind, run_index=i, header=tc_headers)
+                tc_headers = False
+                
+            print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
 
 
 ########## CALCULATE MVPA SCORES AND MAHALANOBIS DISTANCES ############

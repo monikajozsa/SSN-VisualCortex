@@ -34,11 +34,12 @@ folder_path = os.path.join(root_folder, 'results', 'Aug15_v0')
 ########## ########## ########## ##########
 ## Define the configurations for training.
 ## Each configuration list contains the following elements:
-## 1. Training parameters (e.g., 'cE_m', 'cI_m', etc.).
-## 2. Readout contribution from superficial and middle layers ([superficial, middle]).
-## 3. Task type: False = fine discrimination, True = general discrimination.
-## 4. p_local_s: relative strength of local E projections in the superficial layer ([1, 1] = no local part).
-## 5. shuffle_labels: whether to shuffle the labels for the training task or not.
+## 1. Training parameters (e.g., 'cE_m', 'cI_m', etc.). Required, no default.
+## 2. Readout contribution from superficial and middle layers ([superficial, middle]). (default: [1.0, 0.0])
+## 3. Task type: False = fine discrimination, True = general discrimination. (default: False)
+## 4. p_local_s: relative strength of local E projections in the superficial layer ([1, 1] = no local part). (default: [0.4, 0.7])
+## 5. shuffle_labels: whether to shuffle the labels for the training task or not. (default: False)
+## 6. opt_readout_before_training: whether there is a logistic regression optimization for readout parameters or not before training (default: False)
 
 # special cases
 conf_baseline = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa']] # training all parameters (baseline case)
@@ -52,10 +53,10 @@ conf_special_dict = {'conf_baseline': conf_baseline,
                     }
 
 # changed readout configurations - readout is optimized with logistic regression before training
-conf_suponly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False] # reading out from middle layer (ablation)
-conf_mixed_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.5, 0.5], False] # training all parameters but reading out from both middle and superficial layers
-conf_midonly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.0, 1.0], False] # reading out from middle layer (ablation)
-conf_suponly_no_hori_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False, [1.0, 1.0]] # reading out from middle layer (ablation)
+conf_suponly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False, [0.4, 0.7], False, True] # reading out from middle layer (ablation)
+conf_mixed_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.5, 0.5], False, [0.4, 0.7], False, True] # training all parameters but reading out from both middle and superficial layers
+conf_midonly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.0, 1.0], False, [0.4, 0.7], False, True] # reading out from middle layer (ablation)
+conf_suponly_no_hori_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False, [1.0, 1.0], False, True] # reading out from middle layer (ablation)
 conf_readout_dict = {'conf_suponly_readout': conf_suponly_readout,
                     'conf_mixed_readout': conf_mixed_readout,
                     'conf_midonly_readout': conf_midonly_readout,
@@ -102,6 +103,7 @@ conf_dict = {**conf_special_dict, **conf_excluded_dict, **conf_only_dict, **conf
 conf_names = list(conf_dict.keys())
 conf_list = list(conf_dict.values())
 
+'''
 ########## ########## ##########
 ##########  Training  ##########
 ########## ########## ########## 
@@ -119,7 +121,7 @@ for i, conf in enumerate(conf_list):
     subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
     
     # plot results on parameters
-    plot_results_on_parameters(config_folder, num_training, starting_time_in_main)
+    plot_results_on_parameters(config_folder, num_training, plot_per_run=False)
     plot_param_offset_correlations(config_folder)
 
     print('\n')
@@ -131,7 +133,7 @@ print('Finished all configurations')
 ## Delete parameters.py file and make the parameters.py.bak file the parameters.py file
 if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
     shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
-
+'''
 
 ########## ########## ##########
 ######### Tuning curves ########
@@ -141,42 +143,41 @@ tc_ori_list = numpy.arange(0,180,5)
 start_time = time.time()
 
 # calculate tuning curves and features for before and after pretraining
-main_tuning_curves(folder_path, num_training, starting_time_in_main, stage_inds = range(2), tc_ori_list = tc_ori_list, add_header=True, filename='pretraining_tuning_curves.csv')
-tc_file_name = os.path.join(folder_path, 'pretraining_tuning_curves.csv')
-save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125], stages=[0, 1], filename = 'pretraining_tuning_curve_features.csv')
+#main_tuning_curves(folder_path, num_training, starting_time_in_main, stage_inds = range(2), tc_ori_list = tc_ori_list, add_header=True, filename='pretraining_tuning_curves.csv')
+#tc_file_name = os.path.join(folder_path, 'pretraining_tuning_curves.csv')
+#save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125], stages=[0, 1], filename = 'pretraining_tuning_curve_features.csv')
 
 # calculate tuning curves and features for the different configurations
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
     
     # calculate tuning curves for after training
-    main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
+    #main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
     
     # calculate tuning curve features
-    tc_file_name = os.path.join(config_folder, 'tuning_curves.csv')
-    save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125])
+    #tc_file_name = os.path.join(config_folder, 'tuning_curves.csv')
+    #save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125])
     # plot tuning curves and features
-    tc_cells=[10,40,100,130,172,202,262,292,334,364,424,454,496,526,586,616,650,690,740,760] 
+    #tc_cells=[10,40,100,130,172,202,262,292,334,364,424,454,496,526,586,616,650,690,740,760] 
     # these are indices of representative cells from the different layers and types: every pair is for off center and center from 
     # mEph0(1-2), mIph0(3-4), mEph1(5-6), mIph1(7-8), mEph2(9-10), mIph2(11-12), mEph3(13-14), mIph3(15-16), sE(17-18), sI(19-20)
-    folder_to_save=os.path.join(config_folder, 'figures')
-    plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
+    #folder_to_save=os.path.join(config_folder, 'figures')
+    #plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
     plot_tc_features(config_folder)
     print('\n')
-    print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')
-    print('\n')
+    #print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')
+    #print('\n')
 
 
 ########## ########## ##########
 ##########    MVPA    #########
 ########## ########## ##########
 
-sigma_filter = 2
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
     folder_to_save = config_folder + f'/figures'
-    main_MVPA(config_folder, num_training, folder_to_save, 3, sigma_filter=sigma_filter,r_noise=True, num_noisy_trials=200, plot_flag=True) 
-    plot_corr_triangles(config_folder, sigma_filter, folder_to_save)
+    #main_MVPA(config_folder, num_training, folder_to_save, 3, sigma_filter=2,r_noise=True, num_noisy_trials=200, plot_flag=True) 
+    plot_corr_triangles(config_folder, folder_to_save)
 
 
 ########## ########## ########## ##########

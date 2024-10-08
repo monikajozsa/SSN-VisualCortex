@@ -1,3 +1,4 @@
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
@@ -17,7 +18,7 @@ plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
 plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels
 
 ########### Plotting functions ##############
-def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds = 3, num_training = 1):
+def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1):
     def scatter_data_with_lines(ax, data):
         for i in range(2):
             group_data = data[i, :]
@@ -73,9 +74,8 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     scatter_data_with_lines(ax, numpy.array([vals_pre['staircase_offset'], vals_post['staircase_offset']]))
 
     # Save plot
-    if plot_filename is not None:
-        full_path = save_folder + '/offset_pre_post.png'
-        fig.savefig(full_path)
+    full_path = save_folder + '/offset_pre_post.png'
+    fig.savefig(full_path)
     plt.close()
 
     ################# Plotting bar plots of J parameters before and after given time indices #################
@@ -97,9 +97,8 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
         scatter_data_with_lines(ax_flat[i], numpy.abs(numpy.array([vals_pre[keys_J[i]], vals_post[keys_J[i]]])))
 
     # Save plot
-    if plot_filename is not None:
-        full_path = save_folder + '/J_pre_post.png'
-        fig.savefig(full_path)
+    full_path = save_folder + '/J_pre_post.png'
+    fig.savefig(full_path)
     plt.close()
 
     ################# Plotting bar plots of loss parameters before and after  #################
@@ -121,9 +120,8 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
         scatter_data_with_lines(ax_flat[i], numpy.abs(numpy.array([vals_pre[keys_r[i]], vals_post[keys_r[i]]])))
 
     # Save plot
-    if plot_filename is not None:
-        full_path = save_folder + '/r_pre_post.png'
-        fig.savefig(full_path)
+    full_path = save_folder + '/r_pre_post.png'
+    fig.savefig(full_path)
     plt.close()
 
     ################# Boxplots for relative parameter changes #################
@@ -134,9 +132,9 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     group_labels = [
         [r'$\Delta J^{\text{mid}}_{E \rightarrow E}$', r'$\Delta J^{\text{mid}}_{E \rightarrow I}$', r'$\Delta J^{\text{mid}}_{I \rightarrow E}$', r'$\Delta J^{\text{mid}}_{I \rightarrow I}$'],
         [r'$\Delta J^{\text{sup}}_{E \rightarrow E}$', r'$\Delta J^{\text{sup}}_{E \rightarrow I}$', r'$\Delta J^{\text{sup}}_{I \rightarrow E}$', r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'],
-        [r'$\Delta cE_m$', r'$\Delta cI_m$', r'$\Delta cE_s$', r'$\Delta cI_s$'],
-        [r'$\Delta f_E$', r'$\Delta f_I$'],
-        [r'$\Delta \kappa_{E \rightarrow  E}^{pre}$',r'$\Delta \kappa_{E \rightarrow  I}^{pre}$',r'$\Delta \kappa_{E \rightarrow  E}^{post}$',r'$\Delta \kappa_{E \rightarrow  I}^{post}$']
+        [r'$\Delta c^{\text{mid}}_{\rightarrow E}$', r'$\Delta c^{\text{mid}}_{\rightarrow I}$', r'$\Delta c^{\text{sup}}_{\rightarrow E}$', r'$\Delta c^{\text{sup}}_{\rightarrow I}$'],
+        [r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$'],
+        [r'$\Delta \kappa^{\text{pre}}_{E \rightarrow  E}$',r'$\Delta \kappa^{\text{pre}}_{E \rightarrow  I}$',r'$\Delta \kappa^{\text{post}}_{E \rightarrow  E}$',r'$\Delta \kappa^{\text{post}}_{E \rightarrow  I}$']
     ]
     keys_group = [keys_J[:4], keys_J[4:], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_EE_pre','kappa_IE_pre','kappa_EE_post','kappa_IE_post']]
     num_groups = len(group_labels)    
@@ -145,19 +143,24 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
     axes_flat = axs.flatten()
     
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
-    c_box_colors = ['#8B4513', '#800080', '#8B4513', '#800080']
-    f_box_colors = ['#FF8C00', '#006400']
-    kappa_box_colors = ['#FF8C00', '#006400']
+    c_box_colors = ['orange', 'orange', 'orange', 'orange']
+    f_box_colors = ['orange', 'orange']
+    kappa_box_colors = ['tab:green','tab:green','tab:green','tab:green']
     box_colors = [J_box_colors,J_box_colors,c_box_colors, f_box_colors, kappa_box_colors]
     for j in range(num_time_inds-1):
         for i, label in enumerate(group_labels):
             group_data = numpy.zeros((num_training, len(keys_group[i])))
             for var_ind in range(len(keys_group[i])):
                 if j==0:
-                    group_data[:,var_ind]=rel_changes_pretrain[keys_group[i][var_ind]].T
+                    if keys_group[i][var_ind] in rel_changes_pretrain.keys():
+                        group_data[:,var_ind]=rel_changes_pretrain[keys_group[i][var_ind]].T
+                    else:
+                        group_data[:,var_ind]=numpy.zeros(num_training)
                 else:
                     group_data[:,var_ind]=rel_changes_train[keys_group[i][var_ind]].T
             bp = axes_flat[j*num_groups+i].boxplot(group_data,labels=label,patch_artist=True)
+            for median in bp['medians']:
+                median.set(color='black', linewidth=2.5)
             for box, color in zip(bp['boxes'], box_colors[i]):
                 box.set_facecolor(color)
             axes_flat[j*num_groups+i].axhline(y=0, color='black', linestyle='--')
@@ -166,11 +169,11 @@ def boxplots_from_csvs(folder, save_folder, plot_filename = None, num_time_inds 
                 axes_flat[j*num_groups+i].set_ylabel('Change from 0 init', fontsize=20)
             else:
                 axes_flat[j*num_groups+i].set_ylabel('Relative change (%)', fontsize=20)
+    
     plt.tight_layout()
     
-    if plot_filename is not None:
-        full_path = save_folder + '/' + plot_filename + ".png"
-        fig.savefig(full_path)
+    full_path = save_folder + '/boxplot_relative_changes' + ".png"
+    fig.savefig(full_path)
 
     plt.close()
 
@@ -578,6 +581,48 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
 
 
 def plot_tc_features(results_dir, stages=[0,1,2]):
+    """Plot tuning curve features for E and I cells at different stages of training"""
+    def sliding_mannwhitney(x1, y1, x2, y2, window_size, sliding_unit):
+        from scipy.stats import mannwhitneyu
+        """ Perform Mann-Whitney U test on y1 and y2 in sliding windows along x1 and x2. """
+        # Determine the range of x-values for sliding windows
+        min_x = max(np.min(x1), np.min(x2))  # Start at the max of the minimum x-values
+        max_x = min(np.max(x1), np.max(x2))  # End at the min of the maximum x-values
+        
+        # Initialize lists to store results
+        x_window_center = []
+        p_val_vec = []
+        
+        # Slide the window across the x-axis
+        current_start = min_x
+        while current_start + window_size <= max_x:
+            current_end = current_start + window_size
+            center = (current_start + current_end) / 2  # Center of the window
+            
+            # Find indices where x1 and x2 fall within the current window
+            indices_x1 = (x1 >= current_start) & (x1 < current_end)
+            indices_x2 = (x2 >= current_start) & (x2 < current_end)
+            
+            # Extract the corresponding y1 and y2 values in this window
+            y1_in_window = y1[indices_x1]
+            y2_in_window = y2[indices_x2]
+            
+            # Perform Mann-Whitney U test if there are enough data points in both windows
+            if len(y1_in_window) > 0 and len(y2_in_window) > 0:
+                u_stat, p_value = mannwhitneyu(y1_in_window, y2_in_window)
+            else:
+                p_value = np.nan  # If there's not enough data, return NaN
+            
+            # Store results
+            x_window_center.append(center)
+            p_val_vec.append(p_value)
+            
+            # Move the window by sliding_unit
+            current_start += sliding_unit
+        
+        # Convert lists to arrays and return
+        return np.array(x_window_center), np.array(p_val_vec)
+
     def shift_x_data(x_data, indices, shift_value=90):
         """ Shift circular x_data by shift_value and center it around the new 0 (around shift_value) """
         x_data_shifted = x_data[:, indices].flatten() - shift_value
@@ -585,17 +630,28 @@ def plot_tc_features(results_dir, stages=[0,1,2]):
         x_data_shifted = numpy.where(x_data_shifted < -90, x_data_shifted + 180, x_data_shifted)
         return x_data_shifted
     
-    def scatter_feature(ax, y, x, indices_E, indices_I, shift_val=55, fs_ticks=40, feature=None):
-        """Scatter plot of feature for E and I cells. If we shift, x is the pref ori that is centered around shift_val."""
+    def scatter_feature(ax, y, x, indices_E, indices_I, shift_val=55, fs_ticks=40, feature=None, values_for_colors=None):
+        """Scatter plot of feature for E and I cells. If shift_val is not None, then x should be the preferred orientation that will be centered around shift_val."""
         if shift_val is not None:
             x_I = shift_x_data(x, indices_I, shift_value=shift_val)
             x_E = shift_x_data(x, indices_E, shift_value=shift_val)
         else:
             x_I = x[:,indices_I].flatten()
             x_E = x[:,indices_E].flatten()
+        
+        if values_for_colors is not None:
+            # Define a colormap and the colors for E and I cells based on values_for_colors
+            cmap = plt.get_cmap('rainbow')
+            norm = plt.Normalize(vmin=numpy.min(values_for_colors), vmax=numpy.max(values_for_colors))
             
-        ax.scatter(x_E, y[:,indices_E].flatten(), s=50, alpha=0.5, color='red')
-        ax.scatter(x_I, y[:,indices_I].flatten(), s=50, alpha=0.5, color='blue')
+            # Get colors for E and I cells based on values_for_colors
+            color_E = cmap(norm(values_for_colors[:,indices_E].flatten()))
+            color_I = cmap(norm(values_for_colors[:,indices_I].flatten()))
+        else:
+            color_E = 'red'
+            color_I = 'blue'
+        ax.scatter(x_E, y[:,indices_E].flatten(), s=50, alpha=0.3, color=color_E)
+        ax.scatter(x_I, y[:,indices_I].flatten(), s=50, alpha=0.3, color=color_I)
         if shift_val is None:
             xpoints = ypoints = ax.get_xlim()
             ax.plot(xpoints, ypoints, color='black', linewidth=2)
@@ -606,53 +662,34 @@ def plot_tc_features(results_dir, stages=[0,1,2]):
         if feature is not None:
             ax.set_title(feature, fontsize=fs_ticks)
 
-    def lowess_feature(ax, y, x, indices_E, indices_I, shift_val=55, frac=0.15, shades='', abs_flag=False):
-        """Plot lowess smoothed feature for E and I cells. Overcomplicated at the moment to check how robust a phenomenon is."""
-        y_E= y[:,indices_E].flatten()
-        y_I= y[:,indices_I].flatten()
-        if shift_val is not None:
-            x_E= shift_x_data(x, indices_E, shift_value=shift_val)
-            x_I= shift_x_data(x, indices_I, shift_value=shift_val)
-        else:
-            x_E = x[:,indices_E].flatten()
-            x_I = x[:,indices_I].flatten()
-        num_points = 100
-        smoothed_x_I = np.linspace(min(x_I), max(x_I), num_points)
-        smoothed_x_E = np.linspace(min(x_E), max(x_E), num_points)
-        smoothed_y_I = numpy.zeros(num_points)
-        smoothed_y_E = numpy.zeros(num_points)
-        for i in range(num_points-1):
-            x_center = (smoothed_x_I[i] + smoothed_x_I[i+1]) / 2
-            x_I_indices = (x_I >= smoothed_x_I[i]) & (x_I <= smoothed_x_I[i+1])
-            weights_I = numpy.abs(x_I[x_I_indices] - x_center)
-            weights_I_norm = weights_I / numpy.sum(weights_I)
-            smoothed_y_I[i] = numpy.mean(y_I[x_I_indices] @ weights_I_norm)
-            x_center = (smoothed_x_E[i] + smoothed_x_E[i+1]) / 2
-            x_E_indices = (x_E >= smoothed_x_E[i]) & (x_E <= smoothed_x_E[i+1])
-            weights_E = numpy.abs(x_E[x_E_indices] - x_center)
-            weights_E_norm = weights_E / numpy.sum(weights_E)
-            smoothed_y_E[i] = numpy.mean(y_E[x_E_indices] @ weights_E_norm)
-        lowess_I = numpy.array([smoothed_x_I, smoothed_y_I]).T
-        lowess_E = numpy.array([smoothed_x_E, smoothed_y_E]).T
+    def lowess_feature(ax, y, x, indices_E, indices_I, shift_val=55, frac=0.15, shades=''):
+        """Plot lowess smoothed feature for E and I cells. Curves are fitted separately for E and I cells and for x<0 and x>0."""
         # fit curves separately for the smoothed_x_E<0 and smoothed_x_E>0
-        x_pos = smoothed_x_E[smoothed_x_E>0]
-        lowess_E_pos = sm.nonparametric.lowess(smoothed_y_E[smoothed_x_E>0], x_pos, frac=frac)
-        x_neg = smoothed_x_E[smoothed_x_E<0]
-        lowess_E_neg = sm.nonparametric.lowess(smoothed_y_E[smoothed_x_E<0], x_neg, frac=frac)
-        lowess_E = numpy.concatenate((lowess_E_neg, lowess_E_pos), axis=0)
-        x_pos = smoothed_x_I[smoothed_x_I>0]
-        lowess_I_pos = sm.nonparametric.lowess(smoothed_y_I[smoothed_x_I>0], x_pos, frac=frac)
-        x_neg = smoothed_x_I[smoothed_x_I<0]
-        lowess_I_neg = sm.nonparametric.lowess(smoothed_y_I[smoothed_x_I<0], x_neg, frac=frac)
-        lowess_I = numpy.concatenate((lowess_I_neg, lowess_I_pos), axis=0)
-        # local averaging with frac bins
-        
-        if abs_flag:
-            ax.plot(lowess_E[:, 0], numpy.abs(lowess_E[:, 1]), color=shades+'red', linewidth=10, alpha=0.8)
-            ax.plot(lowess_I[:, 0], numpy.abs(lowess_I[:, 1]), color=shades+'blue', linewidth=10, alpha=0.8)
+        if shift_val is not None:
+            x_I = shift_x_data(x, indices_I, shift_value=shift_val)
+            x_E = shift_x_data(x, indices_E, shift_value=shift_val)
         else:
-            ax.plot(lowess_E[:, 0], lowess_E[:, 1], color=shades+'red', linewidth=10, alpha=0.8)
-            ax.plot(lowess_I[:, 0], lowess_I[:, 1], color=shades+'blue', linewidth=10, alpha=0.8)
+            x_I = x[:,indices_I].flatten()
+            x_E = x[:,indices_E].flatten()
+
+        y_E = y[:,indices_E].flatten()
+        x_E_pos = x_E[x_E>0]
+        lowess_E_pos = sm.nonparametric.lowess(y_E[x_E>0], x_E_pos, frac=frac)
+        x_E_neg = x_E[x_E<0]
+        lowess_E_neg = sm.nonparametric.lowess(y_E[x_E<0], x_E_neg, frac=frac)
+        lowess_E = numpy.concatenate((lowess_E_neg, lowess_E_pos), axis=0)
+        #lowess_E = sm.nonparametric.lowess(y_E, x_E, frac=frac) # if we don't want to separate the curve into x<0 and x>0
+        
+        y_I = y[:,indices_I].flatten()
+        x_I_pos = x_I[x_I>0]
+        lowess_I_pos = sm.nonparametric.lowess(y_I[x_I>0], x_I_pos, frac=frac)
+        x_I_neg = x_I[x_I<0]
+        lowess_I_neg = sm.nonparametric.lowess(y_I[x_I<0], x_I_neg, frac=frac)
+        lowess_I = numpy.concatenate((lowess_I_neg, lowess_I_pos), axis=0)
+        #lowess_I = sm.nonparametric.lowess(y_I, x_I, frac=frac) # if we don't want to separate the curve into x<0 and x>0
+        
+        ax.plot(lowess_E[:, 0], numpy.abs(lowess_E[:, 1]), color=shades+'red', linewidth=10, alpha=0.8)
+        ax.plot(lowess_I[:, 0], numpy.abs(lowess_I[:, 1]), color=shades+'blue', linewidth=10, alpha=0.8)
 
     def mesh_for_feature(data, feature, mesh_cells):
         mesh_feature = data['feature']==feature
@@ -670,12 +707,17 @@ def plot_tc_features(results_dir, stages=[0,1,2]):
     ############## Plots about changes before vs after training and pretraining (per layer and per centered or all) ##############
              
     # Define indices for each group of cells
-    E_sup = numpy.linspace(0, 80, 81).astype(int) + 648 
-    I_sup = numpy.linspace(81, 161, 81).astype(int) + 648
-    mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
-    E_mid = mid_array[:,0,:].ravel().astype(int)
-    I_mid = mid_array[:,1,:].ravel().astype(int)
-    indices = [E_sup, I_sup, E_mid, I_mid]
+    #E_sup = numpy.linspace(0, 80, 81).astype(int) + 648 
+    #I_sup = numpy.linspace(81, 161, 81).astype(int) + 648
+    E_sup_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)+648
+    I_sup_centre = (E_sup_centre+81).astype(int)
+    
+    #mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
+    #E_mid = mid_array[:,0,:].ravel().astype(int)
+    #I_mid = mid_array[:,1,:].ravel().astype(int)
+    E_mid_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
+    I_mid_centre = (E_mid_centre+81).astype(int)
+    indices = [E_sup_centre, I_sup_centre, E_mid_centre, I_mid_centre]
     
     # Create legends for the plot
     patches = []
@@ -689,13 +731,13 @@ def plot_tc_features(results_dir, stages=[0,1,2]):
     ######### Schoups-style scatter plots #########
     ###############################################
     colors = numpy.flip(cmap(numpy.linspace(0,1, 8)), axis = 0)
-    fs_text = 40
-    fs_ticks = 30
+    fs_text = 20
+    fs_ticks = 20
     
     # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
     stage_labels = ['pretrain', 'train']
     
-    for training_stage in stages[0:-1]:# change to range(3) for both pretrain and train
+    for training_stage in stages[0:-1]:
         fig, axs = plt.subplots(2, 5, figsize=(50, 20))
         
         mesh_stage_pre = pretrain_tc_features['stage']==training_stage
@@ -710,8 +752,8 @@ def plot_tc_features(results_dir, stages=[0,1,2]):
         
         min_pre = mesh_for_feature(data_pre, 'min', mesh_cells)
         min_post = mesh_for_feature(data_post, 'min', mesh_cells)
-        max_min_ratio_pre = mesh_for_feature(data_pre, 'max_min_ratio', mesh_cells) # (max-min)/max
-        max_min_ratio_post = mesh_for_feature(data_post, 'max_min_ratio', mesh_cells)
+        max_pre = mesh_for_feature(data_pre, 'max', mesh_cells) # (max-min)/max
+        max_post = mesh_for_feature(data_post, 'max', mesh_cells)
         mean_pre = mesh_for_feature(data_pre, 'mean', mesh_cells)
         mean_post = mesh_for_feature(data_post, 'mean', mesh_cells)
         slope_hm_pre = mesh_for_feature(data_pre, 'slope_hm', mesh_cells)
@@ -728,40 +770,71 @@ def plot_tc_features(results_dir, stages=[0,1,2]):
         mesh_pref_ori = data_post['feature']=='pref_ori'
         pref_ori = data_post[mesh_pref_ori]
         pref_ori = pref_ori.loc[:,mesh_cells].to_numpy()
+        #coloring_feature = pref_ori
+        #coloring_feature = numpy.reshape(numpy.repeat(numpy.arange(pref_ori.shape[0]), pref_ori.shape[1]), (pref_ori.shape[0], pref_ori.shape[1]))
+        coloring_feature = None
         for layer in range(2):            
             ##### Plot features before vs after training per layer and cell type #####
             ax_row_ind = 0 if layer == 1 else 1  # For clearer readability
-            scatter_feature(axs[ax_row_ind,0], slope_hm_post, slope_hm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_hm')
-            scatter_feature(axs[ax_row_ind,1], fwhm_post, fwhm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='fwhm')
-            scatter_feature(axs[ax_row_ind,2], min_post, min_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='min')
-            scatter_feature(axs[ax_row_ind,3], max_min_ratio_post, max_min_ratio_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='max_min_ratio')
-            scatter_feature(axs[ax_row_ind,4], mean_post, mean_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='mean')
+            scatter_feature(axs[ax_row_ind,0], fwhm_post, fwhm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='fwhm', values_for_colors=coloring_feature)
+            scatter_feature(axs[ax_row_ind,1], min_post, min_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='min', values_for_colors=coloring_feature)
+            scatter_feature(axs[ax_row_ind,2], max_post, max_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='max', values_for_colors=coloring_feature)
+            scatter_feature(axs[ax_row_ind,3], mean_post, mean_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='mean', values_for_colors=coloring_feature)
+            scatter_feature(axs[ax_row_ind,4], slope_hm_post, slope_hm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_hm', values_for_colors=coloring_feature)
 
-        plt.tight_layout(w_pad=10, h_pad=7)
-        fig.savefig(os.path.join(results_dir,'figures', f'tc_features_{stage_labels[training_stage]}.png'), bbox_inches='tight')
+        plt.tight_layout()
+
+        # Save plot
+        if training_stage == 0:
+            file_path = os.path.join(os.path.dirname(results_dir),f'tc_features_{stage_labels[training_stage]}.png')
+        else:
+            file_path = os.path.join(results_dir,'figures', f'tc_features_{stage_labels[training_stage]}.png')
+        plt.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=np.min(pref_ori), vmax=np.max(pref_ori)), cmap='rainbow'),ax=axs[-1,-1],orientation='horizontal',label='Preferred orientation')
+        fig.savefig(file_path)
         plt.close()
 
-    # 3 x 2 scatter plot of data[slopediff_55_0 and 1], data[slopediff_55_0 and 1] and data[slopediff_diff]
-    fig, axs = plt.subplots(2, 3, figsize=(30, 20))
-    # Middle layer
-    for layer in range(2):
-        scatter_feature(axs[layer,0], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], feature='slope_55')
-        scatter_feature(axs[layer,1], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, feature='slope_125')
-        lowess_feature(axs[layer,0], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shades='dark')
-        lowess_feature(axs[layer,1], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, shades='tab:')
-        lowess_feature(axs[layer,2], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shades='dark', abs_flag=True)
-        lowess_feature(axs[layer,2], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, shades='tab:', abs_flag=True)
+        # 3 x 2 scatter plot of data[slopediff_55_0 and 1], data[slopediff_55_0 and 1] and data[slopediff_diff]
+        fig, axs = plt.subplots(2, 4, figsize=(40, 20))
+        coloring_feature = numpy.reshape(numpy.repeat(numpy.arange(pref_ori.shape[0]), pref_ori.shape[1]), (pref_ori.shape[0], pref_ori.shape[1]))
+        # Middle layer
+        for layer in range(2):
+            scatter_feature(axs[layer,0], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=55, feature='slopediff_55')
+            scatter_feature(axs[layer,1], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=55, feature='slopediff_55')
+            lowess_feature(axs[layer,0], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=55, shades='dark')
+            lowess_feature(axs[layer,1], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, shades='tab:')
+            lowess_feature(axs[layer,2], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=55, shades='dark')
+            lowess_feature(axs[layer,2], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, shades='tab:')
+            pref_ori_55_E = shift_x_data(pref_ori, indices[2*layer], shift_value=55)
+            pref_ori_125_E = shift_x_data(pref_ori, indices[2*layer], shift_value=125)
+            pref_ori_55_I = shift_x_data(pref_ori, indices[2*layer+1], shift_value=55)
+            pref_ori_125_I = shift_x_data(pref_ori, indices[2*layer+1], shift_value=125)
+            slopediff_55_E = slopediff_55[:,indices[2*layer]].flatten()
+            slopediff_55_I = slopediff_55[:,indices[2*layer+1]].flatten()
+            slopediff_125_E = slopediff_125[:,indices[2*layer]].flatten()
+            slopediff_125_I = slopediff_125[:,indices[2*layer+1]].flatten()
+            x_mw_55_E, y_mw_55_E = sliding_mannwhitney(pref_ori_55_E, slopediff_55_E, pref_ori_125_E, slopediff_125_E, window_size=10, sliding_unit=0.2)
+            x_mw_55_I, y_mw_55_I = sliding_mannwhitney(pref_ori_55_I, slopediff_55_I, pref_ori_125_I, slopediff_125_I, window_size=10, sliding_unit=0.2)
+            axs[layer,3].plot(x_mw_55_E, y_mw_55_E, color='red', linewidth=2)
+            axs[layer,3].plot(x_mw_55_I, y_mw_55_I, color='blue', linewidth=2)
+            # Add dashed black line at 0.05
+            axs[layer,3].axhline(y=0.05, color='black', linestyle='--', linewidth=2)
+            
+            # Set titles
+            axs[layer,0].set_title(r'$\Delta$' + 'slope(55)', fontsize=fs_text)
+            axs[layer,1].set_title(r'$\Delta$' + 'slope(125)', fontsize=fs_text)
+            axs[layer,2].set_title(r'$\Delta$' + 'slope(55), '+ r'$\Delta$' + 'slope(125)', fontsize=fs_text)
         
-        # Set titles
-        axs[layer,0].set_title(r'$\Delta$' + 'slope(55)', fontsize=fs_text)
-        axs[layer,1].set_title(r'$\Delta$' + 'slope(125)', fontsize=fs_text)
-        axs[layer,2].set_title(r'$\Delta$' + 'slope(55), '+ r'$\Delta$' + 'slope(125)', fontsize=fs_text)
-    # Format and save plot
-    for ax in axs.flatten():
-        axes_format(ax, fs_ticks)
-    plt.tight_layout(w_pad=10, h_pad=7)
-    fig.savefig(os.path.join(results_dir,'figures',f'tc_slope_{stage_labels[training_stage]}.png'), bbox_inches='tight')
-    plt.close()
+        # Format and save plot
+        for ax in axs.flatten():
+            axes_format(ax, fs_ticks)
+        
+        plt.tight_layout(w_pad=10, h_pad=7)
+        if training_stage == 0:
+            file_path = os.path.join(os.path.dirname(results_dir),f'tc_slope_{stage_labels[training_stage]}.png')
+        else:
+            file_path = os.path.join(results_dir,'figures', f'tc_slope_{stage_labels[training_stage]}.png')
+        fig.savefig(file_path)
+        plt.close()
 
 ################### CORRELATION ANALYSIS ###################
 
@@ -1026,7 +1099,11 @@ def plot_results_on_parameters(final_folder_path, num_training, plot_per_run = T
 
     ######### PLOT RESULTS ############
     if plot_per_run:
-        excluded_run_inds = plot_results_from_csvs(final_folder_path, num_training, folder_to_save=folder_to_save)
+        # Create a per_run folder within the figures folder
+        per_run_folder = os.path.join(folder_to_save, 'per_run')
+        if not os.path.exists(per_run_folder):
+            os.makedirs(per_run_folder)
+        excluded_run_inds = plot_results_from_csvs(final_folder_path, num_training, folder_to_save=per_run_folder)
         # save excluded_run_inds into a csv in final_folder_path
         excluded_run_inds_df = pd.DataFrame(excluded_run_inds)
         excluded_run_inds_df.to_csv(os.path.join(final_folder_path, 'excluded_runs.csv'))
@@ -1034,13 +1111,12 @@ def plot_results_on_parameters(final_folder_path, num_training, plot_per_run = T
             exclude_runs(final_folder_path, excluded_run_inds)
             num_training=num_training-len(excluded_run_inds)
     if plot_boxplots:
-        boxplot_file_name = 'boxplot_pretraining'
-        boxplots_from_csvs(final_folder_path, folder_to_save, boxplot_file_name, num_time_inds = 3, num_training=num_training)
+        boxplots_from_csvs(final_folder_path, folder_to_save, num_time_inds = 3, num_training=num_training)
 
 
 ################## MVPA related plots ##################
 
-def plot_corr_triangles(final_folder_path, sigma_filter, folder_to_save):
+def plot_corr_triangles(final_folder_path, folder_to_save):
     """ Plot the correlation triangles for the MVPA results """
 
     data_rel_changes, _ = rel_change_for_runs(final_folder_path, num_indices = 3)
