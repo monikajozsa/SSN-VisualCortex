@@ -18,6 +18,7 @@ def check_header(filename):
         header = None
     return header
 
+
 def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kappa= True):
     """Unpacks the trained parameters and the untrained parameters. If as_log_list is True, then the J and f parameters are returned as a list of logs. If return_kappa is True, then the kappa parameter is returned."""
 
@@ -312,6 +313,48 @@ def save_code(final_folder_path=None, note=None):
     return str(final_folder_path)
 
 
+def save_numpy_to_csv(numpy_array, file_name):
+    """ Save mul numpy array to csv file """
+    data = []
+    for run_index in range(numpy.shape(numpy_array)[0]):
+        for layer in range(numpy.shape(numpy_array)[1]):
+            for stage in range(numpy.shape(numpy_array)[2]):
+                for ori_index in range(numpy.shape(numpy_array)[3]):
+                    # Add the new row to the dictionary
+                    data.append({f'run_index': run_index, f'layer': layer, f'stage': stage, f'ori': ori_index, f'score': numpy_array[run_index, layer, stage, ori_index]})
+    df = pd.DataFrame(data)
+    df.to_csv(file_name, index=False)
+    return df
+
+
+def csv_to_numpy(file_name):
+    """ Reads a CSV file and converts it back to a 4D NumPy array."""
+    # Read the CSV into a DataFrame
+    df = pd.read_csv(file_name)
+    
+    # Get the maximum values for each index to determine the shape of the 4D array
+    num_runs = df['run_index'].max() + 1
+    num_layers = df['layer'].max() + 1
+    num_stages = df['stage'].max() + 1
+    num_oris = df['ori'].max() + 1
+    
+    # Initialize an empty NumPy array with the determined shape
+    numpy_array = numpy.zeros((num_runs, num_layers, num_stages, num_oris))
+    
+    # Iterate over the DataFrame and populate the NumPy array
+    for _, row in df.iterrows():
+        run_index = int(row['run_index'])
+        layer = int(row['layer'])
+        stage = int(row['stage'])
+        ori = int(row['ori'])
+        score = row['score']
+        
+        # Assign the score to the correct position in the 4D array
+        numpy_array[run_index, layer, stage, ori] = score
+    
+    return numpy_array
+
+
 def load_orientation_map(folder, run_ind):
     """Loads the orientation map from the folder for the training indexed by run_ind."""
     orimap_filename = os.path.join(folder, f"orimap.csv")
@@ -476,6 +519,7 @@ def set_up_config_folder(results_folder, conf_name):
     shutil.copy(os.path.join(results_folder, 'initial_parameters.csv'), config_folder / 'initial_parameters.csv')
     shutil.copy(os.path.join(results_folder, 'pretraining_results.csv'), config_folder / 'pretraining_results.csv')
     return config_folder
+
 
 def del_pretrain_files_from_config_folder(config_folder):
     """Delete the pretraining related files from the config folder."""

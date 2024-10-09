@@ -111,6 +111,7 @@ for i, conf in enumerate(conf_list):
     
     # create a configuration folder and copy relevant files to it
     config_folder = set_up_config_folder(folder_path, conf_names[i])
+    #config_folder = os.path.join(folder_path, conf_names[i])
     
     # configure the parameters.py file and copy it as a backup fil in the config folder
     configure_parameters_file(root_folder, conf)
@@ -130,7 +131,7 @@ for i, conf in enumerate(conf_list):
 
 print('Finished all configurations')
 
-## Delete parameters.py file and make the parameters.py.bak file the parameters.py file
+## Make the parameters.py.bak file the parameters.py file
 if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
     shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
 '''
@@ -139,7 +140,7 @@ if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
 ######### Tuning curves ########
 ########## ########## ##########
 
-tc_ori_list = numpy.arange(0,180,5)
+tc_ori_list = numpy.arange(0,360,5)
 start_time = time.time()
 
 # calculate tuning curves and features for before and after pretraining
@@ -158,33 +159,41 @@ for i, conf in enumerate(conf_names):
     #tc_file_name = os.path.join(config_folder, 'tuning_curves.csv')
     #save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125])
     # plot tuning curves and features
-    #tc_cells=[10,40,100,130,172,202,262,292,334,364,424,454,496,526,586,616,650,690,740,760] 
+    tc_cells=[10,40,100,130,172,202,262,292,334,364,424,454,496,526,586,616,650,690,740,760] 
     # these are indices of representative cells from the different layers and types: every pair is for off center and center from 
     # mEph0(1-2), mIph0(3-4), mEph1(5-6), mIph1(7-8), mEph2(9-10), mIph2(11-12), mEph3(13-14), mIph3(15-16), sE(17-18), sI(19-20)
-    #folder_to_save=os.path.join(config_folder, 'figures')
-    #plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
-    plot_tc_features(config_folder)
+    folder_to_save=os.path.join(config_folder, 'figures')
+    plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
+    if i == 0:
+        stages = [0,1,2]
+    else:
+        stages = [1,2]
+    plot_tc_features(config_folder, stages=stages, color_by='run_index')
+    plot_tc_features(config_folder, stages=stages, color_by='pref_ori')
+    plot_tc_features(config_folder, stages=stages, color_by='type')
+    plot_tc_features(config_folder, stages=stages, color_by='phase')
     print('\n')
-    #print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')
-    #print('\n')
+    print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')
+    print('\n')
 
 
 ########## ########## ##########
-##########    MVPA    #########
+##########    MVPA    ##########
 ########## ########## ##########
 
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
     folder_to_save = config_folder + f'/figures'
-    #main_MVPA(config_folder, num_training, folder_to_save, 3, sigma_filter=2,r_noise=True, num_noisy_trials=200, plot_flag=True) 
-    plot_corr_triangles(config_folder, folder_to_save)
+    main_MVPA(config_folder, num_training, folder_to_save, 3, sigma_filter=2, r_noise=True, num_noisy_trials=200, plot_flag=True) 
+    # plot_corr_triangles(config_folder, folder_to_save)
 
 
-########## ########## ########## ##########
-######### Clean up redundant files ########
-########## ########## ########## ##########
-
+########## ########## ########## ########## ############
+######### Clean up files about excluding runs ##########
+########## ########## ########## ########## ############
+'''
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
     # delete pretraining related files from the configuration folder
     del_pretrain_files_from_config_folder(config_folder)
+'''

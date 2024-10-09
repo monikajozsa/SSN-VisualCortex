@@ -8,8 +8,8 @@ numpy.random.seed(0)
 import jax.numpy as np
 
 from analysis.analysis_functions import tuning_curve, MVPA_Mahal_analysis
-from util import load_parameters
-from analysis.visualization import plot_MVPA_or_Mahal_scores
+from util import load_parameters, save_numpy_to_csv, csv_to_numpy
+from analysis.visualization import plot_MVPA_or_Mahal_scores, plot_MVPA_or_Mahal_scores_v2
 from parameters import GridPars, SSNPars, PretrainingPars
 grid_pars, ssn_pars, pretraining_pars = GridPars(), SSNPars(), PretrainingPars()
 
@@ -64,46 +64,6 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
 
 
 ########## CALCULATE MVPA SCORES AND MAHALANOBIS DISTANCES ############
-def save_numpy_to_csv(numpy_array, file_name):
-    """ Save mul numpy array to csv file """
-    data = []
-    for run_index in range(numpy.shape(numpy_array)[0]):
-        for layer in range(numpy.shape(numpy_array)[1]):
-            for stage in range(numpy.shape(numpy_array)[2]):
-                for ori_index in range(numpy.shape(numpy_array)[3]):
-                    # Add the new row to the dictionary
-                    data.append({f'run_index': run_index, f'layer': layer, f'stage': stage, f'ori': ori_index, f'score': numpy_array[run_index, layer, stage, ori_index]})
-    df = pd.DataFrame(data)
-    df.to_csv(file_name, index=False)
-    return df
-
-def csv_to_numpy(file_name):
-    """ Reads a CSV file and converts it back to a 4D NumPy array."""
-    # Read the CSV into a DataFrame
-    df = pd.read_csv(file_name)
-    
-    # Get the maximum values for each index to determine the shape of the 4D array
-    num_runs = df['run_index'].max() + 1
-    num_layers = df['layer'].max() + 1
-    num_stages = df['stage'].max() + 1
-    num_oris = df['ori'].max() + 1
-    
-    # Initialize an empty NumPy array with the determined shape
-    numpy_array = numpy.zeros((num_runs, num_layers, num_stages, num_oris))
-    
-    # Iterate over the DataFrame and populate the NumPy array
-    for _, row in df.iterrows():
-        run_index = int(row['run_index'])
-        layer = int(row['layer'])
-        stage = int(row['stage'])
-        ori = int(row['ori'])
-        score = row['score']
-        
-        # Assign the score to the correct position in the 4D array
-        numpy_array[run_index, layer, stage, ori] = score
-    
-    return numpy_array
-
 def main_MVPA(folder, num_training, folder_to_save=None, num_stage_inds=2, sigma_filter=5, r_noise=True, num_noisy_trials=100, plot_flag=False):
     """ Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer"""
     if folder_to_save is None:
@@ -121,17 +81,18 @@ def main_MVPA(folder, num_training, folder_to_save=None, num_stage_inds=2, sigma
         MVPA_scores = csv_to_numpy(folder +'/MVPA_scores.csv')
         Mahal_scores = csv_to_numpy(folder +'/Mahal_scores.csv')
     
-    print('MVPA Pre-pre, pre and post training for 55~0, sup layer:',[np.mean(MVPA_scores[:,0,0,0]),np.mean(MVPA_scores[:,0,1,0]),np.mean(MVPA_scores[:,0,-1,0])])
-    print('MVPA Pre-pre, pre and post training for 55~0, mid layer:',[np.mean(MVPA_scores[:,1,0,0]),np.mean(MVPA_scores[:,1,1,0]),np.mean(MVPA_scores[:,1,-1,0])])
-    print('MVPA Pre-pre, pre and post training for 125~0, sup layer:',[np.mean(MVPA_scores[:,0,0,1]),np.mean(MVPA_scores[:,0,1,1]),np.mean(MVPA_scores[:,0,-1,1])])
-    print('MVPA Pre-pre, pre and post training for 125~0, mid layer:',[np.mean(MVPA_scores[:,1,0,1]),np.mean(MVPA_scores[:,1,1,1]),np.mean(MVPA_scores[:,1,-1,1])])
+    print('MVPA Pre-pre, pre and post training for 55~0, mid layer:',[np.mean(MVPA_scores[:,0,0,0]),np.mean(MVPA_scores[:,0,1,0]),np.mean(MVPA_scores[:,0,-1,0])])
+    print('MVPA Pre-pre, pre and post training for 55~0, sup layer:',[np.mean(MVPA_scores[:,1,0,0]),np.mean(MVPA_scores[:,1,1,0]),np.mean(MVPA_scores[:,1,-1,0])])
+    print('MVPA Pre-pre, pre and post training for 125~0, mid layer:',[np.mean(MVPA_scores[:,0,0,1]),np.mean(MVPA_scores[:,0,1,1]),np.mean(MVPA_scores[:,0,-1,1])])
+    print('MVPA Pre-pre, pre and post training for 125~0, sup layer:',[np.mean(MVPA_scores[:,1,0,1]),np.mean(MVPA_scores[:,1,1,1]),np.mean(MVPA_scores[:,1,-1,1])])
 
-    print('Mahal Pre-pre, pre and post training for 55~0, sup layer:',[np.mean(Mahal_scores[:,0,0,0]),np.mean(Mahal_scores[:,0,1,0]),np.mean(Mahal_scores[:,0,-1,0])])
-    print('Mahal Pre-pre, pre and post training for 55~0, mid layer:',[np.mean(Mahal_scores[:,1,0,0]),np.mean(Mahal_scores[:,1,1,0]),np.mean(Mahal_scores[:,1,-1,0])])
-    print('Mahal Pre-pre, pre and post training for 125~0, sup layer:',[np.mean(Mahal_scores[:,0,0,1]),np.mean(Mahal_scores[:,0,1,1]),np.mean(Mahal_scores[:,0,-1,1])])
-    print('Mahal Pre-pre, pre and post training for 125~0, mid layer:',[np.mean(Mahal_scores[:,1,0,1]),np.mean(Mahal_scores[:,1,1,1]),np.mean(Mahal_scores[:,1,-1,1])])
+    print('Mahal Pre-pre, pre and post training for 55~0, mid layer:',[np.mean(Mahal_scores[:,0,0,0]),np.mean(Mahal_scores[:,0,1,0]),np.mean(Mahal_scores[:,0,-1,0])])
+    print('Mahal Pre-pre, pre and post training for 55~0, sup layer:',[np.mean(Mahal_scores[:,1,0,0]),np.mean(Mahal_scores[:,1,1,0]),np.mean(Mahal_scores[:,1,-1,0])])
+    print('Mahal Pre-pre, pre and post training for 125~0, mid layer:',[np.mean(Mahal_scores[:,0,0,1]),np.mean(Mahal_scores[:,0,1,1]),np.mean(Mahal_scores[:,0,-1,1])])
+    print('Mahal Pre-pre, pre and post training for 125~0, sup layer:',[np.mean(Mahal_scores[:,1,0,1]),np.mean(Mahal_scores[:,1,1,1]),np.mean(Mahal_scores[:,1,-1,1])])
 
     # Plot histograms of the LMI acorss the runs
     if plot_flag:
         plot_MVPA_or_Mahal_scores(folder, num_training, MVPA_scores, 'MVPA_scores')
+        plot_MVPA_or_Mahal_scores_v2(folder, MVPA_scores)
         plot_MVPA_or_Mahal_scores(folder, num_training, Mahal_scores, 'Mahal_scores')

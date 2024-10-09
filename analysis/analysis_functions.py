@@ -21,25 +21,26 @@ from sklearn.decomposition import PCA
 from training.model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import generate_noise
-from util import load_parameters, filter_for_run_and_stage, unpack_ssn_parameters, check_header
+from util import load_parameters, filter_for_run_and_stage, unpack_ssn_parameters, check_header, csv_to_numpy
 from training.util_gabor import BW_image_jit_noisy, BW_image_jax_supp, BW_image_jit
 
 ############## Analysis functions ##########
 
 def exclude_runs(folder_path, input_vector):
-    """Exclude runs from the analysis by removing them from the CSV files."""
+    """Exclude runs from the analysis by removing them from the CSV files - file modifications only happen within folder_path folders."""
     # Read the original CSV file
-    folder_path_from_analysis = os.path.join(os.path.dirname(os.path.dirname(__file__)),folder_path)
-    file_path = os.path.join(folder_path_from_analysis,'pretraining_results.csv')
+    root_folder = os.path.dirname(os.path.dirname(__file__))
+    folder_path_from_analysis = os.path.join(root_folder, folder_path)
+    file_path = os.path.join(root_folder, 'pretraining_results.csv') 
     df_pretraining_results = pd.read_csv(file_path)
     file_path = os.path.join(folder_path_from_analysis,'training_results.csv')
     df_training_results = pd.read_csv(file_path)
-    file_path = os.path.join(folder_path_from_analysis,'orimap.csv')
+    file_path = os.path.join(root_folder,'orimap.csv')
     df_orimap = pd.read_csv(file_path)
-    file_path = os.path.join(folder_path_from_analysis,'initial_parameters.csv')
+    file_path = os.path.join(root_folder,'initial_parameters.csv')
     df_init_params = pd.read_csv(file_path)
     
-    # Save the original dataframe as results_complete.csv
+    # Save the original dataframe as results_complete.csv in the folder_path folder
     df_pretraining_results.to_csv(os.path.join(folder_path_from_analysis,'pretraining_results_complete.csv'), index=False)
     df_training_results.to_csv(os.path.join(folder_path_from_analysis,'training_results_complete.csv'), index=False)
     df_orimap.to_csv(os.path.join(folder_path_from_analysis,'orimap_complete.csv'), index=False)
@@ -61,7 +62,7 @@ def exclude_runs(folder_path, input_vector):
             df_pretraining_results_filtered.loc[df_pretraining_results_filtered['run_index'] == i, 'run_index'] = i - shift_val    
             df_training_results_filtered.loc[df_training_results_filtered['run_index'] == i, 'run_index'] = i - shift_val            
     
-    # Save the filtered dataframes as csv files
+    # Save the filtered dataframes as csv files in the folder_path folder
     df_pretraining_results_filtered.to_csv(os.path.join(folder_path_from_analysis,'pretraining_results.csv'), index=False)
     df_training_results_filtered.to_csv(os.path.join(folder_path_from_analysis,'training_results.csv'), index=False)
     df_orimap_filtered.to_csv(os.path.join(folder_path_from_analysis,'orimap.csv'), index=False)
@@ -71,7 +72,7 @@ def exclude_runs(folder_path, input_vector):
 def data_from_run(folder, run_index=0, num_indices=3):
     """Read CSV files, filter them for run and return the combined dataframe together with the time indices where stages change."""
     
-    pretrain_filepath = os.path.join(folder, 'pretraining_results.csv')
+    pretrain_filepath = os.path.join(os.path.dirname(folder), 'pretraining_results.csv') # this reaches the pretraining_results.csv file in the folder_path folder (the copied file in configuration subfolder)
     train_filepath = os.path.join(folder, 'training_results.csv')
     df_pretrain = pd.read_csv(pretrain_filepath)
     df_train = pd.read_csv(train_filepath)
@@ -139,12 +140,14 @@ def rel_change_for_run(folder, training_ind=0, num_indices=3):
     for key, value in data.items():
         item_rel_change = calc_rel_change_supp(value, training_start, training_end)
         if item_rel_change is not None:
-            rel_change_train[key] = item_rel_change 
+            rel_change_train[key] = item_rel_change
+    rel_change_pretrain.pop('index')
+    rel_change_train.pop('index')
     return rel_change_train, rel_change_pretrain, time_inds
 
 
-def rel_change_for_runs(folder, num_indices=3, num_runs=None):
-    """Calculate the relative changes in the parameters for all runs."""
+def rel_change_for_runs(folder, num_time_inds=3, num_runs=None):
+    """ Calculate the relative changes in the parameters for all runs. """
     # if os.path.join(folder, 'rel_changes_train.csv') exists, load it and return the data
     if os.path.exists(os.path.join(folder, 'rel_changes_train.csv')):
         rel_changes_train_df = pd.read_csv(os.path.join(folder, 'rel_changes_train.csv'))
@@ -158,7 +161,7 @@ def rel_change_for_runs(folder, num_indices=3, num_runs=None):
 
         # Calculate the relative changes for all runs
         for i in range(num_runs):
-            rel_change_train, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_indices)
+            rel_change_train, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_time_inds)
             if i == 0:
                 # Initialize the arrays to store the results in
                 rel_changes_train = {key: numpy.zeros(num_runs) for key in rel_change_train.keys()}
@@ -169,23 +172,24 @@ def rel_change_for_runs(folder, num_indices=3, num_runs=None):
             for key, value in rel_change_train.items():
                 rel_changes_train[key][i] = value
                 if rel_change_pretrain is not None:
-                    rel_changes_pretrain[key][i] = rel_change_pretrain[key]
+                    if key in rel_change_pretrain.keys():
+                        rel_changes_pretrain[key][i] = rel_change_pretrain[key]
         
         # Save the results into a csv file
         rel_changes_train_df = pd.DataFrame(rel_changes_train)
         rel_changes_train_df.to_csv(os.path.join(folder, 'rel_changes_train.csv'), index=False)
     
     save_pretrain = False
-    
-    if num_indices==3 and os.path.exists(os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv')):
-        rel_changes_pretrain_df = pd.read_csv(os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv'))
+    pretrain_file_path = os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv')
+    if num_time_inds==3 and os.path.exists(pretrain_file_path):
+        rel_changes_pretrain_df = pd.read_csv(pretrain_file_path)
         rel_changes_pretrain = {key: rel_changes_pretrain_df[key].to_numpy() for key in rel_changes_pretrain_df.columns}
-    elif num_indices==3:
+    elif num_time_inds==3:
         if num_runs is None:
             df = pd.read_csv(os.path.join(os.path.dirname(folder), 'pretraining_results.csv'))
             num_runs = df['run_index'].iloc[-1]+1
         for i in range(num_runs):
-            _, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_indices)
+            _, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_time_inds)
             if i == 0:
                 rel_changes_pretrain = {key: numpy.zeros(num_runs) for key in rel_change_pretrain.keys()}
             else:
@@ -197,10 +201,35 @@ def rel_change_for_runs(folder, num_indices=3, num_runs=None):
     
     if save_pretrain:
         rel_changes_pretrain_df = pd.DataFrame(rel_changes_pretrain)
-        rel_changes_pretrain_df.to_csv(os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv'), index=False)
+        rel_changes_pretrain_df.to_csv(pretrain_file_path, index=False)
         
     return rel_changes_train, rel_changes_pretrain
-    
+
+
+def pre_post_for_runs(folder, num_training, num_time_inds=3):
+    for i in range(num_training):
+        df_i, stage_time_inds = data_from_run(folder, run_index=i, num_indices=num_time_inds)
+        train_end_ind = stage_time_inds[-1]
+        if num_time_inds>2:
+            pretrain_start_ind = stage_time_inds[0]
+            train_start_ind = stage_time_inds[1]
+        else:
+            train_start_ind = stage_time_inds[0]
+        if i==0:
+            vals_pre = df_i.iloc[[train_start_ind]]
+            vals_post = df_i.iloc[[train_end_ind]]
+            if num_time_inds>2:
+                vals_prepre = df_i.iloc[[pretrain_start_ind]]
+            else:
+                vals_prepre = None
+        else:
+            vals_pre=pd.concat([vals_pre,df_i.iloc[[train_start_ind]]], ignore_index=True)
+            vals_post=pd.concat([vals_post, df_i.iloc[[train_end_ind]]], ignore_index=True)
+            if num_time_inds>2:
+                vals_prepre=pd.concat([vals_prepre, df_i.iloc[[pretrain_start_ind]]], ignore_index=True)
+
+    return vals_prepre, vals_pre, vals_post
+
 
 def gabor_tuning(untrained_pars, ori_vec=np.arange(0,180,6)):
     """Calculate the responses of the gabor filters to stimuli with different orientations."""
@@ -343,8 +372,22 @@ def full_width_half_max(vector, d_theta):
     half_height = vector.max()/2
 
     # Get the number of points above half-max and multiply it by the delta angle to get width in angle
-    points_above = len(vector[vector>half_height])
-    distance = d_theta * points_above
+    point_inds = numpy.arange(len(vector))
+    point_inds_above = point_inds[vector>half_height]
+    
+    # check if points_above is consecutive
+    point_above_diff = point_inds_above[1:] - point_inds_above[0:-1]
+    if not numpy.all(point_above_diff==1):
+        # Get longest consecutive sequence of points above half-max
+        point_inds_above = numpy.split(point_inds_above, numpy.where(numpy.diff(point_inds_above) != 1)[0]+1)
+        # concatenate the point_inds_above[0] and point_inds_above[-1] if point_inds_above[0][0] == 0 and point_inds_above[-1][-1] == len(vector)-1
+        if point_inds_above[0][0] == 0 and point_inds_above[-1][-1] == len(vector)-1:
+            point_inds_above[0] = numpy.concatenate([point_inds_above[0], point_inds_above[-1]])
+            point_inds_above.pop()
+        num_points_above = numpy.max([len(x) for x in point_inds_above])
+    else:
+        num_points_above = len(point_inds_above)
+    distance = d_theta * num_points_above
     
     return distance
 
@@ -353,23 +396,22 @@ def tc_cubic(x,y, d_theta=0.5):
     """ Cubic interpolation of tuning curve data. """
 
     # add first value as last value to make the interpolation periodic
-    x = numpy.append(x, 180)
-    y = numpy.append(y, y[0])
+    if 360 not in x:
+        x = numpy.append(x, 360)
+        y = numpy.append(y, y[0])
 
     # Create cubic interpolation object
     cubic_interpolator = interp1d(x, y, kind='cubic')
 
     # Create new x values and get interpolated values
-    x_new = numpy.arange(0, 180, d_theta)
-    y_new = cubic_interpolator(x_new)
+    x_interp = numpy.arange(0, max(x), d_theta)
+    y_interp = cubic_interpolator(x_interp)
 
-    return x_new, y_new
+    return x_interp, y_interp
 
 
 def save_tc_features(training_tc_file, num_runs=1, ori_list=np.arange(0,180,6), ori_to_center_slope=[55, 125], stages=[1, 2], filename='tuning_curve_features.csv'):
-    """
-    Calls compute_features for each stage and run index and saves the results into a CSV file.
-    """
+    """ Calls compute_features for each stage and run index and saves the results into a CSV file. """
 
     # Load training tuning curve data (no headers)
     header_flag = check_header(training_tc_file)
@@ -434,7 +476,7 @@ def compute_features(tuning_curves, num_cells, ori_list, oris_to_calc_slope_at, 
         'std': numpy.zeros(num_cells),
         'slope_hm': numpy.zeros(num_cells)
     }
-
+    
     for i in range(num_cells):
         tc_i = tuning_curves[:, i]
 
@@ -449,7 +491,7 @@ def compute_features(tuning_curves, num_cells, ori_list, oris_to_calc_slope_at, 
 
         # Gradient for slope calculations
         y_interp_scaled = y_interp/numpy.max(y_interp)
-        grad_y_interp_scaled = numpy.gradient(y_interp_scaled, x_interp)
+        grad_y_interp_scaled = numpy.abs(numpy.gradient(y_interp_scaled, x_interp))
 
         # Slope at 55 and 125 degrees
         features['slope_55'][i] = grad_y_interp_scaled[numpy.argmin(numpy.abs(x_interp - oris_to_calc_slope_at[0]))]
@@ -464,7 +506,15 @@ def compute_features(tuning_curves, num_cells, ori_list, oris_to_calc_slope_at, 
 
         # Slope at half-max
         half_max = (features['max'][i] + features['min'][i]) / 2
-        features['slope_hm'][i] = grad_y_interp_scaled[numpy.argmin(numpy.abs(y_interp - half_max))]
+        half_max_ind = numpy.argmin(numpy.abs(y_interp - half_max))
+        # If half max is at the edge of the tuning curve, get the second or third closest point
+        if half_max_ind == 0 or half_max_ind == len(y_interp) - 1:
+            # get the second closest point to the half-max point
+            half_max_ind = numpy.argsort(numpy.abs(y_interp - half_max))[1]
+            if half_max_ind == 0 or half_max_ind == len(y_interp) - 1:
+                # get the third closest point to the half-max point
+                half_max_ind = numpy.argsort(numpy.abs(y_interp - half_max))[2]
+        features['slope_hm'][i] = grad_y_interp_scaled[half_max_ind]
 
     return features
 
@@ -481,7 +531,7 @@ def param_offset_correlations(folder, num_time_inds=2):
         return result_dict
 
     # Load the relative changes and drop items with NaN values
-    rel_changes_train, _ = rel_change_for_runs(folder, num_indices=num_time_inds)
+    rel_changes_train, _ = rel_change_for_runs(folder, num_time_inds=num_time_inds)
     
     # Separate offsets, losses, and params
     offsets_rel_change = {key: value for key, value in rel_changes_train.items() if key.endswith('_offset')}
@@ -506,7 +556,7 @@ def param_offset_correlations(folder, num_time_inds=2):
 
 def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
     """ Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores."""
-    data, _ = rel_change_for_runs(folder, num_indices=num_time_inds)
+    data, _ = rel_change_for_runs(folder, num_time_inds=num_time_inds)
     ##################### Correlate offset_th_diff with the combintation of the J_m and J_s, etc. #####################      
     offset_pars_corr = []
     offset_staircase_pars_corr = []
@@ -520,7 +570,7 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
         offset_staircase_pars_corr.append({'corr': corr, 'p_value': p_value})
     
     # Load MVPA_scores and correlate them with the offset threshold and the parameter differences (samples are the different trainings)
-    MVPA_scores = pd.read_csv(folder + '/MVPA_scores.csv').to_numpy() # num_trainings x layer x SGD_ind x ori_ind
+    MVPA_scores = csv_to_numpy(folder + '/MVPA_scores.csv') # num_trainings x layer x SGD_ind x ori_ind
     MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
     MVPA_offset_corr = []
     for i in range(MVPA_scores_diff.shape[1]):
@@ -799,13 +849,14 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     filtered_r_mid_box_df = filtered_r_mid_df[:,min_ind:max_ind, min_ind:max_ind]
     filtered_r_sup_box_df = filtered_r_sup_df[:,min_ind:max_ind, min_ind:max_ind]
 
-    # Add noise to the responses - scaled by the std of the responses
+    # Add noise to the responses (numpy.std(filtered_r) is about 0.3)
     filtered_r_mid_box_noisy_df= filtered_r_mid_box_df + numpy.random.normal(0, noise_std, filtered_r_mid_box_df.shape)
     filtered_r_sup_box_noisy_df= filtered_r_sup_box_df + numpy.random.normal(0, noise_std, filtered_r_sup_box_df.shape)
 
     output = dict(ori = ori_df, stage = stage_df, r_mid = filtered_r_mid_box_noisy_df, r_sup = filtered_r_sup_box_noisy_df)
     
     return output
+
 
 def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio):
     """
@@ -857,7 +908,7 @@ def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mea
 
 
 ######### Calculate MVPA and Mahalanobis distance for before pretraining, after pretraining and after training #########
-def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, plot_flag=False):
+def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, plot_flag=False, filtered_r_noise_std=1.0):
     # Shared parameters
     ori_list = numpy.asarray([55, 125, 0])
     num_layers=2 # number of layers
@@ -899,7 +950,7 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
         start_time=time.time()
                 
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_stage_inds rows)
-        r_mid_sup = filtered_model_response(folder, run_ind, ori_list= ori_list, num_noisy_trials = num_noisy_trials, num_stage_inds=num_stages,r_noise=r_noise, sigma_filter = sigma_filter)
+        r_mid_sup = filtered_model_response(folder, run_ind, ori_list = ori_list, num_noisy_trials = num_noisy_trials, num_stage_inds = num_stages, r_noise = r_noise, sigma_filter = sigma_filter, noise_std = filtered_r_noise_std)
         # Note: r_mid_sup is a dictionary with the oris and stages saved in them
         r_ori = r_mid_sup['ori']
         mesh_train_ = r_ori == ori_list[0] 
@@ -912,9 +963,9 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
             fig, axs = plt.subplots(num_layers, num_stages+1, figsize=(5*(num_stages+2), 5*num_layers))
         for layer in range(num_layers):
             if layer == 0:
-                r_l = r_mid_sup['r_sup']
-            else:
                 r_l = r_mid_sup['r_mid']
+            else:
+                r_l = r_mid_sup['r_sup']
             r_l = r_l.reshape((r_l.shape[0], -1))
             score = pca.fit_transform(r_l)
             variance_explained = pca.explained_variance_ratio_
