@@ -22,9 +22,9 @@ class PretrainingPars:
     """ threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining """
     batch_size: int = 100
     """ number of trials per SGD step during pretraining """
-    SGD_steps: int = 100
+    SGD_steps: int = 1000
     """ maximum number of SGD steps during pretraining """
-    min_stop_ind: int = 80
+    min_stop_ind: int = 100
     """ minimum SGD step where pretraining can stop """
 
 pretraining_pars = PretrainingPars()
@@ -37,7 +37,7 @@ class TrainingPars:
     """ flag for training for the pretraining (general) task or the training (fine) discrimination task """
     shuffle_labels: bool = False
     """ flag for shuffling the labels of the training data """
-    opt_readout_before_training: bool = False
+    opt_readout_before_training: bool = True
     """ flag for optimizing the readout weights before the training """
     eta: float = 0.0
     """ learning rate - the maximum rate of parameter change in one SGD step; note that this initial values are irrelevant when we randomize the parameters """

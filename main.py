@@ -57,8 +57,8 @@ conf_suponly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m',
 conf_mixed_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.5, 0.5], False, [0.4, 0.7], False, True] # training all parameters but reading out from both middle and superficial layers
 conf_midonly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.0, 1.0], False, [0.4, 0.7], False, True] # reading out from middle layer (ablation)
 conf_suponly_no_hori_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False, [1.0, 1.0], False, True] # reading out from middle layer (ablation)
-conf_readout_dict = {'conf_suponly_readout': conf_suponly_readout,
-                    'conf_mixed_readout': conf_mixed_readout,
+conf_readout_dict = {#'conf_suponly_readout': conf_suponly_readout,
+                    #'conf_mixed_readout': conf_mixed_readout,
                     'conf_midonly_readout': conf_midonly_readout,
                     'conf_suponly_no_hori_readout': conf_suponly_no_hori_readout
                     }
@@ -98,12 +98,12 @@ conf_only_dict = {'conf_kappa_only': conf_kappa_only,
                 }
 
 # create dictionary of configurations to loop over
-conf_dict = {**conf_special_dict, **conf_excluded_dict, **conf_only_dict, **conf_readout_dict}
+conf_dict = conf_readout_dict #{**conf_special_dict, **conf_excluded_dict, **conf_only_dict, **conf_readout_dict}
 
 conf_names = list(conf_dict.keys())
 conf_list = list(conf_dict.values())
 
-'''
+
 ########## ########## ##########
 ##########  Training  ##########
 ########## ########## ########## 
@@ -134,7 +134,7 @@ print('Finished all configurations')
 ## Make the parameters.py.bak file the parameters.py file
 if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
     shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
-'''
+
 
 ########## ########## ##########
 ######### Tuning curves ########
