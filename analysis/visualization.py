@@ -8,8 +8,6 @@ import statsmodels.api as sm
 import scipy
 import os
 import sys
-from fpdf import FPDF
-from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, MVPA_param_offset_correlations, data_from_run, exclude_runs, param_offset_correlations, pre_post_for_runs
@@ -100,7 +98,7 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
 
     def boxplot_params(num_training, keys_group, rel_changes, group_labels, box_colors, full_path):
         num_groups=len(keys_group)
-        fig, axs = plt.subplots(1, num_groups, figsize=(5*num_groups, 5))  # Create subplots
+        fig, axs = plt.subplots(1, num_groups, figsize=(6*num_groups, 5))  # Create subplots
         
         for i, label in enumerate(group_labels):
             group_data = numpy.zeros((num_training, len(keys_group[i])))
@@ -118,15 +116,26 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
             axs[i].axhline(y=0, color='black', linestyle='--')
             axes_format(axs[i], fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=False)
             if i == num_groups - 1:
-                axs[i].set_ylabel('Change from 0 init', fontsize=20)
+                axs[i].set_ylabel('Absolute change', fontsize=20)
             else:
                 axs[i].set_ylabel('Relative change (%)', fontsize=20)
-
+        
         plt.tight_layout()
+        fig.subplots_adjust(wspace=0.5)
         fig.savefig(full_path)
+        plt.close()
 
     # Get relevant data for plots: values for pre and post training and relative changes
     _, vals_pre, vals_post = pre_post_for_runs(folder, num_training, num_time_inds=2)
+    # extend vals_pre, vals_post with 'J_EI_m_abs', 'J_II_m_abs', 'J_EI_s_abs', 'J_II_s_abs' to include the absolute values
+    vals_pre['J_EI_m_abs'] = numpy.abs(vals_pre['J_EI_m'])
+    vals_pre['J_II_m_abs'] = numpy.abs(vals_pre['J_II_m'])
+    vals_pre['J_EI_s_abs'] = numpy.abs(vals_pre['J_EI_s'])
+    vals_pre['J_II_s_abs'] = numpy.abs(vals_pre['J_II_s'])
+    vals_post['J_EI_m_abs'] = numpy.abs(vals_post['J_EI_m'])
+    vals_post['J_II_m_abs'] = numpy.abs(vals_post['J_II_m'])
+    vals_post['J_EI_s_abs'] = numpy.abs(vals_post['J_EI_s'])
+    vals_post['J_II_s_abs'] = numpy.abs(vals_post['J_II_s'])
     means_pre = vals_pre.mean()
     means_post = vals_post.mean()
     rel_changes_train, rel_changes_pretrain = rel_change_for_runs(folder, num_time_inds=num_time_inds, num_runs=num_training)
@@ -141,7 +150,7 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
     ################# Plotting bar plots of J parameters before and after given time indices #################
     # Colors for bars
     colors=['red' ,'tab:red','blue', 'tab:blue' ,'red' ,'tab:red', 'blue', 'tab:blue']
-    keys_J = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m', 'J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']
+    keys_J = ['J_EE_m', 'J_IE_m', 'J_EI_m_abs', 'J_II_m_abs', 'J_EE_s', 'J_IE_s', 'J_EI_s_abs', 'J_II_s_abs']
     titles_J = [ r'$J^{\text{mid}}_{E \rightarrow E}$', r'$J^{\text{mid}}_{E \rightarrow I}$', r'$J^{\text{mid}}_{I \rightarrow E}$', r'$J^{\text{mid}}_{I \rightarrow I}$', r'$J^{\text{sup}}_{E \rightarrow E}$', r'$J^{\text{sup}}_{E \rightarrow I}$', r'$J^{\text{sup}}_{I \rightarrow E}$', r'$J^{\text{sup}}_{I \rightarrow I}$']
     barplot_params(colors, keys_J, titles_J, means_pre, means_post, vals_pre, vals_post, save_folder + '/J_pre_post.png')
 
@@ -162,7 +171,7 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
     ################# Boxplots for relative parameter changes #################
 
     # Define groups of parameters and plot each parameter group
-    keys_group = [keys_J[:4], keys_J[4:], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_EE_pre','kappa_IE_pre','kappa_EE_post','kappa_IE_post']]
+    keys_group = [['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m'], ['J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s'], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_EE_pre','kappa_IE_pre','kappa_EE_post','kappa_IE_post']]
     group_labels = [
         [r'$\Delta J^{\text{mid}}_{E \rightarrow E}$', r'$\Delta J^{\text{mid}}_{E \rightarrow I}$', r'$\Delta J^{\text{mid}}_{I \rightarrow E}$', r'$\Delta J^{\text{mid}}_{I \rightarrow I}$'],
         [r'$\Delta J^{\text{sup}}_{E \rightarrow E}$', r'$\Delta J^{\text{sup}}_{E \rightarrow I}$', r'$\Delta J^{\text{sup}}_{I \rightarrow E}$', r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'],
@@ -283,7 +292,8 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
     ################ Plot changes in J_m and J_s over time ################
     colors=['tab:red' ,'tab:orange','tab:green', 'tab:blue', 'tab:red' ,'tab:orange','tab:green', 'tab:blue']
     linestyles = ['--', '--', '--', '--', '-', '-', '-', '-']
-    plot_params_over_time(axes[2,0], df, keys_J, colors, linestyles, title='J in middle and superficial layers')
+    keys_J_raw = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m', 'J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']
+    plot_params_over_time(axes[2,0], df, keys_J_raw, colors, linestyles, title='J in middle and superficial layers')
     
     ################ Plot changes in maximum and mean rates over time ################
     keys_maxr = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup']
@@ -547,7 +557,7 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
     ax.set_title(title)
 
 
-def plot_tc_features(results_dir, stages=[0,1,2], color_by=None):
+def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False):
     """Plot tuning curve features for E and I cells at different stages of training"""
     def sliding_mannwhitney(x1, y1, x2, y2, window_size, sliding_unit):
         from scipy.stats import mannwhitneyu
@@ -597,7 +607,7 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None):
         x_data_shifted = numpy.where(x_data_shifted < -90, x_data_shifted + 180, x_data_shifted)
         return x_data_shifted
     
-    def scatter_feature(ax, y, x, indices_E, indices_I, shift_val=55, fs_ticks=40, feature=None, values_for_colors=None):
+    def scatter_feature(ax, y, x, indices_E, indices_I, shift_val=55, fs_ticks=40, feature=None, values_for_colors=None, title=None, axes_inds=[0,0], add_cross=False):
         """Scatter plot of feature for E and I cells. If shift_val is not None, then x should be the preferred orientation that will be centered around shift_val."""
         if shift_val is not None:
             x_I = shift_x_data(x, indices_I, shift_value=shift_val)
@@ -617,17 +627,35 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None):
         else:
             color_E = 'red'
             color_I = 'blue'
-        ax.scatter(x_E, y[:,indices_E].flatten(), s=50, alpha=0.5, color=color_E)
-        ax.scatter(x_I, y[:,indices_I].flatten(), s=50, alpha=0.5, color=color_I)
+        ax.scatter(x_E, y[:,indices_E].flatten(), s=50, alpha=0.3, color=color_E)
+        ax.scatter(x_I, y[:,indices_I].flatten(), s=50, alpha=0.3, color=color_I)
         if shift_val is None:
             xpoints = ypoints = ax.get_xlim()
             ax.plot(xpoints, ypoints, color='black', linewidth=2)
             ax.set_xlabel('Pre training', fontsize=fs_ticks)
-            ax.set_ylabel('Post training', fontsize=fs_ticks)
+            if axes_inds[1] == 0 and axes_inds[0] == 0:
+                ax.set_ylabel('MIDDLE LAYER \n\n Post training', fontsize=fs_ticks)
+            if axes_inds[1] == 0 and axes_inds[0] == 1:
+                ax.set_ylabel('SUPERFICIAL LAYER \n\n Post training', fontsize=fs_ticks)
             axes_format(ax, fs_ticks)
             
-        if feature is not None:
-            ax.set_title(feature, fontsize=fs_ticks)
+        if title is None:
+            title = feature
+        ax.set_title(title, fontsize=fs_ticks)
+
+        if add_cross: # add a cross at the mean of the data and two error bars for the standard deviations on x and y axes
+            mean_E_y = numpy.mean(y[:,indices_E].flatten())
+            mean_I_y = numpy.mean(y[:,indices_I].flatten())
+            mean_E_x = numpy.mean(x_E)
+            mean_I_x = numpy.mean(x_I)
+            std_E_y = numpy.std(y[:,indices_E].flatten())
+            std_I_y = numpy.std(y[:,indices_I].flatten())
+            std_E_x = numpy.std(x_E)
+            std_I_x = numpy.std(x_I)
+            ax.errorbar(mean_E_x, mean_E_y, xerr=std_E_x, yerr=std_E_y, fmt='o', color='tab:red', markersize=15, elinewidth=3, capsize=5, capthick=2)
+            print(f'{mean_E_x:.1f}, {mean_E_y:.1f}, {std_E_x:.1f}, {std_E_y:.1f}')
+            ax.errorbar(mean_I_x, mean_I_y, xerr=std_I_x, yerr=std_I_y, fmt='o', color='tab:blue', markersize=15, elinewidth=3, capsize=5, capthick=2)
+            print(f'{mean_I_x:.1f}, {mean_I_y:.1f}, {std_I_x:.1f}, {std_I_y:.1f}')
 
     def lowess_feature(ax, y, x, indices_E, indices_I, shift_val=55, frac=0.15, shades=''):
         """Plot lowess smoothed feature for E and I cells. Curves are fitted separately for E and I cells and for x<0 and x>0."""
@@ -674,19 +702,20 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None):
     ############## Plots about changes before vs after training and pretraining (per layer and per centered or all) ##############
              
     # Define indices for each group of cells
-    #E_sup = numpy.linspace(0, 80, 81).astype(int) + 648 
-    #I_sup = numpy.linspace(81, 161, 81).astype(int) + 648
-    E_sup_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)+648
-    I_sup_centre = (E_sup_centre+81).astype(int)
+    E_sup = numpy.linspace(0, 80, 81).astype(int) + 648 
+    I_sup = numpy.linspace(81, 161, 81).astype(int) + 648
+    #E_sup_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)+648
+    #I_sup_centre = (E_sup_centre+81).astype(int)
     
-    #mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
-    #E_mid = mid_array[:,0,:].ravel().astype(int)
-    #I_mid = mid_array[:,1,:].ravel().astype(int)
-    E_mid_centre_ph0 = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
-    E_mid_centre_ph1, E_mid_centre_ph2, E_mid_centre_ph3 = E_mid_centre_ph0+162, E_mid_centre_ph0+2*162, E_mid_centre_ph0+3*162
-    E_mid_centre = numpy.concatenate((E_mid_centre_ph0, E_mid_centre_ph1, E_mid_centre_ph2, E_mid_centre_ph3))
-    I_mid_centre = E_mid_centre + 81
-    indices = [E_mid_centre, I_mid_centre, E_sup_centre, I_sup_centre]
+    mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
+    E_mid = mid_array[:,0,:].ravel().astype(int)
+    I_mid = mid_array[:,1,:].ravel().astype(int)
+    #E_mid_centre_ph0 = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
+    #E_mid_centre_ph1, E_mid_centre_ph2, E_mid_centre_ph3 = E_mid_centre_ph0+162, E_mid_centre_ph0+2*162, E_mid_centre_ph0+3*162
+    #E_mid_centre = numpy.concatenate((E_mid_centre_ph0, E_mid_centre_ph1, E_mid_centre_ph2, E_mid_centre_ph3))
+    #I_mid_centre = E_mid_centre + 81
+    #indices_centre = [E_mid_centre, I_mid_centre, E_sup_centre, I_sup_centre]
+    indices = [E_mid, I_mid, E_sup, I_sup]
     
     ###############################################
     ######### Schoups-style scatter plots #########
@@ -743,21 +772,22 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None):
             colors_scatter_feature = None
         for layer in range(2):            
             ##### Plot features before vs after training per layer and cell type #####
-            scatter_feature(axs[layer,0], fwhm_post, fwhm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='fwhm', values_for_colors=colors_scatter_feature)
-            scatter_feature(axs[layer,1], min_post, min_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='min', values_for_colors=colors_scatter_feature)
-            scatter_feature(axs[layer,2], max_post, max_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='max', values_for_colors=colors_scatter_feature)
-            scatter_feature(axs[layer,3], mean_post, mean_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='mean', values_for_colors=colors_scatter_feature)
-            scatter_feature(axs[layer,4], slope_hm_post, slope_hm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_hm', values_for_colors=colors_scatter_feature)
+            scatter_feature(axs[layer,0], fwhm_post, fwhm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='fwhm', values_for_colors=colors_scatter_feature, title='Tuning width', axes_inds = [layer,0], add_cross=add_cross)
+            scatter_feature(axs[layer,1], min_post, min_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='min', values_for_colors=colors_scatter_feature, title='Baseline rate', axes_inds = [layer,1], add_cross=add_cross)
+            scatter_feature(axs[layer,2], max_post, max_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='max', values_for_colors=colors_scatter_feature, title='Peak firing rate', axes_inds = [layer,2], add_cross=add_cross)
+            scatter_feature(axs[layer,3], mean_post, mean_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='mean', values_for_colors=colors_scatter_feature, title='Mean firing rate', axes_inds = [layer,3], add_cross=add_cross)
+            scatter_feature(axs[layer,4], slope_hm_post, slope_hm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_hm', values_for_colors=colors_scatter_feature, title='Slope at half maximum', axes_inds = [layer,4], add_cross=add_cross)
 
         plt.tight_layout()
 
         # Add colorbar
         if (colors_scatter_feature == pref_ori).all():
-            cbar = fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=np.min(pref_ori), vmax=np.max(pref_ori)), cmap='rainbow'),ax=axs,orientation='vertical',label='Preferred orientation')
-            cbar.ax.yaxis.label.set_size(20)
+            cbar = fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=np.min(pref_ori), vmax=np.max(pref_ori)), cmap='rainbow'),ax=axs,orientation='vertical')
+            cbar.set_label('Preferred orientation', fontsize=40)
             cbar.ax.tick_params(labelsize=20) 
         else:
             # Discrete colors and labels
+            display_legend = True
             discrete_colors = ['red', 'blue', 'green', 'orange']  # Example discrete colors
             if colors_scatter_feature is not None:
                 unique_values = np.unique(colors_scatter_feature)
@@ -765,14 +795,14 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None):
                 if len(discrete_colors)==5:
                     discrete_labels = ['Phase 0', 'Phase Pi/2', 'Phase 3Pi/2', 'Phase Pi', 'No phase']  # Corresponding labels
                 else:
-                    discrete_labels = unique_values
+                    display_legend = False
             else:
                 discrete_colors = ['red', 'blue']
                 discrete_labels = ['Excitatory', 'Inhibitory']
-            
-            # Create custom legend for discrete set of colors
-            handles = [mpl.patches.Patch(color=color, label=label) for color, label in zip(discrete_colors, discrete_labels)]
-            axs[0, 0].legend(handles=handles, loc='upper left', fontsize=20)
+            if display_legend:
+                # Create custom legend for discrete set of colors
+                handles = [mpl.patches.Patch(color=color, label=label) for color, label in zip(discrete_colors, discrete_labels)]
+                axs[0, 0].legend(handles=handles, loc='upper left', fontsize=20)
         
         # Save plot
         if training_stage == 0:
@@ -827,6 +857,65 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None):
         plt.close()
 
 ################### CORRELATION ANALYSIS ###################
+def match_keys_to_labels(key_list):
+    # Create an empty dictionary to store the matching
+    matched_labels = {}
+    
+    # Mapping rules from the keys to LaTeX notation
+    for key in key_list:
+        if 'J_EE_m' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{E \rightarrow E}$'
+        elif 'J_EI_m' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{I \rightarrow E}$'
+        elif 'J_IE_m' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{E \rightarrow I}$'
+        elif 'J_II_m' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{I \rightarrow I}$'
+        elif 'J_EE_s' in key:
+            matched_labels[key] = r'$\Delta J^{\text{sup}}_{E \rightarrow E}$'
+        elif 'J_EI_s' in key:
+            matched_labels[key] = r'$\Delta J^{\text{sup}}_{I \rightarrow E}$'
+        elif 'J_IE_s' in key:
+            matched_labels[key] = r'$\Delta J^{\text{sup}}_{E \rightarrow I}$'
+        elif 'J_II_s' in key:
+            matched_labels[key] = r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'
+        elif 'J_I_m' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{I \rightarrow }$'
+        elif 'J_I_s' in key:
+            matched_labels[key] = r'$\Delta J^{\text{sup}}_{I \rightarrow }$'
+        elif 'J_E_m' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{E \rightarrow }$'
+        elif 'J_E_s' in key:
+            matched_labels[key] = r'$\Delta J^{\text{sup}}_{E \rightarrow }$'
+        elif 'EI_ratio_J_m' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{E \rightarrow }/ J^{\text{mid}}_{I \rightarrow }$'
+        elif 'EI_ratio_J_s' in key:
+            matched_labels[key] = r'$\Delta J^{\text{sup}}_{E \rightarrow }/ J^{\text{sup}}_{I \rightarrow }$'
+        elif 'EI_ratio_J_ms' in key:
+            matched_labels[key] = r'$\Delta J_{E \rightarrow }/ J_{I \rightarrow }$'
+        elif 'cE_m' in key:
+            matched_labels[key] = r'$\Delta c^{\text{mid}}_{\rightarrow E}$'
+        elif 'cI_m' in key:
+            matched_labels[key] = r'$\Delta c^{\text{mid}}_{\rightarrow I}$'
+        elif 'cE_s' in key:
+            matched_labels[key] = r'$\Delta c^{\text{sup}}_{\rightarrow E}$'
+        elif 'cI_s' in key:
+            matched_labels[key] = r'$\Delta c^{\text{sup}}_{\rightarrow I}$'
+        elif 'f_E' in key:
+            matched_labels[key] = r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$'
+        elif 'f_I' in key:
+            matched_labels[key] = r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$'
+        elif 'kappa_EE_pre' in key:
+            matched_labels[key] = r'$\Delta \kappa^{\text{pre}}_{E \rightarrow  E}$'
+        elif 'kappa_IE_pre' in key:
+            matched_labels[key] = r'$\Delta \kappa^{\text{pre}}_{E \rightarrow  I}$'
+        elif 'kappa_EE_post' in key:
+            matched_labels[key] = r'$\Delta \kappa^{\text{post}}_{E \rightarrow  E}$'
+        elif 'kappa_IE_post' in key:
+            matched_labels[key] = r'$\Delta \kappa^{\text{post}}_{E \rightarrow  I}$'
+    
+    return matched_labels
+
 def plot_param_offset_correlations(folder):
     """Plot the correlations between the offset parameters and the psychometric, staircase, and loss parameters"""
     # Helper functions
@@ -840,24 +929,18 @@ def plot_param_offset_correlations(folder):
         else:
             return 'gray', 'lightgray'  # Insignificant correlation
         
-    def regplots(param_key, rel_changes_train, corr_and_p_1, corr_and_p_2, corr_and_p_3, axes1, axes2, axes3, i, j):
-        line_color1, scatter_color1 = get_color(corr_and_p_1)
-        line_color2, scatter_color2 = get_color(corr_and_p_2)
-        line_color3, scatter_color3 = get_color(corr_and_p_3)
-        sns.regplot(x=param_key, y='psychometric_offset', data=rel_changes_train, ax=axes1[i,j], ci=95, color='red', 
-            line_kws={'color':line_color1}, scatter_kws={'alpha':0.3, 'color':scatter_color1})
-        sns.regplot(x=param_key, y='staircase_offset', data=rel_changes_train, ax=axes2[i,j], ci=95, color='blue', 
-            line_kws={'color':line_color2}, scatter_kws={'alpha':0.3, 'color':scatter_color2})
-        sns.regplot(x=param_key, y='loss_binary_cross_entr', data=rel_changes_train, ax=axes3[i,j], ci=95, color='green', 
-            line_kws={'color':line_color3}, scatter_kws={'alpha':0.3, 'color':scatter_color3})
-        # add label to x-axis
-        axes1[i,j].set_xlabel(param_key, fontsize=20)
-        axes2[i,j].set_xlabel(param_key, fontsize=20)
-        axes3[i,j].set_xlabel(param_key, fontsize=20)
+    def regplots(param_key, y_key, rel_changes_train, corr_and_p_1, axes_flat, j, x_labels=None, y_labels=None):
+        if x_labels is None:
+            x_labels = param_key
+        line_color1, scatter_color = get_color(corr_and_p_1)
+        sns.regplot(x=param_key, y=y_key, data=rel_changes_train, ax=axes_flat[j], ci=95, color='red', 
+            line_kws={'color':line_color1}, scatter_kws={'alpha':0.3, 'color':scatter_color})
+        # add labels to x-axis and y-axis
+        axes_flat[j].set_xlabel(x_labels, fontsize=20)
+        if y_labels is not None:
+            axes_flat[j].set_ylabel(y_labels, fontsize=20)
         # display corr in the right bottom of the figure
-        axes1[i,j].text(0.05, 0.05, f'r= {corr_and_p_1[0]:.2f}', transform=axes1[i,j].transAxes, fontsize=20)
-        axes2[i,j].text(0.05, 0.05, f'r= {corr_and_p_2[0]:.2f}', transform=axes2[i,j].transAxes, fontsize=20)
-        axes3[i,j].text(0.05, 0.05, f'r= {corr_and_p_3[0]:.2f}', transform=axes3[i,j].transAxes, fontsize=20)
+        axes_flat[j].text(0.05, 0.05, f'r= {corr_and_p_1[0]:.2f}', transform=axes_flat[j].transAxes, fontsize=20)
 
     def save_fig(fig, folder, filename, title=None):
         if title is not None:
@@ -868,28 +951,46 @@ def plot_param_offset_correlations(folder):
 
     corr_psychometric_offset_param, corr_staircase_offset_param, corr_loss_param, rel_changes_train = param_offset_correlations(folder)
     # Make three plots of the correlations between the offset parameters and the psychometric, staircase, and loss parameters
-    fig1, axes1 = plt.subplots(nrows=3, ncols=9, figsize=(9*5, 3*5))
-    fig2, axes2 = plt.subplots(nrows=3, ncols=9, figsize=(9*5, 3*5))
-    fig3, axes3 = plt.subplots(nrows=3, ncols=9, figsize=(9*5, 3*5))
-    
-    j1, j2, j3 = 0, 0, 0
-    for param_key, corr_and_p_1 in corr_psychometric_offset_param.items():
-        # rows of the plot collect types of parameters: 1) mid, 2) sup, 3) f and kappa, 4) J combined
-        corr_and_p_2 = corr_staircase_offset_param[param_key]
-        corr_and_p_3 = corr_loss_param[param_key]
-        if param_key.endswith('_m'):
-            regplots(param_key, rel_changes_train, corr_and_p_1, corr_and_p_2, corr_and_p_3, axes1, axes2, axes3, 0, j1)
-            j1 += 1
-        elif param_key.endswith('_s'):
-            regplots(param_key, rel_changes_train, corr_and_p_1, corr_and_p_2, corr_and_p_3, axes1, axes2, axes3, 1, j2)
-            j2 += 1
+    keys_a = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m', 'J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']
+    keys_b = ['J_E_m', 'J_I_m', 'EI_ratio_J_m', 'J_E_s', 'J_I_s', 'EI_ratio_J_s']
+    keys_c = ['f_E', 'f_I', 'cE_m', 'cI_m', 'cE_s', 'cI_s']
+    keys_d = ['kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post']
+    fig1a, axes1a = plt.subplots(nrows=2, ncols=4, figsize=(4*5, 2*5)) # raw J params
+    fig1b, axes1b = plt.subplots(nrows=2, ncols=3, figsize=(3*5, 2*5)) # combined J params
+    fig1c, axes1c = plt.subplots(nrows=3, ncols=2, figsize=(2*5, 3*5)) # f and c params
+    fig1d, axes1d = plt.subplots(nrows=2, ncols=2, figsize=(2*5, 2*5)) # kappa params
+    # Process each group of parameters
+    parameter_groups = [keys_a, keys_b, keys_c, keys_d]
+    x_labels = match_keys_to_labels(corr_staircase_offset_param.keys())
+    for i, keys_group in enumerate(parameter_groups):
+        if i == 0:
+            axes_flat = axes1a.flatten()
+        elif i == 1:
+            axes_flat = axes1b.flatten()
+        elif i == 2:
+            axes_flat = axes1c.flatten()
         else:
-            regplots(param_key, rel_changes_train, corr_and_p_1, corr_and_p_2, corr_and_p_3, axes1, axes2, axes3, 2, j3)
-            j3 += 1
-    # Adjust layout and save + close the plot
-    save_fig(fig1, folder, '/figures/Offset_corr_psychometric.png', title='Paramaters vs psychometric_offset')
-    save_fig(fig2, folder, '/figures/Offset_corr_staircase.png', title='Paramaters vs staircase_offset')
-    save_fig(fig3, folder, '/figures/Offset_corr_loss_binary.png', title='Paramaters vs BCE loss')
+            axes_flat = axes1d.flatten()
+        j = 0
+        for param_key_ind in range(len(keys_group)):
+            param_key = keys_group[param_key_ind]
+            if param_key_ind ==0 and i < 2:
+                y_label ='MIDDLE LAYER \n'
+            elif param_key_ind == len(keys_group)//2 and i < 2:
+                y_label = 'SUPERFICIAL LAYER \n'
+            else:
+                y_label = None
+            # rows of the plot collect types of parameters: 1) mid, 2) sup, 3) f and kappa, 4) J combined
+            corr_and_p_1 = corr_staircase_offset_param[param_key]
+            #corr_and_p_2 = corr_staircase_offset_param[param_key]
+            regplots(param_key, 'staircase_offset', rel_changes_train, corr_and_p_1, axes_flat, j, x_labels[param_key], y_label)
+            #regplots(param_key, 'psychometric_offset', rel_changes_train, corr_and_p_2, axes_flat, j) 
+            j += 1
+        # Adjust layout and save + close the plot
+        save_fig(fig1a, folder, f'/figures/corr_staircase_Jraw.png', title='Raw J parameters vs staircase threshold')
+        save_fig(fig1b, folder, f'/figures/corr_staircase_Jcombined.png', title='Combined J parameters vs staircase threshold')
+        save_fig(fig1c, folder, f'/figures/corr_staircase_f_c.png', title='f and c parameters vs staircase threshold')
+        save_fig(fig1d, folder, f'/figures/corr_staircase_kappa.png', title='kappa parameters vs staircase threshold')
 
 
 def plot_correlations(folder, num_training, num_time_inds=3):
@@ -1171,58 +1272,3 @@ def plot_MVPA_or_Mahal_scores_v2(final_folder_path, scores):
 
     plt.savefig(os.path.join(final_folder_path, 'figures', "MVPA_match_paper_fig.png"))
     plt.close()
-
-
-################## GATHER PLOTS IN A PDF ##################
-def make_pdf_from_figures(list_of_fig_names, list_of_titles, list_of_captions, sup_title, pdf_file_name):
-    # Initialize the PDF
-    pdf = FPDF()
-    
-    # Add a page for the super title
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.multi_cell(0, 10, sup_title, align='C')  # Add super title, centered
-    
-    # Loop over the list of figures
-    for i, fig_name in enumerate(list_of_fig_names):
-        # Add a new page for each figure
-        pdf.add_page()
-        
-        # Add the title for the figure
-        if i < len(list_of_titles):
-            pdf.set_font("Arial", 'B', 12)
-            pdf.multi_cell(0, 10, list_of_titles[i], align='C')  # Title, centered
-        
-        # Add the image
-        if os.path.exists(fig_name):
-            # Get the size of the image for scaling purposes
-            img = Image.open(fig_name)
-            width, height = img.size
-            max_width, max_height = 180, 180  # Maximum dimensions for the image
-            
-            # Scale the image to fit within the maximum dimensions
-            scale = min(max_width / width, max_height / height)
-            new_width, new_height = int(width * scale), int(height * scale)
-            
-            # Center the image horizontally on the page
-            x_offset = (210 - new_width) / 2  # 210mm is A4 page width
-            
-            pdf.image(fig_name, x=x_offset, w=new_width, h=new_height)
-        
-        # Add the caption for the figure
-        if i < len(list_of_captions):
-            pdf.ln(10)  # Line break
-            pdf.set_font("Arial", '', 10)
-            pdf.multi_cell(0, 10, list_of_captions[i], align='C')  # Caption, centered
-    
-    # Save the PDF to the given file name
-    pdf.output(pdf_file_name)
-    print(f"PDF saved as {pdf_file_name}")
-
-# Example usage of make_pdf_from_figures:
-# list_of_fig_names = ["fig1.png", "fig2.png", "fig3.png"]
-# list_of_titles = ["Figure 1 Title", "Figure 2 Title", "Figure 3 Title"]
-# list_of_captions = ["Caption for figure 1", "Caption for figure 2", "Caption for figure 3"]
-# sup_title = "This is the Super Title"
-# pdf_file_name = "output.pdf"
-# make_pdf_from_figures(list_of_fig_names, list_of_titles, list_of_captions, sup_title, pdf_file_name)

@@ -11,7 +11,7 @@ import subprocess
 from util import configure_parameters_file, save_code, set_up_config_folder, del_pretrain_files_from_config_folder
 from training.main_pretraining import main_pretraining
 from analysis.main_analysis import main_tuning_curves, main_MVPA
-from analysis.analysis_functions import save_tc_features
+from analysis.analysis_functions import save_tc_features, MVPA_anova
 from analysis.visualization import plot_tuning_curves, plot_corr_triangles, plot_results_on_parameters, plot_tc_features, plot_param_offset_correlations
 
 ## Set up number of runs and starting time
@@ -151,7 +151,7 @@ start_time = time.time()
 # calculate tuning curves and features for the different configurations
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
-    
+    #MVPA_anova(config_folder)
     # calculate tuning curves for after training
     #main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
     
@@ -165,18 +165,18 @@ for i, conf in enumerate(conf_names):
     folder_to_save=os.path.join(config_folder, 'figures')
     plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
     if i == 0:
-        stages = [0,1,2]
+        stages = [1,2]#[0,1,2]
     else:
         stages = [1,2]
+    plot_tc_features(config_folder, stages=stages, color_by='type', add_cross=True)
     plot_tc_features(config_folder, stages=stages, color_by='run_index')
     plot_tc_features(config_folder, stages=stages, color_by='pref_ori')
-    plot_tc_features(config_folder, stages=stages, color_by='type')
     plot_tc_features(config_folder, stages=stages, color_by='phase')
     print('\n')
     print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')
     print('\n')
 
-
+'''
 ########## ########## ##########
 ##########    MVPA    ##########
 ########## ########## ##########
@@ -191,7 +191,7 @@ for i, conf in enumerate(conf_names):
 ########## ########## ########## ########## ############
 ######### Clean up files about excluding runs ##########
 ########## ########## ########## ########## ############
-'''
+
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
     # delete pretraining related files from the configuration folder

@@ -3,8 +3,11 @@ import jax.numpy as np
 from jax import vmap
 import numpy
 import pandas as pd
+from statsmodels.formula.api import ols
+import statsmodels.api as sm
 import scipy.stats
 from scipy.interpolate import interp1d
+
 import time
 import os
 import sys
@@ -88,7 +91,7 @@ def data_from_run(folder, run_index=0, num_indices=3):
 
 
 def calc_rel_change_supp(variable, time_start, time_end):
-    """Calculate the relative change in a variable between two time points."""
+    """ Calculate the relative change in a variable between two time points. """
     # Find the first non-None value after training_start and the last non-None value before training_end
     start_value = None
     for i in range(time_start, len(variable)):
@@ -909,6 +912,7 @@ def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mea
 
 ######### Calculate MVPA and Mahalanobis distance for before pretraining, after pretraining and after training #########
 def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, plot_flag=False, filtered_r_noise_std=1.0):
+    """ Calculate MVPA and Mahalanobis distance for each run and layer at different stages of training."""
     # Shared parameters
     ori_list = numpy.asarray([55, 125, 0])
     num_layers=2 # number of layers
@@ -1099,3 +1103,51 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
     Mahal_scores[:,:,:,1] = mahal_untrain_control_mean
 
     return MVPA_scores, Mahal_scores
+
+
+def MVPA_anova(folder):
+    """ Perform two-way ANOVA on MVPA or Mahalanobis scores to measure the effect of SGD steps and orientation. """
+    
+    # Load the data from the CSV
+    scores = csv_to_numpy(folder + '/Mahal_scores.csv')  # Assume this returns a 4D numpy array
+    
+    num_trainings, num_layers, num_sgd_inds, num_ori_inds = scores.shape
+    
+    # Prepare dataset
+    data = []
+    for training in range(num_trainings):
+        for layer in range(num_layers):
+            for sgd in range(1,num_sgd_inds):
+                for ori in range(num_ori_inds):
+                    data.append({
+                        'Score': scores[training, layer, sgd, ori],  # The score value for each training, layer, sgd, and ori
+                        'SGD_step': sgd,                             # The SGD step as a factor
+                        'Ori': ori,                                  # The orientation factor
+                        'Layer': layer                               # The layer factor
+                    })
+    
+    # Convert the list to a DataFrame
+    df = pd.DataFrame(data)
+    
+    # Perform two-way ANOVA for each layer
+    for layer in range(num_layers):
+        layer_data = df[df['Layer'] == layer]  # Filter data by the current layer
+        
+        # Perform two-way ANOVA using an OLS model
+        model = ols('Score ~ C(SGD_step) + C(Ori) + C(SGD_step):C(Ori)', data=layer_data).fit()
+        anova_table = sm.stats.anova_lm(model, typ=2)
+        
+        print(f"ANOVA results for Layer {layer}:")
+        print(anova_table)
+
+        # paired t-test on MVPA_score diff 
+        print(f"Paired t-test for Layer {layer}:")
+        ori_tr = 0
+        trained = numpy.array(layer_data[(layer_data['Ori'] == ori_tr) & (layer_data['SGD_step'] == 2)]['Score']) - numpy.array(layer_data[(layer_data['Ori'] == ori_tr) & (layer_data['SGD_step'] == 1)]['Score'])
+        ori_ut = 1
+        untrained = numpy.array(layer_data[(layer_data['Ori'] == ori_ut) & (layer_data['SGD_step'] == 2)]['Score']) - numpy.array(layer_data[(layer_data['Ori'] == ori_ut) & (layer_data['SGD_step'] == 1)]['Score'])
+        t_stat, p_val = scipy.stats.ttest_rel(trained, untrained)
+        print(f"t-statistic: {t_stat}, p-value: {p_val}")
+        print(f'55 mean:{numpy.mean(trained)}, std:{numpy.std(trained)}')
+        print(f'125 mean:{numpy.mean(untrained)}, std:{numpy.std(untrained)}')
+        
