@@ -57,8 +57,8 @@ conf_suponly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m',
 conf_mixed_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.5, 0.5], False, [0.4, 0.7], False, True] # training all parameters but reading out from both middle and superficial layers
 conf_midonly_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [0.0, 1.0], False, [0.4, 0.7], False, True] # reading out from middle layer (ablation)
 conf_suponly_no_hori_readout = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa'], [1.0, 0.0], False, [1.0, 1.0], False, True] # reading out from middle layer (ablation)
-conf_readout_dict = {#'conf_suponly_readout': conf_suponly_readout,
-                    #'conf_mixed_readout': conf_mixed_readout,
+conf_readout_dict = {'conf_suponly_readout': conf_suponly_readout,
+                    'conf_mixed_readout': conf_mixed_readout,
                     'conf_midonly_readout': conf_midonly_readout,
                     'conf_suponly_no_hori_readout': conf_suponly_no_hori_readout
                     }
@@ -98,28 +98,27 @@ conf_only_dict = {'conf_kappa_only': conf_kappa_only,
                 }
 
 # create dictionary of configurations to loop over
-conf_dict = conf_readout_dict #{**conf_special_dict, **conf_excluded_dict, **conf_only_dict, **conf_readout_dict}
+conf_dict = { **conf_only_dict, **conf_readout_dict}#{**conf_special_dict, **conf_excluded_dict, **conf_only_dict, **conf_readout_dict}
 
 conf_names = list(conf_dict.keys())
 conf_list = list(conf_dict.values())
-
-
+'''
 ########## ########## ##########
 ##########  Training  ##########
 ########## ########## ########## 
 for i, conf in enumerate(conf_list):
     
     # create a configuration folder and copy relevant files to it
-    config_folder = set_up_config_folder(folder_path, conf_names[i])
-    #config_folder = os.path.join(folder_path, conf_names[i])
+    #config_folder = set_up_config_folder(folder_path, conf_names[i])
+    config_folder = os.path.join(folder_path, conf_names[i])
     
     # configure the parameters.py file and copy it as a backup fil in the config folder
-    configure_parameters_file(root_folder, conf)
-    shutil.copy('parameters.py', os.path.join(config_folder,  f'parameters_{conf_names[i]}.py'))
+    #configure_parameters_file(root_folder, conf)
+    #shutil.copy('parameters.py', os.path.join(config_folder,  f'parameters_{conf_names[i]}.py'))
     
     # run training with the configured parameters.py file
-    main_training_source = os.path.join(root_folder, "training", "main_training.py")
-    subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
+    #main_training_source = os.path.join(root_folder, "training", "main_training.py")
+    #subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
     
     # plot results on parameters
     plot_results_on_parameters(config_folder, num_training, plot_per_run=False)
@@ -130,12 +129,12 @@ for i, conf in enumerate(conf_list):
     print('\n')
 
 print('Finished all configurations')
-
+'''
 ## Make the parameters.py.bak file the parameters.py file
-if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
-    shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
+#if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
+#    shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
 
-
+'''
 ########## ########## ##########
 ######### Tuning curves ########
 ########## ########## ##########
@@ -151,13 +150,13 @@ start_time = time.time()
 # calculate tuning curves and features for the different configurations
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
-    #MVPA_anova(config_folder)
+    # MVPA_anova(config_folder)
     # calculate tuning curves for after training
-    #main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
+    # main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
     
     # calculate tuning curve features
-    #tc_file_name = os.path.join(config_folder, 'tuning_curves.csv')
-    #save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125])
+    tc_file_name = os.path.join(config_folder, 'tuning_curves.csv')
+    save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125])
     # plot tuning curves and features
     tc_cells=[10,40,100,130,172,202,262,292,334,364,424,454,496,526,586,616,650,690,740,760] 
     # these are indices of representative cells from the different layers and types: every pair is for off center and center from 
@@ -168,6 +167,7 @@ for i, conf in enumerate(conf_names):
         stages = [1,2]#[0,1,2]
     else:
         stages = [1,2]
+    # plot_tc_features(config_folder, stages=stages, color_by='type', only_slope_plot=True)
     plot_tc_features(config_folder, stages=stages, color_by='type', add_cross=True)
     plot_tc_features(config_folder, stages=stages, color_by='run_index')
     plot_tc_features(config_folder, stages=stages, color_by='pref_ori')
@@ -182,16 +182,18 @@ for i, conf in enumerate(conf_names):
 ########## ########## ##########
 
 for i, conf in enumerate(conf_names):
+    start_time = time.time()
     config_folder = os.path.join(folder_path, conf)
     folder_to_save = config_folder + f'/figures'
     main_MVPA(config_folder, num_training, folder_to_save, 3, sigma_filter=2, r_noise=True, num_noisy_trials=200, plot_flag=True) 
-    # plot_corr_triangles(config_folder, folder_to_save)
+    plot_corr_triangles(config_folder, folder_to_save)
+    print('Done with MVPA for configuration ', conf, ' in ', time.time()-start_time, ' seconds')
 
 
 ########## ########## ########## ########## ############
 ######### Clean up files about excluding runs ##########
 ########## ########## ########## ########## ############
-
+'''
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
     # delete pretraining related files from the configuration folder

@@ -402,9 +402,13 @@ def tc_cubic(x,y, d_theta=0.5):
     if 360 not in x:
         x = numpy.append(x, 360)
         y = numpy.append(y, y[0])
+    
+    mask = ~np.isnan(y)
+    if numpy.sum(mask) < len(y)*0.9:
+        print('Warning: More than 10% of the tuning curve data is missing.')
 
     # Create cubic interpolation object
-    cubic_interpolator = interp1d(x, y, kind='cubic')
+    cubic_interpolator = interp1d(x[mask], y[mask], kind='cubic')
 
     # Create new x values and get interpolated values
     x_interp = numpy.arange(0, max(x), d_theta)
@@ -489,8 +493,17 @@ def compute_features(tuning_curves, num_cells, ori_list, oris_to_calc_slope_at, 
         # Full width half max
         features['fwhm'][i] = full_width_half_max(y_interp, d_theta=d_theta_interp)
 
-        # Preferred orientation
-        features['pref_ori'][i] = x_interp[numpy.argmax(y_interp)]
+        # Preferred orientation - accounting for the double bumps
+        peak_loc = y_interp > numpy.max(y_interp) * 0.95
+        # if peak_loc has an interval in (0, 180) and also in (180, 360), take the one in (0, 180)
+        if numpy.any(peak_loc[:len(peak_loc)//2]) and numpy.any(peak_loc[len(peak_loc)//2:]):
+            peak_loc[len(peak_loc)//2:] = False
+        # Get the indices of the peak locations instead of the boolean values
+        peak_indices = numpy.where(peak_loc)[0]
+        # Find the max index within the peak region (first bump)
+        max_peak_index = peak_indices[numpy.argmax(y_interp[peak_indices])]
+        # get the max index with the peak_loc
+        features['pref_ori'][i] = x_interp[max_peak_index]
 
         # Gradient for slope calculations
         y_interp_scaled = y_interp/numpy.max(y_interp)
@@ -561,25 +574,25 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
     """ Calculate the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores."""
     data, _ = rel_change_for_runs(folder, num_time_inds=num_time_inds)
     ##################### Correlate offset_th_diff with the combintation of the J_m and J_s, etc. #####################      
-    offset_pars_corr = []
     offset_staircase_pars_corr = []
+    offset_psychometric_pars_corr = []
     if x_labels is None:
         x_labels = ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'f_E','f_I', 'cE_m', 'cI_m', 'cE_s', 'cI_s']
     for i in range(len(x_labels)):
         # Calculate the Pearson correlation coefficient and the p-value
-        corr, p_value = scipy.stats.pearsonr(data['psychometric_offset'], data[x_labels[i]])
-        offset_pars_corr.append({'corr': corr, 'p_value': p_value})
         corr, p_value = scipy.stats.pearsonr(data['staircase_offset'], data[x_labels[i]])
         offset_staircase_pars_corr.append({'corr': corr, 'p_value': p_value})
+        corr, p_value = scipy.stats.pearsonr(data['psychometric_offset'], data[x_labels[i]])
+        offset_psychometric_pars_corr.append({'corr': corr, 'p_value': p_value})
     
     # Load MVPA_scores and correlate them with the offset threshold and the parameter differences (samples are the different trainings)
     MVPA_scores = csv_to_numpy(folder + '/MVPA_scores.csv') # num_trainings x layer x SGD_ind x ori_ind
-    MVPA_scores_diff = MVPA_scores[:,:,1,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
-    MVPA_offset_corr = []
+    MVPA_scores_diff = MVPA_scores[:,:,-2,:] - MVPA_scores[:,:,-1,:] # num_trainings x layer x ori_ind
+    MVPA_psychometric_offset_corr = []
     for i in range(MVPA_scores_diff.shape[1]):
         for j in range(MVPA_scores_diff.shape[2]):
-            corr, p_value = scipy.stats.pearsonr(data['staircase_offset'], MVPA_scores_diff[:,i,j])
-            MVPA_offset_corr.append({'corr': corr, 'p_value': p_value})
+            corr, p_value = scipy.stats.pearsonr(data['psychometric_offset'], MVPA_scores_diff[:,i,j])
+            MVPA_psychometric_offset_corr.append({'corr': corr, 'p_value': p_value})
     MVPA_pars_corr = [] # (J_m_I,J_m_E,J_s_I,J_s_E,f_E,f_I,cE_m,cI_m,cE_s,cI_s) x ori_ind
     for j in range(MVPA_scores_diff.shape[2]):
         for i in range(MVPA_scores_diff.shape[1]):        
@@ -602,9 +615,9 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
         p_value = [p_val_m_J_E, p_val_m_J_I, p_val_s_J_E, p_val_s_J_I, p_val_m_f_E, p_val_m_f_I, p_val_m_cE_m, p_val_m_cI_m, p_val_s_f_E, p_val_s_f_I, p_val_s_cE_s, p_val_s_cI_s]
         MVPA_pars_corr.append({'corr': corr, 'p_value': p_value})
     # combine MVPA_offset_corr and MVPA_pars_corr into a single list
-    MVPA_corrs = MVPA_offset_corr + MVPA_pars_corr
+    MVPA_corrs = MVPA_psychometric_offset_corr + MVPA_pars_corr
 
-    return offset_pars_corr, offset_staircase_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run
+    return offset_staircase_pars_corr, offset_psychometric_pars_corr, MVPA_corrs, data  # Returns a list of dictionaries for each training run
 
 ############################## helper functions for MVPA and Mahal distance analysis ##############################
 
@@ -861,55 +874,6 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     return output
 
 
-def LMI_Mahal_df(num_training, num_layers, num_SGD_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio):
-    """
-    Create dataframes for Mahalanobis distance and LMI values
-    """
-    run_layer_df=np.repeat(np.arange(num_training),num_layers)
-    SGD_ind_df = numpy.zeros(num_training*num_layers)
-    for i in range(1, num_SGD_inds):
-        SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(num_training * num_layers)))
-    # switch dimensions to : layer, run, SGD_ind
-    mahal_train_control_mean = np.transpose(mahal_train_control_mean, (1, 0, 2))
-    mahal_untrain_control_mean = np.transpose(mahal_untrain_control_mean, (1, 0, 2))
-    mahal_within_train_mean = np.transpose(mahal_within_train_mean, (1, 0, 2))
-    mahal_within_untrain_mean = np.transpose(mahal_within_untrain_mean, (1, 0, 2))
-    train_SNR_mean = np.transpose(train_SNR_mean, (1, 0, 2))
-    untrain_SNR_mean = np.transpose(untrain_SNR_mean, (1, 0, 2))
-    df_mahal = pd.DataFrame({
-        'run': np.tile(run_layer_df, num_SGD_inds), # 1,1,2,2,3,3,4,4,... , 1,1,2,2,3,3,4,4,... 
-        'layer': np.tile(np.arange(num_layers),num_training*num_SGD_inds),# 1,2,1,2,1,2,...
-        'SGD_ind': SGD_ind_df, # 0,0,0,... 1,1,1,...
-        'ori55_across': mahal_train_control_mean.ravel(),
-        'ori125_across': mahal_untrain_control_mean.ravel(),
-        'ori55_within': mahal_within_train_mean.ravel(),
-        'ori125_within': mahal_within_untrain_mean.ravel(),
-        'ori55_SNR': train_SNR_mean.ravel(),
-        'ori125_SNR': untrain_SNR_mean.ravel()
-    })
-
-    SGD_ind_df = numpy.zeros(num_training*num_layers)
-    for i in range(1, num_SGD_inds-1):
-        SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(num_training * num_layers)))
-    LMI_across = np.transpose(LMI_across,(1,0,2))
-    LMI_within = np.transpose(LMI_within,(1,0,2))
-    LMI_ratio = np.transpose(LMI_ratio,(1,0,2))
-    df_LMI = pd.DataFrame({
-        'run': np.tile(run_layer_df, num_SGD_inds-1), # 1,1,2,2,3,3,4,4,... , 1,1,2,2,3,3,4,4,... 
-        'layer': np.tile(np.arange(num_layers),num_training*(num_SGD_inds-1)),# 1,2,1,2,1,2,...
-        'SGD_ind': SGD_ind_df,
-        'LMI_across': LMI_across.ravel(),# layer, SGD
-        'LMI_within': LMI_within.ravel(),
-        'LMI_ratio': LMI_ratio.ravel()
-    })
-
-    SGD_ind_df = numpy.zeros(3*num_layers)
-    for i in range(1, num_SGD_inds-1):
-        SGD_ind_df=numpy.hstack((SGD_ind_df,i * numpy.ones(3 * num_layers)))
-
-    return df_mahal, df_LMI
-
-
 ######### Calculate MVPA and Mahalanobis distance for before pretraining, after pretraining and after training #########
 def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, plot_flag=False, filtered_r_noise_std=1.0):
     """ Calculate MVPA and Mahalanobis distance for each run and layer at different stages of training."""
@@ -971,134 +935,120 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
             else:
                 r_l = r_mid_sup['r_sup']
             r_l = r_l.reshape((r_l.shape[0], -1))
-            score = pca.fit_transform(r_l)
-            variance_explained = pca.explained_variance_ratio_
-            # Define the number of PCs to use for the current run (set it to min of 2 and otherwise, where the variance explained is above 80%)
-            variance_explained_cumsum = numpy.cumsum(variance_explained)
-            variance_explained_cumsum[-1]=1
-            num_PC_used_run = numpy.argmax(variance_explained_cumsum > 0.7) + 1
-            num_PC_used_run = max(num_PC_used_run, 2)         
-            r_pca = score[:, :num_PC_used_run]
-            print(f"Variance explained by {num_PC_used_run+1} PCs: {numpy.sum(variance_explained[0:num_PC_used_run+1]):.2%}")
+            if numpy.any(numpy.isnan(r_l)):
+                print('Warning: NaNs in the responses')
+                continue
+            else:
+                score = pca.fit_transform(r_l)
+                variance_explained = pca.explained_variance_ratio_
+                # Define the number of PCs to use for the current run (set it to min of 2 and otherwise, where the variance explained is above 80%)
+                variance_explained_cumsum = numpy.cumsum(variance_explained)
+                variance_explained_cumsum[-1]=1
+                num_PC_used_run = numpy.argmax(variance_explained_cumsum > 0.7) + 1
+                num_PC_used_run = max(num_PC_used_run, 2)         
+                r_pca = score[:, :num_PC_used_run]
+                print(f"Variance explained by {num_PC_used_run+1} PCs: {numpy.sum(variance_explained[0:num_PC_used_run+1]):.2%}")
 
-            for stage_ind in range(num_stages): 
-                # Define filter to select the responses corresponding to stage_ind
-                stage_mask = r_mid_sup['stage'] == stage_ind
-                 
-                # Separate data into orientation conditions
-                train_data = r_pca[mesh_train_ & stage_mask,:]
-                untrain_data = r_pca[mesh_untrain_ & stage_mask,:]
-                control_data = r_pca[mesh_control_ & stage_mask,:]
-                ############################# MVPA analysis #############################
-                
-                # MVPA for distinguishing trained or untrained orientations (55 and 125) and control orientation (0)
-                train_control_data = numpy.concatenate((train_data, control_data))
-                train_control_data = train_control_data.reshape(train_control_data.shape[0],-1)
-                train_control_label = numpy.concatenate((numpy.zeros(num_noisy_trials), numpy.ones(num_noisy_trials)))
-                
-                untrain_control_data = numpy.concatenate((untrain_data, control_data))
-                untrain_control_data = untrain_control_data.reshape(untrain_control_data.shape[0],-1)
-                untrain_control_label = numpy.concatenate((numpy.zeros(num_noisy_trials), numpy.ones(num_noisy_trials)))
-                              
-                # fit the classifier for 10 randomly selected trial and test data and average the scores
-                scores_untrain = []
-                scores_train = []
-                for i in range(10):
-                    X_untrain, X_test_untrain, y_untrain, y_test_untrain = train_test_split(untrain_control_data, untrain_control_label, test_size=0.5, random_state=i)
-                    X_train, X_test_train, y_train, y_test_train = train_test_split(train_control_data, train_control_label, test_size=0.5, random_state=i)
-                    score_train = clf.fit(X_train, y_train).score(X_test_train, y_test_train)
-                    score_untrain = clf.fit(X_untrain, y_untrain).score(X_test_untrain, y_test_untrain)
-                    scores_untrain.append(score_untrain)
-                    scores_train.append(score_train)
-                MVPA_scores[run_ind,layer,stage_ind, 1] = np.mean(np.array(scores_untrain))
-                MVPA_scores[run_ind,layer,stage_ind, 0] = np.mean(np.array(scores_train))
-
-                ############################# Mahalanobis distance analysis #############################
-                # Calculate Mahalanobis distance - mean and std of control data is calculated (along axis 0) and compared to the train and untrain data
-                mahal_train_control = mahal(control_data, train_data)
-                mahal_untrain_control = mahal(control_data, untrain_data)
-
-                # Calculate the within group Mahal distances
-                num_noisy_trials = train_data.shape[0] 
-                mahal_within_train = numpy.zeros(num_noisy_trials)
-                mahal_within_untrain = numpy.zeros(num_noisy_trials)
-                                
-                # Iterate over the trials to calculate the Mahal distances
-                for trial in range(num_noisy_trials):
-                    # Create temporary copies excluding one sample
-                    mask = numpy.ones(num_noisy_trials, dtype=bool)
-                    mask[trial] = False
-                    train_data_temp = train_data[mask]
-                    untrain_data_temp = untrain_data[mask]
-
-                    # Calculate distances
-                    train_data_trial_2d = numpy.expand_dims(train_data[trial], axis=0)
-                    untrain_data_trial_2d = numpy.expand_dims(untrain_data[trial], axis=0)
-                    mahal_within_train[trial] = mahal(train_data_temp, train_data_trial_2d)[0]
-                    mahal_within_untrain[trial] = mahal(untrain_data_temp, untrain_data_trial_2d)[0]
-
-                # PCA scatter plot the three conditions with different colors
-                symbols = ['o', 's', '^']
-                stage_labels = ['prepre', 'pre', 'post']
-                if plot_flag and run_ind < num_PCA_plots:
-                    axs[layer,stage_ind].scatter(control_data[:,0], control_data[:,1], label='control '+stage_labels[stage_ind], color='tab:green', s=5, marker=symbols[stage_ind])
-                    axs[layer,stage_ind].scatter(train_data[:,0], train_data[:,1], label='trained '+stage_labels[stage_ind], color='blue', s=5, marker=symbols[stage_ind])
-                    axs[layer,stage_ind].scatter(untrain_data[:,0], untrain_data[:,1], label='untrained '+stage_labels[stage_ind], color='red', s=5, marker=symbols[stage_ind])
-                    axs[layer,stage_ind].set_title(f'Layer {layer}, run {run_ind}')
-                    # Add lines between the mean of the conditions and write the Euclidean distance between them
-                    mean_control = numpy.mean(control_data, axis=0)
-                    mean_train = numpy.mean(train_data, axis=0)
-                    mean_untrain = numpy.mean(untrain_data, axis=0)
-                    axs[layer,stage_ind].plot([mean_control[0], mean_train[0]], [mean_control[1], mean_train[1]], color='gray')
-                    axs[layer,stage_ind].plot([mean_control[0], mean_untrain[0]], [mean_control[1], mean_untrain[1]], color='gray')
-                    axs[layer,stage_ind].plot([mean_train[0], mean_untrain[0]], [mean_train[1], mean_untrain[1]], color='gray')
-                    # add two lines of title, one with Eucledean distances and one with Mahalanobis distances
-                    axs[layer,stage_ind].set_title(f'train:{numpy.linalg.norm(mean_control-mean_train):.2f},untrain:{numpy.linalg.norm(mean_control-mean_untrain):.2f} \n train:{np.mean(mahal_train_control):.2f},untrain:{np.mean(mahal_untrain_control):.2f} within: {np.mean(mahal_within_train):.2f}, {np.mean(mahal_within_untrain):.2f}')
-                    axs[layer,stage_ind].legend()
+                for stage_ind in range(num_stages): 
+                    # Define filter to select the responses corresponding to stage_ind
+                    stage_mask = r_mid_sup['stage'] == stage_ind
                     
-                # Save Mahal distances and ratios
-                mahal_train_control_all[run_ind,layer,stage_ind,:] = mahal_train_control
-                mahal_untrain_control_all[run_ind,layer,stage_ind,:] = mahal_untrain_control
-                mahal_within_train_all[run_ind,layer,stage_ind,:] = mahal_within_train
-                mahal_within_untrain_all[run_ind,layer,stage_ind,:] = mahal_within_untrain
-                train_SNR_all[run_ind,layer,stage_ind,:] = mahal_train_control / mahal_within_train
-                untrain_SNR_all[run_ind,layer,stage_ind,:] = mahal_untrain_control / mahal_within_untrain
+                    # Separate data into orientation conditions
+                    train_data = r_pca[mesh_train_ & stage_mask,:]
+                    untrain_data = r_pca[mesh_untrain_ & stage_mask,:]
+                    control_data = r_pca[mesh_control_ & stage_mask,:]
+                    ############################# MVPA analysis #############################
+                    
+                    # MVPA for distinguishing trained or untrained orientations (55 and 125) and control orientation (0)
+                    train_control_data = numpy.concatenate((train_data, control_data))
+                    train_control_data = train_control_data.reshape(train_control_data.shape[0],-1)
+                    train_control_label = numpy.concatenate((numpy.zeros(num_noisy_trials), numpy.ones(num_noisy_trials)))
+                    
+                    untrain_control_data = numpy.concatenate((untrain_data, control_data))
+                    untrain_control_data = untrain_control_data.reshape(untrain_control_data.shape[0],-1)
+                    untrain_control_label = numpy.concatenate((numpy.zeros(num_noisy_trials), numpy.ones(num_noisy_trials)))
+                                
+                    # fit the classifier for 10 randomly selected trial and test data and average the scores
+                    scores_untrain = []
+                    scores_train = []
+                    for i in range(10):
+                        X_untrain, X_test_untrain, y_untrain, y_test_untrain = train_test_split(untrain_control_data, untrain_control_label, test_size=0.5, random_state=i)
+                        X_train, X_test_train, y_train, y_test_train = train_test_split(train_control_data, train_control_label, test_size=0.5, random_state=i)
+                        score_train = clf.fit(X_train, y_train).score(X_test_train, y_test_train)
+                        score_untrain = clf.fit(X_untrain, y_untrain).score(X_test_untrain, y_test_untrain)
+                        scores_untrain.append(score_untrain)
+                        scores_train.append(score_train)
+                    MVPA_scores[run_ind,layer,stage_ind, 1] = np.mean(np.array(scores_untrain))
+                    MVPA_scores[run_ind,layer,stage_ind, 0] = np.mean(np.array(scores_train))
 
-                # Average over trials
-                mahal_train_control_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_train_control)
-                mahal_untrain_control_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_untrain_control)
-                mahal_within_train_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_within_train)
-                mahal_within_untrain_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_within_untrain)
-                train_SNR_mean[run_ind,layer,stage_ind] = numpy.mean(train_SNR_all[run_ind,layer,stage_ind,:])
-                untrain_SNR_mean[run_ind,layer,stage_ind] = numpy.mean(untrain_SNR_all[run_ind,layer,stage_ind,:])
+                    ############################# Mahalanobis distance analysis #############################
+                    # Calculate Mahalanobis distance - mean and std of control data is calculated (along axis 0) and compared to the train and untrain data
+                    mahal_train_control = mahal(control_data, train_data)
+                    mahal_untrain_control = mahal(control_data, untrain_data)
 
-            '''
-            # 2D-PCA scatter plots where the three conditions have different colors
-            if plot_flag and run_ind < num_PCA_plots:
-                axs[layer,num_stages].bar([1,2,3],mahal_train_control_mean[run_ind,layer,:], color='blue', alpha=0.5)
-                axs[layer,num_stages].bar([5,6,7],mahal_untrain_control_mean[run_ind,layer,:], color='red', alpha=0.5)
-                axs[layer,num_stages].set_xticks([1,2,3,5,6,7])
-                axs[layer,num_stages].set_xticklabels(['tr0', 'tr1', 'tr2', 'ut0', 'ut1', 'ut2'])
-                fig.savefig(folder + f"/figures/PCA_{run_ind}")
-                plt.close()
-            '''
+                    # Calculate the within group Mahal distances
+                    num_noisy_trials = train_data.shape[0] 
+                    mahal_within_train = numpy.zeros(num_noisy_trials)
+                    mahal_within_untrain = numpy.zeros(num_noisy_trials)
+                                    
+                    # Iterate over the trials to calculate the Mahal distances
+                    for trial in range(num_noisy_trials):
+                        # Create temporary copies excluding one sample
+                        mask = numpy.ones(num_noisy_trials, dtype=bool)
+                        mask[trial] = False
+                        train_data_temp = train_data[mask]
+                        untrain_data_temp = untrain_data[mask]
 
-            # Calculate learning modulation indices (LMI)
-            for stage_ind_ in range(num_stages-1):
-                LMI_across[run_ind,layer,stage_ind_] = (mahal_train_control_mean[run_ind,layer,stage_ind_+1] - mahal_train_control_mean[run_ind,layer,stage_ind_]) - (mahal_untrain_control_mean[run_ind,layer,stage_ind_+1] - mahal_untrain_control_mean[run_ind,layer,stage_ind_] )
-                LMI_within[run_ind,layer,stage_ind_] = (mahal_within_train_mean[run_ind,layer,stage_ind_+1] - mahal_within_train_mean[run_ind,layer,stage_ind_]) - (mahal_within_untrain_mean[run_ind,layer,stage_ind_+1] - mahal_within_untrain_mean[run_ind,layer,stage_ind_] )
-                LMI_ratio[run_ind,layer,stage_ind_] = (train_SNR_mean[run_ind,layer,stage_ind_+1] - train_SNR_mean[run_ind,layer,stage_ind_]) - (untrain_SNR_mean[run_ind,layer,stage_ind_+1] - untrain_SNR_mean[run_ind,layer,stage_ind_] )
+                        # Calculate distances
+                        train_data_trial_2d = numpy.expand_dims(train_data[trial], axis=0)
+                        untrain_data_trial_2d = numpy.expand_dims(untrain_data[trial], axis=0)
+                        mahal_within_train[trial] = mahal(train_data_temp, train_data_trial_2d)[0]
+                        mahal_within_untrain[trial] = mahal(untrain_data_temp, untrain_data_trial_2d)[0]
+
+                    # PCA scatter plot the three conditions with different colors
+                    symbols = ['o', 's', '^']
+                    stage_labels = ['prepre', 'pre', 'post']
+                    if plot_flag and run_ind < num_PCA_plots:
+                        axs[layer,stage_ind].scatter(control_data[:,0], control_data[:,1], label='control '+stage_labels[stage_ind], color='tab:green', s=5, marker=symbols[stage_ind])
+                        axs[layer,stage_ind].scatter(train_data[:,0], train_data[:,1], label='trained '+stage_labels[stage_ind], color='blue', s=5, marker=symbols[stage_ind])
+                        axs[layer,stage_ind].scatter(untrain_data[:,0], untrain_data[:,1], label='untrained '+stage_labels[stage_ind], color='red', s=5, marker=symbols[stage_ind])
+                        axs[layer,stage_ind].set_title(f'Layer {layer}, run {run_ind}')
+                        # Add lines between the mean of the conditions and write the Euclidean distance between them
+                        mean_control = numpy.mean(control_data, axis=0)
+                        mean_train = numpy.mean(train_data, axis=0)
+                        mean_untrain = numpy.mean(untrain_data, axis=0)
+                        axs[layer,stage_ind].plot([mean_control[0], mean_train[0]], [mean_control[1], mean_train[1]], color='gray')
+                        axs[layer,stage_ind].plot([mean_control[0], mean_untrain[0]], [mean_control[1], mean_untrain[1]], color='gray')
+                        axs[layer,stage_ind].plot([mean_train[0], mean_untrain[0]], [mean_train[1], mean_untrain[1]], color='gray')
+                        # add two lines of title, one with Eucledean distances and one with Mahalanobis distances
+                        axs[layer,stage_ind].set_title(f'train:{numpy.linalg.norm(mean_control-mean_train):.2f},untrain:{numpy.linalg.norm(mean_control-mean_untrain):.2f} \n train:{np.mean(mahal_train_control):.2f},untrain:{np.mean(mahal_untrain_control):.2f} within: {np.mean(mahal_within_train):.2f}, {np.mean(mahal_within_untrain):.2f}')
+                        axs[layer,stage_ind].legend()
+                        
+                    # Save Mahal distances and ratios
+                    mahal_train_control_all[run_ind,layer,stage_ind,:] = mahal_train_control
+                    mahal_untrain_control_all[run_ind,layer,stage_ind,:] = mahal_untrain_control
+                    mahal_within_train_all[run_ind,layer,stage_ind,:] = mahal_within_train
+                    mahal_within_untrain_all[run_ind,layer,stage_ind,:] = mahal_within_untrain
+                    train_SNR_all[run_ind,layer,stage_ind,:] = mahal_train_control / mahal_within_train
+                    untrain_SNR_all[run_ind,layer,stage_ind,:] = mahal_untrain_control / mahal_within_untrain
+
+                    # Average over trials
+                    mahal_train_control_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_train_control)
+                    mahal_untrain_control_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_untrain_control)
+                    mahal_within_train_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_within_train)
+                    mahal_within_untrain_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_within_untrain)
+                    train_SNR_mean[run_ind,layer,stage_ind] = numpy.mean(train_SNR_all[run_ind,layer,stage_ind,:])
+                    untrain_SNR_mean[run_ind,layer,stage_ind] = numpy.mean(untrain_SNR_all[run_ind,layer,stage_ind,:])
+
+                # Calculate learning modulation indices (LMI)
+                for stage_ind_ in range(num_stages-1):
+                    LMI_across[run_ind,layer,stage_ind_] = (mahal_train_control_mean[run_ind,layer,stage_ind_+1] - mahal_train_control_mean[run_ind,layer,stage_ind_]) - (mahal_untrain_control_mean[run_ind,layer,stage_ind_+1] - mahal_untrain_control_mean[run_ind,layer,stage_ind_] )
+                    LMI_within[run_ind,layer,stage_ind_] = (mahal_within_train_mean[run_ind,layer,stage_ind_+1] - mahal_within_train_mean[run_ind,layer,stage_ind_]) - (mahal_within_untrain_mean[run_ind,layer,stage_ind_+1] - mahal_within_untrain_mean[run_ind,layer,stage_ind_] )
+                    LMI_ratio[run_ind,layer,stage_ind_] = (train_SNR_mean[run_ind,layer,stage_ind_+1] - train_SNR_mean[run_ind,layer,stage_ind_]) - (untrain_SNR_mean[run_ind,layer,stage_ind_+1] - untrain_SNR_mean[run_ind,layer,stage_ind_] )
         
-        # Print the results for the current run
-        print(MVPA_scores[run_ind,:,:,0], 'trained vs control')
-        print(MVPA_scores[run_ind,:,:,1], 'untrained vs control')
-        print([np.mean(mahal_train_control_all[run_ind,0,:,:], axis = -1)] ,'train')
-        print([np.mean(mahal_untrain_control_all[run_ind,0,:,:],axis=-1)],'untrain')
-
         print(f'runtime of run {run_ind}:',time.time()-start_time)
 
     ################# Create dataframes for the Mahalanobis distances and LMI #################
-    #df_mahal, df_LMI = LMI_Mahal_df(num_training, num_layers, num_stage_inds, mahal_train_control_mean, mahal_untrain_control_mean, mahal_within_train_mean, mahal_within_untrain_mean, train_SNR_mean, untrain_SNR_mean, LMI_across, LMI_within, LMI_ratio)
     Mahal_scores[:,:,:,0] = mahal_train_control_mean
     Mahal_scores[:,:,:,1] = mahal_untrain_control_mean
 
@@ -1139,7 +1089,7 @@ def MVPA_anova(folder):
         
         print(f"ANOVA results for Layer {layer}:")
         print(anova_table)
-
+        '''
         # paired t-test on MVPA_score diff 
         print(f"Paired t-test for Layer {layer}:")
         ori_tr = 0
@@ -1150,4 +1100,5 @@ def MVPA_anova(folder):
         print(f"t-statistic: {t_stat}, p-value: {p_val}")
         print(f'55 mean:{numpy.mean(trained)}, std:{numpy.std(trained)}')
         print(f'125 mean:{numpy.mean(untrained)}, std:{numpy.std(untrained)}')
+        '''
         

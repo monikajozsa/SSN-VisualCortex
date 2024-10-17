@@ -8,6 +8,7 @@ import statsmodels.api as sm
 import scipy
 import os
 import sys
+from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, MVPA_param_offset_correlations, data_from_run, exclude_runs, param_offset_correlations, pre_post_for_runs
@@ -70,9 +71,12 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
         for j in range(len(data[0])):
             ax.plot([0, 1], [data[0, j], data[1, j]], color='black', alpha=0.2)
         
-    def barplot_params(colors, keys, titles, means_pre, means_post, vals_pre, vals_post, figname):
+    def barplot_params(colors, keys, titles, means_pre, means_post, vals_pre, vals_post, figname, ylims=None):
         if len(keys) == 1:
             fig, ax = plt.subplots()
+        elif len(keys) == 2:
+            fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+            ax_flat = ax
         else:
             fig, ax = plt.subplots(2, len(keys)//2, figsize=(len(keys)//2 * 5, 10))
             ax_flat = ax.flatten()
@@ -92,6 +96,8 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
             ax_i.set_xticklabels(x_labels, fontsize=20)
             annotate_bar(ax_i, bars, [param_means_pre[i], param_means_post[i]])
             scatter_data_with_lines(ax_i, numpy.abs(numpy.array([vals_pre[keys[i]], vals_post[keys[i]]])))
+            if ylims is not None:
+                ax_i.set_ylim(ylims[i])
         plt.tight_layout()
         fig.savefig(figname)
         plt.close()
@@ -142,10 +148,10 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
 
     ################# Plotting bar plots of offset before and after given time indices #################
     # Colors for bars
-    keys_offset = ['staircase_offset']
-    titles_offset = ['Staircase offset']
-    colors = ['green']
-    barplot_params(colors, keys_offset, titles_offset, means_pre, means_post, vals_pre, vals_post, save_folder + '/offset_pre_post.png')
+    keys_offset = ['staircase_offset', 'psychometric_offset']
+    titles_offset = ['Staircase offset threshold', 'Psychometric offset threshold']
+    colors = ['green', 'forestgreen']
+    barplot_params(colors, keys_offset, titles_offset, means_pre, means_post, vals_pre, vals_post, save_folder + '/offset_pre_post.png', ylims=[[0, 20], [0,20]])
 
     ################# Plotting bar plots of J parameters before and after given time indices #################
     # Colors for bars
@@ -242,7 +248,7 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
     values_fc = [rel_changes_train[key]for key in keys_fc]
 
     # Exclude the run from further analysis if for both staircase and psychometric offsets more than 8 values out of the last 10 were above 10 degrees
-    exclude_run = sum(df[keys_metrics[1]][-11:-1] > 9) > 8 and sum(df[keys_metrics[2]][-11:-1] > 9) > 8
+    exclude_run = any(df[keys_metrics[1]][-11:-1] > 10)  and sum(df[keys_metrics[2]][-11:-1] > 9.9) > 8
 
     # Choosing colors for each bar
     colors_J = ['tab:red', 'tab:orange', 'tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:blue']
@@ -271,7 +277,7 @@ def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
     axes[0,2].set_title('Offset', fontsize=20)
     axes[0,2].set_ylabel('degrees', fontsize=20)
     axes[0,2].set_xlabel('SGD steps', fontsize=20)
-    axes[0,2].set_ylim(0, min(25,max(df[keys_metrics[2]])+1)) # keys_metrics[2] should be the staircase offset
+    axes[0,2].set_ylim(0, min(25,max(df[keys_metrics[2]])+1)) # keys_metrics[2] is the staircase offset
     axes[0,2].legend(loc='upper right', fontsize=20)
        
     ################ Plot changes in sigmoid weights and bias over time ################
@@ -337,7 +343,7 @@ def plot_results_from_csvs(folder_path, num_runs=3, folder_to_save=None, startin
         sys.path.append(folder_path)
 
     # Plot loss, accuracy and trained parameters
-    excluded_run_inds = None
+    excluded_run_inds = []
     for j in range(starting_run, num_runs):
         if folder_to_save is not None:
             results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}')
@@ -363,7 +369,7 @@ def plot_results_on_parameters(final_folder_path, num_training, plot_per_run = T
         # save excluded_run_inds into a csv in final_folder_path
         excluded_run_inds_df = pd.DataFrame(excluded_run_inds)
         excluded_run_inds_df.to_csv(os.path.join(final_folder_path, 'excluded_runs.csv'))
-        if excluded_run_inds is not None:
+        if len(excluded_run_inds) > 0:
             exclude_runs(final_folder_path, excluded_run_inds)
             num_training=num_training-len(excluded_run_inds)
     if plot_boxplots:
@@ -557,7 +563,7 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
     ax.set_title(title)
 
 
-def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False):
+def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False, only_slope_plot=False, only_center_cells=False):
     """Plot tuning curve features for E and I cells at different stages of training"""
     def sliding_mannwhitney(x1, y1, x2, y2, window_size, sliding_unit):
         from scipy.stats import mannwhitneyu
@@ -600,18 +606,18 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         # Convert lists to arrays and return
         return np.array(x_window_center), np.array(p_val_vec)
 
-    def shift_x_data(x_data, indices, shift_value=90):
+    def shift_x_data(x_data, indices, shift_val=90, L_ori=180):
         """ Shift circular x_data by shift_value and center it around the new 0 (around shift_value) """
-        x_data_shifted = x_data[:, indices].flatten() - shift_value
-        x_data_shifted = numpy.where(x_data_shifted > 90, x_data_shifted - 180, x_data_shifted)
-        x_data_shifted = numpy.where(x_data_shifted < -90, x_data_shifted + 180, x_data_shifted)
+        x_data_shifted = x_data[:, indices].flatten() - shift_val
+        x_data_shifted = numpy.where(x_data_shifted > L_ori/2, x_data_shifted - L_ori, x_data_shifted)
+        x_data_shifted = numpy.where(x_data_shifted < -L_ori/2, x_data_shifted + L_ori, x_data_shifted)
         return x_data_shifted
     
     def scatter_feature(ax, y, x, indices_E, indices_I, shift_val=55, fs_ticks=40, feature=None, values_for_colors=None, title=None, axes_inds=[0,0], add_cross=False):
         """Scatter plot of feature for E and I cells. If shift_val is not None, then x should be the preferred orientation that will be centered around shift_val."""
         if shift_val is not None:
-            x_I = shift_x_data(x, indices_I, shift_value=shift_val)
-            x_E = shift_x_data(x, indices_E, shift_value=shift_val)
+            x_I = shift_x_data(x, indices_I, shift_val=shift_val)
+            x_E = shift_x_data(x, indices_E, shift_val=shift_val)
         else:
             x_I = x[:,indices_I].flatten()
             x_E = x[:,indices_E].flatten()
@@ -625,23 +631,30 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
             color_E = cmap(norm(values_for_colors[:,indices_E].flatten()))
             color_I = cmap(norm(values_for_colors[:,indices_I].flatten()))
         else:
-            color_E = 'red'
-            color_I = 'blue'
+            color_E = 'tab:orange'
+            color_I = 'tab:cyan'
         ax.scatter(x_E, y[:,indices_E].flatten(), s=50, alpha=0.3, color=color_E)
         ax.scatter(x_I, y[:,indices_I].flatten(), s=50, alpha=0.3, color=color_I)
         if shift_val is None:
             xpoints = ypoints = ax.get_xlim()
             ax.plot(xpoints, ypoints, color='black', linewidth=2)
-            ax.set_xlabel('Pre training', fontsize=fs_ticks)
+            if axes_inds[0]==1:
+                ax.set_xlabel('Pre training', fontsize=fs_ticks)
             if axes_inds[1] == 0 and axes_inds[0] == 0:
                 ax.set_ylabel('MIDDLE LAYER \n\n Post training', fontsize=fs_ticks)
             if axes_inds[1] == 0 and axes_inds[0] == 1:
                 ax.set_ylabel('SUPERFICIAL LAYER \n\n Post training', fontsize=fs_ticks)
             axes_format(ax, fs_ticks)
+        else:
+            if axes_inds[1] == 0 and axes_inds[0] == 0:
+                ax.set_ylabel('MIDDLE LAYER \n', fontsize=fs_ticks)
+            if axes_inds[1] == 0 and axes_inds[0] == 1:
+                ax.set_ylabel('SUPERFICIAL LAYER \n', fontsize=fs_ticks)
             
         if title is None:
             title = feature
-        ax.set_title(title, fontsize=fs_ticks)
+        if axes_inds[0]==0:
+            ax.set_title(title, fontsize=fs_ticks)
 
         if add_cross: # add a cross at the mean of the data and two error bars for the standard deviations on x and y axes
             mean_E_y = numpy.mean(y[:,indices_E].flatten())
@@ -652,17 +665,17 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
             std_I_y = numpy.std(y[:,indices_I].flatten())
             std_E_x = numpy.std(x_E)
             std_I_x = numpy.std(x_I)
-            ax.errorbar(mean_E_x, mean_E_y, xerr=std_E_x, yerr=std_E_y, fmt='o', color='tab:red', markersize=15, elinewidth=3, capsize=5, capthick=2)
-            print(f'{mean_E_x:.1f}, {mean_E_y:.1f}, {std_E_x:.1f}, {std_E_y:.1f}')
-            ax.errorbar(mean_I_x, mean_I_y, xerr=std_I_x, yerr=std_I_y, fmt='o', color='tab:blue', markersize=15, elinewidth=3, capsize=5, capthick=2)
-            print(f'{mean_I_x:.1f}, {mean_I_y:.1f}, {std_I_x:.1f}, {std_I_y:.1f}')
+            ax.errorbar(mean_E_x, mean_E_y, xerr=std_E_x, yerr=std_E_y, fmt='o', color='tab:red', markersize=15, elinewidth=8, capsize=5, capthick=2)
+            #print(f'{mean_E_x:.1f}, {mean_E_y:.1f}, {std_E_x:.1f}, {std_E_y:.1f}')
+            ax.errorbar(mean_I_x, mean_I_y, xerr=std_I_x, yerr=std_I_y, fmt='o', color='blue', markersize=15, elinewidth=8, capsize=5, capthick=2)
+            #print(f'{mean_I_x:.1f}, {mean_I_y:.1f}, {std_I_x:.1f}, {std_I_y:.1f}')
 
     def lowess_feature(ax, y, x, indices_E, indices_I, shift_val=55, frac=0.15, shades=''):
         """Plot lowess smoothed feature for E and I cells. Curves are fitted separately for E and I cells and for x<0 and x>0."""
         # fit curves separately for the smoothed_x_E<0 and smoothed_x_E>0
         if shift_val is not None:
-            x_I = shift_x_data(x, indices_I, shift_value=shift_val)
-            x_E = shift_x_data(x, indices_E, shift_value=shift_val)
+            x_I = shift_x_data(x, indices_I, shift_val=shift_val)
+            x_E = shift_x_data(x, indices_E, shift_val=shift_val)
         else:
             x_I = x[:,indices_I].flatten()
             x_E = x[:,indices_E].flatten()
@@ -683,8 +696,8 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         lowess_I = numpy.concatenate((lowess_I_neg, lowess_I_pos), axis=0)
         #lowess_I = sm.nonparametric.lowess(y_I, x_I, frac=frac) # if we don't want to separate the curve into x<0 and x>0
         
-        ax.plot(lowess_E[:, 0], numpy.abs(lowess_E[:, 1]), color=shades+'red', linewidth=10, alpha=0.8)
-        ax.plot(lowess_I[:, 0], numpy.abs(lowess_I[:, 1]), color=shades+'blue', linewidth=10, alpha=0.8)
+        ax.plot(lowess_E[:, 0], lowess_E[:, 1], color=shades+'red', linewidth=10, alpha=0.8)
+        ax.plot(lowess_I[:, 0], lowess_I[:, 1], color=shades+'blue', linewidth=10, alpha=0.8)
 
     def mesh_for_feature(data, feature, mesh_cells):
         mesh_feature = data['feature']==feature
@@ -702,20 +715,25 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
     ############## Plots about changes before vs after training and pretraining (per layer and per centered or all) ##############
              
     # Define indices for each group of cells
-    E_sup = numpy.linspace(0, 80, 81).astype(int) + 648 
-    I_sup = numpy.linspace(81, 161, 81).astype(int) + 648
-    #E_sup_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)+648
-    #I_sup_centre = (E_sup_centre+81).astype(int)
-    
-    mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
-    E_mid = mid_array[:,0,:].ravel().astype(int)
-    I_mid = mid_array[:,1,:].ravel().astype(int)
-    #E_mid_centre_ph0 = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
-    #E_mid_centre_ph1, E_mid_centre_ph2, E_mid_centre_ph3 = E_mid_centre_ph0+162, E_mid_centre_ph0+2*162, E_mid_centre_ph0+3*162
-    #E_mid_centre = numpy.concatenate((E_mid_centre_ph0, E_mid_centre_ph1, E_mid_centre_ph2, E_mid_centre_ph3))
-    #I_mid_centre = E_mid_centre + 81
-    #indices_centre = [E_mid_centre, I_mid_centre, E_sup_centre, I_sup_centre]
-    indices = [E_mid, I_mid, E_sup, I_sup]
+    if only_center_cells:
+        E_sup_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)+648
+        I_sup_centre = (E_sup_centre+81).astype(int)
+        E_mid_centre_ph0 = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)
+        E_mid_centre_ph1, E_mid_centre_ph2, E_mid_centre_ph3 = E_mid_centre_ph0+162, E_mid_centre_ph0+2*162, E_mid_centre_ph0+3*162
+        E_mid_centre = numpy.concatenate((E_mid_centre_ph0, E_mid_centre_ph1, E_mid_centre_ph2, E_mid_centre_ph3))
+        I_mid_centre = E_mid_centre + 81
+        indices = [E_mid_centre, I_mid_centre, E_sup_centre, I_sup_centre]
+        E_mid_centre_phase_0_pi= numpy.concatenate((E_mid_centre_ph0,E_mid_centre_ph2))
+        indices_mid_phase_0_pi = [E_mid_centre_phase_0_pi, E_mid_centre_phase_0_pi + 81, E_sup_centre, I_sup_centre]
+    else:
+        E_sup = numpy.linspace(0, 80, 81).astype(int) + 648 
+        I_sup = numpy.linspace(81, 161, 81).astype(int) + 648
+        mid_array = numpy.linspace(0, 647, 648).round().reshape(4, 2, 81).astype(int)
+        E_mid = mid_array[:,0,:].ravel().astype(int)
+        I_mid = mid_array[:,1,:].ravel().astype(int)
+        indices = [E_mid, I_mid, E_sup, I_sup]
+        E_mid_phase_0_pi = numpy.concatenate((mid_array[0,0,:], mid_array[2,0,:]))
+        indices_mid_phase_0_pi = [E_mid_phase_0_pi, E_mid_phase_0_pi + 81, E_sup, I_sup]
     
     ###############################################
     ######### Schoups-style scatter plots #########
@@ -739,17 +757,17 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         else:
             mesh_stage_post = pretrain_tc_features['stage']==training_stage+1
             data_post = pretrain_tc_features[mesh_stage_post]    
-        
-        min_pre = mesh_for_feature(data_pre, 'min', mesh_cells)
-        min_post = mesh_for_feature(data_post, 'min', mesh_cells)
-        max_pre = mesh_for_feature(data_pre, 'max', mesh_cells) # (max-min)/max
-        max_post = mesh_for_feature(data_post, 'max', mesh_cells)
-        mean_pre = mesh_for_feature(data_pre, 'mean', mesh_cells)
-        mean_post = mesh_for_feature(data_post, 'mean', mesh_cells)
-        slope_hm_pre = mesh_for_feature(data_pre, 'slope_hm', mesh_cells)
-        slope_hm_post = mesh_for_feature(data_post, 'slope_hm', mesh_cells)
-        fwhm_pre = mesh_for_feature(data_pre, 'fwhm', mesh_cells)      
-        fwhm_post = mesh_for_feature(data_post, 'fwhm', mesh_cells)
+        if not only_slope_plot:
+            min_pre = mesh_for_feature(data_pre, 'min', mesh_cells)
+            min_post = mesh_for_feature(data_post, 'min', mesh_cells)
+            max_pre = mesh_for_feature(data_pre, 'max', mesh_cells) # (max-min)/max
+            max_post = mesh_for_feature(data_post, 'max', mesh_cells)
+            mean_pre = mesh_for_feature(data_pre, 'mean', mesh_cells)
+            mean_post = mesh_for_feature(data_post, 'mean', mesh_cells)
+            slope_hm_pre = mesh_for_feature(data_pre, 'slope_hm', mesh_cells)
+            slope_hm_post = mesh_for_feature(data_post, 'slope_hm', mesh_cells)
+            fwhm_pre = mesh_for_feature(data_pre, 'fwhm', mesh_cells)      
+            fwhm_post = mesh_for_feature(data_post, 'fwhm', mesh_cells)
         slope_55_pre = mesh_for_feature(data_pre, 'slope_55', mesh_cells)
         slope_55_post = mesh_for_feature(data_post, 'slope_55', mesh_cells)
         slope_125_pre = mesh_for_feature(data_pre, 'slope_125', mesh_cells)
@@ -757,9 +775,17 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         slopediff_55 = numpy.abs(slope_55_post) - numpy.abs(slope_55_pre)
         slopediff_125 = numpy.abs(slope_125_post) - numpy.abs(slope_125_pre)
 
+        # Get the preferred orientation from data_post
         mesh_pref_ori = data_post['feature']=='pref_ori'
-        pref_ori = data_post[mesh_pref_ori]
-        pref_ori = pref_ori.loc[:,mesh_cells].to_numpy()
+        pref_ori_v1 = data_post.loc[mesh_pref_ori]
+        pref_ori_v1 = pref_ori_v1.loc[:,mesh_cells].to_numpy()
+        # Get the preferred orientation from orimap.csv
+        orimap_file_path = os.path.join(results_dir,'orimap.csv')
+        df_orimap = pd.read_csv(orimap_file_path)
+        np_orimap=df_orimap.to_numpy()
+        np_orimap = np_orimap[:,1:]
+        # Repeat the orimap 10 times over the second axis
+        pref_ori = np.tile(np_orimap, 10)
         if color_by == 'pref_ori':
             colors_scatter_feature = pref_ori
         elif color_by == 'phase':
@@ -770,72 +796,75 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
             colors_scatter_feature = numpy.reshape(numpy.repeat(numpy.arange(pref_ori.shape[0]), pref_ori.shape[1]), (pref_ori.shape[0], pref_ori.shape[1])) # coloring by run
         else:
             colors_scatter_feature = None
-        for layer in range(2):            
-            ##### Plot features before vs after training per layer and cell type #####
-            scatter_feature(axs[layer,0], fwhm_post, fwhm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='fwhm', values_for_colors=colors_scatter_feature, title='Tuning width', axes_inds = [layer,0], add_cross=add_cross)
-            scatter_feature(axs[layer,1], min_post, min_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='min', values_for_colors=colors_scatter_feature, title='Baseline rate', axes_inds = [layer,1], add_cross=add_cross)
-            scatter_feature(axs[layer,2], max_post, max_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='max', values_for_colors=colors_scatter_feature, title='Peak firing rate', axes_inds = [layer,2], add_cross=add_cross)
-            scatter_feature(axs[layer,3], mean_post, mean_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='mean', values_for_colors=colors_scatter_feature, title='Mean firing rate', axes_inds = [layer,3], add_cross=add_cross)
-            scatter_feature(axs[layer,4], slope_hm_post, slope_hm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_hm', values_for_colors=colors_scatter_feature, title='Slope at half maximum', axes_inds = [layer,4], add_cross=add_cross)
+        if not only_slope_plot:
+            for layer in range(2):            
+                ##### Plot features before vs after training per layer and cell type #####
+                scatter_feature(axs[layer,0], fwhm_post, fwhm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='fwhm', values_for_colors=colors_scatter_feature, title='Tuning width', axes_inds = [layer,0], add_cross=add_cross)
+                scatter_feature(axs[layer,1], min_post, min_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='min', values_for_colors=colors_scatter_feature, title='Baseline rate', axes_inds = [layer,1], add_cross=add_cross)
+                scatter_feature(axs[layer,2], max_post, max_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='max', values_for_colors=colors_scatter_feature, title='Peak firing rate', axes_inds = [layer,2], add_cross=add_cross)
+                scatter_feature(axs[layer,3], mean_post, mean_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='mean', values_for_colors=colors_scatter_feature, title='Mean firing rate', axes_inds = [layer,3], add_cross=add_cross)
+                scatter_feature(axs[layer,4], slope_hm_post, slope_hm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_hm', values_for_colors=colors_scatter_feature, title='Slope at half maximum', axes_inds = [layer,4], add_cross=add_cross)
 
-        plt.tight_layout()
+            plt.tight_layout()
 
-        # Add colorbar
-        if (colors_scatter_feature == pref_ori).all():
-            cbar = fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=np.min(pref_ori), vmax=np.max(pref_ori)), cmap='rainbow'),ax=axs,orientation='vertical')
-            cbar.set_label('Preferred orientation', fontsize=40)
-            cbar.ax.tick_params(labelsize=20) 
-        else:
-            # Discrete colors and labels
-            display_legend = True
-            discrete_colors = ['red', 'blue', 'green', 'orange']  # Example discrete colors
+            # Add colorbar
             if colors_scatter_feature is not None:
-                unique_values = np.unique(colors_scatter_feature)
-                discrete_colors = cmap(np.linspace(0, 1, len(unique_values)))
-                if len(discrete_colors)==5:
-                    discrete_labels = ['Phase 0', 'Phase Pi/2', 'Phase 3Pi/2', 'Phase Pi', 'No phase']  # Corresponding labels
-                else:
-                    display_legend = False
+                if (colors_scatter_feature == pref_ori).all():
+                    cbar = fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=np.min(pref_ori), vmax=np.max(pref_ori)), cmap='rainbow'),ax=axs,orientation='vertical')
+                    cbar.set_label('Preferred orientation', fontsize=40)
+                    cbar.ax.tick_params(labelsize=20) 
             else:
-                discrete_colors = ['red', 'blue']
-                discrete_labels = ['Excitatory', 'Inhibitory']
-            if display_legend:
-                # Create custom legend for discrete set of colors
-                handles = [mpl.patches.Patch(color=color, label=label) for color, label in zip(discrete_colors, discrete_labels)]
-                axs[0, 0].legend(handles=handles, loc='upper left', fontsize=20)
-        
-        # Save plot
-        if training_stage == 0:
-            if not os.path.exists(os.path.join(os.path.dirname(results_dir),'pretraining_figures')):
-                os.makedirs(os.path.join(os.path.dirname(results_dir),'pretraining_figures'))
-            file_path = os.path.join(os.path.dirname(results_dir),'pretraining_figures', f'tc_features_{stage_labels[training_stage]}_color_by_{color_by}.png')
-        else:
-            file_path = os.path.join(results_dir,'figures', f'tc_features_{stage_labels[training_stage]}_color_by_{color_by}.png')
-        fig.savefig(file_path)
-        plt.close()
+                # Discrete colors and labels
+                display_legend = True
+                discrete_colors = ['red', 'blue', 'green', 'orange']  # Example discrete colors
+                if colors_scatter_feature is not None:
+                    unique_values = np.unique(colors_scatter_feature)
+                    discrete_colors = cmap(np.linspace(0, 1, len(unique_values)))
+                    if len(discrete_colors)==5:
+                        discrete_labels = ['Phase 0', 'Phase Pi/2', 'Phase 3Pi/2', 'Phase Pi', 'No phase']  # Corresponding labels
+                    else:
+                        display_legend = False
+                else:
+                    discrete_colors = ['tab:orange', 'tab:cyan']
+                    discrete_labels = ['Excitatory', 'Inhibitory']
+                if display_legend:
+                    # Create custom legend for discrete set of colors
+                    handles = [mpl.patches.Patch(color=color, label=label) for color, label in zip(discrete_colors, discrete_labels)]
+                    axs[0, 0].legend(handles=handles, loc='upper left', fontsize=20)
+            
+            # Save plot
+            if training_stage == 0:
+                if not os.path.exists(os.path.join(os.path.dirname(results_dir),'pretraining_figures')):
+                    os.makedirs(os.path.join(os.path.dirname(results_dir),'pretraining_figures'))
+                file_path = os.path.join(os.path.dirname(results_dir),'pretraining_figures', f'tc_features_{stage_labels[training_stage]}_color_by_{color_by}.png')
+            else:
+                file_path = os.path.join(results_dir,'figures', f'tc_features_{stage_labels[training_stage]}_color_by_{color_by}.png')
+            fig.savefig(file_path)
+            plt.close()
 
-        # 3 x 2 scatter plot of data[slopediff_55_0 and 1], data[slopediff_55_0 and 1] and data[slopediff_diff]
+        # Scatter plot of data[slopediff_55_0 and 1], data[slopediff_55_0 and 1] with lowess smoothed lines and Mann-Whitney U test
         fig, axs = plt.subplots(2, 4, figsize=(40, 20))
         # Loop through layers
         for layer in range(2):
-            scatter_feature(axs[layer,0], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=55, feature='slopediff_55', values_for_colors=colors_scatter_feature)
-            scatter_feature(axs[layer,1], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=55, feature='slopediff_55', values_for_colors=colors_scatter_feature)
-            lowess_feature(axs[layer,0], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=55, shades='dark')
-            lowess_feature(axs[layer,1], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, shades='tab:')
-            lowess_feature(axs[layer,2], slopediff_55, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=55, shades='dark')
-            lowess_feature(axs[layer,2], slopediff_125, pref_ori, indices[2*layer], indices[2*layer+1], shift_val=125, shades='tab:')
-            pref_ori_55_E = shift_x_data(pref_ori, indices[2*layer], shift_value=55)
-            pref_ori_125_E = shift_x_data(pref_ori, indices[2*layer], shift_value=125)
-            pref_ori_55_I = shift_x_data(pref_ori, indices[2*layer+1], shift_value=55)
-            pref_ori_125_I = shift_x_data(pref_ori, indices[2*layer+1], shift_value=125)
-            slopediff_55_E = slopediff_55[:,indices[2*layer]].flatten()
-            slopediff_55_I = slopediff_55[:,indices[2*layer+1]].flatten()
-            slopediff_125_E = slopediff_125[:,indices[2*layer]].flatten()
-            slopediff_125_I = slopediff_125[:,indices[2*layer+1]].flatten()
+            scatter_feature(axs[layer,0], slopediff_55, pref_ori, indices_mid_phase_0_pi[2*layer], indices_mid_phase_0_pi[2*layer+1], shift_val=55, feature='slopediff_55', values_for_colors=colors_scatter_feature, axes_inds=[layer,0])
+            scatter_feature(axs[layer,1], slopediff_125, pref_ori, indices_mid_phase_0_pi[2*layer], indices_mid_phase_0_pi[2*layer+1], shift_val=125, feature='slopediff_125', values_for_colors=colors_scatter_feature, axes_inds=[layer,1])
+            lowess_feature(axs[layer,0], slopediff_55, pref_ori, indices_mid_phase_0_pi[2*layer], indices_mid_phase_0_pi[2*layer+1], shift_val=55, shades='dark')
+            lowess_feature(axs[layer,1], slopediff_125, pref_ori, indices_mid_phase_0_pi[2*layer], indices_mid_phase_0_pi[2*layer+1], shift_val=125, shades='tab:')
+            lowess_feature(axs[layer,2], slopediff_55, pref_ori, indices_mid_phase_0_pi[2*layer], indices_mid_phase_0_pi[2*layer+1], shift_val=55, shades='dark')
+            lowess_feature(axs[layer,2], slopediff_125, pref_ori, indices_mid_phase_0_pi[2*layer], indices_mid_phase_0_pi[2*layer+1], shift_val=125, shades='tab:')
+            pref_ori_55_E = shift_x_data(pref_ori, indices_mid_phase_0_pi[2*layer], shift_val=55)
+            pref_ori_125_E = shift_x_data(pref_ori, indices_mid_phase_0_pi[2*layer], shift_val=125)
+            pref_ori_55_I = shift_x_data(pref_ori, indices_mid_phase_0_pi[2*layer+1], shift_val=55)
+            pref_ori_125_I = shift_x_data(pref_ori, indices_mid_phase_0_pi[2*layer+1], shift_val=125)
+            slopediff_55_E = slopediff_55[:,indices_mid_phase_0_pi[2*layer]].flatten()
+            slopediff_55_I = slopediff_55[:,indices_mid_phase_0_pi[2*layer+1]].flatten()
+            slopediff_125_E = slopediff_125[:,indices_mid_phase_0_pi[2*layer]].flatten()
+            slopediff_125_I = slopediff_125[:,indices_mid_phase_0_pi[2*layer+1]].flatten()
             x_mw_55_E, y_mw_55_E = sliding_mannwhitney(pref_ori_55_E, slopediff_55_E, pref_ori_125_E, slopediff_125_E, window_size=10, sliding_unit=0.2)
             x_mw_55_I, y_mw_55_I = sliding_mannwhitney(pref_ori_55_I, slopediff_55_I, pref_ori_125_I, slopediff_125_I, window_size=10, sliding_unit=0.2)
             axs[layer,3].plot(x_mw_55_E, y_mw_55_E, color='red', linewidth=2)
             axs[layer,3].plot(x_mw_55_I, y_mw_55_I, color='blue', linewidth=2)
+
             # Add dashed black line at 0.05
             axs[layer,3].axhline(y=0.05, color='black', linestyle='--', linewidth=2)
             
@@ -871,6 +900,12 @@ def match_keys_to_labels(key_list):
             matched_labels[key] = r'$\Delta J^{\text{mid}}_{E \rightarrow I}$'
         elif 'J_II_m' in key:
             matched_labels[key] = r'$\Delta J^{\text{mid}}_{I \rightarrow I}$'
+        elif 'J_I_m' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{I \rightarrow }$'
+        elif 'J_E_m' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{E \rightarrow }$'
+        elif 'EI_ratio_J_m' in key or 'JmI/JmE' in key:
+            matched_labels[key] = r'$\Delta J^{\text{mid}}_{E \rightarrow }/ J^{\text{mid}}_{I \rightarrow }$'
         elif 'J_EE_s' in key:
             matched_labels[key] = r'$\Delta J^{\text{sup}}_{E \rightarrow E}$'
         elif 'J_EI_s' in key:
@@ -879,17 +914,11 @@ def match_keys_to_labels(key_list):
             matched_labels[key] = r'$\Delta J^{\text{sup}}_{E \rightarrow I}$'
         elif 'J_II_s' in key:
             matched_labels[key] = r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'
-        elif 'J_I_m' in key:
-            matched_labels[key] = r'$\Delta J^{\text{mid}}_{I \rightarrow }$'
         elif 'J_I_s' in key:
             matched_labels[key] = r'$\Delta J^{\text{sup}}_{I \rightarrow }$'
-        elif 'J_E_m' in key:
-            matched_labels[key] = r'$\Delta J^{\text{mid}}_{E \rightarrow }$'
         elif 'J_E_s' in key:
             matched_labels[key] = r'$\Delta J^{\text{sup}}_{E \rightarrow }$'
-        elif 'EI_ratio_J_m' in key:
-            matched_labels[key] = r'$\Delta J^{\text{mid}}_{E \rightarrow }/ J^{\text{mid}}_{I \rightarrow }$'
-        elif 'EI_ratio_J_s' in key:
+        elif 'EI_ratio_J_s' in key or 'JsI/JsE' in key:
             matched_labels[key] = r'$\Delta J^{\text{sup}}_{E \rightarrow }/ J^{\text{sup}}_{I \rightarrow }$'
         elif 'EI_ratio_J_ms' in key:
             matched_labels[key] = r'$\Delta J_{E \rightarrow }/ J_{I \rightarrow }$'
@@ -913,11 +942,15 @@ def match_keys_to_labels(key_list):
             matched_labels[key] = r'$\Delta \kappa^{\text{post}}_{E \rightarrow  E}$'
         elif 'kappa_IE_post' in key:
             matched_labels[key] = r'$\Delta \kappa^{\text{post}}_{E \rightarrow  I}$'
+        elif 'offset_th' in key: # Psychometric offset threshold for correlation triangles
+            matched_labels[key] = r'$\Delta \theta_{\text{offset}}$'
+        else:
+            matched_labels[key] = key  # Default to the key itself if no match is found
     
     return matched_labels
 
 def plot_param_offset_correlations(folder):
-    """Plot the correlations between the offset parameters and the psychometric, staircase, and loss parameters"""
+    """ Plot the correlations between the psychometric offset threshold and the model parameters. """
     # Helper functions
     def get_color(corr_and_p):
         """Determine the color based on correlation value and significance."""
@@ -946,11 +979,11 @@ def plot_param_offset_correlations(folder):
         if title is not None:
             fig.suptitle(title, fontsize=20)
         fig.tight_layout()
-        fig.savefig(folder + filename)
+        fig.savefig(str(folder) + filename)
         plt.close(fig)
 
     corr_psychometric_offset_param, corr_staircase_offset_param, corr_loss_param, rel_changes_train = param_offset_correlations(folder)
-    # Make three plots of the correlations between the offset parameters and the psychometric, staircase, and loss parameters
+    # Make correlations plots between the psychometric offset and model parameters
     keys_a = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m', 'J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']
     keys_b = ['J_E_m', 'J_I_m', 'EI_ratio_J_m', 'J_E_s', 'J_I_s', 'EI_ratio_J_s']
     keys_c = ['f_E', 'f_I', 'cE_m', 'cI_m', 'cE_s', 'cI_s']
@@ -961,7 +994,7 @@ def plot_param_offset_correlations(folder):
     fig1d, axes1d = plt.subplots(nrows=2, ncols=2, figsize=(2*5, 2*5)) # kappa params
     # Process each group of parameters
     parameter_groups = [keys_a, keys_b, keys_c, keys_d]
-    x_labels = match_keys_to_labels(corr_staircase_offset_param.keys())
+    x_labels = match_keys_to_labels(corr_psychometric_offset_param.keys())
     for i, keys_group in enumerate(parameter_groups):
         if i == 0:
             axes_flat = axes1a.flatten()
@@ -981,20 +1014,18 @@ def plot_param_offset_correlations(folder):
             else:
                 y_label = None
             # rows of the plot collect types of parameters: 1) mid, 2) sup, 3) f and kappa, 4) J combined
-            corr_and_p_1 = corr_staircase_offset_param[param_key]
-            #corr_and_p_2 = corr_staircase_offset_param[param_key]
-            regplots(param_key, 'staircase_offset', rel_changes_train, corr_and_p_1, axes_flat, j, x_labels[param_key], y_label)
-            #regplots(param_key, 'psychometric_offset', rel_changes_train, corr_and_p_2, axes_flat, j) 
+            corr_and_p_1 = corr_psychometric_offset_param[param_key]
+            regplots(param_key, 'psychometric_offset', rel_changes_train, corr_and_p_1, axes_flat, j, x_labels[param_key], y_label)
             j += 1
         # Adjust layout and save + close the plot
-        save_fig(fig1a, folder, f'/figures/corr_staircase_Jraw.png', title='Raw J parameters vs staircase threshold')
-        save_fig(fig1b, folder, f'/figures/corr_staircase_Jcombined.png', title='Combined J parameters vs staircase threshold')
-        save_fig(fig1c, folder, f'/figures/corr_staircase_f_c.png', title='f and c parameters vs staircase threshold')
-        save_fig(fig1d, folder, f'/figures/corr_staircase_kappa.png', title='kappa parameters vs staircase threshold')
+        save_fig(fig1a, folder, f'/figures/corr_psychometric_Jraw.png', title='Raw J parameters vs psychometric threshold')
+        save_fig(fig1b, folder, f'/figures/corr_psychometric_Jcombined.png', title='Combined J parameters vs psychometric threshold')
+        save_fig(fig1c, folder, f'/figures/corr_psychometric_f_c.png', title='f and c parameters vs psychometric threshold')
+        save_fig(fig1d, folder, f'/figures/corr_psychometric_kappa.png', title='kappa parameters vs psychometric threshold')
 
 
 def plot_correlations(folder, num_training, num_time_inds=3):
-    offset_pars_corr, offset_staircase_pars_corr, MVPA_corrs, data = MVPA_param_offset_correlations(folder, num_training, num_time_inds, mesh_for_valid_offset=False)
+    offset_staircase_pars_corr, offset_psychometric_pars_corr, MVPA_corrs, data = MVPA_param_offset_correlations(folder, num_training, num_time_inds, mesh_for_valid_offset=False)
 
     ########## Plot the correlation between offset_th_rel_change and the combination of the J_m_E_rel_change, J_m_I_rel_change, J_s_E_rel_change, and J_s_I_rel_change ##########
     _, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8))
@@ -1009,18 +1040,18 @@ def plot_correlations(folder, num_training, num_time_inds=3):
     r'$\Delta (J^\text{sup}_{I \rightarrow I} + J^\text{sup}_{I \rightarrow E})$']
     E_indices = [0,2]
 
-    # Plot the correlation between staircase_offset_rel_change and the combination of the J_m_E_rel_change, J_m_I_rel_change, J_s_E_rel_change, and J_s_I_rel_change
+    # Plot the correlation between psychometric_offset_rel_change and the combination of the J_m_E_rel_change, J_m_I_rel_change, J_s_E_rel_change, and J_s_I_rel_change
     for i in range(4):
         # Create lmplot for each pair of variables
         if i in E_indices:
-            sns.regplot(x=x_keys_J[i], y='staircase_offset_rel_change', data=data, ax=axes_flat[i], ci=95, color='red', 
+            sns.regplot(x=x_keys_J[i], y='psychometric_offset_rel_change', data=data, ax=axes_flat[i], ci=95, color='red', 
                 line_kws={'color':'darkred'}, scatter_kws={'alpha':0.3, 'color':'red'})
         else:
-            sns.regplot(x=x_keys_J[i], y='staircase_offset_rel_change', data=data, ax=axes_flat[i], ci=95, color='blue', 
+            sns.regplot(x=x_keys_J[i], y='psychometric_offset_rel_change', data=data, ax=axes_flat[i], ci=95, color='blue', 
                 line_kws={'color':'darkblue'}, scatter_kws={'alpha':0.3, 'color':'blue'})
         # Calculate the Pearson correlation coefficient and the p-value
-        corr = offset_pars_corr[i]['corr']
-        p_value = offset_pars_corr[i]['p_value']
+        corr = offset_psychometric_pars_corr[i]['corr']
+        p_value = offset_psychometric_pars_corr[i]['p_value']
         print('Correlation between offset_th_diff and', x_keys_J[i], 'is', corr, 'with p-value', p_value)
         
         # display corr and p-value in the right bottom of the figure
@@ -1034,24 +1065,24 @@ def plot_correlations(folder, num_training, num_time_inds=3):
     plt.close()
     plt.clf()
 
-    ########## Plot the correlation between offset_staircase_diff and the combination of the J_m_E_diff, J_m_I_diff, J_s_E_diff, and J_s_I_diff ##########
-    data['offset_staircase_improve'] = -1*data['staircase_offset_rel_change']
+    ########## Plot the correlation between offset_psychometric_diff and the combination of the J_m_E_diff, J_m_I_diff, J_s_E_diff, and J_s_I_diff ##########
+    data['offset_psychometric_improve'] = -1*data['psychometric_offset_rel_change']
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 8))
     axes_flat = axes.flatten()
 
     for i in range(4):
         # Create lmplot for each pair of variables
         if i in E_indices:
-            sns.regplot(x=x_keys_J[i], y='offset_staircase_improve', data=data, ax=axes_flat[i], ci=95, color='red', 
+            sns.regplot(x=x_keys_J[i], y='offset_psychometric_improve', data=data, ax=axes_flat[i], ci=95, color='red', 
                 line_kws={'color':'darkred'}, scatter_kws={'alpha':0.3, 'color':'red'})
         else:
-            sns.regplot(x=x_keys_J[i], y='offset_staircase_improve', data=data, ax=axes_flat[i], ci=95, color='blue', 
+            sns.regplot(x=x_keys_J[i], y='offset_psychometric_improve', data=data, ax=axes_flat[i], ci=95, color='blue', 
                 line_kws={'color':'darkblue'}, scatter_kws={'alpha':0.3, 'color':'blue'})
         axes_flat[i].set(ylabel=None)
         # Calculate the Pearson correlation coefficient and the p-value
-        corr = offset_staircase_pars_corr[i]['corr']
-        p_value = offset_staircase_pars_corr[i]['p_value']
-        print('Correlation between offset_staircase_improve and', x_keys_J[i], 'is', corr, 'with p-value', p_value)
+        corr = offset_psychometric_pars_corr[i]['corr']
+        p_value = offset_psychometric_pars_corr[i]['p_value']
+        print('Correlation between offset_psychometric_improve and', x_keys_J[i], 'is', corr, 'with p-value', p_value)
         
         # display corr and p-value in the right bottom of the figure
         axes_flat[i].text(0.05, 0.05, f'r= {corr:.2f}', transform=axes_flat[i].transAxes, fontsize=20)
@@ -1059,11 +1090,11 @@ def plot_correlations(folder, num_training, num_time_inds=3):
         # add xlabel and ylabel
         axes_flat[i].set_xlabel(x_labels_J[i], fontsize=20, labelpad=20)
     # Add shared y-label
-    fig.text(-0.05, 0.5, 'offset threshold improvement (%)', va='center', rotation='vertical', fontsize=20)
+    fig.text(-0.05, 0.5, 'psychometric threshold improvement (%)', va='center', rotation='vertical', fontsize=20)
 
     # Adjust layout and save + close the plot
     plt.tight_layout()
-    plt.savefig(folder + "/figures/Offset_staircase_corr_J_IE.png", bbox_inches='tight')
+    plt.savefig(folder + "/figures/Offset_psychometric_corr_J_IE.png", bbox_inches='tight')
     plt.close()
     plt.clf()
 
@@ -1080,10 +1111,10 @@ def plot_correlations(folder, num_training, num_time_inds=3):
     for i in range(len(x_labels_fc)):
         # Create lmplot for each pair of variables
         # Set colors to purple, green, orange and brown for the different indices
-        sns.regplot(x=x_labels_fc[i], y='staircase_offset_rel_change', data=data, ax=axes_flat[axes_indices[i]], ci=95, color=colors[i],
+        sns.regplot(x=x_labels_fc[i], y='psychometric_offset_rel_change', data=data, ax=axes_flat[axes_indices[i]], ci=95, color=colors[i],
             line_kws={'color':linecolors[i]}, scatter_kws={'alpha':0.3, 'color':colors[i]})
         # Calculate the Pearson correlation coefficient and the p-value
-        print('Correlation between staircase_offset_rel_change and', x_labels_fc[i])
+        print('Correlation between psychometric_offset_rel_change and', x_labels_fc[i])
 
     # Adjust layout and save + close the plot
     plt.tight_layout()
@@ -1105,11 +1136,21 @@ def plot_correlations(folder, num_training, num_time_inds=3):
     plt.close()
 
 
-def plot_corr_triangle(data,folder_to_save='',filename='corr_triangle.png'):
-    """Plot a triangle with correlation plots in the middle of the edges of the triangle. Data is supposed to be a dictionary with keys corresponding to MVPA results and relative parameter changes and offset changes."""
-    # Get keys and values
-    keys = data.keys()
-    labels = ['rel. change in ' + keys[0], 'rel. change in '+keys[1], 'rel. change in ' + keys[2]]
+################## MVPA related plots ##################
+
+def plot_corr_triangle(data, keys):
+    """ In the given axis (ax), plot a correlation triangle between the data columns specified in keys """
+    # Select data with keys
+    data_keys = data[keys]
+    data_keys = data_keys.replace([np.inf, -np.inf], np.nan).dropna()
+    
+    # Keys and labels
+    key_labels = match_keys_to_labels(keys)
+    labels = [
+    rf'$\Delta$ MVPA (%)' + '\n L: y, R: x', 
+    f'{key_labels[keys[1]]} (%)' + '\n x-axis', 
+    f'{key_labels[keys[2]]} (%)' + '\n y-axis'
+    ]
 
     # Create a figure
     fig, ax = plt.subplots(figsize=(8, 8))
@@ -1128,7 +1169,7 @@ def plot_corr_triangle(data,folder_to_save='',filename='corr_triangle.png'):
     
     # Add node labels
     buffer_x = 0.05
-    buffer_y = 0.1
+    buffer_y = 0.15
     fig.text(top_text[0],top_text[1], labels[0], ha='center', fontsize=35)
     fig.text(left_bottom_text[0]-buffer_x, left_bottom_text[1]-buffer_y, labels[1], ha='center', fontsize=35)
     fig.text(right_bottom_text[0]+buffer_x, right_bottom_text[1]-buffer_y, labels[2], ha='center', fontsize=35)
@@ -1150,6 +1191,8 @@ def plot_corr_triangle(data,folder_to_save='',filename='corr_triangle.png'):
     ax_bottom = fig.add_axes(bottom_regplot)
 
     # Plot the first correlation (MVPA vs dJm_ratio)
+    # Exclude runs (columns in data) with NaN or inf values
+    data = data.replace([numpy.inf, -numpy.inf], numpy.nan).dropna()
     sns.regplot(ax=ax_left_top, x=keys[0], y=keys[1], data=data, scatter_kws={'s':10}, line_kws={'color':'orange'})
     axes_format(ax_left_top, fs_ticks=30)
     ax_left_top.set_xlabel('')
@@ -1175,45 +1218,80 @@ def plot_corr_triangle(data,folder_to_save='',filename='corr_triangle.png'):
 
     # Remove unused axes
     ax.axis('off')
+    
+    return fig
 
-    # Save the figure
-    file_path = os.path.join(folder_to_save, filename)
-    plt.savefig(file_path, bbox_inches='tight')
+    
+def plot_corr_triangles(final_folder_path, folder_to_save):
+    """ Plot the four correlation triangles into a single 2x2 figure """
+    
+    data_rel_changes, _ = rel_change_for_runs(final_folder_path, num_time_inds=3)
+    MVPA_scores = csv_to_numpy(final_folder_path + '/MVPA_scores.csv')
+    
+    # Prepare the four data sets (MVPA dimensions are num_trainings x layer x SGD_ind x ori_ind)
+    data_for_corr_triangles = pd.DataFrame({
+        'MVPA_mid_55': 100*(MVPA_scores[:, 0, -1, 0] - MVPA_scores[:, 0, -2, 0]) / MVPA_scores[:, 0, -2, 0],
+        'MVPA_mid_125': 100*(MVPA_scores[:, 0, -1, 1] - MVPA_scores[:, 0, -2, 1]) / MVPA_scores[:, 0, -2, 1],
+        'MVPA_sup_55': 100*(MVPA_scores[:, 1, -1, 0] - MVPA_scores[:, 1, -2, 0]) / MVPA_scores[:, 1, -2, 0],
+        'MVPA_sup_125': 100*(MVPA_scores[:, 1, -1, 1] - MVPA_scores[:, 1, -2, 1]) / MVPA_scores[:, 1, -2, 1],
+        'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
+        'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
+        'offset_th': data_rel_changes['psychometric_offset']
+    })
+    
+    # Plot each triangle into its respective subplot
+    fig1 = plot_corr_triangle(data_for_corr_triangles, keys=['MVPA_mid_55', 'JmI/JmE', 'offset_th'])
+    fig2 = plot_corr_triangle(data_for_corr_triangles, keys=['MVPA_mid_125', 'JmI/JmE', 'offset_th'])
+    fig3 = plot_corr_triangle(data_for_corr_triangles, keys=['MVPA_sup_55', 'JsI/JsE', 'offset_th'])
+    fig4 = plot_corr_triangle(data_for_corr_triangles, keys=['MVPA_sup_125', 'JsI/JsE', 'offset_th'])
+    
+    fig1.savefig(f"{folder_to_save}/corr_triangle_mid_55.png", bbox_inches='tight')
+    fig2.savefig(f"{folder_to_save}/corr_triangle_mid_125.png", bbox_inches='tight')
+    fig3.savefig(f"{folder_to_save}/corr_triangle_sup_55.png", bbox_inches='tight')
+    fig4.savefig(f"{folder_to_save}/corr_triangle_sup_125.png", bbox_inches='tight')
+    
+    # Load the saved images
+    img1 = Image.open(f"{folder_to_save}/corr_triangle_mid_55.png")
+    img2 = Image.open(f"{folder_to_save}/corr_triangle_mid_125.png")
+    img3 = Image.open(f"{folder_to_save}/corr_triangle_sup_55.png")
+    img4 = Image.open(f"{folder_to_save}/corr_triangle_sup_125.png")
+    
+    # Create a new figure with 2x2 layout
+    fig, axes = plt.subplots(2, 2, figsize=(20, 20))
+    
+    # Turn off axes for the image plots
+    for ax in axes.flat:
+        ax.axis('off')
+    
+    # Plot the images in the respective subplots
+    axes[0, 0].imshow(img1)
+    axes[0, 1].imshow(img2)
+    axes[1, 0].imshow(img3)
+    axes[1, 1].imshow(img4)
+
+    # Set titles for the subplots arranged to the left
+    axes[0, 0].set_title('mid 55', fontsize=22, loc='left')
+    axes[0, 1].set_title('mid 125', fontsize=22, loc='right')
+    axes[1, 0].set_title('sup 55', fontsize=22, loc='left')
+    axes[1, 1].set_title('sup 125', fontsize=22, loc='right')
+    
+    # Save the combined figure
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.3, wspace=0.3)
+    plt.savefig(os.path.join(folder_to_save, 'combined_corr_triangles.png'))
     plt.close()
 
-################## MVPA related plots ##################
-def plot_corr_triangles(final_folder_path, folder_to_save):
-    """ Plot the correlation triangles for the MVPA results """
+    # close figures
+    plt.close(fig1)
+    plt.close(fig2)
+    plt.close(fig3)
+    plt.close(fig4)
+    img1.close()
+    img2.close()
+    img3.close()
+    img4.close()
 
-    data_rel_changes, _ = rel_change_for_runs(final_folder_path, num_time_inds = 3)
-    MVPA_scores = csv_to_numpy(final_folder_path +'/MVPA_scores.csv') # MVPA_scores - num_trainings x layer x SGD_ind x ori_ind (sup layer = 0)
-    
-    data_mid_55 = pd.DataFrame({
-        'MVPA': (MVPA_scores[:,0,-1,0]- MVPA_scores[:,1,-2,0])/MVPA_scores[:,1,-2,0],
-        'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
-        'offset_th': data_rel_changes['staircase_offset']
-    })
-    plot_corr_triangle(data_mid_55, folder_to_save, 'corr_triangle_mid_55')
-    data_mid_125 = pd.DataFrame({
-        'MVPA': (MVPA_scores[:,0,-1,1]- MVPA_scores[:,1,-2,1])/MVPA_scores[:,1,-2,1],
-        'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
-        'offset_th': data_rel_changes['staircase_offset']
-    })
-    plot_corr_triangle(data_mid_125, folder_to_save, 'corr_triangle_mid_125')
-    data_sup_55 = pd.DataFrame({
-        'MVPA': (MVPA_scores[:,1,-1,0]- MVPA_scores[:,0,-2,0])/MVPA_scores[:,0,-2,0],
-        'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
-        'offset_th': data_rel_changes['staircase_offset']
-    })
-    plot_corr_triangle(data_sup_55, folder_to_save, 'corr_triangle_sup_55')
-    data_sup_125 = pd.DataFrame({
-        'MVPA': (MVPA_scores[:,1,-1,1]- MVPA_scores[:,0,-2,1])/MVPA_scores[:,0,-2,1],
-        'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
-        'offset_th': data_rel_changes['staircase_offset']
-    })
-    plot_corr_triangle(data_sup_125, folder_to_save, 'corr_triangle_sup_125')
-    
-    
+
 def plot_MVPA_or_Mahal_scores(final_folder_path, num_runs, scores, file_name):
     """ Plot the MVPA scores or Mahalanobis distances for the two layers and two orientations. 
     scores dimensions are runs x layers x SGD_inds x ori_inds """
@@ -1246,8 +1324,9 @@ def plot_MVPA_or_Mahal_scores_v2(final_folder_path, scores):
     darker_colors = ['#91575C', '#385F6C']
     
     # Plotting the bars
-    mean_scores = numpy.mean(scores, axis=0)*100
-    std_scores = numpy.std(scores, axis=0)*100
+    num_runs = scores.shape[0]
+    mean_scores = numpy.mean(scores*100, axis=0)
+    std_scores = numpy.std(scores*100, axis=0)/numpy.sqrt(num_runs)
     sub_titles = ['Trained orientation', 'Untrained orientation']
     fig, ax = plt.subplots(1, 2, figsize=(8, 4))
     for ori in range(2):

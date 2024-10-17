@@ -59,8 +59,8 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
                 _, trained_pars_dict, untrained_pars = load_parameters(folder_path, run_index=i, stage=stages[stage_ind], iloc_ind=iloc_ind_vec[stage_ind])
                 _, _ = tuning_curve(untrained_pars, trained_pars_dict, tc_file_path, ori_vec=tc_ori_list, training_stage=stage_ind, run_index=i, header=tc_headers)
                 tc_headers = False
-                
-            print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
+            if i%10==0:    
+                print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
 
 
 ########## CALCULATE MVPA SCORES AND MAHALANOBIS DISTANCES ############
@@ -80,7 +80,7 @@ def main_MVPA(folder, num_training, folder_to_save=None, num_stage_inds=2, sigma
     else:
         MVPA_scores = csv_to_numpy(folder +'/MVPA_scores.csv')
         Mahal_scores = csv_to_numpy(folder +'/Mahal_scores.csv')
-    
+    '''
     print('MVPA Pre-pre, pre and post training for 55~0, mid layer:',[np.mean(MVPA_scores[:,0,0,0]),np.mean(MVPA_scores[:,0,1,0]),np.mean(MVPA_scores[:,0,-1,0])])
     print('MVPA Pre-pre, pre and post training for 55~0, sup layer:',[np.mean(MVPA_scores[:,1,0,0]),np.mean(MVPA_scores[:,1,1,0]),np.mean(MVPA_scores[:,1,-1,0])])
     print('MVPA Pre-pre, pre and post training for 125~0, mid layer:',[np.mean(MVPA_scores[:,0,0,1]),np.mean(MVPA_scores[:,0,1,1]),np.mean(MVPA_scores[:,0,-1,1])])
@@ -90,7 +90,7 @@ def main_MVPA(folder, num_training, folder_to_save=None, num_stage_inds=2, sigma
     print('Mahal Pre-pre, pre and post training for 55~0, sup layer:',[np.mean(Mahal_scores[:,1,0,0]),np.mean(Mahal_scores[:,1,1,0]),np.mean(Mahal_scores[:,1,-1,0])])
     print('Mahal Pre-pre, pre and post training for 125~0, mid layer:',[np.mean(Mahal_scores[:,0,0,1]),np.mean(Mahal_scores[:,0,1,1]),np.mean(Mahal_scores[:,0,-1,1])])
     print('Mahal Pre-pre, pre and post training for 125~0, sup layer:',[np.mean(Mahal_scores[:,1,0,1]),np.mean(Mahal_scores[:,1,1,1]),np.mean(Mahal_scores[:,1,-1,1])])
-
+    '''
     # Plot histograms of the LMI acorss the runs
     if plot_flag:
         plot_MVPA_or_Mahal_scores(folder, num_training, MVPA_scores, 'MVPA_scores')
