@@ -1,6 +1,7 @@
 # This code runs pretraining for a general orientation task on a 2-layer SSN that models the middle and superficial layers of V1. 
 # After pretraining, it trains the model in several configurations and saves the results in separate folders.
 
+# to test this code, change SGD_steps in TrainingPars and PretrainingPars in parameters.py and set tc_ori_list = numpy.arange(0,360,20) and 
 import os
 import time
 import pandas as pd
@@ -15,19 +16,19 @@ from analysis.analysis_functions import save_tc_features, MVPA_anova
 from analysis.visualization import plot_tuning_curves, plot_corr_triangles, plot_results_on_parameters, plot_tc_features, plot_param_offset_correlations
 
 ## Set up number of runs and starting time
-num_training = 49
+num_training = 50
 starting_time_in_main= time.time()
 
 # Set up results folder and save note and scripts
 note=f'Getting as much data with corrected kappas over the weekend as possible'
 root_folder = os.path.dirname(__file__)
 #folder_path = save_code(note=note)
-folder_path = os.path.join(root_folder, 'results', 'Aug15_v0')
+folder_path = os.path.join(root_folder, 'results', 'Oct23_v6')
 
 ########## ########## ########## 
 ######### Pretraining ##########
 ########## ########## ##########  
-# main_pretraining(folder_path, num_training, starting_time_in_main=starting_time_in_main)
+main_pretraining(folder_path, num_training, starting_time_in_main=starting_time_in_main)
 
 ########## ########## ########## ##########
 ########  Training configurations  ########
@@ -98,30 +99,30 @@ conf_only_dict = {'conf_kappa_only': conf_kappa_only,
                 }
 
 # create dictionary of configurations to loop over
-conf_dict = { **conf_only_dict, **conf_readout_dict}#{**conf_special_dict, **conf_excluded_dict, **conf_only_dict, **conf_readout_dict}
+conf_dict = {**conf_special_dict, **conf_excluded_dict, **conf_only_dict, **conf_readout_dict}
 
 conf_names = list(conf_dict.keys())
 conf_list = list(conf_dict.values())
-'''
+
 ########## ########## ##########
 ##########  Training  ##########
 ########## ########## ########## 
 for i, conf in enumerate(conf_list):
     
     # create a configuration folder and copy relevant files to it
-    #config_folder = set_up_config_folder(folder_path, conf_names[i])
-    config_folder = os.path.join(folder_path, conf_names[i])
+    config_folder = set_up_config_folder(folder_path, conf_names[i])
+    #config_folder = os.path.join(folder_path, conf_names[i])
     
     # configure the parameters.py file and copy it as a backup fil in the config folder
-    #configure_parameters_file(root_folder, conf)
-    #shutil.copy('parameters.py', os.path.join(config_folder,  f'parameters_{conf_names[i]}.py'))
+    configure_parameters_file(root_folder, conf)
+    shutil.copy('parameters.py', os.path.join(config_folder,  f'parameters_{conf_names[i]}.py'))
     
     # run training with the configured parameters.py file
-    #main_training_source = os.path.join(root_folder, "training", "main_training.py")
-    #subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
+    main_training_source = os.path.join(root_folder, "training", "main_training.py")
+    subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
     
     # plot results on parameters
-    plot_results_on_parameters(config_folder, num_training, plot_per_run=False)
+    plot_results_on_parameters(config_folder, num_training, plot_per_run=True)
     plot_param_offset_correlations(config_folder)
 
     print('\n')
@@ -129,30 +130,29 @@ for i, conf in enumerate(conf_list):
     print('\n')
 
 print('Finished all configurations')
-'''
+
 ## Make the parameters.py.bak file the parameters.py file
 #if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
 #    shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
 
-'''
+
 ########## ########## ##########
 ######### Tuning curves ########
 ########## ########## ##########
 
-tc_ori_list = numpy.arange(0,360,5)
+tc_ori_list = numpy.arange(0,360,20)
 start_time = time.time()
 
 # calculate tuning curves and features for before and after pretraining
-#main_tuning_curves(folder_path, num_training, starting_time_in_main, stage_inds = range(2), tc_ori_list = tc_ori_list, add_header=True, filename='pretraining_tuning_curves.csv')
-#tc_file_name = os.path.join(folder_path, 'pretraining_tuning_curves.csv')
-#save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125], stages=[0, 1], filename = 'pretraining_tuning_curve_features.csv')
+main_tuning_curves(folder_path, num_training, starting_time_in_main, stage_inds = range(2), tc_ori_list = tc_ori_list, add_header=True, filename='pretraining_tuning_curves.csv')
+tc_file_name = os.path.join(folder_path, 'pretraining_tuning_curves.csv')
+save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125], stages=[0, 1], filename = 'pretraining_tuning_curve_features.csv')
 
 # calculate tuning curves and features for the different configurations
 for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
-    # MVPA_anova(config_folder)
     # calculate tuning curves for after training
-    # main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
+    main_tuning_curves(config_folder, num_training, starting_time_in_main, stage_inds = range(2,3), tc_ori_list = tc_ori_list, add_header=False) 
     
     # calculate tuning curve features
     tc_file_name = os.path.join(config_folder, 'tuning_curves.csv')
@@ -164,7 +164,7 @@ for i, conf in enumerate(conf_names):
     folder_to_save=os.path.join(config_folder, 'figures')
     plot_tuning_curves(config_folder, tc_cells, num_training, folder_to_save)
     if i == 0:
-        stages = [1,2]#[0,1,2]
+        stages = [0,1,2]
     else:
         stages = [1,2]
     # plot_tc_features(config_folder, stages=stages, color_by='type', only_slope_plot=True)
@@ -176,7 +176,7 @@ for i, conf in enumerate(conf_names):
     print(f'Finished calculating tuning curves and features for {conf_names[i]} in {time.time()-start_time} seconds')
     print('\n')
 
-'''
+
 ########## ########## ##########
 ##########    MVPA    ##########
 ########## ########## ##########
@@ -186,6 +186,7 @@ for i, conf in enumerate(conf_names):
     config_folder = os.path.join(folder_path, conf)
     folder_to_save = config_folder + f'/figures'
     main_MVPA(config_folder, num_training, folder_to_save, 3, sigma_filter=2, r_noise=True, num_noisy_trials=200, plot_flag=True) 
+    MVPA_anova(config_folder)
     plot_corr_triangles(config_folder, folder_to_save)
     print('Done with MVPA for configuration ', conf, ' in ', time.time()-start_time, ' seconds')
 

@@ -111,27 +111,27 @@ class SSN_sup(_SSN_Base):
         # Loop over post- (a) and pre-synaptic (b) cell-types
         for a in range(2): # post-synaptic cell type
             for b in range(2): # pre-synaptic cell type  
-                horizontal_conn_from_oris = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa_pre[a][b]*dist_from_single_ori**2/2/45**2 + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/2/45**2            
+                horizontal_conn_from_oris = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(45**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(45**2))            
                 if b == 0: # E projections
-                    W_local = np.exp(-xy_dist/s_2x2[a,b] - horizontal_conn_from_oris)
+                    W = np.exp(-xy_dist/s_2x2[a,b] - horizontal_conn_from_oris)
                 elif b == 1: # I projections 
-                    W_local = np.exp(-xy_dist**2/(s_2x2[a,b]**2) - horizontal_conn_from_oris)
+                    W = np.exp(-xy_dist**2/(s_2x2[a,b]**2) - horizontal_conn_from_oris)
 
                 # sparsify (set small weights to zero)
-                W_local = np.where(W_local < MinSyn, 0, W_local)
+                W = np.where(W < MinSyn, 0, W)
 
                 # row-wise normalize
-                tW = np.sum(W_local, axis=1)
+                tW = np.sum(W, axis=1)
                 if not CellWiseNormalized:
                     tW = np.mean(tW)
-                    W_local =  W_local / tW
+                    W =  W / tW
                 else:
-                    W_local = W_local / tW[:, None]
+                    W = W / tW[:, None]
 
                 # for E projections, add the local part
                 # NOTE: alterntaively could do this before normalizing
                 if b == 0:
-                    W = p_local[a] * np.eye(*W_local.shape) + (1-p_local[a]) * W_local
+                    W = p_local[a] * np.eye(*W.shape) + (1-p_local[a]) * W
 
                 Wblks[a][b] = J_2x2[a, b] * W          
 

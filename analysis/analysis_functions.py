@@ -28,26 +28,20 @@ from util import load_parameters, filter_for_run_and_stage, unpack_ssn_parameter
 from training.util_gabor import BW_image_jit_noisy, BW_image_jax_supp, BW_image_jit
 
 ############## Analysis functions ##########
-
 def exclude_runs(folder_path, input_vector):
     """Exclude runs from the analysis by removing them from the CSV files - file modifications only happen within folder_path folders."""
     # Read the original CSV file
-    root_folder = os.path.dirname(os.path.dirname(__file__))
-    folder_path_from_analysis = os.path.join(root_folder, folder_path)
-    file_path = os.path.join(root_folder, 'pretraining_results.csv') 
-    df_pretraining_results = pd.read_csv(file_path)
-    file_path = os.path.join(folder_path_from_analysis,'training_results.csv')
-    df_training_results = pd.read_csv(file_path)
-    file_path = os.path.join(root_folder,'orimap.csv')
-    df_orimap = pd.read_csv(file_path)
-    file_path = os.path.join(root_folder,'initial_parameters.csv')
-    df_init_params = pd.read_csv(file_path)
+    root_folder = os.path.dirname(folder_path)
+    df_pretraining_results = pd.read_csv(os.path.join(root_folder, 'pretraining_results.csv') )
+    df_orimap = pd.read_csv(os.path.join(root_folder,'orimap.csv'))
+    df_init_params = pd.read_csv(os.path.join(root_folder,'initial_parameters.csv'))
+    df_training_results = pd.read_csv(os.path.join(folder_path,'training_results.csv'))
     
     # Save the original dataframe as results_complete.csv in the folder_path folder
-    df_pretraining_results.to_csv(os.path.join(folder_path_from_analysis,'pretraining_results_complete.csv'), index=False)
-    df_training_results.to_csv(os.path.join(folder_path_from_analysis,'training_results_complete.csv'), index=False)
-    df_orimap.to_csv(os.path.join(folder_path_from_analysis,'orimap_complete.csv'), index=False)
-    df_init_params.to_csv(os.path.join(folder_path_from_analysis,'initial_parameters_complete.csv'), index=False)
+    df_pretraining_results.to_csv(os.path.join(folder_path,'pretraining_results_complete.csv'), index=False)
+    df_training_results.to_csv(os.path.join(folder_path,'training_results_complete.csv'), index=False)
+    df_orimap.to_csv(os.path.join(folder_path,'orimap_complete.csv'), index=False)
+    df_init_params.to_csv(os.path.join(folder_path,'initial_parameters_complete.csv'), index=False)
     
     # Exclude rows where 'runs' column is in the input_vector
     df_pretraining_results_filtered = df_pretraining_results[~df_pretraining_results['run_index'].isin(input_vector)]
@@ -66,10 +60,10 @@ def exclude_runs(folder_path, input_vector):
             df_training_results_filtered.loc[df_training_results_filtered['run_index'] == i, 'run_index'] = i - shift_val            
     
     # Save the filtered dataframes as csv files in the folder_path folder
-    df_pretraining_results_filtered.to_csv(os.path.join(folder_path_from_analysis,'pretraining_results.csv'), index=False)
-    df_training_results_filtered.to_csv(os.path.join(folder_path_from_analysis,'training_results.csv'), index=False)
-    df_orimap_filtered.to_csv(os.path.join(folder_path_from_analysis,'orimap.csv'), index=False)
-    df_init_params_filtered.to_csv(os.path.join(folder_path_from_analysis,'initial_parameters.csv'), index=False)
+    df_pretraining_results_filtered.to_csv(os.path.join(folder_path,'pretraining_results.csv'), index=False)
+    df_training_results_filtered.to_csv(os.path.join(folder_path,'training_results.csv'), index=False)
+    df_orimap_filtered.to_csv(os.path.join(folder_path,'orimap.csv'), index=False)
+    df_init_params_filtered.to_csv(os.path.join(folder_path,'initial_parameters.csv'), index=False)
 
 
 def data_from_run(folder, run_index=0, num_indices=3):
@@ -716,7 +710,7 @@ def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
     SGD_step_inds = numpy.zeros(num_indices, dtype=int)
     if num_indices>2:
         SGD_step_inds[0] = df.index[df['stage'] == 0][0] #index of when pretraining starts
-        training_start = df.index[df['stage'] == 0][-1] + 1 #index of when training starts
+        training_start = df.index[df['stage'] == 2][0] #index of when training starts
         if peak_offset_flag:
             # get the index where max offset is reached 
             SGD_step_inds[1] = training_start + df['staircase_offset'][training_start:training_start+100].idxmax()
@@ -727,7 +721,7 @@ def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
         for i in range(2,num_indices-1):
             SGD_step_inds[i] = int(SGD_step_inds[1] + (SGD_step_inds[-1]-SGD_step_inds[1])*(i-1)/(num_indices-2))
     else:
-        SGD_step_inds[0] = df.index[df['stage'] > 0][0] # index of when training starts (first or second stages)
+        SGD_step_inds[0] = df.index[df['stage'] == 2][0] # index of when training starts (first or second stages)
         SGD_step_inds[-1] = num_SGD_steps-1 #index of when training ends    
     return SGD_step_inds
 

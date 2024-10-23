@@ -6,7 +6,6 @@ from jax import vmap
 import optax
 import pandas as pd
 import numpy
-from scipy.optimize import curve_fit
 from scipy.stats import mannwhitneyu, linregress
 import copy
 import time
@@ -112,16 +111,15 @@ def train_ori_discr(
         min_acc_check_ind = untrained_pars.pretrain_pars.min_acc_check_ind
         acc_check_ind = np.arange(0, numSGD_steps, untrained_pars.pretrain_pars.acc_check_freq)
         acc_check_ind = acc_check_ind[(acc_check_ind > min_acc_check_ind) | (acc_check_ind <2)] # by leaving in 0, we make sure that it is not empty as we refer to it later
-        numStages = 1
+        pretrain_stage_1_acc_th = untrained_pars.pretrain_pars.pretrain_stage_1_acc_th
+        stage_list = [0,1]
     else:
         numSGD_steps = training_pars.SGD_steps
-        first_stage_acc_th = training_pars.first_stage_acc_th
-        numStages = 2
+        stage_list = [2]
     test_offset_vec = numpy.array([1, 3, 7, 12])  # offset values to define offset threshold where given accuracy is achieved
 
     # Define SGD_steps indices where losses an accuracy are validated
     val_steps = np.arange(0, numSGD_steps, training_pars.validation_freq)
-    first_stage_final_step = numSGD_steps - 1
 
     print(
         "SGD_step: {} ¦ learning rate: {} ¦ batch size {}".format(
@@ -138,7 +136,10 @@ def train_ori_discr(
     
     ######## Pretraining: One-stage, Training: Two-stage, where 1) parameters of sigmoid layer 2) parameters of SSN layers #############
     pretrain_stop_flag = False
-    for stage in range(1,numStages+1):
+    for stage in stage_list:
+        # Skip stage 1 in pretraining if pretrain_stop_flag is True
+        if pretrain_stop_flag:
+            break
         if stage == 2:
             # Reinitialise optimizer and reset the argnum to take gradient of
             opt_state_ssn = optimizer.init(trained_pars_dict)
@@ -148,27 +149,29 @@ def train_ori_discr(
         for SGD_step in range(numSGD_steps):
             # i) Calculate model loss, accuracy, gradient
             train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=shuffle_labels)
+
+            if pretrain_on and stage == 1 and SGD_step == 0:
+                if train_acc > pretrain_stage_1_acc_th:
+                    print("Early stop of stage 1: accuracy {} reached target {}".format(
+                        train_acc, pretrain_stage_1_acc_th)
+                    )
+                    # Store final step index and exit loop
+                    pretrain_stop_flag = True
+                    break
+
             if jax.numpy.isnan(train_loss):
                 print('NaN values in loss at step', SGD_step)
                 return None, None
             
-            # Early stopping of stage 1 in training
-            if not pretrain_on and stage==1 and SGD_step == 0:
-                if train_acc > first_stage_acc_th:
-                    print("Early stop: accuracy {} reached target {} for stage 1 training".format(train_acc, first_stage_acc_th))
-                    # Store final step index and exit first training loop (-1 because we did do not save this step)
-                    first_stage_final_step = SGD_step -1
-                    break
-            
             # Calculate psychometric_offset if the SGD step is in the acc_check_ind vector
             if pretrain_on and SGD_step in acc_check_ind:
-                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size =5)
+                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 10)
                 # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                 psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
-                #print('Baseline acc is achieved at offset:', psychometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean, 'train_acc:', train_acc)
 
             # ii) Store parameters and metrics (append or initialize lists)
             if 'stages' in locals():
+                stages.append(stage)
                 train_losses_all.append(train_loss_all.ravel())
                 train_accs.append(train_acc)
                 train_max_rates.append(train_max_rate)
@@ -186,24 +189,21 @@ def train_ori_discr(
                 elif hasattr(ssn_pars, 'kappa'):
                     kappas.append(ssn_pars.kappa.ravel())
                 if pretrain_on:
-                    stages.append(stage-1)
                     w_sigs.append(readout_pars_dict['w_sig'])
                     b_sigs.append(readout_pars_dict['b_sig'])
                 else:
-                    stages.append(stage)
                     staircase_offsets.append(stimuli_pars.offset)
             else:
+                stages=[stage]
                 train_losses_all=[train_loss_all.ravel()]
                 train_accs=[train_acc]
                 train_max_rates=[train_max_rate]
                 train_mean_rates=[train_mean_rate]
                 log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas = unpack_ssn_parameters(trained_pars_dict, ssn_pars, as_log_list=True) 
                 if pretrain_on:
-                    stages=[stage-1]
                     w_sigs = [readout_pars_dict['w_sig']]
                     b_sigs = [readout_pars_dict['b_sig']]
                 else:
-                    stages=[stage]
                     staircase_offsets=[stimuli_pars.offset] 
                 
             # ii) Early stopping during pre-training and training
@@ -218,21 +218,20 @@ def train_ori_discr(
                     pretrain_stop_flag = all(np.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(np.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]) and has_plateaued(train_accs)
                 if pretrain_stop_flag:
                     print('Stopping pretraining: desired accuracy achieved for training task.')
-                    first_stage_final_step = SGD_step
                     break
                 
-            # Check for early stopping during training
-            if not pretrain_on and stage==1:
+            # Check for stopping criterium for stage 1 in pretraining
+            if pretrain_on and stage==1:
                 if SGD_step == 0:
                     avg_acc = train_acc
                 else:
-                    avg_acc = np.mean(np.asarray(train_accs[-min(SGD_step,10):]))
-                if avg_acc > first_stage_acc_th:
+                    avg_acc = np.mean(np.asarray(train_accs[-min(SGD_step,3):]))
+                if avg_acc > pretrain_stage_1_acc_th:
                     print("Early stop of stage 1: accuracy {} reached target {}".format(
-                            avg_acc, first_stage_acc_th)
+                            avg_acc, pretrain_stage_1_acc_th)
                     )
                     # Store final step index and exit first training loop
-                    first_stage_final_step = SGD_step
+                    pretrain_stop_flag = True
                     break
 
             # iii) Staircase algorithm during training: 3-down 1-up adjustment rule for the offset
@@ -262,13 +261,9 @@ def train_ori_discr(
                 else:
                     val_accs=[val_acc]
                     val_losses=[val_loss]
-                    
-                SGD_step_time = time.time() - start_time
-                print("Stage: {}¦ Readout loss: {:.3f}  ¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ SGD step: {} ¦ Offset: {} ¦ Runtime: {:.4f} ".format(
-                    stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, stimuli_pars.offset, SGD_step_time
-                ))
+                
                 if not pretrain_on:
-                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size=5)
+                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 10)
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                     psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     if 'psychometric_offsets' in locals():
@@ -283,11 +278,15 @@ def train_ori_discr(
                         acc_means=[acc_mean]
                     if SGD_step > training_pars.min_stop_ind:
                         acc_means_np = numpy.array(acc_means)
+                        # If accuracy is stable for the last three offsets in test_offset_vec, then stop training
                         if has_plateaued(acc_means_np[:,0], window_size=10) and has_plateaued(acc_means_np[:,1], window_size=10) and has_plateaued(acc_means_np[:,2], window_size=10):
                             break
+                    SGD_step_time = time.time() - start_time
+                    print("Stage: {}¦ Readout loss: {:.3f}  ¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ SGD step: {} ¦ Psy. offset: {} ¦ Runtime: {:.4f} ".format(
+                        stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, psychometric_offset, SGD_step_time))
                 
-            # v) Parameter update. Note that pre-training has one-stage, training has two-stages, where the first stage is skipped if the accuracy satisfies a minimum threshold criteria
-            if numStages==1:
+            # v) Parameter update. Note that training has one-stage, pre-training has two-stages, where the second stage (stage 1) is skipped if the accuracy satisfies a minimum threshold criteria
+            if pretrain_on:
                 # linear regression to check if acc_mean is decreasing (happens when pretraining goes on while solving the flipped training task)
                 acc_mean_slope, _, _, _, _ = linregress(range(len(acc_mean)), acc_mean)
                 if pretrain_on and val_acc < 0.45 and acc_mean_slope < -0.02:
@@ -305,21 +304,22 @@ def train_ori_discr(
                     train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False)                        
                     print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc vec:', train_acc_test)
                 else:
-                    # Update ssn layer parameters 
-                    updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
-                    trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
-                    # Update readout parameters
-                    updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
-                    readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
-            else:
-                if stage == 1:
-                    # Update readout parameters
-                    updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout)
-                    readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
-                else:                    
-                    # Update ssn layer parameters
-                    updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
-                    trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
+                    if stage == 0:
+                        # Update ssn layer parameters 
+                        updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
+                        trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
+                        # Update readout parameters
+                        updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
+                        readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
+                    else:
+                        # Update readout parameters
+                        updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout)
+                        readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
+            else:                                
+                # Update ssn layer parameters
+                updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
+                trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
+            
             # Clear python cache data
             gc.collect()
            
@@ -328,15 +328,15 @@ def train_ori_discr(
     # Define SGD_steps indices for training and validation
     if pretrain_on:
         SGD_steps = np.arange(0, len(stages))
-        val_SGD_steps = val_steps[0:len(val_accs)]
-        acc_check_ind = acc_check_ind[0:len(psychometric_offsets)]
+        val_accs = np.array(val_accs)
+        val_steps_stage_0_and_1 = np.concatenate([val_steps, numSGD_steps+val_steps])
+        val_SGD_steps = val_steps_stage_0_and_1[0:len(val_accs)]
+        acc_check_ind_stage_0_and_1 = np.concatenate([acc_check_ind, numSGD_steps+acc_check_ind])
+        acc_check_ind = acc_check_ind_stage_0_and_1[0:len(psychometric_offsets)]
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps, acc_check_ind=acc_check_ind)
     else:
         SGD_steps = np.arange(0, len(stages))
-        val_SGD_steps_stage1 = val_steps[val_steps < first_stage_final_step + 1]
-        val_SGD_steps_stage2 = np.arange(first_stage_final_step + 1, first_stage_final_step + 1 + numSGD_steps, training_pars.validation_freq)
-        val_SGD_steps = np.hstack([val_SGD_steps_stage1, val_SGD_steps_stage2])
-        val_SGD_steps = val_SGD_steps[0:len(val_accs)]
+        val_SGD_steps = val_steps[0:len(val_accs)]
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps)
         
     # Create DataFrame and save the DataFrame to a CSV file
@@ -352,7 +352,7 @@ def train_ori_discr(
     # Clear jax cash data
     jax.clear_caches()
 
-    return df, first_stage_final_step
+    return df
 
 
 def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=False):

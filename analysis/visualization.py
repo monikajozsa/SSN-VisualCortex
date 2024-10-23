@@ -102,7 +102,7 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
         fig.savefig(figname)
         plt.close()
 
-    def boxplot_params(num_training, keys_group, rel_changes, group_labels, box_colors, full_path):
+    def boxplot_params(num_training, keys_group, rel_changes, group_labels, box_colors, full_path, set_ylim=False):
         num_groups=len(keys_group)
         fig, axs = plt.subplots(1, num_groups, figsize=(6*num_groups, 5))  # Create subplots
         
@@ -125,7 +125,15 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
                 axs[i].set_ylabel('Absolute change', fontsize=20)
             else:
                 axs[i].set_ylabel('Relative change (%)', fontsize=20)
-        
+            if set_ylim:
+                if i < len(group_labels) - 1:
+                    axs[i].set_ylim(-60, 100)
+                else:
+                    axs[i].set_ylim(-2.5, 2.5)
+                # set the y-ticks to be at -60, -30, 0, 30, 60 for the first 4 plots and -2.5, -1.25, 0, 1.25, 2.5 for the last plot
+                yticks = numpy.linspace(-60, 60, 5) if i < len(group_labels) - 1 else numpy.linspace(-2.5, 2.5, 5)
+                axs[i].set_yticks(yticks)
+                
         plt.tight_layout()
         fig.subplots_adjust(wspace=0.5)
         fig.savefig(full_path)
@@ -197,6 +205,7 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
         os.makedirs(pretrain_fig_folder)
     boxplot_params(num_training, keys_group, rel_changes_pretrain, group_labels, box_colors, os.path.join(pretrain_fig_folder,'boxplot_relative_changes.png'))
     boxplot_params(num_training, keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes.png'))
+    boxplot_params(num_training, keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes_ylim.png'), set_ylim=True)
     plt.close()
 
 
@@ -355,9 +364,9 @@ def plot_results_from_csvs(folder_path, num_runs=3, folder_to_save=None, startin
     return excluded_run_inds
 
 
-def plot_results_on_parameters(final_folder_path, num_training, plot_per_run = True, plot_boxplots = True):
+def plot_results_on_parameters(folder_path, num_training, plot_per_run = True, plot_boxplots = True):
     """ Plot the results from the results csv on the parameters by calling plot_results_from_csvs and boxplots_from_csvs """
-    folder_to_save = os.path.join(final_folder_path, 'figures')
+    folder_to_save = os.path.join(folder_path, 'figures')
 
     ######### PLOT RESULTS ############
     if plot_per_run:
@@ -365,15 +374,15 @@ def plot_results_on_parameters(final_folder_path, num_training, plot_per_run = T
         per_run_folder = os.path.join(folder_to_save, 'per_run')
         if not os.path.exists(per_run_folder):
             os.makedirs(per_run_folder)
-        excluded_run_inds = plot_results_from_csvs(final_folder_path, num_training, folder_to_save=per_run_folder)
+        excluded_run_inds = plot_results_from_csvs(folder_path, num_training, folder_to_save=per_run_folder)
         # save excluded_run_inds into a csv in final_folder_path
         excluded_run_inds_df = pd.DataFrame(excluded_run_inds)
-        excluded_run_inds_df.to_csv(os.path.join(final_folder_path, 'excluded_runs.csv'))
-        if len(excluded_run_inds) > 0:
-            exclude_runs(final_folder_path, excluded_run_inds)
-            num_training=num_training-len(excluded_run_inds)
+        excluded_run_inds_df.to_csv(os.path.join(folder_path, 'excluded_runs.csv'))
+        #if len(excluded_run_inds) > 0:
+            #exclude_runs(folder_path, excluded_run_inds)
+            #num_training=num_training-len(excluded_run_inds)
     if plot_boxplots:
-        boxplots_from_csvs(final_folder_path, folder_to_save, num_time_inds = 3, num_training=num_training)
+        boxplots_from_csvs(folder_path, folder_to_save, num_time_inds = 3, num_training=num_training)
 
 
 ################### TUNING CURVES ###################

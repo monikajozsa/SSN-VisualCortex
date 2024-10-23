@@ -131,11 +131,13 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
     f_range= randomize_pars.f_range  
     cE_s, cI_s = random.uniform(low=[c_range[0], c_range[0]], high=[c_range[1], c_range[1]])
     f_E, f_I = random.uniform(low=[f_range[0], f_range[0]], high=[f_range[1], f_range[1]])
-    [r_train_sup,_],_ ,[_, avg_dx_sup],[_, _, max_E_sup, max_I_sup], [_, _, mean_E_sup, mean_I_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
-    [r_pretrain_sup,_],_, _,_,_ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
+    [r_train_sup,_],_ ,[avg_dx_mid, avg_dx_sup],[_, _, max_E_sup, max_I_sup], [_, _, mean_E_sup, mean_I_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
+    [r_pretrain_sup,_], _, [avg_dx_pretrain_mid, avg_dx_pretrain_sup],_,_ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
     
     # 2. Evaluate conditions   
-    cond_dx_sup = bool((avg_dx_sup < 50).all())
+    cond_dx_train = bool((avg_dx_mid < 100).all()) and bool((avg_dx_sup < 100).all())
+    cond_dx_pretrain = bool((avg_dx_pretrain_mid < 200).all()) and bool((avg_dx_pretrain_sup < 200).all())
+    cond_dx = cond_dx_train and cond_dx_pretrain
     rmax_min_sup = min([float(np.min(max_E_sup)), float(np.min(max_I_sup))])
     rmax_max_sup = max([float(np.max(max_E_sup)), float(np.max(max_I_sup))])
     cond_rmax_sup = rmax_min_sup>10 and rmax_max_sup<151
@@ -146,12 +148,12 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
     cond_r_train_sup = not numpy.any(np.isnan(r_train_sup))
 
     # 3. Resample if conditions do not hold
-    if not (cond_dx_sup and cond_rmax_sup and cond_rmean_sup and cond_r_pretrain_sup and cond_r_train_sup):
+    if not (cond_dx and cond_rmax_sup and cond_rmean_sup and cond_r_pretrain_sup and cond_r_train_sup):
         if (num_mid_calls-1)*100+num_calls>1000:
             raise Exception(f" ########### Randomized parameters violate conditions after {num_calls} sampling. ###########")
         else:
             num_calls = num_calls + 1
-            print(f'Randomized superficial parameters {num_calls} time(s)',[cond_dx_sup,cond_rmax_sup,cond_rmean_sup,cond_r_pretrain_sup,cond_r_train_sup])
+            print(f'Randomized superficial parameters {num_calls} time(s)',[cond_dx, cond_rmax_sup,cond_rmean_sup,cond_r_pretrain_sup,cond_r_train_sup])
             # RECURSIVE FUNCTION CALL
             return randomize_params(folder, run_index, untrained_pars, logistic_regr, num_mid_calls, num_calls, start_time, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data)
     else:
@@ -215,6 +217,7 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_traini
     [r_sup_target, r_mid_target], _, _, _, _= vmap_evaluate_model_response(ssn_mid, ssn_sup, data['target'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
     
     if for_training:
+        # Readout configurations, when there is an additional logistic regression at the beginning of training
         sup_mid_contrib = untrained_pars.sup_mid_readout_contrib
         middle_grid_ind = untrained_pars.middle_grid_ind
         if sup_mid_contrib[0] == 0 or sup_mid_contrib[1] == 0:
@@ -228,7 +231,8 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_traini
             noise_ref = generate_noise(batch_size = N, length = 2*len(middle_grid_ind), num_readout_noise = untrained_pars.num_readout_noise)
             noise_target = generate_noise(batch_size = N, length = 2*len(middle_grid_ind), num_readout_noise = untrained_pars.num_readout_noise)
     else:
-        # Define data for logistic regression
+        r_ref = r_sup_ref
+        r_target = r_sup_target
         noise_ref = generate_noise(batch_size = N, length = len(untrained_pars.oris), num_readout_noise = untrained_pars.num_readout_noise)
         noise_target = generate_noise(batch_size = N, length = len(untrained_pars.oris), num_readout_noise = untrained_pars.num_readout_noise)
     

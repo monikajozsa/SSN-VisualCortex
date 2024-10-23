@@ -390,7 +390,7 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
         par_keys = {attr: getattr(pretrained_pars, attr) for attr in dir(pretrained_pars) if not callable(getattr(pretrained_pars, attr)) and not attr.startswith("__") and not attr.startswith("_")}
 
     # Get the iloc_ind row of the pretraining_results or training_results csv file depending on stage
-    if stage==0:
+    if stage<2:
         df_all = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv'))
     else:
         df_all = pd.read_csv(os.path.join(folder_path, 'training_results.csv'))

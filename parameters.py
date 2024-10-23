@@ -22,10 +22,12 @@ class PretrainingPars:
     """ threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining """
     batch_size: int = 100
     """ number of trials per SGD step during pretraining """
-    SGD_steps: int = 1000
+    SGD_steps: int = 500
     """ maximum number of SGD steps during pretraining """
     min_stop_ind: int = 100
     """ minimum SGD step where pretraining can stop """
+    pretrain_stage_1_acc_th: float = 0.51
+    """ accuracy threshold for early stopping criterium for the second stage of pretraining """
 
 pretraining_pars = PretrainingPars()
 
@@ -33,11 +35,11 @@ pretraining_pars = PretrainingPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    pretraining_task: bool = False
+    pretraining_task: bool = True
     """ flag for training for the pretraining (general) task or the training (fine) discrimination task """
     shuffle_labels: bool = False
     """ flag for shuffling the labels of the training data """
-    opt_readout_before_training: bool = True
+    opt_readout_before_training: bool = False
     """ flag for optimizing the readout weights before the training """
     eta: float = 0.0
     """ learning rate - the maximum rate of parameter change in one SGD step; note that this initial values are irrelevant when we randomize the parameters """
@@ -45,8 +47,6 @@ class TrainingPars:
     """ number of trials per SGD step """
     validation_freq: int = 10
     """ frequency of validation loss and accuracy calculation """
-    first_stage_acc_th: float = 0.51
-    """ accuracy threshold for early stopping criterium for the first stage of training """
     SGD_steps: int = 2000
     """ number of SGD step """
     min_stop_ind: int = 1000
@@ -185,6 +185,7 @@ class StimuliPars:
 
 stimuli_pars = StimuliPars()
 
+
 # Sigmoid parameters
 @dataclass
 class ReadoutPars:
@@ -233,8 +234,6 @@ class SSNPars:
     """ ranges of weights between different pre/post cell-type """
     p_local_s = [0.4, 0.7]
     """ relative strength of local parts of E projections in superficial layer """
-    p_local_m = [1.0, 1.0]
-    """ relative strength of local parts of E projections in middle layer """
     beta = stimuli_pars.ref_ori
     """ shaping tuning curves depending on the reference orientation of the stimulus """
     
@@ -306,13 +305,14 @@ class PretrainedSSNPars:
     """ relative strength of weights of I/I pre/post cell-type in superficial layer """
 
 
+# Ranges for the randomization of parameters (at initialization)
 class RandomizePars:
     J_range = [np.array([4, 5.5]),np.array([0.7,2]), np.array([4, 5.5]),np.array([0.7,1.2])]
-    """ range of the perturbed Jm and Js parameters """
+    """ range of the initial Jm and Js parameters """
     c_range = np.array([4.5, 5.5])
-    """ range of the perturbed c parameters """
+    """ range of the initial c parameters """
     f_range = np.array([0.6, 1.2])
-    """ range of the perturbed f parameters """
+    """ range of the initial f parameters """
     g_range = np.array([0.15, 0.45])
-    """ range of the perturbed gE and gI parameters """
+    """ range of the initial gE and gI parameters """
     eta_range = np.array([3e-3, 5e-3])

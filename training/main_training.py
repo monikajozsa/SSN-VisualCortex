@@ -50,7 +50,7 @@ def main_training(folder_path, num_training, starting_time_training=0, run_indic
 
         # Run training
         results_filename = os.path.join(folder_path,'training_results.csv')
-        _, _ = train_ori_discr(
+        _ = train_ori_discr(
                 pretrained_readout_pars_dict,
                 trained_pars_dict,
                 untrained_pars,
