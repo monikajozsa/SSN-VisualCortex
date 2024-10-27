@@ -102,8 +102,8 @@ def train_ori_discr(
         opt_state_readout = optimizer.init(readout_pars_dict)
         training_loss_val_and_grad = training_loss_val_and_grad_ssn_readout # train both readout pars and ssn layers pars
     else:
-        opt_state_readout = optimizer.init(readout_pars_dict)
-        training_loss_val_and_grad = training_loss_val_and_grad_readout_only # train only readout layers pars for stage 1 in training - normally skipped as performance is good enough after pretraining
+        opt_state_ssn = optimizer.init(trained_pars_dict)
+        training_loss_val_and_grad = training_loss_val_and_grad_ssn_only # train only ssn layers pars
 
     # Define SGD_steps indices and offsets where training task accuracy is calculated
     if pretrain_on:
@@ -140,15 +140,15 @@ def train_ori_discr(
         # Skip stage 1 in pretraining if pretrain_stop_flag is True
         if pretrain_stop_flag:
             break
-        if stage == 2:
-            # Reinitialise optimizer and reset the argnum to take gradient of
-            opt_state_ssn = optimizer.init(trained_pars_dict)
-            training_loss_val_and_grad = training_loss_val_and_grad_ssn_only
+        if stage == 1:
+            # Reinitialise optimizer and reset the argnum to take gradient wrt readout pars
+            opt_state_readout = optimizer.init(readout_pars_dict)
+            training_loss_val_and_grad = training_loss_val_and_grad_readout_only           
 
         # STOCHASTIC GRADIENT DESCENT LOOP
         for SGD_step in range(numSGD_steps):
             # i) Calculate model loss, accuracy, gradient
-            train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=shuffle_labels)
+            train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(stage, trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=shuffle_labels)
 
             if pretrain_on and stage == 1 and SGD_step == 0:
                 if train_acc > pretrain_stage_1_acc_th:
@@ -313,7 +313,7 @@ def train_ori_discr(
                         readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
                     else:
                         # Update readout parameters
-                        updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout)
+                        updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout) # *** grad was [0] for c and [1] for b and w - it should be just grad for b and w here
                         readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
             else:                                
                 # Update ssn layer parameters
@@ -340,7 +340,7 @@ def train_ori_discr(
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps)
         
     # Create DataFrame and save the DataFrame to a CSV file
-    if pretrain_on:  
+    if stage < 2:  
         df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets)
     else:
         df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas=kappas)
@@ -355,7 +355,7 @@ def train_ori_discr(
     return df
 
 
-def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=False):
+def loss_and_grad_ori_discr(stage, trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=False):
     """
     Top level function to calculate losses, accuracies and other relevant metrics. It generates noises and training data and then applies the function training_loss_val_and_grad.
 
@@ -371,7 +371,7 @@ def loss_and_grad_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars
     """
 
     # Create stimulus for middle layer: train_data is a dictionary with keys 'ref', 'target' and 'label'
-    if untrained_pars.pretrain_pars.is_on:
+    if stage == 0:
         pretrain_pars=untrained_pars.pretrain_pars
         # Generate training data and noise that is added to the output of the model
         noise_ref = generate_noise(pretrain_pars.batch_size, readout_pars_dict["w_sig"].shape[0], num_readout_noise = untrained_pars.num_readout_noise)

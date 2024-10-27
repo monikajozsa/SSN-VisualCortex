@@ -4,7 +4,6 @@
 # to test this code, change SGD_steps in TrainingPars and PretrainingPars in parameters.py and set tc_ori_list = numpy.arange(0,360,20) and 
 import os
 import time
-import pandas as pd
 import numpy
 import shutil
 import subprocess
@@ -22,8 +21,8 @@ starting_time_in_main= time.time()
 # Set up results folder and save note and scripts
 note=f'Getting as much data with corrected kappas over the weekend as possible'
 root_folder = os.path.dirname(__file__)
-#folder_path = save_code(note=note)
-folder_path = os.path.join(root_folder, 'results', 'Oct23_v6')
+folder_path = save_code(note=note)
+#folder_path = os.path.join(root_folder, 'results', 'Oct23_v6')
 
 ########## ########## ########## 
 ######### Pretraining ##########
@@ -122,8 +121,8 @@ for i, conf in enumerate(conf_list):
     subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
     
     # plot results on parameters
-    plot_results_on_parameters(config_folder, num_training, plot_per_run=True)
-    plot_param_offset_correlations(config_folder)
+    #plot_results_on_parameters(config_folder, num_training, plot_per_run=True)
+    #plot_param_offset_correlations(config_folder)
 
     print('\n')
     print(f'Configuration {i} done')

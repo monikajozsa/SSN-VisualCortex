@@ -13,9 +13,6 @@ from analysis.visualization import plot_MVPA_or_Mahal_scores, plot_MVPA_or_Mahal
 from parameters import GridPars, SSNPars, PretrainingPars
 grid_pars, ssn_pars, pretraining_pars = GridPars(), SSNPars(), PretrainingPars()
 
-# Checking that pretrain_pars.is_on is on
-if not pretraining_pars.is_on:
-    raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
 
 ########## CALCULATE TUNING CURVES ############
 def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds = range(3), tc_ori_list = numpy.arange(0,180,6), add_header=True, filename=None):

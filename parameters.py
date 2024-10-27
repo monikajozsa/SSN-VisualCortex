@@ -26,7 +26,7 @@ class PretrainingPars:
     """ maximum number of SGD steps during pretraining """
     min_stop_ind: int = 100
     """ minimum SGD step where pretraining can stop """
-    pretrain_stage_1_acc_th: float = 0.51
+    pretrain_stage_1_acc_th: float = 0.55
     """ accuracy threshold for early stopping criterium for the second stage of pretraining """
 
 pretraining_pars = PretrainingPars()
@@ -35,7 +35,7 @@ pretraining_pars = PretrainingPars()
 # Training parameters
 @dataclass
 class TrainingPars:
-    pretraining_task: bool = True
+    pretraining_task: bool = False
     """ flag for training for the pretraining (general) task or the training (fine) discrimination task """
     shuffle_labels: bool = False
     """ flag for shuffling the labels of the training data """

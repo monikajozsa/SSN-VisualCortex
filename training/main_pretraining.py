@@ -21,7 +21,7 @@ from model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from parameters import PretrainingPars
 pretraining_pars = PretrainingPars() # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 if not pretraining_pars.is_on:
-    raise ValueError('Set pretrain_pars.is_on to True in parameters.py to run training with pretraining!')
+    print('pretrain_pars.is_on is False in parameters.py but main_pretraining is called!')
 
 def fill_attribute_list(class_to_fill, attr_list, value_list):
     """Fill the attributes of a class with the given values."""

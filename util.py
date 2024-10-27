@@ -500,9 +500,20 @@ def filter_for_run_and_stage(df, run_index, stage=None):
 
     if stage is not None:
         mesh_i = df_i['stage'] == stage
-        df_i = df_i[mesh_i]
-        df_i = df_i.drop(columns=['stage'])
-        df_i = df_i.reset_index(drop=True)
+        if any(mesh_i):
+            df_i = df_i[mesh_i]
+            df_i = df_i.drop(columns=['stage'])
+            df_i = df_i.reset_index(drop=True)
+        elif stage==1:
+            mesh_i = df_i['stage'] == stage-1
+            df_i = df_i[mesh_i]
+            df_i = df_i.drop(columns=['stage'])
+            df_i = df_i.reset_index(drop=True)
+        else:
+            print('Returning empty dataframe from filter_for_run_and_stage')
+            df_i = df_i[mesh_i]
+            df_i = df_i.drop(columns=['stage'])
+            df_i = df_i.reset_index(drop=True)
 
     return df_i
 
@@ -647,6 +658,10 @@ def configure_parameters_file(root_folder, conf):
         # Update opt_readout_before_training in TrainingPars
         if "opt_readout_before_training" in line:
             line = f"    opt_readout_before_training: bool = {opt_readout_before_training}\n"
+
+        # Update is_on in PretrainingPars
+        if "is_on: bool = True" in line:
+            line = f"    is_on: bool = False\n"
         
         updated_lines.append(line)
 
