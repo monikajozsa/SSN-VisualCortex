@@ -49,7 +49,7 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
 
         # Loop over the different runs
         iloc_ind_vec = [0,-1,-1]
-        stages = [0,0,2]
+        stages = [0,1,2]
         for i in range(0, num_training):    
             # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
             for stage_ind in stage_inds:

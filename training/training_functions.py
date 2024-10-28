@@ -161,7 +161,7 @@ def train_ori_discr(
 
             if jax.numpy.isnan(train_loss):
                 print('NaN values in loss at step', SGD_step)
-                return None, None
+                return None
             
             # Calculate psychometric_offset if the SGD step is in the acc_check_ind vector
             if pretrain_on and SGD_step in acc_check_ind:
@@ -247,7 +247,9 @@ def train_ori_discr(
                     threshold_variables.append(temp_threshold)
                 else:
                     threshold_variables=[temp_threshold]
-
+            if SGD_step % 10 == 0:
+                print("Stage: {}¦ Readout loss: {:.3f}  ¦ Train loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ SGD step: {} ".format(
+                        stage, train_loss_all[0].item(), train_loss, train_acc, SGD_step))
             # iv) Loss and accuracy validation + printing results    
             if SGD_step in val_steps:
                 #### Calculate loss and accuracy on new validation data set
@@ -289,7 +291,8 @@ def train_ori_discr(
             if pretrain_on:
                 # linear regression to check if acc_mean is decreasing (happens when pretraining goes on while solving the flipped training task)
                 acc_mean_slope, _, _, _, _ = linregress(range(len(acc_mean)), acc_mean)
-                if pretrain_on and val_acc < 0.45 and acc_mean_slope < -0.02:
+                # During pretraining, if the validation accuracy is low and accuracy is decreasing as the offset increases, then flip the readout parameters
+                if stage==0 and val_acc < 0.45 and acc_mean_slope < -0.02:
                     # Flip the center readout parameters if validation accuracy is low (which corresponds to training task) and training task accuracy is decreasing as offset increases
                     readout_pars_dict['w_sig'] = readout_pars_dict['w_sig'].at[untrained_pars.middle_grid_ind].set(-readout_pars_dict['w_sig'][untrained_pars.middle_grid_ind])
                     readout_pars_dict['b_sig'] = -readout_pars_dict['b_sig']

@@ -436,7 +436,7 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     
     ###### Extract readout parameters from pretraining.csv and save it to readout pars ######
     # If stage is >0, then load the last row of pretraining_results.csv as readout parameters are not trained during training
-    if stage > 0:
+    if stage == 2:
         df_all = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv'))
         df = filter_for_run_and_stage(df_all, run_index)
         selected_row = df.iloc[-1]

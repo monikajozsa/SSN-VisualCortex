@@ -22,7 +22,7 @@ def main_training(folder_path, num_training, starting_time_training=0, run_indic
         numpy.random.seed(i)
 
         # Load the last parameters from the pretraining
-        pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=0, iloc_ind = -1, for_training=True)
+        pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=1, iloc_ind=-1, for_training=True)
         if untrained_pars.training_pars.opt_readout_before_training:
             # Apply logistic regression to the readout weights and bias and save them to pretrained_readout_pars_dict
             # This needs to be adjusted if we mix the layers because the readout weights are just 5x5 at the moment - check if readout_pars_from_regr needs to be adjusted for reading out from middle layer or if contrib variable takes care of it already 
@@ -50,7 +50,7 @@ def main_training(folder_path, num_training, starting_time_training=0, run_indic
 
         # Run training
         results_filename = os.path.join(folder_path,'training_results.csv')
-        _ = train_ori_discr(
+        df = train_ori_discr(
                 pretrained_readout_pars_dict,
                 trained_pars_dict,
                 untrained_pars,
@@ -59,7 +59,11 @@ def main_training(folder_path, num_training, starting_time_training=0, run_indic
                 offset_step=0.1,
                 run_index = i
             )
-        print('runtime of {} training'.format(i), time.time()-starting_time_training)
+        if df is None:
+            print(f'No training results saved for run {i}. Runtime:', time.time()-starting_time_training)
+        else:
+            print('Runtime of {} training'.format(i), time.time()-starting_time_training)
+
 
 # Main_training is called with subprocesses and so we take command-line arguments to run it. 
 # This serves the purpose of reloading parameters.py that defines the configurations. 
