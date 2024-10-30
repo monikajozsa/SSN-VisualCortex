@@ -290,9 +290,9 @@ def train_ori_discr(
             # v) Parameter update. Note that training has one-stage, pre-training has two-stages, where the second stage (stage 1) is skipped if the accuracy satisfies a minimum threshold criteria
             if pretrain_on:
                 # linear regression to check if acc_mean is decreasing (happens when pretraining goes on while solving the flipped training task)
-                acc_mean_slope, _, _, _, _ = linregress(range(len(acc_mean)), acc_mean)
+                acc_mean_slope, _, _, p_value, _ = linregress(range(len(acc_mean)), acc_mean)
                 # During pretraining, if the validation accuracy is low and accuracy is decreasing as the offset increases, then flip the readout parameters
-                if stage==0 and val_acc < 0.45 and acc_mean_slope < -0.02:
+                if stage==0 and acc_mean_slope < -0.01 and p_value < 0.05:
                     # Flip the center readout parameters if validation accuracy is low (which corresponds to training task) and training task accuracy is decreasing as offset increases
                     readout_pars_dict['w_sig'] = readout_pars_dict['w_sig'].at[untrained_pars.middle_grid_ind].set(-readout_pars_dict['w_sig'][untrained_pars.middle_grid_ind])
                     readout_pars_dict['b_sig'] = -readout_pars_dict['b_sig']
