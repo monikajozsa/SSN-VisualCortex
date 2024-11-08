@@ -117,7 +117,6 @@ def train_ori_discr(
         numSGD_steps = training_pars.SGD_steps
         stage_list = [2]
     test_offset_vec = numpy.array([1, 3, 7, 12, 20])  # offset values to define offset threshold where given accuracy is achieved
-    train_acc_test = 0
 
     # Define SGD_steps indices where losses an accuracy are validated
     val_steps = np.arange(0, numSGD_steps, training_pars.validation_freq)
@@ -297,6 +296,7 @@ def train_ori_discr(
                 # linear regression to check if acc_mean is decreasing (happens when pretraining goes on while solving the flipped training task)
                 acc_mean_slope, _, _, p_value, _ = linregress(range(len(acc_mean)), acc_mean)
                 # During pretraining, if the validation accuracy is low and accuracy is decreasing as the offset increases, then flip the readout parameters
+                train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False) 
                 if stage==0 and (acc_mean_slope < -0.01) and (p_value < 0.05) and train_acc_test<0.5:
                     # Flip the center readout parameters if validation accuracy is low (which corresponds to training task) and training task accuracy is decreasing as offset increases
                     readout_pars_dict['w_sig'] = readout_pars_dict['w_sig'].at[untrained_pars.middle_grid_ind].set(-readout_pars_dict['w_sig'][untrained_pars.middle_grid_ind])
@@ -308,8 +308,7 @@ def train_ori_discr(
                     m[1]['w_sig']=m[1]['w_sig'].at[untrained_pars.middle_grid_ind].set(-m[1]['w_sig'][untrained_pars.middle_grid_ind])
                     
                     # Print out the changes in accuracy
-                    pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True)
-                    train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False)                        
+                    pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True)                  
                     print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc:', train_acc_test)
                 else:
                     if stage == 0:

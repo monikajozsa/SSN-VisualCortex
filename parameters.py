@@ -14,7 +14,7 @@ class PretrainingPars:
     """ interval where the absolute orientation difference between reference and target is randomly chosen from """
     acc_th: float = 0.749
     """ accuracy threshold to calculate corresponding offset (training task) """
-    acc_check_freq: int = 10
+    acc_check_freq: int = 2
     """ frequency (in SGD step) of accuracy check for the training task """
     min_acc_check_ind: int = 1
     """ minimum SGD step where accuracy check happens for the training task """
