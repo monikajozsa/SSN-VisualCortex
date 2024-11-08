@@ -358,14 +358,10 @@ def csv_to_numpy(file_name):
 def load_orientation_map(folder, run_ind):
     """Loads the orientation map from the folder for the training indexed by run_ind."""
     orimap_filename = os.path.join(folder, f"orimap.csv")
-    if not os.path.exists(orimap_filename):
-        orimap_filename = os.path.join(folder, f"orimap_{run_ind}.npy")
-        orimap = np.load(orimap_filename)
-    else:
-        orimaps = pd.read_csv(orimap_filename, header=0)
-        mesh_run = orimaps['run_index']==float(run_ind)
-        orimap = orimaps[mesh_run].to_numpy()
-        orimap = orimap[0][1:]
+    orimaps = pd.read_csv(orimap_filename, header=0)
+    mesh_run = orimaps['run_index']==float(run_ind)
+    orimap = orimaps[mesh_run].to_numpy()
+    orimap = orimap[0][1:]
 
     return orimap
 
@@ -391,10 +387,16 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
 
     # Get the iloc_ind row of the pretraining_results or training_results csv file depending on stage
     if stage<2:
-        df_all = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv'))
+        df_all = pd.read_csv(os.path.join(os.path.dirname(folder_path), 'pretraining_results.csv'))
     else:
         df_all = pd.read_csv(os.path.join(folder_path, 'training_results.csv'))
     df = filter_for_run_and_stage(df_all, run_index, stage)
+    if df.empty:
+        print(f'Empty dataframe for run index {run_index} and stage {stage}.')
+        if for_training:
+            return None, None, None, None, None
+        else:
+            return None, None, None
     selected_row = df.iloc[int(iloc_ind)]
 
     # Define parameter keys
@@ -437,7 +439,7 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     ###### Extract readout parameters from pretraining.csv and save it to readout pars ######
     # If stage is >0, then load the last row of pretraining_results.csv as readout parameters are not trained during training
     if stage == 2:
-        df_all = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv'))
+        df_all = pd.read_csv(os.path.join(os.path.dirname(folder_path), 'pretraining_results.csv'))
         df = filter_for_run_and_stage(df_all, run_index)
         selected_row = df.iloc[-1]
    
@@ -455,7 +457,7 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     readout_pars.w_sig = w_sig_values
 
     ###### Set the gE, gI and eta parameters from initial_parameters.csv ######
-    df_init_pars_all = pd.read_csv(os.path.join(folder_path, 'initial_parameters.csv'))
+    df_init_pars_all = pd.read_csv(os.path.join(os.path.dirname(folder_path), 'initial_parameters.csv'))
     stage_for_init_pars=min(1,stage)
     df_init_pars = filter_for_run_and_stage(df_init_pars_all, run_index, stage_for_init_pars)
  
@@ -465,7 +467,7 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
 
     ###### Initialize untrained parameters with the loaded values ######
     # Load orientation map
-    loaded_orimap = load_orientation_map(folder_path, run_index)
+    loaded_orimap = load_orientation_map(os.path.dirname(folder_path), run_index)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                     loss_pars, training_pars, pretraining_pars, readout_pars, orimap_loaded=loaded_orimap)
     
@@ -492,30 +494,36 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
 
 def filter_for_run_and_stage(df, run_index, stage=None):
     """Filters the dataframe for the run_index and stage."""
-    df['run_index'] = pd.to_numeric(df['run_index'], errors='coerce')
-    mesh_i = df['run_index'] == run_index
-    df_i = df[mesh_i]
-    df_i = df_i.drop(columns=['run_index'])
-    df_i = df_i.reset_index(drop=True)
 
+    # Convert run_index to numeric and filter the dataframe for the run_index
+    df['run_index'] = pd.to_numeric(df['run_index'], errors='coerce')
+    mesh_run = df['run_index'] == run_index
+    if not any(mesh_run):
+        print('Returning empty dataframe from filter_for_run_and_stage for run index', run_index)
+    df_run = df[mesh_run]
+    df_run = df_run.drop(columns=['run_index'])
+    df_run = df_run.reset_index(drop=True)
+
+    # If stage is provided, then filter the dataframe for the stage
     if stage is not None:
-        mesh_i = df_i['stage'] == stage
-        if any(mesh_i):
-            df_i = df_i[mesh_i]
-            df_i = df_i.drop(columns=['stage'])
-            df_i = df_i.reset_index(drop=True)
-        elif stage==1:
-            mesh_i = df_i['stage'] == stage-1
-            df_i = df_i[mesh_i]
-            df_i = df_i.drop(columns=['stage'])
-            df_i = df_i.reset_index(drop=True)
+        mesh_stage = df_run['stage'] == stage
+        if any(mesh_stage):
+            df_stage = df_run[mesh_stage]
+            df_stage = df_stage.drop(columns=['stage'])
+            df_stage = df_stage.reset_index(drop=True)
+        elif stage==1: # case when stage 1 is required but there is no stage 1 in the dataframe - return stage 0
+            mesh_stage = df_run['stage'] == stage-1
+            df_stage = df_run[mesh_stage]
+            df_stage = df_stage.drop(columns=['stage'])
+            df_stage = df_stage.reset_index(drop=True)
         else:
             print('Returning empty dataframe from filter_for_run_and_stage')
-            df_i = df_i[mesh_i]
-            df_i = df_i.drop(columns=['stage'])
-            df_i = df_i.reset_index(drop=True)
-
-    return df_i
+            df_stage = df_run[mesh_stage]
+            df_stage = df_stage.drop(columns=['stage'])
+            df_stage = df_stage.reset_index(drop=True)
+        return df_stage
+    else:
+        return df_run
 
 
 def set_up_config_folder(results_folder, conf_name):
@@ -530,13 +538,6 @@ def set_up_config_folder(results_folder, conf_name):
     shutil.copy(os.path.join(results_folder, 'initial_parameters.csv'), config_folder / 'initial_parameters.csv')
     shutil.copy(os.path.join(results_folder, 'pretraining_results.csv'), config_folder / 'pretraining_results.csv')
     return config_folder
-
-
-def del_pretrain_files_from_config_folder(config_folder):
-    """Delete the pretraining related files from the config folder."""
-    os.remove(os.path.join(config_folder, 'orimap.csv'))
-    os.remove(os.path.join(config_folder, 'initial_parameters.csv'))
-    os.remove(os.path.join(config_folder, 'pretraining_results.csv'))
 
 
 def configure_parameters_file(root_folder, conf):

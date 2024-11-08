@@ -11,7 +11,7 @@ import sys
 from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, MVPA_param_offset_correlations, data_from_run, exclude_runs, param_offset_correlations, pre_post_for_runs
+from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, MVPA_param_offset_correlations, data_from_run, param_offset_correlations, pre_post_for_runs
 from util import check_header, csv_to_numpy
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
@@ -58,8 +58,167 @@ def annotate_bar(ax, bars, values, ylabel=None, title=None):
         ax.set_title(title, fontsize=20)
 
 ######### PLOT RESULTS ON PARAMETERS ############
-def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1):
-    """ Create boxplots and barplots for the relative changes of the parameters before and after training """
+
+def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
+    """ Plot the results on the parameters from a signle result csv file """
+    def plot_params_over_time(ax, df, keys, colors, linestyles, title, SGD_steps):
+        for i, key in enumerate(keys):
+            ax.plot(range(SGD_steps), df[key], label=key, color=colors[i], linestyle=linestyles[i])
+        ax.set_title(title, fontsize=20)
+        ax.legend(loc='upper right', fontsize=20)
+        ax.set_xlabel('SGD steps', fontsize=20)
+        
+    def plot_accuracy(ax, df, SGD_steps):
+        """Plot accuracy changes over time."""
+        for column in df.columns:
+            if 'acc' in column and 'val_' not in column:
+                ax.plot(range(SGD_steps), df[column], label=column, alpha=0.6, c='tab:green')
+            elif 'val_acc' in column:
+                ax.scatter(range(SGD_steps), df[column], label=column, marker='o', s=50, c='green')
+        ax.legend(loc='lower right', fontsize=20)
+        ax.set_title('Accuracy', fontsize=20)
+        ax.axhline(y=0.5, color='black', linestyle='--')
+        ax.set_ylim(0, 1)
+        ax.set_xlabel('SGD steps', fontsize=20)
+
+    def plot_loss(ax, df, SGD_steps):
+        for column in df.columns:
+            if 'loss_' in column and 'val_loss' not in column:
+                ax.plot(range(SGD_steps), df[column], label=column, alpha=0.6)
+            if 'val_loss' in column:
+                ax.scatter(range(SGD_steps), df[column], label='val_loss', marker='o', s=50)
+        ax.legend(loc='upper right', fontsize=20)
+        ax.set_title('Loss', fontsize=20)
+        ax.set_xlabel('SGD steps', fontsize=20)
+
+    def plot_offset(ax, df, SGD_steps, keys_metrics):
+        num_pretraining_steps= sum(df['stage'] == 0)
+        ax.plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*6, alpha=0.6, c='black', linestyle='--')
+        if len(keys_metrics)>1:
+            ax.scatter(range(SGD_steps), df[keys_metrics[0]], label=keys_metrics[0], marker='o', s=70, c='tab:orange')
+            ax.scatter(range(SGD_steps), df[keys_metrics[1]], label=keys_metrics[1], marker='o', s=50, c='tab:brown')
+            ax.set_ylim(0, min(25,max(df[keys_metrics[1]])+1)) # keys_metrics[1] is the staircase offset
+        else: # when the run returned NA and so training was not saved
+            ax.scatter(range(SGD_steps), df[keys_metrics[0]], label=keys_metrics[0], marker='o', s=50, c='tab:green')
+        ax.grid(color='gray', linestyle='-', linewidth=0.5)
+        ax.set_title('Offset', fontsize=20)
+        ax.set_ylabel('degrees', fontsize=20)
+        ax.set_xlabel('SGD steps', fontsize=20)        
+        ax.legend(loc='upper right', fontsize=20)
+
+    def plot_readout_weights(ax, df, SGD_steps):
+        ax.plot(range(SGD_steps), df['b_sig'], label='b_sig', linestyle='--', linewidth = 3)
+        ax.set_xlabel('SGD steps', fontsize=20)
+        i=0
+        for i in range(10):
+            column = f'w_sig_{29+i}' # if all 81 w_sigs are saved
+            if column in df.keys():
+                ax.plot(range(SGD_steps), df[column], label=column)
+            else:
+                column = f'w_sig_{i}' # if only the middle 25 w_sigs are saved
+                if column in df.keys():                
+                    ax.plot(range(SGD_steps), df[column], label=column)
+        ax.set_title('Readout bias and weights', fontsize=20)
+        ax.legend(loc='upper right', fontsize=20)
+    
+    # check if filename fig_filename + ".png" exists, if it does, return
+    if os.path.exists(fig_filename + ".png"):
+        return
+    else:    
+        df, time_inds  = data_from_run(folder, run_index=run_index, num_indices=3)
+        # if df is empty, then there is no training data from that run (possibly because of divergence of the model)
+        if df.empty:
+            return
+        SGD_steps = time_inds[-1]+1
+        rel_changes_train, _, _ = rel_change_for_run(folder, run_index, 3)
+        
+        # Define colors and linestyles for the plots
+        colors_J=['tab:red' ,'tab:orange','tab:green', 'tab:blue', 'tab:red' ,'tab:orange','tab:green', 'tab:blue']
+        linestyles_J = ['--', '--', '--', '--', '-', '-', '-', '-']
+        keys_J_raw = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m', 'J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']
+        keys_maxr = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup']
+        keys_meanr = ['meanr_E_mid', 'meanr_I_mid', 'meanr_E_sup', 'meanr_I_sup']
+        linestyles_r = [':', ':', '-', '-']
+        colors_r = ["tab:red", "tab:blue", "tab:red", "tab:blue"]
+        keys_cf = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I']
+        colors_cf = ['tab:orange', 'tab:green','tab:red', 'tab:blue', 'tab:red', 'tab:blue']
+        linestyles_cf = ['-', '-', '-', '-', '--', '--']
+        colors_metrics = [ 'tab:orange', 'tab:brown','tab:green']
+        # Define keys and values for the bar plots
+        keys_J = [key for key in rel_changes_train.keys() if key.startswith('J_')]
+        values_J = [rel_changes_train[key] for key in keys_J] 
+        keys_offsets =  [key for key in rel_changes_train.keys() if '_offset' in key]
+        keys_acc = [key for key in rel_changes_train.keys() if key.startswith('acc')]
+        if len(keys_offsets)>0:
+            keys_metrics = keys_offsets + keys_acc
+        else:
+            keys_metrics = keys_acc
+        values_metrics = [rel_changes_train[key] for key in keys_metrics]
+        keys_meanr = [key for key in rel_changes_train.keys() if key.startswith('meanr_')]
+        values_meanr = [rel_changes_train[key] for key in keys_meanr] 
+        keys_fc = [key for key in rel_changes_train.keys() if key.startswith('c_') or key.startswith('f_')]
+        values_fc = [rel_changes_train[key]for key in keys_fc]        
+
+        # Create the figure
+        fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(60, 45))
+
+        # Plot each section
+        plot_accuracy(axes[0,0], df, SGD_steps)
+        plot_loss(axes[0,1], df, SGD_steps)
+        plot_offset(axes[0,2], df, SGD_steps, keys_metrics)
+        plot_params_over_time(axes[1,0], df, keys_maxr, colors_r, linestyles_r, title='Maximum rates', SGD_steps=SGD_steps)
+        plot_params_over_time(axes[1,1], df, keys_meanr, colors_r, linestyles_r, title='Mean rates', SGD_steps=SGD_steps)
+        plot_readout_weights(axes[1,2], df, SGD_steps)
+        plot_params_over_time(axes[2,0], df, keys_J_raw, colors_J, linestyles_J, title='J in middle and superficial layers', SGD_steps=SGD_steps)
+        plot_params_over_time(axes[2,1], df, keys_cf, colors_cf, linestyles_cf, title='c: constant inputs, f: weights between mid and sup layers', SGD_steps=SGD_steps)
+        bars_params = axes[2,2].bar(keys_J, values_J, color=colors_J)   
+        bars_metrics = axes[0,3].bar(keys_metrics, values_metrics, color=colors_metrics)
+        bars_r = axes[1,3].bar(keys_meanr, values_meanr, color=colors_r)         
+        bars_cf = axes[2,3].bar(keys_fc, values_fc, color=colors_cf)
+        
+        # Annotating each bar with its value for bars_params
+        annotate_bar(axes[2,2], bars_params, values_J, ylabel='relative change %', title= 'Rel. changes in J before and after training')
+        annotate_bar(axes[0,3], bars_metrics, values_metrics, ylabel='relative change %', title= 'Rel. changes in metrics before and after training')
+        annotate_bar(axes[1,3], bars_r, values_meanr, ylabel='relative change %', title= 'Rel. changes in mean rates before and after training')
+        annotate_bar(axes[2,3], bars_cf, values_fc, ylabel='relative change %', title= 'Other rel changes before and after training')
+        
+        # Add vertical lines to indicate the different stages
+        for i in range(1, len(df['stage'])):
+            if df['stage'][i] != df['stage'][i-1]:
+                axes[0,0].axvline(x=i, color='black', linestyle='--')
+                axes[0,1].axvline(x=i, color='black', linestyle='--')
+                axes[0,2].axvline(x=i, color='black', linestyle='--')
+                axes[1,0].axvline(x=i, color='black', linestyle='--')
+                axes[1,1].axvline(x=i, color='black', linestyle='--')
+                axes[1,2].axvline(x=i, color='black', linestyle='--')
+                axes[2,0].axvline(x=i, color='black', linestyle='--')
+                axes[2,1].axvline(x=i, color='black', linestyle='--')
+        for i in range(3):
+            for j in range(4):
+                axes[i,j].tick_params(axis='both', which='major', labelsize=18)  # Set tick font size
+
+        fig.savefig(fig_filename + ".png")
+        plt.close()
+
+
+def plot_results_from_csvs(folder_path, num_runs=3, starting_run=0):
+    """ Plot the per-run results from the results csv on the parameters """
+    # Add folder_path to path
+    if folder_path not in sys.path:
+        sys.path.append(folder_path)
+
+    # Create a per_run folder within the figures folder
+    folder_to_save = os.path.join(folder_path,  'figures', 'per_run')
+    if not os.path.exists(folder_to_save):
+        os.makedirs(folder_to_save)    
+
+    # Plot loss, accuracy and trained parameters and save the figures
+    for j in range(starting_run, num_runs):
+        results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}')
+        plot_results_from_csv(folder_path, j, results_fig_filename)
+
+
+def barplots_from_csvs(folder, save_folder=None, excluded_runs = []):
     def scatter_data_with_lines(ax, data):
         for i in range(2):
             group_data = data[i, :]
@@ -101,9 +260,58 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
         plt.tight_layout()
         fig.savefig(figname)
         plt.close()
+    
+    if save_folder is None:
+        save_folder = os.path.join(folder, 'figures')
 
-    def boxplot_params(num_training, keys_group, rel_changes, group_labels, box_colors, full_path, set_ylim=False):
+    # Get relevant data for plots: values for pre and post training and relative changes
+    pretrain_filepath = os.path.join(os.path.dirname(folder), 'pretraining_results.csv') 
+    pretrain_df = pd.read_csv(pretrain_filepath)
+    num_training = pretrain_df['run_index'].nunique()
+    _, vals_pre, vals_post = pre_post_for_runs(folder, num_training, num_time_inds=2, excluded_runs=excluded_runs)
+
+    # Extend vals_pre, vals_post with 'J_EI_m_abs', 'J_II_m_abs', 'J_EI_s_abs', 'J_II_s_abs' to include the absolute values
+    vals_pre['J_EI_m_abs'] = numpy.abs(vals_pre['J_EI_m'])
+    vals_pre['J_II_m_abs'] = numpy.abs(vals_pre['J_II_m'])
+    vals_pre['J_EI_s_abs'] = numpy.abs(vals_pre['J_EI_s'])
+    vals_pre['J_II_s_abs'] = numpy.abs(vals_pre['J_II_s'])
+    vals_post['J_EI_m_abs'] = numpy.abs(vals_post['J_EI_m'])
+    vals_post['J_II_m_abs'] = numpy.abs(vals_post['J_II_m'])
+    vals_post['J_EI_s_abs'] = numpy.abs(vals_post['J_EI_s'])
+    vals_post['J_II_s_abs'] = numpy.abs(vals_post['J_II_s'])
+    means_pre = vals_pre.mean()
+    means_post = vals_post.mean()
+
+    # Plotting bar plots of offset before and after training or pretraining 
+    keys_offset = ['staircase_offset', 'psychometric_offset']
+    titles_offset = ['Staircase offset threshold', 'Psychometric offset threshold']
+    colors = ['green', 'forestgreen']
+    barplot_params(colors, keys_offset, titles_offset, means_pre, means_post, vals_pre, vals_post, save_folder + '/offset_pre_post.png', ylims=[[0, 20], [0, 20]])
+
+    # Plotting bar plots of J parameters before and after training or pretraining 
+    colors=['red' ,'tab:red','blue', 'tab:blue' ,'red' ,'tab:red', 'blue', 'tab:blue']
+    keys_J = ['J_EE_m', 'J_IE_m', 'J_EI_m_abs', 'J_II_m_abs', 'J_EE_s', 'J_IE_s', 'J_EI_s_abs', 'J_II_s_abs']
+    titles_J = [ r'$J^{\text{mid}}_{E \rightarrow E}$', r'$J^{\text{mid}}_{E \rightarrow I}$', r'$J^{\text{mid}}_{I \rightarrow E}$', r'$J^{\text{mid}}_{I \rightarrow I}$', r'$J^{\text{sup}}_{E \rightarrow E}$', r'$J^{\text{sup}}_{E \rightarrow I}$', r'$J^{\text{sup}}_{I \rightarrow E}$', r'$J^{\text{sup}}_{I \rightarrow I}$']
+    barplot_params(colors, keys_J, titles_J, means_pre, means_post, vals_pre, vals_post, save_folder + '/J_pre_post.png')
+
+    # Plotting bar plots of r parameters before and after training or pretraining
+    colors=['red' ,'blue', 'tab:red', 'tab:blue' ,'red' , 'blue','tab:red', 'tab:blue']
+    keys_r = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup', 'meanr_E_mid', 'meanr_I_mid', 'meanr_E_sup', 'meanr_I_sup']
+    titles_r = [r'$r^{\text{mid}}_{\text{max},E}$', r'$r^{\text{mid}}_{\text{max},I}$', r'$r^{\text{sup}}_{\text{max},E}$', r'$r^{\text{sup}}_{\text{max},I}$', r'$r^{\text{mid}}_{\text{mean},E}$', r'$r^{\text{mid}}_{\text{mean},I}$', r'$r^{\text{sup}}_{\text{mean},E}$', r'$r^{\text{sup}}_{\text{mean},I}$']
+    barplot_params(colors, keys_r, titles_r, means_pre, means_post, vals_pre, vals_post, save_folder + '/r_pre_post.png')
+
+    # Plotting bar plots of c, f and kappa parameters before and after  
+    colors=['orange', 'orange', 'green', 'green', 'green', 'green', 'green', 'green', 'green', 'green']
+    keys_c_f_kappa = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post', 'f_I']
+    titles_c_f_kappa = [r'$c^{\text{mid}}_{\rightarrow E}$', r'$c^{\text{mid}}_{\rightarrow I}$', r'$c^{\text{sup}}_{\rightarrow E}$', r'$c^{\text{sup}}_{\rightarrow I}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$\kappa^{\text{pre}}_{E \rightarrow  E}$', r'$\kappa^{\text{pre}}_{I \rightarrow  E}$', r'$\kappa^{\text{post}}_{E \rightarrow  E}$', r'$\kappa^{\text{post}}_{I \rightarrow  E}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$']
+    barplot_params(colors, keys_c_f_kappa, titles_c_f_kappa, means_pre, means_post, vals_pre, vals_post, save_folder + '/c_f_kappa_pre_post.png')
+    
+
+def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_runs = []):
+    """ Create boxplots and barplots for the relative changes of the parameters before and after training """
+    def boxplot_params(keys_group, rel_changes, group_labels, box_colors, full_path, set_ylim=False):
         num_groups=len(keys_group)
+        num_training = len(rel_changes[keys_group[0][0]])
         fig, axs = plt.subplots(1, num_groups, figsize=(6*num_groups, 5))  # Create subplots
         
         for i, label in enumerate(group_labels):
@@ -139,50 +347,14 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
         fig.savefig(full_path)
         plt.close()
 
+    if save_folder is None:
+        save_folder = os.path.join(folder, 'figures')
+
     # Get relevant data for plots: values for pre and post training and relative changes
-    _, vals_pre, vals_post = pre_post_for_runs(folder, num_training, num_time_inds=2)
-    # extend vals_pre, vals_post with 'J_EI_m_abs', 'J_II_m_abs', 'J_EI_s_abs', 'J_II_s_abs' to include the absolute values
-    vals_pre['J_EI_m_abs'] = numpy.abs(vals_pre['J_EI_m'])
-    vals_pre['J_II_m_abs'] = numpy.abs(vals_pre['J_II_m'])
-    vals_pre['J_EI_s_abs'] = numpy.abs(vals_pre['J_EI_s'])
-    vals_pre['J_II_s_abs'] = numpy.abs(vals_pre['J_II_s'])
-    vals_post['J_EI_m_abs'] = numpy.abs(vals_post['J_EI_m'])
-    vals_post['J_II_m_abs'] = numpy.abs(vals_post['J_II_m'])
-    vals_post['J_EI_s_abs'] = numpy.abs(vals_post['J_EI_s'])
-    vals_post['J_II_s_abs'] = numpy.abs(vals_post['J_II_s'])
-    means_pre = vals_pre.mean()
-    means_post = vals_post.mean()
-    rel_changes_train, rel_changes_pretrain = rel_change_for_runs(folder, num_time_inds=num_time_inds, num_runs=num_training)
-
-    ################# Plotting bar plots of offset before and after given time indices #################
-    # Colors for bars
-    keys_offset = ['staircase_offset', 'psychometric_offset']
-    titles_offset = ['Staircase offset threshold', 'Psychometric offset threshold']
-    colors = ['green', 'forestgreen']
-    barplot_params(colors, keys_offset, titles_offset, means_pre, means_post, vals_pre, vals_post, save_folder + '/offset_pre_post.png', ylims=[[0, 20], [0,20]])
-
-    ################# Plotting bar plots of J parameters before and after given time indices #################
-    # Colors for bars
-    colors=['red' ,'tab:red','blue', 'tab:blue' ,'red' ,'tab:red', 'blue', 'tab:blue']
-    keys_J = ['J_EE_m', 'J_IE_m', 'J_EI_m_abs', 'J_II_m_abs', 'J_EE_s', 'J_IE_s', 'J_EI_s_abs', 'J_II_s_abs']
-    titles_J = [ r'$J^{\text{mid}}_{E \rightarrow E}$', r'$J^{\text{mid}}_{E \rightarrow I}$', r'$J^{\text{mid}}_{I \rightarrow E}$', r'$J^{\text{mid}}_{I \rightarrow I}$', r'$J^{\text{sup}}_{E \rightarrow E}$', r'$J^{\text{sup}}_{E \rightarrow I}$', r'$J^{\text{sup}}_{I \rightarrow E}$', r'$J^{\text{sup}}_{I \rightarrow I}$']
-    barplot_params(colors, keys_J, titles_J, means_pre, means_post, vals_pre, vals_post, save_folder + '/J_pre_post.png')
-
-    ################# Plotting bar plots of r parameters before and after  #################
-    # Colors and keys for bar plots
-    colors=['red' ,'blue', 'tab:red', 'tab:blue' ,'red' , 'blue','tab:red', 'tab:blue']
-    keys_r = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup', 'meanr_E_mid', 'meanr_I_mid', 'meanr_E_sup', 'meanr_I_sup']
-    titles_r = [r'$r^{\text{mid}}_{\text{max},E}$', r'$r^{\text{mid}}_{\text{max},I}$', r'$r^{\text{sup}}_{\text{max},E}$', r'$r^{\text{sup}}_{\text{max},I}$', r'$r^{\text{mid}}_{\text{mean},E}$', r'$r^{\text{mid}}_{\text{mean},I}$', r'$r^{\text{sup}}_{\text{mean},E}$', r'$r^{\text{sup}}_{\text{mean},I}$']
-    barplot_params(colors, keys_r, titles_r, means_pre, means_post, vals_pre, vals_post, save_folder + '/r_pre_post.png')
-
-    ################# Plotting bar plots of c, f and kappa parameters before and after  #################
-    # Colors and keys for bar plots
-    colors=['orange', 'orange', 'green', 'green', 'green', 'green', 'green', 'green', 'green', 'green']
-    keys_c_f_kappa = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post', 'f_I']
-    titles_c_f_kappa = [r'$c^{\text{mid}}_{\rightarrow E}$', r'$c^{\text{mid}}_{\rightarrow I}$', r'$c^{\text{sup}}_{\rightarrow E}$', r'$c^{\text{sup}}_{\rightarrow I}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$\kappa^{\text{pre}}_{E \rightarrow  E}$', r'$\kappa^{\text{pre}}_{I \rightarrow  E}$', r'$\kappa^{\text{post}}_{E \rightarrow  E}$', r'$\kappa^{\text{post}}_{I \rightarrow  E}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$']
-    barplot_params(colors, keys_c_f_kappa, titles_c_f_kappa, means_pre, means_post, vals_pre, vals_post, save_folder + '/c_f_kappa_pre_post.png')
-    
-    ################# Boxplots for relative parameter changes #################
+    pretrain_filepath = os.path.join(os.path.dirname(folder), 'pretraining_results.csv') 
+    pretrain_df = pd.read_csv(pretrain_filepath)
+    num_training = pretrain_df['run_index'].nunique()
+    rel_changes_train, rel_changes_pretrain = rel_change_for_runs(folder, num_time_inds=num_time_inds, num_runs=num_training, excluded_runs=excluded_runs)
 
     # Define groups of parameters and plot each parameter group
     keys_group = [['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m'], ['J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s'], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_EE_pre','kappa_IE_pre','kappa_EE_post','kappa_IE_post']]
@@ -203,186 +375,11 @@ def boxplots_from_csvs(folder, save_folder, num_time_inds = 3, num_training = 1)
     pretrain_fig_folder = os.path.join(os.path.dirname(folder),'pretraining_figures')
     if not os.path.exists(pretrain_fig_folder):
         os.makedirs(pretrain_fig_folder)
-    boxplot_params(num_training, keys_group, rel_changes_pretrain, group_labels, box_colors, os.path.join(pretrain_fig_folder,'boxplot_relative_changes.png'))
-    boxplot_params(num_training, keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes.png'))
-    boxplot_params(num_training, keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes_ylim.png'), set_ylim=True)
+    if num_time_inds == 3:
+        boxplot_params(keys_group, rel_changes_pretrain, group_labels, box_colors, os.path.join(pretrain_fig_folder,'boxplot_relative_changes.png'))
+    boxplot_params(keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes.png'))
+    boxplot_params(keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes_ylim.png'), set_ylim=True)
     plt.close()
-
-
-def plot_results_from_csv(folder,run_index = 0, fig_filename=None):
-    """ Plot the results on the parameters from a signle result csv file """
-    def plot_params_over_time(ax, df, keys, colors, linestyles, title):
-        for i, key in enumerate(keys):
-            ax.plot(range(N), df[key], label=key, color=colors[i], linestyle=linestyles[i])
-        ax.set_title(title, fontsize=20)
-        ax.legend(loc='upper right', fontsize=20)
-        ax.set_xlabel('SGD steps', fontsize=20)
-
-    # Create a subplot with 4 rows and 3 columns
-    fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(60, 45))
-    df, time_inds  = data_from_run(folder, run_index=run_index, num_indices=3)
-    N = time_inds[-1]+1
-
-    ################ Plot changes in accuracy and losses over time ################
-    for column in df.columns:
-        if 'acc' in column and 'val_' not in column:
-            axes[0,0].plot(range(N), df[column], label=column, alpha=0.6, c='tab:green')
-        if 'val_acc' in column:
-            axes[0,0].scatter(range(N), df[column], label=column, marker='o', s=50, c='green')
-    axes[0,0].legend(loc='lower right', fontsize=20)
-    axes[0,0].set_title('Accuracy', fontsize=20)
-    axes[0,0].axhline(y=0.5, color='black', linestyle='--')
-    axes[0,0].set_ylim(0, 1)
-    axes[0,0].set_xlabel('SGD steps', fontsize=20)
-
-    for column in df.columns:
-        if 'loss_' in column and 'val_loss' not in column:
-            axes[0,1].plot(range(N), df[column], label=column, alpha=0.6)
-        if 'val_loss' in column:
-            axes[0,1].scatter(range(N), df[column], label='val_loss', marker='o', s=50)
-    axes[0,1].legend(loc='upper right', fontsize=20)
-    axes[0,1].set_title('Loss', fontsize=20)
-    axes[0,1].set_xlabel('SGD steps', fontsize=20)
-   
-    ################ Barplots ################
-    # Get the relative changes of the parameters
-    rel_changes_train, _, _ = rel_change_for_run(folder, run_index, 3)
-    keys_J = [key for key in rel_changes_train.keys() if key.startswith('J_')]
-    values_J = [rel_changes_train[key] for key in keys_J] 
-    keys_metrics =  [key for key in rel_changes_train.keys() if '_offset' in key or key.startswith('acc')]
-    values_metrics = [rel_changes_train[key] for key in keys_metrics] 
-    keys_meanr = [key for key in rel_changes_train.keys() if key.startswith('meanr_')]
-    values_meanr = [rel_changes_train[key] for key in keys_meanr] 
-    keys_fc = [key for key in rel_changes_train.keys() if key.startswith('c_') or key.startswith('f_')]
-    values_fc = [rel_changes_train[key]for key in keys_fc]
-
-    # Exclude the run from further analysis if for both staircase and psychometric offsets more than 8 values out of the last 10 were above 10 degrees
-    exclude_run = any(df[keys_metrics[1]][-11:-1] > 10)  and sum(df[keys_metrics[2]][-11:-1] > 9.9) > 8
-
-    # Choosing colors for each bar
-    colors_J = ['tab:red', 'tab:orange', 'tab:green', 'tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:blue']
-    colors_cf = ['tab:orange', 'tab:green','tab:red', 'tab:blue', 'tab:red', 'tab:blue']
-    colors_metrics = [ 'tab:green', 'tab:orange', 'tab:brown']
-    colors_r = ['tab:red', 'tab:blue', 'tab:red', 'tab:blue']
-
-    # Creating the bar plot
-    bars_metrics = axes[0,3].bar(keys_metrics, values_metrics, color=colors_metrics)
-    bars_r = axes[1,3].bar(keys_meanr, values_meanr, color=colors_r)
-    bars_params = axes[2,2].bar(keys_J, values_J, color=colors_J)    
-    bars_cf = axes[2,3].bar(keys_fc, values_fc, color=colors_cf)    
-
-    # Annotating each bar with its value for bars_params
-    annotate_bar(axes[2,2], bars_params, values_J, ylabel='relative change %', title= 'Rel. changes in J before and after training')
-    annotate_bar(axes[0,3], bars_metrics, values_metrics, ylabel='relative change %', title= 'Rel. changes in metrics before and after training')
-    annotate_bar(axes[1,3], bars_r, values_meanr, ylabel='relative change %', title= 'Rel. changes in mean rates before and after training')
-    annotate_bar(axes[2,3], bars_cf, values_fc, ylabel='relative change %', title= 'Other rel changes before and after training')
-
-    ################ Plot changes in offset thresholds over time ################
-    num_pretraining_steps= sum(df['stage'] == 0)
-    axes[0,2].plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*6, alpha=0.6, c='black', linestyle='--')
-    axes[0,2].scatter(range(N), df[keys_metrics[1]], label=keys_metrics[1], marker='o', s=70, c='tab:orange')
-    axes[0,2].scatter(range(N), df[keys_metrics[2]], label=keys_metrics[2], marker='o', s=50, c='tab:brown')
-    axes[0,2].grid(color='gray', linestyle='-', linewidth=0.5)
-    axes[0,2].set_title('Offset', fontsize=20)
-    axes[0,2].set_ylabel('degrees', fontsize=20)
-    axes[0,2].set_xlabel('SGD steps', fontsize=20)
-    axes[0,2].set_ylim(0, min(25,max(df[keys_metrics[2]])+1)) # keys_metrics[2] is the staircase offset
-    axes[0,2].legend(loc='upper right', fontsize=20)
-       
-    ################ Plot changes in sigmoid weights and bias over time ################
-    axes[1,2].plot(range(N), df['b_sig'], label='b_sig', linestyle='--', linewidth = 3)
-    axes[1,2].set_xlabel('SGD steps', fontsize=20)
-    i=0
-    for i in range(10):
-        column = f'w_sig_{29+i}' # if all 81 w_sigs are saved
-        if column in df.keys():
-            axes[1,2].plot(range(N), df[column], label=column)
-        else:
-            column = f'w_sig_{i}' # if only the middle 25 w_sigs are saved
-            if column in df.keys():                
-                axes[1,2].plot(range(N), df[column], label=column)
-    axes[1,2].set_title('Readout bias and weights', fontsize=20)
-    axes[1,2].legend(loc='upper right', fontsize=20)
-
-    ################ Plot changes in J_m and J_s over time ################
-    colors=['tab:red' ,'tab:orange','tab:green', 'tab:blue', 'tab:red' ,'tab:orange','tab:green', 'tab:blue']
-    linestyles = ['--', '--', '--', '--', '-', '-', '-', '-']
-    keys_J_raw = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m', 'J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']
-    plot_params_over_time(axes[2,0], df, keys_J_raw, colors, linestyles, title='J in middle and superficial layers')
-    
-    ################ Plot changes in maximum and mean rates over time ################
-    keys_maxr = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup']
-    keys_meanr = ['meanr_E_mid', 'meanr_I_mid', 'meanr_E_sup', 'meanr_I_sup']
-    linestyles_r = [':', ':', '-', '-']
-    colors_r = ["tab:red", "tab:blue", "tab:red", "tab:blue"]
-    plot_params_over_time(axes[1,0], df, keys_maxr, colors_r, linestyles_r, title='Maximum rates')
-    plot_params_over_time(axes[1,1], df, keys_meanr, colors_r, linestyles_r, title='Mean rates')
-
-    ################ Plot changes in c and f ################
-    keys_cf = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I']
-    colors_cf = ['tab:orange', 'tab:green','tab:red', 'tab:blue', 'tab:red', 'tab:blue']
-    linestyles_cf = ['-', '-', '-', '-', '--', '--']
-    plot_params_over_time(axes[2,1], df, keys_cf, colors_cf, linestyles_cf, title='c: constant inputs, f: weights between mid and sup layers')
-
-    # Add vertical lines to indicate the different stages
-    for i in range(1, len(df['stage'])):
-        if df['stage'][i] != df['stage'][i-1]:
-            axes[0,0].axvline(x=i, color='black', linestyle='--')
-            axes[0,1].axvline(x=i, color='black', linestyle='--')
-            axes[0,2].axvline(x=i, color='black', linestyle='--')
-            axes[1,0].axvline(x=i, color='black', linestyle='--')
-            axes[1,1].axvline(x=i, color='black', linestyle='--')
-            axes[1,2].axvline(x=i, color='black', linestyle='--')
-            axes[2,0].axvline(x=i, color='black', linestyle='--')
-            axes[2,1].axvline(x=i, color='black', linestyle='--')
-    for i in range(3):
-        for j in range(4):
-            axes[i,j].tick_params(axis='both', which='major', labelsize=18)  # Set tick font size
-
-    if fig_filename:
-        fig.savefig(fig_filename + ".png")
-    plt.close()
-
-    return exclude_run
-
-
-def plot_results_from_csvs(folder_path, num_runs=3, folder_to_save=None, starting_run=0):
-    # Add folder_path to path
-    if folder_path not in sys.path:
-        sys.path.append(folder_path)
-
-    # Plot loss, accuracy and trained parameters
-    excluded_run_inds = []
-    for j in range(starting_run, num_runs):
-        if folder_to_save is not None:
-            results_fig_filename = os.path.join(folder_to_save,f'resultsfig_{j}')
-        else:
-            results_fig_filename = os.path.join(folder_path,f'resultsfig_{j}')
-        exclude_run = plot_results_from_csv(folder_path,j,results_fig_filename)
-        if exclude_run:
-            excluded_run_inds.append(j)
-    return excluded_run_inds
-
-
-def plot_results_on_parameters(folder_path, num_training, plot_per_run = True, plot_boxplots = True):
-    """ Plot the results from the results csv on the parameters by calling plot_results_from_csvs and boxplots_from_csvs """
-    folder_to_save = os.path.join(folder_path, 'figures')
-
-    ######### PLOT RESULTS ############
-    if plot_per_run:
-        # Create a per_run folder within the figures folder
-        per_run_folder = os.path.join(folder_to_save, 'per_run')
-        if not os.path.exists(per_run_folder):
-            os.makedirs(per_run_folder)
-        excluded_run_inds = plot_results_from_csvs(folder_path, num_training, folder_to_save=per_run_folder)
-        # save excluded_run_inds into a csv in final_folder_path
-        excluded_run_inds_df = pd.DataFrame(excluded_run_inds)
-        excluded_run_inds_df.to_csv(os.path.join(folder_path, 'excluded_runs.csv'))
-        #if len(excluded_run_inds) > 0:
-            #exclude_runs(folder_path, excluded_run_inds)
-            #num_training=num_training-len(excluded_run_inds)
-    if plot_boxplots:
-        boxplots_from_csvs(folder_path, folder_to_save, num_time_inds = 3, num_training=num_training)
 
 
 ################### TUNING CURVES ###################
@@ -483,8 +480,10 @@ def plot_slope_config_groups(results_dir, config_groups, folder_to_save):
         fig.savefig(os.path.join(results_dir,'slope_fig_config_groups.png'))
 
 
-def plot_tuning_curves(results_dir, tc_cells, num_runs, folder_to_save, seed=0, tc_cell_labels=None):
+def plot_tuning_curves(results_dir, tc_cells, num_runs, folder_to_save=None, seed=0, tc_cell_labels=None, excluded_runs=[]):
     """Plot example tuning curves for middle and superficial layer cells at different stages of training"""
+    if folder_to_save is None:
+        folder_to_save = os.path.join(results_dir, 'figures')
 
     train_tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
     # Specify header based on what type of data there is in the first row of the csv file
@@ -500,9 +499,10 @@ def plot_tuning_curves(results_dir, tc_cells, num_runs, folder_to_save, seed=0, 
     num_mid_cells = 648
     num_sup_cells = 164
     num_runs_plotted = min(5,num_runs)
+    valid_runs = numpy.setdiff1d(numpy.arange(num_runs), excluded_runs)
     for i in range(num_runs_plotted):
         # Select tuning curves for the current run
-        mesh_i = tuning_curves[:,0]==i
+        mesh_i = tuning_curves[:,0]==valid_runs[i]
         tuning_curve_i = tuning_curves[mesh_i,1:]
         
         # Select tuning curves for each stage of training
@@ -572,7 +572,7 @@ def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num
     ax.set_title(title)
 
 
-def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False, only_slope_plot=False, only_center_cells=False):
+def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False, only_slope_plot=False, only_center_cells=False, excluded_runs=[]):
     """Plot tuning curve features for E and I cells at different stages of training"""
     def sliding_mannwhitney(x1, y1, x2, y2, window_size, sliding_unit):
         from scipy.stats import mannwhitneyu
@@ -713,16 +713,21 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         feature_data = data[mesh_feature]
         feature_data = feature_data.loc[:,mesh_cells]
         return feature_data.to_numpy()
-              
+
     # Load tuning curves
     train_tc_features_filename = os.path.join(results_dir, 'tuning_curve_features.csv')
     train_tc_header = check_header(train_tc_features_filename)
     train_tc_features = pd.read_csv(train_tc_features_filename, header=train_tc_header)
     pretrain_tc_features_filename = os.path.join(os.path.dirname(results_dir), 'pretraining_tuning_curve_features.csv')
     pretrain_tc_features = pd.read_csv(pretrain_tc_features_filename, header=0)
+    
+    # Filter out excluded runs
+    valid_runs = numpy.setdiff1d(numpy.arange(pretrain_tc_features['run_index'].nunique()), excluded_runs)
+    pretrain_tc_features = pretrain_tc_features[pretrain_tc_features['run_index'].isin(valid_runs)]
+    train_tc_features = train_tc_features[train_tc_features['run_index'].isin(valid_runs)]
 
     ############## Plots about changes before vs after training and pretraining (per layer and per centered or all) ##############
-             
+      
     # Define indices for each group of cells
     if only_center_cells:
         E_sup_centre = numpy.linspace(0, 80, 81).reshape(9,9)[2:7, 2:7].ravel().astype(int)+648
@@ -753,7 +758,15 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
     
     # Scatter slope, where x-axis is orientation and y-axis is the change in slope before and after training
     stage_labels = ['pretrain', 'train']
-    
+    # Get the preferred orientation from orimap.csv
+    orimap_file_path = os.path.join(os.path.dirname(results_dir),'orimap.csv')
+    df_orimap = pd.read_csv(orimap_file_path)
+    np_orimap=df_orimap.to_numpy()
+    np_orimap = np_orimap[:,1:]
+    # Repeat the orimap 10 times over the second axis
+    pref_ori_all = np.tile(np_orimap, 10)
+    pref_ori = pref_ori_all[valid_runs, :]
+
     for training_stage in stages[0:-1]:
         fig, axs = plt.subplots(2, 5, figsize=(50, 20))
         
@@ -784,17 +797,12 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         slopediff_55 = numpy.abs(slope_55_post) - numpy.abs(slope_55_pre)
         slopediff_125 = numpy.abs(slope_125_post) - numpy.abs(slope_125_pre)
 
-        # Get the preferred orientation from data_post
-        mesh_pref_ori = data_post['feature']=='pref_ori'
-        pref_ori_v1 = data_post.loc[mesh_pref_ori]
-        pref_ori_v1 = pref_ori_v1.loc[:,mesh_cells].to_numpy()
-        # Get the preferred orientation from orimap.csv
-        orimap_file_path = os.path.join(results_dir,'orimap.csv')
-        df_orimap = pd.read_csv(orimap_file_path)
-        np_orimap=df_orimap.to_numpy()
-        np_orimap = np_orimap[:,1:]
-        # Repeat the orimap 10 times over the second axis
-        pref_ori = np.tile(np_orimap, 10)
+        # Get the preferred orientation from data_post and compare it with pref_ori_all
+        #mesh_pref_ori = data_post['feature']=='pref_ori'
+        #pref_ori_v1 = data_post.loc[mesh_pref_ori]
+        #pref_ori_v1 = pref_ori_v1.loc[:,mesh_cells].to_numpy()
+        #print(numpy.allclose(pref_ori, pref_ori_v1))
+        
         if color_by == 'pref_ori':
             colors_scatter_feature = pref_ori
         elif color_by == 'phase':
@@ -958,7 +966,7 @@ def match_keys_to_labels(key_list):
     
     return matched_labels
 
-def plot_param_offset_correlations(folder):
+def plot_param_offset_correlations(folder, excluded_runs=[]):
     """ Plot the correlations between the psychometric offset threshold and the model parameters. """
     # Helper functions
     def get_color(corr_and_p):
@@ -991,7 +999,7 @@ def plot_param_offset_correlations(folder):
         fig.savefig(str(folder) + filename)
         plt.close(fig)
 
-    corr_psychometric_offset_param, corr_staircase_offset_param, corr_loss_param, rel_changes_train = param_offset_correlations(folder)
+    corr_psychometric_offset_param, corr_staircase_offset_param, corr_loss_param, rel_changes_train = param_offset_correlations(folder, excluded_runs=excluded_runs)
     # Make correlations plots between the psychometric offset and model parameters
     keys_a = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m', 'J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']
     keys_b = ['J_E_m', 'J_I_m', 'EI_ratio_J_m', 'J_E_s', 'J_I_s', 'EI_ratio_J_s']
@@ -1231,21 +1239,29 @@ def plot_corr_triangle(data, keys):
     return fig
 
     
-def plot_corr_triangles(final_folder_path, folder_to_save):
+def plot_corr_triangles(folder_path, excluded_runs=[]):
     """ Plot the four correlation triangles into a single 2x2 figure """
     
-    data_rel_changes, _ = rel_change_for_runs(final_folder_path, num_time_inds=3)
-    MVPA_scores = csv_to_numpy(final_folder_path + '/MVPA_scores.csv')
+    folder_to_save = os.path.join(folder_path, 'figures')
     
+    # Load the MVPA scores
+    MVPA_scores = csv_to_numpy(folder_path + '/MVPA_scores.csv')
+
+    # Load the data and exclude the runs that are in the excluded_runs list
+    data_rel_changes, _ = rel_change_for_runs(folder_path, num_time_inds=3)
+    valid_runs = numpy.setdiff1d(data_rel_changes['run_index'], excluded_runs)
+    valid_runs_inds = numpy.where(numpy.isin(data_rel_changes['run_index'], valid_runs))[0]
+    data_rel_changes_valid_runs = {key: value[valid_runs_inds.tolist()] for key, value in data_rel_changes.items()}
+
     # Prepare the four data sets (MVPA dimensions are num_trainings x layer x SGD_ind x ori_ind)
     data_for_corr_triangles = pd.DataFrame({
         'MVPA_mid_55': 100*(MVPA_scores[:, 0, -1, 0] - MVPA_scores[:, 0, -2, 0]) / MVPA_scores[:, 0, -2, 0],
         'MVPA_mid_125': 100*(MVPA_scores[:, 0, -1, 1] - MVPA_scores[:, 0, -2, 1]) / MVPA_scores[:, 0, -2, 1],
         'MVPA_sup_55': 100*(MVPA_scores[:, 1, -1, 0] - MVPA_scores[:, 1, -2, 0]) / MVPA_scores[:, 1, -2, 0],
         'MVPA_sup_125': 100*(MVPA_scores[:, 1, -1, 1] - MVPA_scores[:, 1, -2, 1]) / MVPA_scores[:, 1, -2, 1],
-        'JmI/JmE': data_rel_changes['EI_ratio_J_m'],
-        'JsI/JsE': data_rel_changes['EI_ratio_J_s'],
-        'offset_th': data_rel_changes['psychometric_offset']
+        'JmI/JmE': data_rel_changes_valid_runs['EI_ratio_J_m'],
+        'JsI/JsE': data_rel_changes_valid_runs['EI_ratio_J_s'],
+        'offset_th': data_rel_changes_valid_runs['psychometric_offset']
     })
     
     # Plot each triangle into its respective subplot
@@ -1301,12 +1317,20 @@ def plot_corr_triangles(final_folder_path, folder_to_save):
     img4.close()
 
 
-def plot_MVPA_or_Mahal_scores(final_folder_path, num_runs, scores, file_name):
+def plot_MVPA_or_Mahal_scores(folder_path, file_name):
     """ Plot the MVPA scores or Mahalanobis distances for the two layers and two orientations. 
     scores dimensions are runs x layers x SGD_inds x ori_inds """
+    
+    #Load the scores
+    if file_name.endswith('MVPA_scores.csv'):
+        scores = csv_to_numpy(folder_path + '/MVPA_scores.csv')
+    else:
+        scores = csv_to_numpy(folder_path + '/Mahal_scores.csv') 
+    
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     # iterate over the two layers
     layer_label = ['mid', 'sup']
+    num_runs = scores.shape[0]
     for layer in range(2):
         # create a list of the 4 conditions
         data = [scores[:,layer,1, 0], scores[:,layer,2, 0], scores[:,layer,1, 1], scores[:,layer,2, 1]]
@@ -1321,11 +1345,19 @@ def plot_MVPA_or_Mahal_scores(final_folder_path, num_runs, scores, file_name):
             #gray lines
             ax[layer].plot([1, 2], [data[0][i], data[1][i]], color='gray', alpha=0.5, linewidth=0.5)
             ax[layer].plot([3, 4], [data[2][i], data[3][i]], color='gray', alpha=0.5, linewidth=0.5)
-    plt.savefig(os.path.join(final_folder_path ,'figures', file_name+'.png'))
+    plt.savefig(os.path.join(folder_path ,'figures', file_name+'.png'))
     plt.close()
 
 
-def plot_MVPA_or_Mahal_scores_v2(final_folder_path, scores):
+def plot_MVPA_or_Mahal_scores_match_Kes_fig(folder_path, file_name):
+    ''' Plot the MVPA scores or Mahalanobis distances for the two layers and two orientations in the format of Ke's 2024 paper.'''
+
+    # Load the scores
+    if file_name.endswith('MVPA_scores.csv'):
+        scores = csv_to_numpy(folder_path + '/MVPA_scores.csv')
+    else:
+        scores = csv_to_numpy(folder_path + '/Mahal_scores.csv') 
+
     # Barplot of the JmsI/JmsE before and after training
     color_pretest = '#F3929A'
     color_posttest = '#70BFD9'
@@ -1358,5 +1390,5 @@ def plot_MVPA_or_Mahal_scores_v2(final_folder_path, scores):
         ax[ori].set_ylim(50, 90)
         ax[ori].set_title(sub_titles[ori], fontsize=20)
 
-    plt.savefig(os.path.join(final_folder_path, 'figures', "MVPA_match_paper_fig.png"))
+    plt.savefig(os.path.join(folder_path, 'figures', "MVPA_match_paper_fig.png"))
     plt.close()

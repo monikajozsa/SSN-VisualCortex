@@ -24,65 +24,32 @@ from sklearn.decomposition import PCA
 from training.model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.training_functions import generate_noise
-from util import load_parameters, filter_for_run_and_stage, unpack_ssn_parameters, check_header, csv_to_numpy
+from util import load_parameters, filter_for_run_and_stage, unpack_ssn_parameters, check_header, csv_to_numpy, save_numpy_to_csv
 from training.util_gabor import BW_image_jit_noisy, BW_image_jax_supp, BW_image_jit
 
 ############## Analysis functions ##########
-def exclude_runs(folder_path, input_vector):
-    """Exclude runs from the analysis by removing them from the CSV files - file modifications only happen within folder_path folders."""
-    # Read the original CSV file
-    root_folder = os.path.dirname(folder_path)
-    df_pretraining_results = pd.read_csv(os.path.join(root_folder, 'pretraining_results.csv') )
-    df_orimap = pd.read_csv(os.path.join(root_folder,'orimap.csv'))
-    df_init_params = pd.read_csv(os.path.join(root_folder,'initial_parameters.csv'))
-    df_training_results = pd.read_csv(os.path.join(folder_path,'training_results.csv'))
-    
-    # Save the original dataframe as results_complete.csv in the folder_path folder
-    df_pretraining_results.to_csv(os.path.join(folder_path,'pretraining_results_complete.csv'), index=False)
-    df_training_results.to_csv(os.path.join(folder_path,'training_results_complete.csv'), index=False)
-    df_orimap.to_csv(os.path.join(folder_path,'orimap_complete.csv'), index=False)
-    df_init_params.to_csv(os.path.join(folder_path,'initial_parameters_complete.csv'), index=False)
-    
-    # Exclude rows where 'runs' column is in the input_vector
-    df_pretraining_results_filtered = df_pretraining_results[~df_pretraining_results['run_index'].isin(input_vector)]
-    df_training_results_filtered = df_training_results[~df_training_results['run_index'].isin(input_vector)]
-    df_orimap_filtered = df_orimap[~df_orimap['run_index'].isin(input_vector)]
-    df_init_params_filtered = df_init_params[~df_init_params['run_index'].isin(input_vector)]
-
-    # Adjust the 'run_index' column
-    df_orimap_filtered['run_index'] = range(len(df_orimap_filtered))
-    df_init_params_filtered['run_index'][df_init_params_filtered['stage']==0] = range(len(df_orimap_filtered))
-    df_init_params_filtered['run_index'][df_init_params_filtered['stage']==1] = range(len(df_orimap_filtered))
-    for i in range(df_pretraining_results_filtered['run_index'].max() + 1):
-        if i not in input_vector:
-            shift_val = sum(x < i for x in input_vector)
-            df_pretraining_results_filtered.loc[df_pretraining_results_filtered['run_index'] == i, 'run_index'] = i - shift_val    
-            df_training_results_filtered.loc[df_training_results_filtered['run_index'] == i, 'run_index'] = i - shift_val            
-    
-    # Save the filtered dataframes as csv files in the folder_path folder
-    df_pretraining_results_filtered.to_csv(os.path.join(folder_path,'pretraining_results.csv'), index=False)
-    df_training_results_filtered.to_csv(os.path.join(folder_path,'training_results.csv'), index=False)
-    df_orimap_filtered.to_csv(os.path.join(folder_path,'orimap.csv'), index=False)
-    df_init_params_filtered.to_csv(os.path.join(folder_path,'initial_parameters.csv'), index=False)
-
-
 def data_from_run(folder, run_index=0, num_indices=3):
     """Read CSV files, filter them for run and return the combined dataframe together with the time indices where stages change."""
     
-    pretrain_filepath = os.path.join(os.path.dirname(folder), 'pretraining_results.csv') # this reaches the pretraining_results.csv file in the folder_path folder (the copied file in configuration subfolder)
+    pretrain_filepath = os.path.join(os.path.dirname(folder), 'pretraining_results.csv') # this reaches the pretraining_results.csv file in the same folder as the training_results.csv file
     train_filepath = os.path.join(folder, 'training_results.csv')
     df_pretrain = pd.read_csv(pretrain_filepath)
     df_train = pd.read_csv(train_filepath)
     df_pretrain_i = filter_for_run_and_stage(df_pretrain, run_index)
     df_train_i = filter_for_run_and_stage(df_train, run_index)
     if df_train_i.empty:
-        Warning('No data for run_index = {}'.format(run_index))
+        print('No data for run_index = {}'.format(run_index))
+        no_train_data = True
+    else:
+        no_train_data = False
     df_i = pd.concat((df_pretrain_i,df_train_i))
     df_i.reset_index(inplace=True)
-    stage_time_inds = SGD_indices_at_stages(df_i, num_indices)
+    if df_i.empty:
+        stage_time_inds = []
+    else:
+        stage_time_inds = SGD_indices_at_stages(df_i, num_indices)
 
-    return df_i, stage_time_inds
-
+    return df_i, stage_time_inds, no_train_data
 
 def calc_rel_change_supp(variable, time_start, time_end):
     """ Calculate the relative change in a variable between two time points. """
@@ -107,21 +74,25 @@ def calc_rel_change_supp(variable, time_start, time_end):
         else:
             return 100*(end_value - start_value) / start_value
     
-
 def rel_change_for_run(folder, training_ind=0, num_indices=3):
     """Calculate the relative changes in the parameters for a single run."""
-    data, time_inds = data_from_run(folder, training_ind, num_indices)
+
+    # Load the data for the given training index and drop irrelevant columns
+    data, time_inds, no_train_data = data_from_run(folder, training_ind, num_indices)
     training_end = time_inds[-1]
-    columns_to_drop = ['stage', 'SGD_steps']  # Replace with the actual column names you want to drop
+    columns_to_drop = ['stage', 'SGD_steps'] 
     data = data.drop(columns=columns_to_drop)
+
+    # Define additional columns
     data['J_I_m'] = numpy.abs(data['J_II_m'] + data['J_EI_m'])
     data['J_I_s'] = numpy.abs(data['J_II_s'] + data['J_EI_s'])
     data['J_E_m'] = numpy.abs(data['J_IE_m'] + data['J_EE_m'])
     data['J_E_s'] = numpy.abs(data['J_IE_s'] + data['J_EE_s'])
-
     data['EI_ratio_J_m'] = data['J_I_m'] / data['J_E_m']
     data['EI_ratio_J_s'] = data['J_I_s'] / data['J_E_s']
     data['EI_ratio_J_ms'] = (data['J_I_m'] + data['J_I_s']) / (data['J_E_m'] + data['J_E_s'])
+
+    # Calculate relative changes for the pretraining 
     if num_indices == 3:
         pretraining_start = time_inds[0]
         training_start = time_inds[1]-1
@@ -130,82 +101,102 @@ def rel_change_for_run(folder, training_ind=0, num_indices=3):
             item_rel_change = calc_rel_change_supp(value, pretraining_start, training_start)
             if item_rel_change is not None:
                 rel_change_pretrain[key] = item_rel_change
+        rel_change_pretrain.pop('index')
     else:
         training_start = time_inds[0]
         rel_change_pretrain = None
-    rel_change_train = {}
-    for key, value in data.items():
-        item_rel_change = calc_rel_change_supp(value, training_start, training_end)
-        if item_rel_change is not None:
-            rel_change_train[key] = item_rel_change
-    rel_change_pretrain.pop('index')
-    rel_change_train.pop('index')
+    
+    # Calculate relative changes for the training
+    if no_train_data:
+        rel_change_train = None
+    else:
+        rel_change_train = {}
+        for key, value in data.items():
+            item_rel_change = calc_rel_change_supp(value, training_start, training_end)
+            if item_rel_change is not None:
+                rel_change_train[key] = item_rel_change    
+        rel_change_train.pop('index')
+
     return rel_change_train, rel_change_pretrain, time_inds
 
-
-def rel_change_for_runs(folder, num_time_inds=3, num_runs=None):
-    """ Calculate the relative changes in the parameters for all runs. """
-    # if os.path.join(folder, 'rel_changes_train.csv') exists, load it and return the data
-    if os.path.exists(os.path.join(folder, 'rel_changes_train.csv')):
-        rel_changes_train_df = pd.read_csv(os.path.join(folder, 'rel_changes_train.csv'))
-        rel_changes_train = {key: rel_changes_train_df[key].to_numpy() for key in rel_changes_train_df.columns}
-    else:
-        # Initialize the arrays to store the results in
-        if num_runs is None:
-            filepath = os.path.join(folder, 'pretraining_results.csv')
+def rel_change_for_runs(folder, num_time_inds=3, num_runs=None, excluded_runs=[]):
+    """Calculate the relative changes in parameters for all runs."""
+    
+    def load_existing_data(filepath):
+        if os.path.exists(filepath):
             df = pd.read_csv(filepath)
-            num_runs = df['run_index'].iloc[-1]+1
+            return {key: df[key].to_numpy() for key in df.columns}
+        return None
 
-        # Calculate the relative changes for all runs
+    def save_to_csv(data, filepath):
+        if data is not None:
+            df = pd.DataFrame(data)
+            df.to_csv(filepath, index=False)
+    
+    # Determine number of runs
+    if num_runs is None:
+        pretrain_filepath = os.path.join(os.path.dirname(folder), 'pretraining_results.csv')
+        pretrain_df = pd.read_csv(pretrain_filepath)
+        num_runs = pretrain_df['run_index'].iloc[-1] + 1
+
+    # Load pre-existing data if available
+    rel_changes_pretrain = load_existing_data(os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv'))
+    if rel_changes_pretrain is None and num_time_inds == 3:
+        pretrain_recalc = True
+    else:
+        pretrain_recalc = False
+    rel_changes_train = load_existing_data(os.path.join(folder, 'rel_changes_train.csv'))
+
+    # If data is missing, calculate relative changes
+    if rel_changes_train is None or pretrain_recalc:
+        successful_training_runs = []
+        rel_changes_train = {}
+        rel_changes_pretrain = {} if pretrain_recalc else rel_changes_pretrain
+
         for i in range(num_runs):
             rel_change_train, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_time_inds)
-            if i == 0:
-                # Initialize the arrays to store the results in
+            # Initialize storage arrays
+            if rel_change_train is not None and (len(rel_changes_train.keys()) == 0):
                 rel_changes_train = {key: numpy.zeros(num_runs) for key in rel_change_train.keys()}
-                if rel_change_pretrain is not None:
-                    rel_changes_pretrain = {key: numpy.zeros(num_runs) for key in rel_change_pretrain.keys()}
-                else:
-                    rel_changes_pretrain = None
-            for key, value in rel_change_train.items():
-                rel_changes_train[key][i] = value
-                if rel_change_pretrain is not None:
-                    if key in rel_change_pretrain.keys():
-                        rel_changes_pretrain[key][i] = rel_change_pretrain[key]
-        
-        # Save the results into a csv file
-        rel_changes_train_df = pd.DataFrame(rel_changes_train)
-        rel_changes_train_df.to_csv(os.path.join(folder, 'rel_changes_train.csv'), index=False)
-    
-    save_pretrain = False
-    pretrain_file_path = os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv')
-    if num_time_inds==3 and os.path.exists(pretrain_file_path):
-        rel_changes_pretrain_df = pd.read_csv(pretrain_file_path)
-        rel_changes_pretrain = {key: rel_changes_pretrain_df[key].to_numpy() for key in rel_changes_pretrain_df.columns}
-    elif num_time_inds==3:
-        if num_runs is None:
-            df = pd.read_csv(os.path.join(os.path.dirname(folder), 'pretraining_results.csv'))
-            num_runs = df['run_index'].iloc[-1]+1
-        for i in range(num_runs):
-            _, rel_change_pretrain, _ = rel_change_for_run(folder, i, num_time_inds)
-            if i == 0:
+            if pretrain_recalc and (len(rel_changes_pretrain.keys()) == 0):
                 rel_changes_pretrain = {key: numpy.zeros(num_runs) for key in rel_change_pretrain.keys()}
-            else:
-                for key, value in rel_changes_pretrain.items():
+            if pretrain_recalc:
+                for key in rel_change_pretrain.keys():
                     rel_changes_pretrain[key][i] = rel_change_pretrain[key]
-        save_pretrain = True
-    else:
-        rel_changes_pretrain = None
-    
-    if save_pretrain:
-        rel_changes_pretrain_df = pd.DataFrame(rel_changes_pretrain)
-        rel_changes_pretrain_df.to_csv(pretrain_file_path, index=False)
+            if rel_change_train is None:
+                continue
+            successful_training_runs.append(i)
+            for key in rel_changes_train.keys():
+                rel_changes_train[key][i] = rel_change_train[key]
         
+        # Filter rel_changes_train for successful runs and add run_index to the dictionaries 
+        rel_changes_train = {key: rel_changes_train[key][successful_training_runs] for key in rel_changes_train.keys()}
+        rel_changes_train['run_index'] = numpy.array(successful_training_runs)
+        if pretrain_recalc:
+            rel_changes_pretrain['run_index'] = numpy.arange(len(rel_changes_pretrain['acc']))
+        
+        # Save computed data to CSV files
+        save_to_csv(rel_changes_train, os.path.join(folder, 'rel_changes_train.csv'))
+        if pretrain_recalc:
+            save_to_csv(rel_changes_pretrain, os.path.join(os.path.dirname(folder), 'rel_changes_pretrain.csv'))
+    else:
+        successful_training_runs = rel_changes_train['run_index']
+
+    # Filter for included runs only
+    included_runs = numpy.setdiff1d(successful_training_runs, excluded_runs)
+    included_indices_train = [numpy.where(successful_training_runs == run)[0][0] for run in included_runs]
+    included_indices_pretrain = [numpy.where(numpy.arange(num_runs) == run)[0][0] for run in included_runs]
+    rel_changes_train = {key: rel_changes_train[key][included_indices_train] for key in rel_changes_train.keys()}
+    if rel_changes_pretrain:
+        rel_changes_pretrain = {key: rel_changes_pretrain[key][included_indices_pretrain] for key in rel_changes_pretrain.keys()}
+
     return rel_changes_train, rel_changes_pretrain
 
-
-def pre_post_for_runs(folder, num_training, num_time_inds=3):
-    for i in range(num_training):
-        df_i, stage_time_inds = data_from_run(folder, run_index=i, num_indices=num_time_inds)
+def pre_post_for_runs(folder, num_training, num_time_inds=3, excluded_runs=[]):
+    ''' Calculate the pre and post training values for runs that are not excluded. '''
+    included_runs = numpy.setdiff1d(numpy.arange(num_training), excluded_runs)
+    for i, run_ind in enumerate(included_runs):
+        df_i, stage_time_inds, no_train_data = data_from_run(folder, run_index=run_ind, num_indices=num_time_inds)
         train_end_ind = stage_time_inds[-1]
         if num_time_inds>2:
             pretrain_start_ind = stage_time_inds[0]
@@ -311,11 +302,19 @@ vmapped_tc_grid_point = vmap(tc_grid_point, in_axes=(0, None, None, None, None, 
 
 def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange(0,180,6), training_stage=1, run_index=0, header = False):
     """ Calculate responses of middle and superficial layers to gratings (of full images without added noise) with different orientations."""
+    if trained_pars is None:
+        return None, None
+    # Initialize the arrays to store the responses
+    grid_size = untrained_pars.grid_pars.gridsize_Nx ** 2
+    num_phases = untrained_pars.ssn_pars.phases
+    num_ori = len(ori_vec)
+    responses_sup_phase_match_2D = numpy.zeros((num_ori,grid_size*2))
+    responses_mid_phase_match_2D = numpy.zeros((num_ori,grid_size*num_phases*2))
+
     # Get the parameters from the trained_pars dictionary and untreatned_pars class
     ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
     J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars, untrained_pars.ssn_pars)
-    ssn_pars = untrained_pars.ssn_pars
-    num_ori = len(ori_vec)
+    ssn_pars = untrained_pars.ssn_pars        
     x_map = untrained_pars.grid_pars.x_map
     y_map = untrained_pars.grid_pars.y_map
     grid_size = x_map.shape[0]*x_map.shape[1]
@@ -336,8 +335,6 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange
     responses_mid_phase_match, responses_sup_phase_match = vmapped_tc_grid_point(inds_maps_flat, ssn_mid, ssn_sup, ssn_pars.phases, untrained_pars, ori_vec, num_ori, grid_size, cE_m, cI_m, cE_s, cI_s, f_E, f_I)
     
     # rearrange responses to 2D, where first dim is oris and second dim is cells
-    responses_sup_phase_match_2D = numpy.zeros((num_ori,grid_size*2))
-    responses_mid_phase_match_2D = numpy.zeros((num_ori,grid_size*ssn_pars.phases*2))
     for i in range(num_ori):
         responses_sup_phase_match_2D[i,:] = responses_sup_phase_match[:, i, :].flatten(order='F')
         responses_mid_phase_match_2D[i,:] = responses_mid_phase_match[:, i, :, :].flatten(order='F')
@@ -357,6 +354,7 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=np.arange
         new_rows_df = pd.DataFrame(new_rows)
         new_rows_df.to_csv(file_path, mode='a', header=header, index=False, float_format='%.4f')
 
+    # Set the reference orientation back to the original value
     untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
 
     return responses_sup_phase_match_2D, responses_mid_phase_match_2D
@@ -413,7 +411,11 @@ def tc_cubic(x,y, d_theta=0.5):
 
 def save_tc_features(training_tc_file, num_runs=1, ori_list=np.arange(0,180,6), ori_to_center_slope=[55, 125], stages=[1, 2], filename='tuning_curve_features.csv'):
     """ Calls compute_features for each stage and run index and saves the results into a CSV file. """
-
+    output_filename = os.path.join(os.path.dirname(training_tc_file), filename)
+    if os.path.exists(output_filename):
+        print('File already exists. Please delete it before running save_tc_features function if you want to overwrite it.')
+        tc_features_df = pd.read_csv(output_filename)
+        return tc_features_df
     # Load training tuning curve data (no headers)
     header_flag = check_header(training_tc_file)
     training_tc_all_run_df = pd.read_csv(training_tc_file, header=header_flag)
@@ -433,6 +435,9 @@ def save_tc_features(training_tc_file, num_runs=1, ori_list=np.arange(0,180,6), 
     for run_index in range(num_runs):
         # Filtering tuning curves for run_index
         run_mask = training_tc_all_run[:, 0] == run_index
+        # Skip if there is no tc data for this run
+        if numpy.sum(run_mask) == 0:
+            continue
         tuning_curves_run = training_tc_all_run[run_mask, 1:]
         for stage in stages:        
             # Filtering tuning curves for stage
@@ -454,7 +459,6 @@ def save_tc_features(training_tc_file, num_runs=1, ori_list=np.arange(0,180,6), 
 
     # Create DataFrame from rows and save to CSV
     tc_features_df = pd.DataFrame(feature_rows)
-    output_filename = os.path.join(os.path.dirname(training_tc_file), filename)
     tc_features_df.to_csv(output_filename, index=False)
 
     return tc_features_df
@@ -488,7 +492,7 @@ def compute_features(tuning_curves, num_cells, ori_list, oris_to_calc_slope_at, 
         features['fwhm'][i] = full_width_half_max(y_interp, d_theta=d_theta_interp)
 
         # Preferred orientation - accounting for the double bumps
-        peak_loc = y_interp > numpy.max(y_interp) * 0.95
+        peak_loc = y_interp >= numpy.max(y_interp) * 0.95
         # if peak_loc has an interval in (0, 180) and also in (180, 360), take the one in (0, 180)
         if numpy.any(peak_loc[:len(peak_loc)//2]) and numpy.any(peak_loc[len(peak_loc)//2:]):
             peak_loc[len(peak_loc)//2:] = False
@@ -500,7 +504,10 @@ def compute_features(tuning_curves, num_cells, ori_list, oris_to_calc_slope_at, 
         features['pref_ori'][i] = x_interp[max_peak_index]
 
         # Gradient for slope calculations
-        y_interp_scaled = y_interp/numpy.max(y_interp)
+        if numpy.max(y_interp) == 0:
+            y_interp_scaled = y_interp
+        else:
+            y_interp_scaled = y_interp/numpy.max(y_interp)
         grad_y_interp_scaled = numpy.abs(numpy.gradient(y_interp_scaled, x_interp))
 
         # Slope at 55 and 125 degrees
@@ -529,7 +536,7 @@ def compute_features(tuning_curves, num_cells, ori_list, oris_to_calc_slope_at, 
     return features
 
 
-def param_offset_correlations(folder, num_time_inds=2):
+def param_offset_correlations(folder, num_time_inds=2, excluded_runs=[]):
     """ Calculate the Pearson correlation coefficient between the offset threshold and the parameters."""
     
     # Helper function to calculate Pearson correlation
@@ -541,7 +548,7 @@ def param_offset_correlations(folder, num_time_inds=2):
         return result_dict
 
     # Load the relative changes and drop items with NaN values
-    rel_changes_train, _ = rel_change_for_runs(folder, num_time_inds=num_time_inds)
+    rel_changes_train, _ = rel_change_for_runs(folder, num_time_inds=num_time_inds, excluded_runs=excluded_runs)
     
     # Separate offsets, losses, and params
     offsets_rel_change = {key: value for key, value in rel_changes_train.items() if key.endswith('_offset')}
@@ -708,9 +715,13 @@ def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
     # get the number of rows in the dataframe
     num_SGD_steps = len(df)
     SGD_step_inds = numpy.zeros(num_indices, dtype=int)
+    stage2_inds = df.index[df['stage'] == 2]
     if num_indices>2:
         SGD_step_inds[0] = df.index[df['stage'] == 0][0] #index of when pretraining starts
-        training_start = df.index[df['stage'] == 2][0] #index of when training starts
+        if len(stage2_inds) > 0:
+            training_start = stage2_inds[0] #index of when training starts (second stage)
+        else: # This case happens when training came back with NA and there is no data from stage 2
+            training_start = len(df.index[df['stage']])-1
         if peak_offset_flag:
             # get the index where max offset is reached 
             SGD_step_inds[1] = training_start + df['staircase_offset'][training_start:training_start+100].idxmax()
@@ -721,8 +732,13 @@ def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
         for i in range(2,num_indices-1):
             SGD_step_inds[i] = int(SGD_step_inds[1] + (SGD_step_inds[-1]-SGD_step_inds[1])*(i-1)/(num_indices-2))
     else:
-        SGD_step_inds[0] = df.index[df['stage'] == 2][0] # index of when training starts (first or second stages)
-        SGD_step_inds[-1] = num_SGD_steps-1 #index of when training ends    
+        if len(stage2_inds) > 0:
+            SGD_step_inds[0] = df.index[df['stage'] == 2][0] # index of when training starts (first or second stages)
+            SGD_step_inds[-1] = num_SGD_steps-1 #index of when training ends    
+        else:
+            # This case happens when training came back with NA and there is no data from stage 2
+            SGD_step_inds[0] = num_SGD_steps-2 #index of when training starts
+            SGD_step_inds[-1] = num_SGD_steps-1 #index of when training ends
     return SGD_step_inds
 
 
@@ -801,9 +817,9 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
     # Iterate overs SGD_step indices (default is before and after training)
     iloc_ind_vec=[0,-1,-1]
     if num_stage_inds==2:
-        stages = [0,2]
+        stages = [1,2]
     else:
-        stages = [0,0,2]
+        stages = [0,1,2]
     for stage_ind in range(len(stages)):
         stage = stages[stage_ind]
         # Load parameters from csv for given epoch
@@ -869,7 +885,7 @@ def filtered_model_response(folder, run_ind, ori_list= np.asarray([55, 125, 0]),
 
 
 ######### Calculate MVPA and Mahalanobis distance for before pretraining, after pretraining and after training #########
-def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, plot_flag=False, filtered_r_noise_std=1.0):
+def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, filtered_r_noise_std=1.0, excluded_runs=[]):
     """ Calculate MVPA and Mahalanobis distance for each run and layer at different stages of training."""
     # Shared parameters
     ori_list = numpy.asarray([55, 125, 0])
@@ -879,36 +895,38 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
     clf = make_pipeline(StandardScaler(), SGDClassifier(max_iter=1000, tol=1e-3)) # SVM classifier
 
     # Initialize the MVPA scores matrix
-    MVPA_scores = numpy.zeros((num_runs, num_layers, num_stages, len(ori_list)-1))
-    Mahal_scores = numpy.zeros((num_runs, num_layers, num_stages, len(ori_list)-1))
+    valid_runs = numpy.setdiff1d(numpy.arange(num_runs), excluded_runs)
+    num_valid_runs = len(valid_runs)
+    MVPA_scores = numpy.zeros((num_valid_runs, num_layers, num_stages, len(ori_list)-1))
+    Mahal_scores = numpy.zeros((num_valid_runs, num_layers, num_stages, len(ori_list)-1))
 
     ####### Setup for the Mahalanobis distance analysis #######
     num_PC_used=20 # number of principal components used for the analysis
     
     # Initialize arrays to store Mahalanobis distances and related metrics
-    LMI_across = numpy.zeros((num_runs,num_layers,num_stages-1))
-    LMI_within = numpy.zeros((num_runs,num_layers,num_stages-1))
-    LMI_ratio = numpy.zeros((num_runs,num_layers,num_stages-1))
+    LMI_across = numpy.zeros((num_valid_runs,num_layers,num_stages-1))
+    LMI_within = numpy.zeros((num_valid_runs,num_layers,num_stages-1))
+    LMI_ratio = numpy.zeros((num_valid_runs,num_layers,num_stages-1))
     
-    mahal_within_train_all = numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
-    mahal_within_untrain_all = numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
-    mahal_train_control_all = numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
-    mahal_untrain_control_all = numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
-    train_SNR_all=numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
-    untrain_SNR_all=numpy.zeros((num_runs,num_layers,num_stages, num_noisy_trials))
+    mahal_within_train_all = numpy.zeros((num_valid_runs,num_layers,num_stages, num_noisy_trials))
+    mahal_within_untrain_all = numpy.zeros((num_valid_runs,num_layers,num_stages, num_noisy_trials))
+    mahal_train_control_all = numpy.zeros((num_valid_runs,num_layers,num_stages, num_noisy_trials))
+    mahal_untrain_control_all = numpy.zeros((num_valid_runs,num_layers,num_stages, num_noisy_trials))
+    train_SNR_all=numpy.zeros((num_valid_runs,num_layers,num_stages, num_noisy_trials))
+    untrain_SNR_all=numpy.zeros((num_valid_runs,num_layers,num_stages, num_noisy_trials))
 
-    mahal_train_control_mean = numpy.zeros((num_runs,num_layers,num_stages))
-    mahal_untrain_control_mean = numpy.zeros((num_runs,num_layers,num_stages))
-    mahal_within_train_mean = numpy.zeros((num_runs,num_layers,num_stages))
-    mahal_within_untrain_mean = numpy.zeros((num_runs,num_layers,num_stages))
-    train_SNR_mean = numpy.zeros((num_runs,num_layers,num_stages))
-    untrain_SNR_mean = numpy.zeros((num_runs,num_layers,num_stages))
+    mahal_train_control_mean = numpy.zeros((num_valid_runs,num_layers,num_stages))
+    mahal_untrain_control_mean = numpy.zeros((num_valid_runs,num_layers,num_stages))
+    mahal_within_train_mean = numpy.zeros((num_valid_runs,num_layers,num_stages))
+    mahal_within_untrain_mean = numpy.zeros((num_valid_runs,num_layers,num_stages))
+    train_SNR_mean = numpy.zeros((num_valid_runs,num_layers,num_stages))
+    untrain_SNR_mean = numpy.zeros((num_valid_runs,num_layers,num_stages))
     
     # Define pca model
     pca = PCA(n_components=num_PC_used)
       
     # Iterate over the different parameter initializations (runs)
-    for run_ind in range(num_runs):
+    for i, run_ind in enumerate(valid_runs):
         start_time=time.time()
                 
         # Calculate num_noisy_trials filtered model response for each oris in ori list and for each parameter set (that come from file_name at num_stage_inds rows)
@@ -919,10 +937,6 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
         mesh_untrain_ = r_ori == ori_list[1]
         mesh_control_ = r_ori == ori_list[2]
         # Iterate over the layers and stages
-        num_PCA_plots= 6
-        if plot_flag and run_ind<num_PCA_plots:
-            # make grid of plots for each layer and stage
-            fig, axs = plt.subplots(num_layers, num_stages+1, figsize=(5*(num_stages+2), 5*num_layers))
         for layer in range(num_layers):
             if layer == 0:
                 r_l = r_mid_sup['r_mid']
@@ -965,15 +979,15 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
                     # fit the classifier for 10 randomly selected trial and test data and average the scores
                     scores_untrain = []
                     scores_train = []
-                    for i in range(10):
-                        X_untrain, X_test_untrain, y_untrain, y_test_untrain = train_test_split(untrain_control_data, untrain_control_label, test_size=0.5, random_state=i)
-                        X_train, X_test_train, y_train, y_test_train = train_test_split(train_control_data, train_control_label, test_size=0.5, random_state=i)
+                    for j in range(10):
+                        X_untrain, X_test_untrain, y_untrain, y_test_untrain = train_test_split(untrain_control_data, untrain_control_label, test_size=0.5, random_state=j)
+                        X_train, X_test_train, y_train, y_test_train = train_test_split(train_control_data, train_control_label, test_size=0.5, random_state=j)
                         score_train = clf.fit(X_train, y_train).score(X_test_train, y_test_train)
                         score_untrain = clf.fit(X_untrain, y_untrain).score(X_test_untrain, y_test_untrain)
                         scores_untrain.append(score_untrain)
                         scores_train.append(score_train)
-                    MVPA_scores[run_ind,layer,stage_ind, 1] = np.mean(np.array(scores_untrain))
-                    MVPA_scores[run_ind,layer,stage_ind, 0] = np.mean(np.array(scores_train))
+                    MVPA_scores[i,layer,stage_ind, 1] = np.mean(np.array(scores_untrain))
+                    MVPA_scores[i,layer,stage_ind, 0] = np.mean(np.array(scores_train))
 
                     ############################# Mahalanobis distance analysis #############################
                     # Calculate Mahalanobis distance - mean and std of control data is calculated (along axis 0) and compared to the train and untrain data
@@ -998,47 +1012,28 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
                         untrain_data_trial_2d = numpy.expand_dims(untrain_data[trial], axis=0)
                         mahal_within_train[trial] = mahal(train_data_temp, train_data_trial_2d)[0]
                         mahal_within_untrain[trial] = mahal(untrain_data_temp, untrain_data_trial_2d)[0]
-
-                    # PCA scatter plot the three conditions with different colors
-                    symbols = ['o', 's', '^']
-                    stage_labels = ['prepre', 'pre', 'post']
-                    if plot_flag and run_ind < num_PCA_plots:
-                        axs[layer,stage_ind].scatter(control_data[:,0], control_data[:,1], label='control '+stage_labels[stage_ind], color='tab:green', s=5, marker=symbols[stage_ind])
-                        axs[layer,stage_ind].scatter(train_data[:,0], train_data[:,1], label='trained '+stage_labels[stage_ind], color='blue', s=5, marker=symbols[stage_ind])
-                        axs[layer,stage_ind].scatter(untrain_data[:,0], untrain_data[:,1], label='untrained '+stage_labels[stage_ind], color='red', s=5, marker=symbols[stage_ind])
-                        axs[layer,stage_ind].set_title(f'Layer {layer}, run {run_ind}')
-                        # Add lines between the mean of the conditions and write the Euclidean distance between them
-                        mean_control = numpy.mean(control_data, axis=0)
-                        mean_train = numpy.mean(train_data, axis=0)
-                        mean_untrain = numpy.mean(untrain_data, axis=0)
-                        axs[layer,stage_ind].plot([mean_control[0], mean_train[0]], [mean_control[1], mean_train[1]], color='gray')
-                        axs[layer,stage_ind].plot([mean_control[0], mean_untrain[0]], [mean_control[1], mean_untrain[1]], color='gray')
-                        axs[layer,stage_ind].plot([mean_train[0], mean_untrain[0]], [mean_train[1], mean_untrain[1]], color='gray')
-                        # add two lines of title, one with Eucledean distances and one with Mahalanobis distances
-                        axs[layer,stage_ind].set_title(f'train:{numpy.linalg.norm(mean_control-mean_train):.2f},untrain:{numpy.linalg.norm(mean_control-mean_untrain):.2f} \n train:{np.mean(mahal_train_control):.2f},untrain:{np.mean(mahal_untrain_control):.2f} within: {np.mean(mahal_within_train):.2f}, {np.mean(mahal_within_untrain):.2f}')
-                        axs[layer,stage_ind].legend()
-                        
+    
                     # Save Mahal distances and ratios
-                    mahal_train_control_all[run_ind,layer,stage_ind,:] = mahal_train_control
-                    mahal_untrain_control_all[run_ind,layer,stage_ind,:] = mahal_untrain_control
-                    mahal_within_train_all[run_ind,layer,stage_ind,:] = mahal_within_train
-                    mahal_within_untrain_all[run_ind,layer,stage_ind,:] = mahal_within_untrain
-                    train_SNR_all[run_ind,layer,stage_ind,:] = mahal_train_control / mahal_within_train
-                    untrain_SNR_all[run_ind,layer,stage_ind,:] = mahal_untrain_control / mahal_within_untrain
+                    mahal_train_control_all[i,layer,stage_ind,:] = mahal_train_control
+                    mahal_untrain_control_all[i,layer,stage_ind,:] = mahal_untrain_control
+                    mahal_within_train_all[i,layer,stage_ind,:] = mahal_within_train
+                    mahal_within_untrain_all[i,layer,stage_ind,:] = mahal_within_untrain
+                    train_SNR_all[i,layer,stage_ind,:] = mahal_train_control / mahal_within_train
+                    untrain_SNR_all[i,layer,stage_ind,:] = mahal_untrain_control / mahal_within_untrain
 
                     # Average over trials
-                    mahal_train_control_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_train_control)
-                    mahal_untrain_control_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_untrain_control)
-                    mahal_within_train_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_within_train)
-                    mahal_within_untrain_mean[run_ind,layer,stage_ind] = numpy.mean(mahal_within_untrain)
-                    train_SNR_mean[run_ind,layer,stage_ind] = numpy.mean(train_SNR_all[run_ind,layer,stage_ind,:])
-                    untrain_SNR_mean[run_ind,layer,stage_ind] = numpy.mean(untrain_SNR_all[run_ind,layer,stage_ind,:])
+                    mahal_train_control_mean[i,layer,stage_ind] = numpy.mean(mahal_train_control)
+                    mahal_untrain_control_mean[i,layer,stage_ind] = numpy.mean(mahal_untrain_control)
+                    mahal_within_train_mean[i,layer,stage_ind] = numpy.mean(mahal_within_train)
+                    mahal_within_untrain_mean[i,layer,stage_ind] = numpy.mean(mahal_within_untrain)
+                    train_SNR_mean[i,layer,stage_ind] = numpy.mean(train_SNR_all[i,layer,stage_ind,:])
+                    untrain_SNR_mean[i,layer,stage_ind] = numpy.mean(untrain_SNR_all[i,layer,stage_ind,:])
 
                 # Calculate learning modulation indices (LMI)
                 for stage_ind_ in range(num_stages-1):
-                    LMI_across[run_ind,layer,stage_ind_] = (mahal_train_control_mean[run_ind,layer,stage_ind_+1] - mahal_train_control_mean[run_ind,layer,stage_ind_]) - (mahal_untrain_control_mean[run_ind,layer,stage_ind_+1] - mahal_untrain_control_mean[run_ind,layer,stage_ind_] )
-                    LMI_within[run_ind,layer,stage_ind_] = (mahal_within_train_mean[run_ind,layer,stage_ind_+1] - mahal_within_train_mean[run_ind,layer,stage_ind_]) - (mahal_within_untrain_mean[run_ind,layer,stage_ind_+1] - mahal_within_untrain_mean[run_ind,layer,stage_ind_] )
-                    LMI_ratio[run_ind,layer,stage_ind_] = (train_SNR_mean[run_ind,layer,stage_ind_+1] - train_SNR_mean[run_ind,layer,stage_ind_]) - (untrain_SNR_mean[run_ind,layer,stage_ind_+1] - untrain_SNR_mean[run_ind,layer,stage_ind_] )
+                    LMI_across[i,layer,stage_ind_] = (mahal_train_control_mean[i,layer,stage_ind_+1] - mahal_train_control_mean[i,layer,stage_ind_]) - (mahal_untrain_control_mean[i,layer,stage_ind_+1] - mahal_untrain_control_mean[i,layer,stage_ind_] )
+                    LMI_within[i,layer,stage_ind_] = (mahal_within_train_mean[i,layer,stage_ind_+1] - mahal_within_train_mean[i,layer,stage_ind_]) - (mahal_within_untrain_mean[i,layer,stage_ind_+1] - mahal_within_untrain_mean[i,layer,stage_ind_] )
+                    LMI_ratio[i,layer,stage_ind_] = (train_SNR_mean[i,layer,stage_ind_+1] - train_SNR_mean[i,layer,stage_ind_]) - (untrain_SNR_mean[i,layer,stage_ind_+1] - untrain_SNR_mean[i,layer,stage_ind_] )
         
         print(f'runtime of run {run_ind}:',time.time()-start_time)
 
@@ -1049,11 +1044,11 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
     return MVPA_scores, Mahal_scores
 
 
-def MVPA_anova(folder):
+def MVPA_anova(folder, file_name='MVPA_scores.csv'):
     """ Perform two-way ANOVA on MVPA or Mahalanobis scores to measure the effect of SGD steps and orientation. """
     
     # Load the data from the CSV
-    scores = csv_to_numpy(folder + '/Mahal_scores.csv')  # Assume this returns a 4D numpy array
+    scores = csv_to_numpy(os.path.join(folder, file_name))  # Assume this returns a 4D numpy array
     
     num_trainings, num_layers, num_sgd_inds, num_ori_inds = scores.shape
     
@@ -1095,4 +1090,79 @@ def MVPA_anova(folder):
         print(f'55 mean:{numpy.mean(trained)}, std:{numpy.std(trained)}')
         print(f'125 mean:{numpy.mean(untrained)}, std:{numpy.std(untrained)}')
         '''
-        
+
+def make_exclude_run_csv(folder, num_runs, offset_condition=True):
+    '''Create a csv file with the indices of the runs that should be excluded from the analysis based on missing data and the offset condition.'''
+    excluded_inds = []
+    keys_metrics = ['psychometric_offset', 'staircase_offset']
+    for run_index in range(num_runs):
+        df, _, no_train_data  = data_from_run(folder, run_index=run_index, num_indices=3)
+        if no_train_data:
+            excluded_inds.append(run_index)
+        else:
+            if offset_condition:
+                if any(df[keys_metrics[0]][-11:-1] > 10)  and sum(df[keys_metrics[1]][-11:-1] > 9.9) > 8:
+                    excluded_inds.append(run_index)
+    # Save excluded_inds into a csv file
+    excluded_inds_df = pd.DataFrame(excluded_inds)
+    excluded_inds_df.to_csv(folder + '/excluded_runs.csv', index=False, header=False)
+
+    return excluded_inds
+
+########## CALCULATE TUNING CURVES ############
+def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds = range(3), tc_ori_list = numpy.arange(0,180,6), add_header=True, filename=None):
+    """ Calculate tuning curves for the different runs and different stages in each run """
+    from parameters import GridPars, SSNPars
+    grid_pars, ssn_pars = GridPars(), SSNPars()
+    # Define the filename for the tuning curves 
+    if filename is not None:
+        tc_file_path = os.path.join(folder_path, filename)
+    else:
+        tc_file_path = os.path.join(folder_path, 'tuning_curves.csv')
+    if os.path.exists(tc_file_path):
+        print(f'Tuning curves already exist in {tc_file_path}.')
+    else:      
+        if add_header:
+            # Define the header for the tuning curves
+            tc_headers = []
+            tc_headers.append('run_index')
+            tc_headers.append('training_stage')
+            # Headers for middle layer cells - order matches the gabor filters
+            type_str = ['_E_','_I_']
+            for phase_ind in range(ssn_pars.phases):
+                for type_ind in range(2):
+                    for i in range(grid_pars.gridsize_Nx**2):
+                        tc_header = 'G'+ str(i+1) + type_str[type_ind] + 'Ph' + str(phase_ind) + '_M'
+                        tc_headers.append(tc_header)
+            # Headers for superficial layer cells
+            for type_ind in range(2):
+                for i in range(grid_pars.gridsize_Nx**2):
+                    tc_header = 'G'+str(i+1) + type_str[type_ind] +'S'
+                    tc_headers.append(tc_header)
+        else:
+            tc_headers = False
+
+        # Loop over the different runs
+        iloc_ind_vec = [0,-1,-1]
+        stages = [0,1,2]
+        for i in range(num_training):    
+            # Loop over the different stages (before pretraining, after pretraining, after training) and calculate and save tuning curves
+            for stage_ind in stage_inds:
+                _, trained_pars_dict, untrained_pars = load_parameters(folder_path, run_index=i, stage=stages[stage_ind], iloc_ind=iloc_ind_vec[stage_ind])
+                _, _ = tuning_curve(untrained_pars, trained_pars_dict, tc_file_path, ori_vec=tc_ori_list, training_stage=stage_ind, run_index=i, header=tc_headers)
+                tc_headers = False
+            if i%10==0:    
+                print(f'Finished calculating tuning curves for training {i} in {time.time()-start_time_in_main} seconds')
+
+
+########## CALCULATE MVPA SCORES AND MAHALANOBIS DISTANCES ############
+def main_MVPA(folder, num_runs, num_stages=2, sigma_filter=5, r_noise=True, num_noisy_trials=100, excluded_runs=[]):
+    """ Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer"""
+    
+    if not os.path.exists(folder +'/MVPA_scores.csv'):
+        MVPA_scores, Mahal_scores = MVPA_Mahal_analysis(folder,num_runs=num_runs, num_stages=num_stages, r_noise = r_noise, sigma_filter=sigma_filter, num_noisy_trials=num_noisy_trials, excluded_runs=excluded_runs)
+        _ = save_numpy_to_csv(MVPA_scores, folder + '/MVPA_scores.csv')
+        _ = save_numpy_to_csv(Mahal_scores, folder + '/Mahal_scores.csv')
+    else:
+        MVPA_scores = csv_to_numpy(folder +'/MVPA_scores.csv')
+        Mahal_scores = csv_to_numpy(folder +'/Mahal_scores.csv')
