@@ -10,7 +10,7 @@ class PretrainingPars:
     """ flag for turning pretraining on or off """
     ref_ori_int = [0, 180]
     """ interval where the reference orientation is randomly chosen from """
-    ori_dist_int = [5, 20]
+    ori_dist_int = [10, 25]
     """ interval where the absolute orientation difference between reference and target is randomly chosen from """
     acc_th: float = 0.749
     """ accuracy threshold to calculate corresponding offset (training task) """
@@ -24,7 +24,7 @@ class PretrainingPars:
     """ number of trials per SGD step during pretraining """
     SGD_steps: int = 1000
     """ maximum number of SGD steps during pretraining """
-    min_stop_ind: int = 100
+    min_stop_ind: int = 50
     """ minimum SGD step where pretraining can stop """
     pretrain_stage_1_acc_th: float = 0.55
     """ accuracy threshold for early stopping criterium for the second stage of pretraining """

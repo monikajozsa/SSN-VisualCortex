@@ -18,7 +18,7 @@ from training.SSN_classes import SSN_mid, SSN_sup
 from training.model import evaluate_model_response
 
 
-def has_plateaued(loss, p_threshold=0.1, window_size = 20):
+def has_plateaued(loss, p_threshold=0.05, window_size = 10):
     """
     Check if the loss has plateaued by performing a t-test on the last 20 values.
 
@@ -208,16 +208,17 @@ def train_ori_discr(
                     w_sigs = [readout_pars_dict['w_sig']]
                     b_sigs = [readout_pars_dict['b_sig']]
                 else:
-                    staircase_offsets=[stimuli_pars.offset] 
-                
-            # ii) Early stopping during pre-training and training
-            # Check for early stopping during pre-training
+                    staircase_offsets=[stimuli_pars.offset]
+
             if pretrain_on and SGD_step in acc_check_ind:
                 if 'psychometric_offsets' in locals():
                     psychometric_offsets.append(float(psychometric_offset))
                 else:
                     psychometric_offsets=[float(psychometric_offset)]
-                # Stopping criteria for pretraining: break out from SGD_step loop and stages loop (using a flag)
+
+            # ii) Early stopping during pre-training and training
+            # Check for early stopping during pre-training: break out from SGD_step loop and stages loop (using a flag)
+            if pretrain_on:
                 if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(psychometric_offsets)>2:
                     pretrain_stop_flag = all(np.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(np.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]) and has_plateaued(train_accs)
                 if pretrain_stop_flag:
