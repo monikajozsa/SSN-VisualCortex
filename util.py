@@ -357,7 +357,7 @@ def csv_to_numpy(file_name):
 
 def load_orientation_map(folder, run_ind):
     """Loads the orientation map from the folder for the training indexed by run_ind."""
-    orimap_filename = os.path.join(folder, f"orimap.csv")
+    orimap_filename = os.path.join(folder, "orimap.csv")
     orimaps = pd.read_csv(orimap_filename, header=0)
     mesh_run = orimaps['run_index']==float(run_ind)
     orimap = orimaps[mesh_run].to_numpy()
@@ -366,12 +366,13 @@ def load_orientation_map(folder, run_ind):
     return orimap
 
 
-def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=False):
+def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=False):
     """Loads the parameters from the pretraining_results.csv or training_results.csv file depending on the stage. 
     If for_training is True, then the last row of pretraining_results.csv is loaded as readout parameters are not trained during training. 
     If for_training is False, then the full last row of training_results.csv is loaded. 
     The parameters are then used to initialize the untrained parameters and readout parameters.
     The offset_last is the last offset value from the psychometric offsets."""
+
     from training.util_gabor import init_untrained_pars
     from parameters import SSNPars, ReadoutPars, TrainedSSNPars, PretrainedSSNPars, GridPars, FilterPars, StimuliPars, ConvPars, TrainingPars, LossPars, PretrainingPars
     ssn_pars, readout_pars, trained_pars, pretrained_pars = SSNPars(), ReadoutPars(), TrainedSSNPars(), PretrainedSSNPars()
@@ -387,7 +388,10 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
 
     # Get the iloc_ind row of the pretraining_results or training_results csv file depending on stage
     if stage<2:
-        df_all = pd.read_csv(os.path.join(os.path.dirname(folder_path), 'pretraining_results.csv'))
+        if os.path.exists(os.path.join(os.path.dirname(folder_path), 'pretraining_results.csv')):
+            df_all = pd.read_csv(os.path.join(os.path.dirname(folder_path), 'pretraining_results.csv'))
+        else: #this happens when load_parameters is called for stage 1 during pretraining
+            df_all = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv'))
     else:
         df_all = pd.read_csv(os.path.join(folder_path, 'training_results.csv'))
     df = filter_for_run_and_stage(df_all, run_index, stage)
@@ -457,7 +461,10 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
     readout_pars.w_sig = w_sig_values
 
     ###### Set the gE, gI and eta parameters from initial_parameters.csv ######
-    df_init_pars_all = pd.read_csv(os.path.join(os.path.dirname(folder_path), 'initial_parameters.csv'))
+    if os.path.exists(os.path.join(os.path.dirname(folder_path), 'initial_parameters.csv')):
+        df_init_pars_all = pd.read_csv(os.path.join(os.path.dirname(folder_path), 'initial_parameters.csv'))
+    else:
+        df_init_pars_all = pd.read_csv(os.path.join(folder_path, 'initial_parameters.csv'))
     stage_for_init_pars=min(1,stage)
     df_init_pars = filter_for_run_and_stage(df_init_pars_all, run_index, stage_for_init_pars)
  
@@ -467,7 +474,10 @@ def load_parameters(folder_path, run_index, stage=0, iloc_ind=-1, for_training=F
 
     ###### Initialize untrained parameters with the loaded values ######
     # Load orientation map
-    loaded_orimap = load_orientation_map(os.path.dirname(folder_path), run_index)
+    if os.path.exists(os.path.join(os.path.dirname(folder_path),"orimap.csv")):
+        loaded_orimap = load_orientation_map(os.path.dirname(folder_path), run_index)
+    else:
+        loaded_orimap = load_orientation_map(folder_path, run_index)
     untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
                     loss_pars, training_pars, pretraining_pars, readout_pars, orimap_loaded=loaded_orimap)
     

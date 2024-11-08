@@ -22,17 +22,17 @@ starting_time_in_main= time.time()
 # Set up results folder and save note and scripts
 note=f'Getting as much data with corrected kappas over the weekend as possible'
 root_folder = os.path.dirname(__file__)
-#folder_path = save_code(note=note)
-folder_path = os.path.join(root_folder, 'results', 'Nov03_v3')
+folder_path = save_code(note=note)
+#folder_path = os.path.join(root_folder, 'results', 'Nov03_v3')
 
 ########## ########## ########## 
 ######### Pretraining ##########
 ########## ########## ##########
-#from parameters import PretrainingPars
-#pretraining_pars = PretrainingPars() # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
-#if not pretraining_pars.is_on:
-#    raise ValueError('Pretraining is not on. Please set pretraining_pars.is_on=True in parameters.py')
-#main_pretraining(folder_path, num_training, starting_time_in_main=starting_time_in_main)
+from parameters import PretrainingPars
+pretraining_pars = PretrainingPars() # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
+if not pretraining_pars.is_on:
+    raise ValueError('Pretraining is not on. Please set pretraining_pars.is_on=True in parameters.py')
+main_pretraining(folder_path, num_training, starting_time_in_main=starting_time_in_main)
 
 ########## ########## ##########
 ##########  Training  ##########
@@ -42,29 +42,30 @@ conf_dict, conf_names, conf_list = config(['special', 'excluded'])
 for i, conf in enumerate(conf_list):
     
     # create a configuration folder and copy relevant files to it
-    #config_folder = set_up_config_folder(folder_path, conf_names[i])
-    config_folder = os.path.join(folder_path, conf_names[i])
+    config_folder = set_up_config_folder(folder_path, conf_names[i])
+    #config_folder = os.path.join(folder_path, conf_names[i])
     
     # configure the parameters.py file and copy it as a backup file in the config folder
-    #configure_parameters_file(root_folder, conf)
-    #time.sleep(1) # wait for the file to be saved
-    #shutil.copy('parameters.py', os.path.join(config_folder,  f'parameters_{conf_names[i]}.py'))
+    configure_parameters_file(root_folder, conf)
+    time.sleep(1) # wait for the file to be saved
+    shutil.copy('parameters.py', os.path.join(config_folder,  f'parameters_{conf_names[i]}.py'))
     
     # run training with the configured parameters.py file
-    #main_training_source = os.path.join(root_folder, "training", "main_training.py")
-    #subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
+    main_training_source = os.path.join(root_folder, "training", "main_training.py")
+    subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
     
     # plot results on parameters
-    #plot_results_from_csvs(config_folder, num_training)
+    plot_results_from_csvs(config_folder, num_training)
     barplots_from_csvs(config_folder)
 
     print(f'Configuration {i} done')
-    
+        
 print('Finished all configurations')
 
 # Make the parameters.py.bak file the parameters.py file
 if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
     shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
+time.sleep(1) # wait for the file to be saved
 
 ########## ########## ##########
 ######### Tuning curves ########

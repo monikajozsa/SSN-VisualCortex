@@ -116,7 +116,7 @@ def train_ori_discr(
     else:
         numSGD_steps = training_pars.SGD_steps
         stage_list = [2]
-    test_offset_vec = numpy.array([1, 3, 7, 12])  # offset values to define offset threshold where given accuracy is achieved
+    test_offset_vec = numpy.array([1, 3, 7, 12, 20])  # offset values to define offset threshold where given accuracy is achieved
     train_acc_test = 0
 
     # Define SGD_steps indices where losses an accuracy are validated
@@ -166,9 +166,11 @@ def train_ori_discr(
             
             # Calculate psychometric_offset if the SGD step is in the acc_check_ind vector
             if pretrain_on and SGD_step in acc_check_ind:
-                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 10)
+                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
                 # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                 psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+                print(acc_mean)
+                print(psychometric_offset)
 
             # ii) Store parameters and metrics (append or initialize lists)
             if 'stages' in locals():
@@ -186,9 +188,11 @@ def train_ori_discr(
                 append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_E'], log_f_E, as_log=True)
                 append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_I'], log_f_I, as_log=True)
                 if 'kappa' in trained_pars_dict.keys():
-                    kappas.append(trained_pars_dict['kappa'].ravel())
+                    tanh_kappa = np.tanh(trained_pars_dict['kappa'])
+                    kappas.append(tanh_kappa.ravel())
                 elif hasattr(ssn_pars, 'kappa'):
-                    kappas.append(ssn_pars.kappa.ravel())
+                    tanh_kappa = np.tanh(ssn_pars.kappa)
+                    kappas.append(tanh_kappa.ravel())
                 if pretrain_on:
                     w_sigs.append(readout_pars_dict['w_sig'])
                     b_sigs.append(readout_pars_dict['b_sig'])
@@ -266,7 +270,7 @@ def train_ori_discr(
                     val_losses=[val_loss]
                 
                 if not pretrain_on:
-                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 10)
+                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                     psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     if 'psychometric_offsets' in locals():
