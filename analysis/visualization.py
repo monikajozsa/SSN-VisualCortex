@@ -637,6 +637,9 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         if values_for_colors is not None:
             # Define a colormap and the colors for E and I cells based on values_for_colors
             cmap = plt.get_cmap('rainbow')
+            # The following two lines are for plots where we want to exclude points by setting their color value to 0 - like when we visualized ranges of preferred orientation
+            #zero_inds = values_for_colors == 0
+            #y[zero_inds]=numpy.nan
             norm = plt.Normalize(vmin=numpy.min(values_for_colors), vmax=numpy.max(values_for_colors))
             
             # Get colors for E and I cells based on values_for_colors
@@ -802,11 +805,22 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
 
         # Get the preferred orientation from data_post and compare it with pref_ori_all
         #mesh_pref_ori = data_post['feature']=='pref_ori'
-        #pref_ori_v1 = data_post.loc[mesh_pref_ori]
-        #pref_ori_v1 = pref_ori_v1.loc[:,mesh_cells].to_numpy()
+        #pref_ori = data_post.loc[mesh_pref_ori]
+        #pref_ori = pref_ori.loc[:,mesh_cells].to_numpy()
+        #mesh_pref_ori = data_pre['feature']=='pref_ori'
+        #pref_ori_v2 = data_pre.loc[mesh_pref_ori]
+        #pref_ori_v2 = pref_ori_v2.loc[:,mesh_cells].to_numpy()
         #print(numpy.allclose(pref_ori, pref_ori_v1))
-        
-        if color_by == 'pref_ori':
+        #print(numpy.allclose(pref_ori, pref_ori_v2))
+        #print(numpy.allclose(pref_ori_v2, pref_ori_v1))
+        if color_by == 'pref_ori_range': # ranges should be (75,105), (165,15) and any other as a third group
+            colors_scatter_feature = numpy.zeros(pref_ori.shape)
+            for run_ind in range(pref_ori.shape[0]):
+                group1_inds = numpy.where((pref_ori[run_ind,:]>75) & (pref_ori[run_ind,:]<105))[0]
+                group2_inds = numpy.where((pref_ori[run_ind,:]>5) & (pref_ori[run_ind,:]<35))[0]
+                colors_scatter_feature[run_ind, group1_inds] = 10
+                colors_scatter_feature[run_ind, group2_inds] = 100           
+        elif color_by == 'pref_ori':
             colors_scatter_feature = pref_ori
         elif color_by == 'phase':
             color_cell_group = numpy.ones(pref_ori.shape[1]//5)
@@ -824,6 +838,8 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
                 scatter_feature(axs[layer,2], max_post, max_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='max', values_for_colors=colors_scatter_feature, title='Peak firing rate', axes_inds = [layer,2], add_cross=add_cross)
                 scatter_feature(axs[layer,3], mean_post, mean_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='mean', values_for_colors=colors_scatter_feature, title='Mean firing rate', axes_inds = [layer,3], add_cross=add_cross)
                 scatter_feature(axs[layer,4], slope_hm_post, slope_hm_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_hm', values_for_colors=colors_scatter_feature, title='Slope at half maximum', axes_inds = [layer,4], add_cross=add_cross)
+                #scatter_feature(axs[layer,3], slope_55_post, slope_55_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_55', values_for_colors=colors_scatter_feature, title='Slope at 55', axes_inds = [layer,4], add_cross=add_cross)
+                #scatter_feature(axs[layer,2], slope_125_post, slope_125_pre, indices[2*layer], indices[2*layer+1], shift_val=None, feature='slope_125', values_for_colors=colors_scatter_feature, title='Slope at 125', axes_inds = [layer,4], add_cross=add_cross)
 
             plt.tight_layout()
 
