@@ -125,12 +125,11 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
     if os.path.exists(fig_filename + ".png"):
         return
     else:    
-        df, time_inds  = data_from_run(folder, run_index=run_index, num_indices=3)
+        df, time_inds, no_train_data  = data_from_run(folder, run_index=run_index, num_indices=3)
         # if df is empty, then there is no training data from that run (possibly because of divergence of the model)
         if df.empty:
             return
         SGD_steps = time_inds[-1]+1
-        rel_changes_train, _, _ = rel_change_for_run(folder, run_index, 3)
         
         # Define colors and linestyles for the plots
         colors_J=['tab:red' ,'tab:orange','tab:green', 'tab:blue', 'tab:red' ,'tab:orange','tab:green', 'tab:blue']
@@ -144,20 +143,23 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         colors_cf = ['tab:orange', 'tab:green','tab:red', 'tab:blue', 'tab:red', 'tab:blue']
         linestyles_cf = ['-', '-', '-', '-', '--', '--']
         colors_metrics = [ 'tab:orange', 'tab:brown','tab:green']
-        # Define keys and values for the bar plots
-        keys_J = [key for key in rel_changes_train.keys() if key.startswith('J_')]
-        values_J = [rel_changes_train[key] for key in keys_J] 
-        keys_offsets =  [key for key in rel_changes_train.keys() if '_offset' in key]
-        keys_acc = [key for key in rel_changes_train.keys() if key.startswith('acc')]
-        if len(keys_offsets)>0:
-            keys_metrics = keys_offsets + keys_acc
-        else:
-            keys_metrics = keys_acc
-        values_metrics = [rel_changes_train[key] for key in keys_metrics]
-        keys_meanr = [key for key in rel_changes_train.keys() if key.startswith('meanr_')]
-        values_meanr = [rel_changes_train[key] for key in keys_meanr] 
-        keys_fc = [key for key in rel_changes_train.keys() if key.startswith('c_') or key.startswith('f_')]
-        values_fc = [rel_changes_train[key]for key in keys_fc]        
+        
+        # Define keys for the metrics - might be different than keys_metrics_rel_change in case there is no training data
+        keys_offsets = [key for key in df.keys() if '_offset' in key]
+        keys_acc = [key for key in df.keys() if key.startswith('acc')]
+        keys_metrics = keys_offsets + keys_acc
+        if not no_train_data:
+            # Define values for the bar plots
+            rel_changes_train, _, _ = rel_change_for_run(folder, run_index, 3)
+            values_J = [rel_changes_train[key] for key in keys_J_raw]
+            keys_offsets_rel_change = [key for key in rel_changes_train.keys() if '_offset' in key]
+            if len(keys_offsets_rel_change)>0:
+                keys_metrics_rel_change = keys_offsets_rel_change + keys_acc
+            else:
+                keys_metrics_rel_change = keys_acc
+            values_metrics = [rel_changes_train[key] for key in keys_metrics_rel_change]
+            values_meanr = [rel_changes_train[key] for key in keys_meanr] 
+            values_fc = [rel_changes_train[key]for key in keys_cf]        
 
         # Create the figure
         fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(60, 45))
@@ -171,16 +173,17 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         plot_readout_weights(axes[1,2], df, SGD_steps)
         plot_params_over_time(axes[2,0], df, keys_J_raw, colors_J, linestyles_J, title='J in middle and superficial layers', SGD_steps=SGD_steps)
         plot_params_over_time(axes[2,1], df, keys_cf, colors_cf, linestyles_cf, title='c: constant inputs, f: weights between mid and sup layers', SGD_steps=SGD_steps)
-        bars_params = axes[2,2].bar(keys_J, values_J, color=colors_J)   
-        bars_metrics = axes[0,3].bar(keys_metrics, values_metrics, color=colors_metrics)
-        bars_r = axes[1,3].bar(keys_meanr, values_meanr, color=colors_r)         
-        bars_cf = axes[2,3].bar(keys_fc, values_fc, color=colors_cf)
-        
-        # Annotating each bar with its value for bars_params
-        annotate_bar(axes[2,2], bars_params, values_J, ylabel='relative change %', title= 'Rel. changes in J before and after training')
-        annotate_bar(axes[0,3], bars_metrics, values_metrics, ylabel='relative change %', title= 'Rel. changes in metrics before and after training')
-        annotate_bar(axes[1,3], bars_r, values_meanr, ylabel='relative change %', title= 'Rel. changes in mean rates before and after training')
-        annotate_bar(axes[2,3], bars_cf, values_fc, ylabel='relative change %', title= 'Other rel changes before and after training')
+        if not no_train_data:
+            bars_params = axes[2,2].bar(keys_J_raw, values_J, color=colors_J)   
+            bars_metrics = axes[0,3].bar(keys_metrics_rel_change, values_metrics, color=colors_metrics)
+            bars_r = axes[1,3].bar(keys_meanr, values_meanr, color=colors_r)         
+            bars_cf = axes[2,3].bar(keys_cf, values_fc, color=colors_cf)
+            
+            # Annotating each bar with its value for bars_params
+            annotate_bar(axes[2,2], bars_params, values_J, ylabel='relative change %', title= 'Rel. changes in J before and after training')
+            annotate_bar(axes[0,3], bars_metrics, values_metrics, ylabel='relative change %', title= 'Rel. changes in metrics before and after training')
+            annotate_bar(axes[1,3], bars_r, values_meanr, ylabel='relative change %', title= 'Rel. changes in mean rates before and after training')
+            annotate_bar(axes[2,3], bars_cf, values_fc, ylabel='relative change %', title= 'Other rel changes before and after training')
         
         # Add vertical lines to indicate the different stages
         for i in range(1, len(df['stage'])):
@@ -1322,7 +1325,7 @@ def plot_MVPA_or_Mahal_scores(folder_path, file_name):
     scores dimensions are runs x layers x SGD_inds x ori_inds """
     
     #Load the scores
-    if file_name.endswith('MVPA_scores.csv'):
+    if file_name.endswith('MVPA_scores'):
         scores = csv_to_numpy(folder_path + '/MVPA_scores.csv')
     else:
         scores = csv_to_numpy(folder_path + '/Mahal_scores.csv') 
@@ -1353,7 +1356,7 @@ def plot_MVPA_or_Mahal_scores_match_Kes_fig(folder_path, file_name):
     ''' Plot the MVPA scores or Mahalanobis distances for the two layers and two orientations in the format of Ke's 2024 paper.'''
 
     # Load the scores
-    if file_name.endswith('MVPA_scores.csv'):
+    if file_name.endswith('MVPA_scores'):
         scores = csv_to_numpy(folder_path + '/MVPA_scores.csv')
     else:
         scores = csv_to_numpy(folder_path + '/Mahal_scores.csv') 
