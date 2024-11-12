@@ -18,7 +18,7 @@ from training.SSN_classes import SSN_mid, SSN_sup
 from training.model import evaluate_model_response
 
 
-def has_plateaued(loss, p_threshold=0.1, window_size = 20):
+def has_plateaued(loss, p_threshold=0.05, window_size = 10):
     """
     Check if the loss has plateaued by performing a t-test on the last 20 values.
 
@@ -116,8 +116,7 @@ def train_ori_discr(
     else:
         numSGD_steps = training_pars.SGD_steps
         stage_list = [2]
-    test_offset_vec = numpy.array([1, 3, 7, 12])  # offset values to define offset threshold where given accuracy is achieved
-    train_acc_test = 0
+    test_offset_vec = numpy.array([1, 3, 7, 12, 20])  # offset values to define offset threshold where given accuracy is achieved
 
     # Define SGD_steps indices where losses an accuracy are validated
     val_steps = np.arange(0, numSGD_steps, training_pars.validation_freq)
@@ -166,9 +165,11 @@ def train_ori_discr(
             
             # Calculate psychometric_offset if the SGD step is in the acc_check_ind vector
             if pretrain_on and SGD_step in acc_check_ind:
-                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 10)
+                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
                 # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                 psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+                print(acc_mean)
+                print(psychometric_offset)
 
             # ii) Store parameters and metrics (append or initialize lists)
             if 'stages' in locals():
@@ -186,9 +187,11 @@ def train_ori_discr(
                 append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_E'], log_f_E, as_log=True)
                 append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_I'], log_f_I, as_log=True)
                 if 'kappa' in trained_pars_dict.keys():
-                    kappas.append(trained_pars_dict['kappa'].ravel())
+                    tanh_kappa = np.tanh(trained_pars_dict['kappa'])
+                    kappas.append(tanh_kappa.ravel())
                 elif hasattr(ssn_pars, 'kappa'):
-                    kappas.append(ssn_pars.kappa.ravel())
+                    tanh_kappa = np.tanh(ssn_pars.kappa)
+                    kappas.append(tanh_kappa.ravel())
                 if pretrain_on:
                     w_sigs.append(readout_pars_dict['w_sig'])
                     b_sigs.append(readout_pars_dict['b_sig'])
@@ -205,16 +208,17 @@ def train_ori_discr(
                     w_sigs = [readout_pars_dict['w_sig']]
                     b_sigs = [readout_pars_dict['b_sig']]
                 else:
-                    staircase_offsets=[stimuli_pars.offset] 
-                
-            # ii) Early stopping during pre-training and training
-            # Check for early stopping during pre-training
+                    staircase_offsets=[stimuli_pars.offset]
+
             if pretrain_on and SGD_step in acc_check_ind:
                 if 'psychometric_offsets' in locals():
                     psychometric_offsets.append(float(psychometric_offset))
                 else:
                     psychometric_offsets=[float(psychometric_offset)]
-                # Stopping criteria for pretraining: break out from SGD_step loop and stages loop (using a flag)
+
+            # ii) Early stopping during pre-training and training
+            # Check for early stopping during pre-training: break out from SGD_step loop and stages loop (using a flag)
+            if pretrain_on:
                 if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(psychometric_offsets)>2:
                     pretrain_stop_flag = all(np.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(np.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]) and has_plateaued(train_accs)
                 if pretrain_stop_flag:
@@ -266,7 +270,7 @@ def train_ori_discr(
                     val_losses=[val_loss]
                 
                 if not pretrain_on:
-                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 10)
+                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                     psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     if 'psychometric_offsets' in locals():
@@ -293,6 +297,7 @@ def train_ori_discr(
                 # linear regression to check if acc_mean is decreasing (happens when pretraining goes on while solving the flipped training task)
                 acc_mean_slope, _, _, p_value, _ = linregress(range(len(acc_mean)), acc_mean)
                 # During pretraining, if the validation accuracy is low and accuracy is decreasing as the offset increases, then flip the readout parameters
+                train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False) 
                 if stage==0 and (acc_mean_slope < -0.01) and (p_value < 0.05) and train_acc_test<0.5:
                     # Flip the center readout parameters if validation accuracy is low (which corresponds to training task) and training task accuracy is decreasing as offset increases
                     readout_pars_dict['w_sig'] = readout_pars_dict['w_sig'].at[untrained_pars.middle_grid_ind].set(-readout_pars_dict['w_sig'][untrained_pars.middle_grid_ind])
@@ -304,8 +309,7 @@ def train_ori_discr(
                     m[1]['w_sig']=m[1]['w_sig'].at[untrained_pars.middle_grid_ind].set(-m[1]['w_sig'][untrained_pars.middle_grid_ind])
                     
                     # Print out the changes in accuracy
-                    pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True)
-                    train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False)                        
+                    pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True)                  
                     print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc:', train_acc_test)
                 else:
                     if stage == 0:

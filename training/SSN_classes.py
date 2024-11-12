@@ -95,7 +95,7 @@ class SSN_sup(_SSN_Base):
         """
         # Unpack parameters  
         p_local = self.p_local
-        tanh_kappa = 4*np.tanh(4*kappa)
+        tanh_kappa = np.tanh(kappa)
         tanh_kappa_pre = [[tanh_kappa[0][0], 0], [tanh_kappa[0][1], 0]]
         tanh_kappa_post = [[tanh_kappa[1][0], 0], [tanh_kappa[1][1], 0]]
         sigma_oris = self.sigma_oris * np.ones((2,2))
