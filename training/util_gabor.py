@@ -37,11 +37,14 @@ def test_uniformity(numbers, num_bins=18, alpha=0.25):
             observed_freq[bin_index] += 1
   
     # Perform the Chi-square test
-    _, p_value, _, expected_freq = chi2_contingency(observed_freq)
-    if p_value <= alpha and np.all(np.array(observed_freq) > np.array(expected_freq) / 3) and np.all(np.array(observed_freq) < np.array(expected_freq) * 3):
+    if any([observed_freq[i] == 0 for i in range(num_bins)]):
         return False
     else:
-        return True
+        _, p_value, _, expected_freq = chi2_contingency(observed_freq)
+        if p_value <= alpha and np.all(np.array(observed_freq) > np.array(expected_freq) / 3) and np.all(np.array(observed_freq) < np.array(expected_freq) * 3):
+            return False
+        else:
+            return True
 
 
 def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):

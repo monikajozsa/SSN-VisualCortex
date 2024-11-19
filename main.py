@@ -16,14 +16,14 @@ from analysis.visualization import plot_results_from_csvs, barplots_from_csvs
 from analysis.main_analysis import main_analysis
 
 ## Set up number of runs and starting time
-num_training = 50
+num_pretraining = 50
 starting_time_in_main= time.time()
 
 # Set up results folder and save note and scripts
 note=f'Getting as much data with corrected kappas over the weekend as possible'
 root_folder = os.path.dirname(__file__)
 folder_path = save_code(note=note)
-#folder_path = os.path.join(root_folder, 'results', 'Nov03_v3')
+#folder_path = os.path.join(root_folder, 'results', 'Nov19_v2')
 
 ########## ########## ########## 
 ######### Pretraining ##########
@@ -32,7 +32,7 @@ from parameters import PretrainingPars
 pretraining_pars = PretrainingPars() # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 if not pretraining_pars.is_on:
     raise ValueError('Pretraining is not on. Please set pretraining_pars.is_on=True in parameters.py')
-main_pretraining(folder_path, num_training, starting_time_in_main=starting_time_in_main)
+num_training = main_pretraining(folder_path, num_pretraining, starting_time_in_main=starting_time_in_main)
 
 ########## ########## ##########
 ##########  Training  ##########

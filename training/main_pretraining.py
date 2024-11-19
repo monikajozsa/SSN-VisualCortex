@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.dirname(__file__))
 
-from util import load_parameters, take_log, create_grating_training, create_grating_pretraining, unpack_ssn_parameters
+from util import load_parameters, take_log, create_grating_training, create_grating_pretraining, unpack_ssn_parameters, filter_for_run_and_stage
 from util_gabor import update_untrained_pars, save_orimap
 from training_functions import train_ori_discr, task_acc_test, generate_noise
 from SSN_classes import SSN_mid, SSN_sup
@@ -300,13 +300,45 @@ def create_initial_parameters_df(folder_path, initial_parameters, pretrained_par
 
     return initial_parameters_df
 
+def exclude_runs(folder_path, input_vector):
+    """Exclude runs from the analysis by removing them from the CSV files - file modifications only happen within folder_path folders."""
+    # Read the original CSV file
+    df_pretraining_results = pd.read_csv(os.path.join(folder_path, 'pretraining_results.csv') )
+    df_orimap = pd.read_csv(os.path.join(folder_path,'orimap.csv'))
+    df_init_params = pd.read_csv(os.path.join(folder_path,'initial_parameters.csv'))
+    
+    # Save the original dataframe as results_complete.csv in the folder_path folder
+    df_pretraining_results.to_csv(os.path.join(folder_path,'pretraining_results_complete.csv'), index=False)
+    df_orimap.to_csv(os.path.join(folder_path,'orimap_complete.csv'), index=False)
+    df_init_params.to_csv(os.path.join(folder_path,'initial_parameters_complete.csv'), index=False)
+    
+    # Exclude rows where 'runs' column is in the input_vector
+    df_pretraining_results_filtered = df_pretraining_results[~df_pretraining_results['run_index'].isin(input_vector)]
+    df_orimap_filtered = df_orimap[~df_orimap['run_index'].isin(input_vector)]
+    df_init_params_filtered = df_init_params[~df_init_params['run_index'].isin(input_vector)]
+
+    # Adjust the 'run_index' column
+    df_orimap_filtered['run_index'] = range(len(df_orimap_filtered))
+    df_init_params_filtered['run_index'][df_init_params_filtered['stage']==0] = range(len(df_orimap_filtered))
+    df_init_params_filtered['run_index'][df_init_params_filtered['stage']==1] = range(len(df_orimap_filtered))
+    for i in range(df_pretraining_results_filtered['run_index'].max() + 1):
+        if i not in input_vector:
+            shift_val = sum(x < i for x in input_vector)
+            df_pretraining_results_filtered.loc[df_pretraining_results_filtered['run_index'] == i, 'run_index'] = i - shift_val             
+    
+    # Save the filtered dataframes as csv files in the folder_path folder
+    df_pretraining_results_filtered.to_csv(os.path.join(folder_path,'pretraining_results.csv'), index=False)
+    df_orimap_filtered.to_csv(os.path.join(folder_path,'orimap.csv'), index=False)
+    df_init_params_filtered.to_csv(os.path.join(folder_path,'initial_parameters.csv'), index=False)
+
+
 ############### PRETRAINING ###############
 def main_pretraining(folder_path, num_training, initial_parameters=None, starting_time_in_main=0):
     """ Initialize parameters randomly and run pretraining on the general orientation discrimination task """
     # Run num_training number of pretraining + training
     num_FailedRuns = 0
     i=0
-
+    '''
     run_indices=[]
     while i < num_training and num_FailedRuns < 20:
 
@@ -345,3 +377,25 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
         i = i + 1
         print('runtime of {} pretraining'.format(i), time.time()-starting_time_in_main)
         print('number of failed runs = ', num_FailedRuns)
+    '''
+    # Read pretraining_results.csv file, go over runs and check the last psychometric_offset within that run is in the range pretraining_pars.offset_threshold. If not, then add to the excluded_run_inds.
+    run_indices = [i for i in range(num_training)]
+    _, _, untrained_pars = load_parameters(folder_path, run_index = i, stage = 1, iloc_ind = -1)
+    exclude_run_inds = []
+    for j in run_indices:
+        df = pd.read_csv(os.path.join(folder_path,'pretraining_results.csv'))
+        df_j = filter_for_run_and_stage(df, j, stage=1)        
+        last_non_nan = df_j['psychometric_offset'].last_valid_index()
+        if numpy.isnan(df_j['psychometric_offset'].iloc[-1]):
+            exclude_run_inds.append(j)
+        elif df_j['psychometric_offset'].iloc[-1] < untrained_pars.pretrain_pars.offset_threshold[0] or df_j['psychometric_offset'].iloc[-1] > untrained_pars.pretrain_pars.offset_threshold[1]:
+            exclude_run_inds.append(j)
+    # Save excluded runs to a file
+    with open(os.path.join(folder_path, 'excluded_runs_from_pretraining.csv'), 'w') as f:
+        for item in exclude_run_inds:
+            f.write("%s\n" % item)
+
+    # Exclude runs with indices exclude_run_inds from the initial_parameters, orimap and pretraining_results files
+    exclude_runs(folder_path, exclude_run_inds)
+
+    return len(run_indices)-len(exclude_run_inds)
