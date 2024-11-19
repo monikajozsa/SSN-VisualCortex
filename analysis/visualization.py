@@ -143,6 +143,9 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         colors_cf = ['tab:orange', 'tab:green','tab:red', 'tab:blue', 'tab:red', 'tab:blue']
         linestyles_cf = ['-', '-', '-', '-', '--', '--']
         colors_metrics = [ 'tab:orange', 'tab:brown','tab:green']
+        keys_kappa = ['kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post']
+        colors_kappa = ['tab:red', 'red', 'tab:orange', 'orange']
+        linestyles_kappa = ['-', '-', '-', '-']
         
         # Define keys for the metrics - might be different than keys_metrics_rel_change in case there is no training data
         keys_offsets = [key for key in df.keys() if '_offset' in key]
@@ -158,7 +161,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
             else:
                 keys_metrics_rel_change = keys_acc
             values_metrics = [rel_changes_train[key] for key in keys_metrics_rel_change]
-            values_meanr = [rel_changes_train[key] for key in keys_meanr] 
+            #values_meanr = [rel_changes_train[key] for key in keys_meanr] 
             values_fc = [rel_changes_train[key]for key in keys_cf]        
 
         # Create the figure
@@ -173,16 +176,17 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         plot_readout_weights(axes[1,2], df, SGD_steps)
         plot_params_over_time(axes[2,0], df, keys_J_raw, colors_J, linestyles_J, title='J in middle and superficial layers', SGD_steps=SGD_steps)
         plot_params_over_time(axes[2,1], df, keys_cf, colors_cf, linestyles_cf, title='c: constant inputs, f: weights between mid and sup layers', SGD_steps=SGD_steps)
+        plot_params_over_time(axes[1,3], df, keys_kappa, colors_kappa, linestyles_kappa, title='kappas', SGD_steps=SGD_steps)
         if not no_train_data:
             bars_params = axes[2,2].bar(keys_J_raw, values_J, color=colors_J)   
             bars_metrics = axes[0,3].bar(keys_metrics_rel_change, values_metrics, color=colors_metrics)
-            bars_r = axes[1,3].bar(keys_meanr, values_meanr, color=colors_r)         
+            #bars_r = axes[1,3].bar(keys_meanr, values_meanr, color=colors_r)         
             bars_cf = axes[2,3].bar(keys_cf, values_fc, color=colors_cf)
             
             # Annotating each bar with its value for bars_params
             annotate_bar(axes[2,2], bars_params, values_J, ylabel='relative change %', title= 'Rel. changes in J before and after training')
             annotate_bar(axes[0,3], bars_metrics, values_metrics, ylabel='relative change %', title= 'Rel. changes in metrics before and after training')
-            annotate_bar(axes[1,3], bars_r, values_meanr, ylabel='relative change %', title= 'Rel. changes in mean rates before and after training')
+            #annotate_bar(axes[1,3], bars_r, values_meanr, ylabel='relative change %', title= 'Rel. changes in mean rates before and after training')
             annotate_bar(axes[2,3], bars_cf, values_fc, ylabel='relative change %', title= 'Other rel changes before and after training')
         
         # Add vertical lines to indicate the different stages
@@ -196,6 +200,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
                 axes[1,2].axvline(x=i, color='black', linestyle='--')
                 axes[2,0].axvline(x=i, color='black', linestyle='--')
                 axes[2,1].axvline(x=i, color='black', linestyle='--')
+                axes[1,3].axvline(x=i, color='black', linestyle='--')
         for i in range(3):
             for j in range(4):
                 axes[i,j].tick_params(axis='both', which='major', labelsize=18)  # Set tick font size
@@ -815,11 +820,36 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         #print(numpy.allclose(pref_ori_v2, pref_ori_v1))
         if color_by == 'pref_ori_range': # ranges should be (75,105), (165,15) and any other as a third group
             colors_scatter_feature = numpy.zeros(pref_ori.shape)
+            right_group_all = (pref_ori>75) & (pref_ori<105)
+            left_group_all = (pref_ori>5) & (pref_ori<35)
+            right_group_125_all = (pref_ori>145) & (pref_ori<175)
+            left_group_125_all = (pref_ori>75) & (pref_ori<105)
+            fwhm_diff = fwhm_post - fwhm_pre
+            print('Training stage:', training_stage)
+            print('Mean delta fwhm for left group:', np.mean(fwhm_diff[left_group_all]))
+            print('Mean delta fwhm for right group:', np.mean(fwhm_diff[right_group_all]))
+            print('Mean delta slope for left group:', np.mean(slopediff_55[left_group_all]))
+            print('Mean delta slope for right group:', np.mean(slopediff_55[right_group_all]))
+            print('Mean delta slope at 125 for left group:', np.mean(slopediff_125[left_group_125_all]))
+            print('Mean delta slope at 125 for right group:', np.mean(slopediff_125[right_group_125_all]))
+            slope_diff_55_runs = numpy.zeros(pref_ori.shape[0])
+            slope_diff_125_runs = numpy.zeros(pref_ori.shape[0])
+            fwhm_diff_runs = numpy.zeros(pref_ori.shape[0])
             for run_ind in range(pref_ori.shape[0]):
-                group1_inds = numpy.where((pref_ori[run_ind,:]>75) & (pref_ori[run_ind,:]<105))[0]
-                group2_inds = numpy.where((pref_ori[run_ind,:]>5) & (pref_ori[run_ind,:]<35))[0]
-                colors_scatter_feature[run_ind, group1_inds] = 10
-                colors_scatter_feature[run_ind, group2_inds] = 100           
+                right_group = numpy.where((pref_ori[run_ind,:]>75) & (pref_ori[run_ind,:]<105))[0]
+                left_group = numpy.where((pref_ori[run_ind,:]>5) & (pref_ori[run_ind,:]<35))[0]
+                right_group_125 = numpy.where((pref_ori[run_ind,:]>145) & (pref_ori[run_ind,:]<175))[0]
+                left_group_125 = numpy.where((pref_ori[run_ind,:]>75) & (pref_ori[run_ind,:]<105))[0]
+                fwhm_diff_runs[run_ind] = np.mean(fwhm_diff[run_ind, left_group])-np.mean(fwhm_diff[run_ind, right_group])
+                slope_diff_55_runs[run_ind] = np.mean(slopediff_55[run_ind, left_group])-np.mean(slopediff_55[run_ind, right_group])
+                slope_diff_125_runs[run_ind] = np.mean(slopediff_125[run_ind, left_group_125])-np.mean(slopediff_125[run_ind, right_group_125])
+                colors_scatter_feature[run_ind, right_group] = 10
+                colors_scatter_feature[run_ind, left_group] = 100  
+            print('delta fwhm for left-right group:', fwhm_diff_runs)
+            print('delta slope for left-right group:', slope_diff_55_runs)
+            print('Mean and std of delta fwhm for left-right group:', np.nanmean(fwhm_diff_runs), np.nanstd(fwhm_diff_runs))
+            print('Mean and std of delta slope at 55 for left-right group:', np.nanmean(slope_diff_55_runs), np.nanstd(slope_diff_55_runs))
+            print('Mean and std of delta slope at 125 for left-right group:', np.nanmean(slope_diff_125_runs), np.nanstd(slope_diff_125_runs))  
         elif color_by == 'pref_ori':
             colors_scatter_feature = pref_ori
         elif color_by == 'phase':
@@ -1411,3 +1441,26 @@ def plot_MVPA_or_Mahal_scores_match_Kes_fig(folder_path, file_name):
 
     plt.savefig(os.path.join(folder_path, 'figures', "MVPA_match_paper_fig.png"))
     plt.close()
+
+def ori_histograms(folder):
+    #load orimap.csv as numpy array and reshape it to 9x9xnum_runs
+    orimap = pd.read_csv(folder + '/orimap.csv')
+    num_runs = int(orimap['run_index'].max() + 1)
+    # drop the run_index column
+    orimap = orimap.drop(columns=['run_index'])
+    orimap = orimap.to_numpy().reshape((9,9,num_runs))
+    # plot histograms for middle grid and outside grid separately
+    fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+    # middle grid
+    ax[0].hist(orimap[2:7, 2:7, :].flatten(), bins=36, color='blue', alpha=0.5)
+    ax[0].set_title('Middle grid')
+    ax[0].set_xlabel('Orientation')
+    ax[0].set_ylabel('Count')
+    # outside grid
+    ax[1].hist(numpy.array([orimap[0:2, 0:2, :], orimap[7:, 7:, :]]).flatten(), bins=36, color='red', alpha=0.5)
+    ax[1].set_title('Outside grid')
+    ax[1].set_xlabel('Orientation')
+    ax[1].set_ylabel('Count')
+    plt.savefig(folder + '/ori_histograms.png')
+
+

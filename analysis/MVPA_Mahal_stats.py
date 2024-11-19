@@ -3,7 +3,6 @@ import pandas as pd
 from scipy.stats import ttest_1samp
 import os
 from scipy.stats import ttest_ind
-import pandas as pd
 
 final_folder_path=os.path.join('results','Apr10_v1', 'sigmafilt_2')
 num_layers = 2

@@ -165,11 +165,11 @@ def train_ori_discr(
             
             # Calculate psychometric_offset if the SGD step is in the acc_check_ind vector
             if pretrain_on and SGD_step in acc_check_ind:
-                acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
+                acc_mean, acc_std, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
                 # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                 psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
-                print(acc_mean)
-                print(psychometric_offset)
+                print('Mean accuracies:',acc_mean, 'for offsets', test_offset_vec)
+                print('estimated psychometric threshold:', psychometric_offset)
 
             # ii) Store parameters and metrics (append or initialize lists)
             if 'stages' in locals():
@@ -213,8 +213,12 @@ def train_ori_discr(
             if pretrain_on and SGD_step in acc_check_ind:
                 if 'psychometric_offsets' in locals():
                     psychometric_offsets.append(float(psychometric_offset))
+                    acc_means.append(acc_mean)
+                    acc_stds.append(acc_std)
                 else:
                     psychometric_offsets=[float(psychometric_offset)]
+                    acc_means=[acc_mean]
+                    acc_stds=[acc_std]
 
             # ii) Early stopping during pre-training and training
             # Check for early stopping during pre-training: break out from SGD_step loop and stages loop (using a flag)
@@ -270,7 +274,7 @@ def train_ori_discr(
                     val_losses=[val_loss]
                 
                 if not pretrain_on:
-                    acc_mean, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
+                    acc_mean, acc_std,_, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
                     # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                     psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
                     if 'psychometric_offsets' in locals():
@@ -281,8 +285,10 @@ def train_ori_discr(
                     # Early stopping criteria for training - if accuracies in multiple relevant offsets did not change
                     if 'acc_means' in locals():
                         acc_means.append(acc_mean)
+                        acc_stds.append(acc_std)
                     else:
                         acc_means=[acc_mean]
+                        acc_stds=[acc_std]
                     if SGD_step > training_pars.min_stop_ind:
                         acc_means_np = numpy.array(acc_means)
                         # If accuracy is stable for the last three offsets in test_offset_vec, then stop training
@@ -349,9 +355,9 @@ def train_ori_discr(
         
     # Create DataFrame and save the DataFrame to a CSV file
     if stage < 2:  
-        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets)
+        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets)#, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
     else:
-        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas=kappas)
+        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas=kappas)#, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
     df.insert(0, 'run_index', run_index) # insert run index as the first column 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
@@ -627,20 +633,27 @@ def mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_
         
     # Calculate mean loss and accuracy
     accuracy_mean = np.mean(accuracy, axis=1)
+    accuracy_std = np.std(accuracy, axis=1)
 
-    return accuracy_mean, accuracy, loss
+    return accuracy_mean, accuracy_std, accuracy, loss
 
 
-def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=numpy.linspace(1, 90, 300), baseline_acc=0.794):
+def offset_at_baseline_acc(accuracies, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=numpy.linspace(1, 90, 300), baseline_acc=0.794):
     """
-    This function fits a log-linear curve to x=offset_vec, y=acc_vec data and returns the x value, where the curve crosses baseline_acc.
+    This function fits a log-linear curve to x=offset_vec, y=accuracies data and returns the x value, where the curve crosses baseline_acc.
     """
         
-    # Fit a log-linear learning curve
+    # Define x values for the log-linear curve fit
     offset_vec = numpy.array(offset_vec)
     offset_vec[offset_vec == 0] = np.finfo(float).eps
     log_offset_vec = np.log(offset_vec)
-    a, b = np.polyfit(log_offset_vec, acc_vec, 1)
+    # If accuracies is a matrix, then repeat log_offset_vec and flatten both
+    if len(numpy.shape(accuracies)) > 1:
+        log_offset_vec = numpy.repeat(log_offset_vec, numpy.shape(accuracies)[1])
+        accuracies = accuracies.flatten()
+        log_offset_vec = log_offset_vec.flatten()
+    # Fit a log-linear learning curve
+    a, b = np.polyfit(log_offset_vec, accuracies, 1)
 
     # Evaluate curve at x_vals
     x_vals[x_vals == 0] = np.finfo(float).eps
@@ -656,7 +669,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
         offsets_at_bl_acc = (x_vals[sign_change_ind] + x_vals[sign_change_ind + 1]) / 2
 
     if offsets_at_bl_acc.size ==0:
-        mask = acc_vec < baseline_acc
+        mask = accuracies < baseline_acc
         first_index = np.argmax(mask)
         offsets_at_bl_acc = offset_vec[first_index]
     elif offsets_at_bl_acc.size > 1:
@@ -666,7 +679,7 @@ def offset_at_baseline_acc(acc_vec, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_vals=
 
 
 ####### Function for creating DataFrame from training results #######
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas=None, acc_means=None, acc_stds=None, test_offset_vec=None):
     """ This function collects different variables from training results into a dataframe."""
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
@@ -762,5 +775,11 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         kappa_names = ['kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post']
         for i in range(len(kappas_np[0])):
             df[kappa_names[i]] = kappas_np[:,i]
+
+    if acc_means is not None:
+        # create offset_{i} keys for each offset in test_offset_vec
+        for i in range(len(test_offset_vec)):
+            df[f'acc_mean_offset_{test_offset_vec[i]}'] = acc_means[:,i]
+            df[f'acc_std_offset_{test_offset_vec[i]}'] = acc_stds[:,i]
 
     return df

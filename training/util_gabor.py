@@ -5,6 +5,7 @@ import jax.numpy as np
 from jax import jit, vmap
 import pandas as pd
 import os, sys
+from scipy.stats import chi2_contingency
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from parameters import StimuliPars
@@ -34,44 +35,13 @@ def test_uniformity(numbers, num_bins=18, alpha=0.25):
         if 0 <= number <= 180:  # Ensure the number is within the desired range
             bin_index = int((number / 180) * num_bins)
             observed_freq[bin_index] += 1
-    
-    chi_squared_stat = sum(((obs - expected_freq) ** 2) / expected_freq for obs in observed_freq)
-    
-    # Chi-square table for degrees of freedom 1-20 and significance level 0.1, 0.05, 0.025 and 0.01
-    sig_levels = numpy.array([0.25, 0.1, 0.05, 0.025, 0.01])
-    row_ind = num_bins-1 -1 # degree of freedom is bins -1 and index starts from 0
-    col_ind = numpy.argmin(numpy.abs(numpy.ones_like(sig_levels)*alpha-sig_levels))
-    
-    # create chi-square table manually to avoid loading a package
-    ChiSquareTable = numpy.array([[1.323,2.706, 3.841, 5.024, 6.635],
-                                [2.773,4.605, 5.991, 7.378, 9.210],
-                                [4.108, 6.251, 7.815, 9.348, 11.345],
-                                [5.385, 7.779, 9.488, 11.143, 13.277],
-                                [6.626, 9.236, 11.070, 12.833, 15.086],
-                                [7.841, 10.645, 12.592, 14.449, 16.812],
-                                [9.037, 12.017, 14.067, 16.013, 18.475],
-                                [10.219, 13.362, 15.507, 17.535, 20.090],
-                                [11.389, 14.684, 16.919, 19.023, 21.666],
-                                [12.549, 15.987, 18.307, 20.483, 23.209],
-                                [13.701, 17.275, 19.675, 21.920, 24.725],
-                                [14.845, 18.549, 21.026, 23.337, 26.217],
-                                [15.984, 19.812, 22.362, 24.736, 27.688],
-                                [17.117, 21.064, 23.685, 26.119, 29.141],
-                                [18.245, 22.307, 24.996, 27.488, 30.578],
-                                [19.369, 23.542, 26.296, 28.845, 32.000],
-                                [20.489, 24.769, 27.587, 30.191, 33.409],
-                                [21.605, 25.989, 28.869, 31.526, 34.805],
-                                [22.718, 27.204, 30.144, 32.852, 36.191],
-                                [23.828, 28.412, 31.410, 34.170, 37.566]])
-    
-    chi_squared_critical = ChiSquareTable[row_ind,col_ind]
-
-    if chi_squared_stat <= chi_squared_critical and all(numpy.array(observed_freq) > expected_freq/3) and all(numpy.array(observed_freq) < expected_freq*3):
-        #Fail to reject the null hypothesis: The distribution may be uniform.
-        return True
-    else:
-        #Reject the null hypothesis: The distribution is not uniform.        
+  
+    # Perform the Chi-square test
+    _, p_value, _, expected_freq = chi2_contingency(observed_freq)
+    if p_value <= alpha and np.all(np.array(observed_freq) > np.array(expected_freq) / 3) and np.all(np.array(observed_freq) < np.array(expected_freq) * 3):
         return False
+    else:
+        return True
 
 
 def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
