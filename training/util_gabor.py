@@ -1,7 +1,7 @@
 #import matplotlib.pyplot as plt
 import numpy
 from numpy import random
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import jit, vmap
 import pandas as pd
 import os, sys
@@ -41,7 +41,7 @@ def test_uniformity(numbers, num_bins=18, alpha=0.25):
         return False
     else:
         _, p_value, _, expected_freq = chi2_contingency(observed_freq)
-        if p_value <= alpha and np.all(np.array(observed_freq) > np.array(expected_freq) / 3) and np.all(np.array(observed_freq) < np.array(expected_freq) * 3):
+        if p_value <= alpha and jnp.all(jnp.array(observed_freq) > jnp.array(expected_freq) / 3) and jnp.all(jnp.array(observed_freq) < jnp.array(expected_freq) * 3):
             return False
         else:
             return True
@@ -67,7 +67,7 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 		hyper_col = 3.2
 	
 	# Initialize a complex plane to accumulate wave contributions
-	z = np.zeros_like(X, dtype=complex)
+	z = jnp.zeros_like(X, dtype=complex)
 
 	# Loop to create and superimpose plane waves
 	for j in range(nn):
@@ -88,10 +88,10 @@ def make_orimap(X, Y, hyper_col=None, nn=30, deterministic=False):
 
 		# Construct the j-th wave and add to the total
 		tmp = (X * kj[0] + Y * kj[1]) * sj + phij
-		z += np.exp(1j * tmp)
+		z += jnp.exp(1j * tmp)
 
 	# Convert the accumulated complex plane to orientation map; orientation values are in the range (0, 180] degrees
-	ori_map = (np.angle(z) + np.pi) * 180 / (2 * np.pi)
+	ori_map = (jnp.angle(z) + jnp.pi) * 180 / (2 * jnp.pi)
 
 	return ori_map
 
@@ -133,25 +133,25 @@ def BW_image_jax_supp(stimuli_pars, x0 = 0, y0=0, phase=0.0, full_grating=False)
     x_mm, y_mm, N_pixs = calculate_shifted_coords_mm(stimuli_pars, x0, y0)
     
     ##### Calculating alpha_channel_jax, mask_bool and background_jax #####
-    x_pix = np.round(2 * x_mm /(stimuli_pars.magnif_factor * degree_per_pixel))
-    y_pix = np.round(2 * y_mm /(stimuli_pars.magnif_factor * degree_per_pixel))
-    edge_control_dist = np.sqrt(np.power(x_pix, 2) + np.power(y_pix, 2))
-    edge_control = np.divide(edge_control_dist, pixel_per_degree)
+    x_pix = jnp.round(2 * x_mm /(stimuli_pars.magnif_factor * degree_per_pixel))
+    y_pix = jnp.round(2 * y_mm /(stimuli_pars.magnif_factor * degree_per_pixel))
+    edge_control_dist = jnp.sqrt(jnp.power(x_pix, 2) + jnp.power(y_pix, 2))
+    edge_control = jnp.divide(edge_control_dist, pixel_per_degree)
     # Define a matrix (alpha_channel) that is 255 (white) within the inner_radius and exponentially fades to 0 as the radius increases
     overrado = edge_control > stimuli_pars.inner_radius
     annulus = numpy.ones((N_pixs, N_pixs))
     if not full_grating:
         exponent_part = -1 * ((edge_control[overrado] - stimuli_pars.inner_radius) * pixel_per_degree) ** 2 / (2 * (smooth_sd**2))
-        annulus[overrado] *= np.exp(exponent_part)
+        annulus[overrado] *= jnp.exp(exponent_part)
     alpha_channel = annulus.reshape(N_pixs,N_pixs) * _WHITE
-    alpha_channel_jax = np.array(alpha_channel)
+    alpha_channel_jax = jnp.array(alpha_channel)
 
     # Define a boolean mask for outside the grating size - this will be used to set pixels outside the grating size to _GRAY
     if not full_grating:
         mask = (edge_control_dist > (N_pixs-1)//2).reshape((N_pixs,N_pixs))
     else:
-        mask = np.zeros_like(alpha_channel_jax) # if we want full gratings with no masking with the background
-    mask_bool = np.array(mask, dtype=bool)
+        mask = jnp.zeros_like(alpha_channel_jax) # if we want full gratings with no masking with the background
+    mask_bool = jnp.array(mask, dtype=bool)
 
     # Define input for BW_image_jax or 
     BW_image_const_inp = (stimuli_pars.k, stimuli_pars.grating_contrast, phase, stimuli_pars.std, x_mm, y_mm, alpha_channel_jax, mask_bool)
@@ -180,19 +180,19 @@ def BW_image_jax(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, jitter)
     phase = BW_image_const_inp[2]
       
     # Calculate the angle in radians, incorporating the orientation and jitter
-    angle = (ref_ori + jitter) / 180 * np.pi
+    angle = (ref_ori + jitter) / 180 * jnp.pi
 
     # Compute the spatial component of the grating
-    spatial_component = np.cos(2 * np.pi * k * (x * np.cos(angle) + y * np.sin(angle) ) + phase )
+    spatial_component = jnp.cos(2 * jnp.pi * k * (x * jnp.cos(angle) + y * jnp.sin(angle) ) + phase )
 
     # Generate the Gabor stimulus
     gabor_sti = _GRAY * (1 + grating_contrast * spatial_component)
 
     # Apply the mask, setting pixels outside to a neutral gray
-    gabor_sti = np.where(mask, _GRAY, gabor_sti)
+    gabor_sti = jnp.where(mask, _GRAY, gabor_sti)
 
     # Blend the Gabor stimulus with the alpha channel in ROI
-    final_image = np.floor(alpha_channel / 256 * gabor_sti + (1.0 - alpha_channel / 256) * _GRAY)
+    final_image = jnp.floor(alpha_channel / 256 * gabor_sti + (1.0 - alpha_channel / 256) * _GRAY)
 
     return 3*final_image.ravel() # *** multiplied by 3 to match the SNR in Apr 10 run!
 
@@ -212,7 +212,7 @@ def BW_image_jit_noisy(BW_image_const_inp, x, y, alpha_channel, mask, ref_ori, j
     
     # Add noise to the images
     if BW_image_const_inp[3]>0:
-        noisy_images = images + np.array(random.normal(loc=0, scale=BW_image_const_inp[3], size=images.shape))
+        noisy_images = images + jnp.array(random.normal(loc=0, scale=BW_image_const_inp[3], size=images.shape))
     else:
          noisy_images = images
 
@@ -228,20 +228,20 @@ def calculate_shifted_coords_mm(class_pars, x0=0, y0=0):
     magnif_factor = class_pars.magnif_factor
     degree_per_pixel = class_pars.degree_per_pixel
     N_pixels = int(magnif_factor * gridsize_deg / degree_per_pixel) + 1
-    x_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
-    x_1D = np.reshape(x_1D, (N_pixels, 1))
-    y_1D = np.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
-    y_1D = np.reshape(y_1D, (1, N_pixels))
+    x_1D = jnp.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
+    x_1D = jnp.reshape(x_1D, (N_pixels, 1))
+    y_1D = jnp.linspace(-gridsize_deg, gridsize_deg, N_pixels, endpoint=True)
+    y_1D = jnp.reshape(y_1D, (1, N_pixels))
 
     # convert to mm from degrees and radian from degree
     x0 = x0 / class_pars.magnif_factor
     y0 = y0 / class_pars.magnif_factor
 
     # Reshape the center coordinates into column vectors; repeat and reshape the center coordinates to allow calculating diff_x and diff_y
-    x_2D = np.repeat(x_1D, N_pixels, axis=1)
+    x_2D = jnp.repeat(x_1D, N_pixels, axis=1)
     diff_x = x_2D - x0
 
-    y_2D = np.repeat(y_1D, N_pixels, axis=0)
+    y_2D = jnp.repeat(y_1D, N_pixels, axis=0)
     diff_y = y_2D - y0
 
     return diff_x, diff_y, N_pixels
@@ -262,14 +262,14 @@ def gabor_filter(x0, y0,filter_pars,angle,phase=0):
     diff_x, diff_y, _ = calculate_shifted_coords_mm(filter_pars, x0, y0)
 
     # Calculate the spatial component of the Gabor filter (same convention as stimuli)
-    angle = angle * (np.pi / 180) # convert to mm from degrees and radian from degree
-    spatial_component = np.cos(2 * np.pi * k  * (diff_x * np.cos(angle) + diff_y * np.sin(angle)) + phase)
+    angle = angle * (jnp.pi / 180) # convert to mm from degrees and radian from degree
+    spatial_component = jnp.cos(2 * jnp.pi * k  * (diff_x * jnp.cos(angle) + diff_y * jnp.sin(angle)) + phase)
 
     # Calculate the Gaussian component of the Gabor filter
-    gaussian = np.exp(-0.5 * (diff_x**2 + diff_y**2) / sigma_g**2)
+    gaussian = jnp.exp(-0.5 * (diff_x**2 + diff_y**2) / sigma_g**2)
 
     # Multiply Gaussian and spatial_component to get the Gabor filter
-    gabor_filter= np.array(gaussian * spatial_component)
+    gabor_filter= jnp.array(gaussian * spatial_component)
 
     return  gabor_filter
 
@@ -324,7 +324,7 @@ def find_gabor_A(
         all_output_gabor.append(output_gabor)
 
     # Find max value of all_output_gabor and define A to scale it to 100*local_stimuli_pars.grating_contrast
-    A = 100*local_stimuli_pars.grating_contrast / np.mean(np.array(all_output_gabor))
+    A = 100*local_stimuli_pars.grating_contrast / jnp.mean(jnp.array(all_output_gabor))
 
     return A
 
@@ -338,7 +338,7 @@ def create_gabor_filters_ori_map(
 ):
     """Create Gabor filters for each orientation and phase in orimap."""
     k=int(num_phases//2)
-    phases = np.linspace(0, np.pi, k, endpoint=False)
+    phases = jnp.linspace(0, jnp.pi, k, endpoint=False)
     grid_size_1D = grid_pars.gridsize_Nx
     grid_size_2D = grid_pars.gridsize_Nx**2
     if ori_map.shape[0] == grid_size_2D:
@@ -355,7 +355,7 @@ def create_gabor_filters_ori_map(
         for i in range(grid_size_1D):
             for j in range(grid_size_1D):
                 gabor = gabor_filter(grid_pars.x_map[i, j], grid_pars.y_map[i, j], filter_pars, ori_map[i, j], phase)                
-                gabors_demean[phases_ind,grid_size_1D*i+j,:] = A * (gabor.ravel()-np.mean(gabor)) # Demean and scale the Gabor filters
+                gabors_demean[phases_ind,grid_size_1D*i+j,:] = A * (gabor.ravel()-jnp.mean(gabor)) # Demean and scale the Gabor filters
     gabors_all[0:k,0,:,:] = filter_pars.gE_m*gabors_demean # E filters phase 0 and pi/2
     gabors_all[k:2*k,0,:,:] = - filter_pars.gE_m*gabors_demean # E filters with opposite phases
     gabors_all[0:k,1,:,:] = filter_pars.gI_m*gabors_demean # I filters phase 0 and pi/2
@@ -363,7 +363,7 @@ def create_gabor_filters_ori_map(
    
     if flatten: # flatten the first three dimensions of gabors_all
         gabors_all = gabors_all.reshape((num_phases*2*grid_size_2D, image_size))
-    return np.array(gabors_all)
+    return jnp.array(gabors_all)
 
 
 ######### Class and functions for creating and handling untrained parameters #########

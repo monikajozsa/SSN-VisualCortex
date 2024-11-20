@@ -1,6 +1,6 @@
 import numpy
 from dataclasses import dataclass
-import jax.numpy as np
+import jax.numpy as jnp
 
 
 # Pretraining parameters
@@ -110,7 +110,7 @@ def xy_distance(gridsize_Nx,gridsize_mm):
     # Calculate distance using broadcasting
     xy_dist = numpy.sqrt(numpy.square(xs[0] - xs[0].T) + numpy.square(ys[0] - ys[0].T))
 
-    return np.array(xy_dist), np.array(x_map), np.array(y_map)
+    return jnp.array(xy_dist), jnp.array(x_map), jnp.array(y_map)
 
 
 # Input parameters
@@ -191,7 +191,7 @@ stimuli_pars = StimuliPars()
 class ReadoutPars:
     sup_mid_readout_contrib = [1.0, 0.0]
     """ contribution of the superficial and middle layer to the readout """
-    readout_grid_size = np.array([grid_pars.gridsize_Nx, 5])
+    readout_grid_size = jnp.array([grid_pars.gridsize_Nx, 5])
     """ size of the center grid where readout units come from (first number is for the pretraining, second is for the training) """
     # Define middle grid indices
     middle_grid_ind = []
@@ -200,14 +200,14 @@ class ReadoutPars:
     for i in range(mid_grid_ind0,mid_grid_ind1):  
         row_start = i * readout_grid_size[0] 
         middle_grid_ind.extend(range(row_start + mid_grid_ind0, row_start + mid_grid_ind1))
-    middle_grid_ind = np.array(middle_grid_ind)
+    middle_grid_ind = jnp.array(middle_grid_ind)
     """ indices of the middle grid when grid is flattened """
     # Define w_sig - its size depends on whether pretraining is on
     if pretraining_pars.is_on:
-        w_sig = np.zeros(readout_grid_size[0]**2)
+        w_sig = jnp.zeros(readout_grid_size[0]**2)
         """ readout weights (between the superficial and the sigmoid layer) - initialized with logistic regression """
     else:
-        w_sig = np.array(numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / readout_grid_size[1])
+        w_sig = jnp.array(numpy.random.normal(scale = 0.25, size=(readout_grid_size[1]**2,)) / readout_grid_size[1])
         """ readout weights (between the superficial and the sigmoid layer) """
     b_sig: float = 0.0 
     """ bias added to the sigmoid layer """
@@ -228,9 +228,9 @@ class SSNPars:
     """ time constant for inhibitory neurons in ms """
     phases: int = 4 
     """ number of inh. and exc. neurons (with different Gabor filt.) per grid point in middle layer (has to be an even integer) """
-    sigma_oris = np.asarray([180.0, 180.0])
+    sigma_oris = jnp.asarray([180.0, 180.0])
     """ range of weights in terms of preferred orientation difference (in degree) """
-    s_2x2_s = np.array([[0.2, 0.09], [0.4, 0.09]])
+    s_2x2_s = jnp.array([[0.2, 0.09], [0.4, 0.09]])
     """ ranges of weights between different pre/post cell-type """
     p_local_s = [0.4, 0.7]
     """ relative strength of local parts of E projections in superficial layer """
@@ -269,7 +269,7 @@ class TrainedSSNPars:
     """ relative strength of weights of I/E pre/post cell-type in superficial layer """
     J_II_s: float = 0.0
     """ relative strength of weights of I/I pre/post cell-type in superficial layer """
-    kappa = np.array([[0.0, 0.0], [0.0, 0.0]])
+    kappa = jnp.array([[0.0, 0.0], [0.0, 0.0]])
     """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity """
 
 
@@ -307,12 +307,12 @@ class PretrainedSSNPars:
 
 # Ranges for the randomization of parameters (at initialization)
 class RandomizePars:
-    J_range = [np.array([4, 5.5]),np.array([0.7,2]), np.array([4, 5.5]),np.array([0.7,1.2])]
+    J_range = [jnp.array([4, 5.5]),jnp.array([0.7,2]), jnp.array([4, 5.5]),jnp.array([0.7,1.2])]
     """ range of the initial Jm and Js parameters """
-    c_range = np.array([4.5, 5.5])
+    c_range = jnp.array([4.5, 5.5])
     """ range of the initial c parameters """
-    f_range = np.array([0.6, 1.2])
+    f_range = jnp.array([0.6, 1.2])
     """ range of the initial f parameters """
-    g_range = np.array([0.15, 0.45])
+    g_range = jnp.array([0.15, 0.45])
     """ range of the initial gE and gI parameters """
-    eta_range = np.array([3e-3, 5e-3])
+    eta_range = jnp.array([3e-3, 5e-3])

@@ -1,7 +1,7 @@
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
-import jax.numpy as np
+import jax.numpy as jnp
 import numpy
 import seaborn as sns
 import statsmodels.api as sm
@@ -93,7 +93,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
 
     def plot_offset(ax, df, SGD_steps, keys_metrics):
         num_pretraining_steps= sum(df['stage'] == 0)
-        ax.plot(range(num_pretraining_steps), np.ones(num_pretraining_steps)*6, alpha=0.6, c='black', linestyle='--')
+        ax.plot(range(num_pretraining_steps), jnp.ones(num_pretraining_steps)*6, alpha=0.6, c='black', linestyle='--')
         if len(keys_metrics)>1:
             ax.scatter(range(SGD_steps), df[keys_metrics[0]], label=keys_metrics[0], marker='o', s=70, c='tab:orange')
             ax.scatter(range(SGD_steps), df[keys_metrics[1]], label=keys_metrics[1], marker='o', s=50, c='tab:brown')
@@ -586,8 +586,8 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         from scipy.stats import mannwhitneyu
         """ Perform Mann-Whitney U test on y1 and y2 in sliding windows along x1 and x2. """
         # Determine the range of x-values for sliding windows
-        min_x = max(np.min(x1), np.min(x2))  # Start at the max of the minimum x-values
-        max_x = min(np.max(x1), np.max(x2))  # End at the min of the maximum x-values
+        min_x = max(jnp.min(x1), jnp.min(x2))  # Start at the max of the minimum x-values
+        max_x = min(jnp.max(x1), jnp.max(x2))  # End at the min of the maximum x-values
         
         # Initialize lists to store results
         x_window_center = []
@@ -611,7 +611,7 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
             if len(y1_in_window) > 0 and len(y2_in_window) > 0:
                 u_stat, p_value = mannwhitneyu(y1_in_window, y2_in_window)
             else:
-                p_value = np.nan  # If there's not enough data, return NaN
+                p_value = jnp.nan  # If there's not enough data, return NaN
             
             # Store results
             x_window_center.append(center)
@@ -621,7 +621,7 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
             current_start += sliding_unit
         
         # Convert lists to arrays and return
-        return np.array(x_window_center), np.array(p_val_vec)
+        return jnp.array(x_window_center), jnp.array(p_val_vec)
 
     def shift_x_data(x_data, indices, shift_val=90, L_ori=180):
         """ Shift circular x_data by shift_value and center it around the new 0 (around shift_value) """
@@ -775,7 +775,7 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
     np_orimap=df_orimap.to_numpy()
     np_orimap = np_orimap[:,1:]
     # Repeat the orimap 10 times over the second axis
-    pref_ori_all = np.tile(np_orimap, 10)
+    pref_ori_all = jnp.tile(np_orimap, 10)
     pref_ori = pref_ori_all[valid_runs, :]
 
     for training_stage in stages[0:-1]:
@@ -826,12 +826,12 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
             left_group_125_all = (pref_ori>75) & (pref_ori<105)
             fwhm_diff = fwhm_post - fwhm_pre
             print('Training stage:', training_stage)
-            print('Mean delta fwhm for left group:', np.mean(fwhm_diff[left_group_all]))
-            print('Mean delta fwhm for right group:', np.mean(fwhm_diff[right_group_all]))
-            print('Mean delta slope for left group:', np.mean(slopediff_55[left_group_all]))
-            print('Mean delta slope for right group:', np.mean(slopediff_55[right_group_all]))
-            print('Mean delta slope at 125 for left group:', np.mean(slopediff_125[left_group_125_all]))
-            print('Mean delta slope at 125 for right group:', np.mean(slopediff_125[right_group_125_all]))
+            print('Mean delta fwhm for left group:', jnp.mean(fwhm_diff[left_group_all]))
+            print('Mean delta fwhm for right group:', jnp.mean(fwhm_diff[right_group_all]))
+            print('Mean delta slope for left group:', jnp.mean(slopediff_55[left_group_all]))
+            print('Mean delta slope for right group:', jnp.mean(slopediff_55[right_group_all]))
+            print('Mean delta slope at 125 for left group:', jnp.mean(slopediff_125[left_group_125_all]))
+            print('Mean delta slope at 125 for right group:', jnp.mean(slopediff_125[right_group_125_all]))
             slope_diff_55_runs = numpy.zeros(pref_ori.shape[0])
             slope_diff_125_runs = numpy.zeros(pref_ori.shape[0])
             fwhm_diff_runs = numpy.zeros(pref_ori.shape[0])
@@ -840,16 +840,16 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
                 left_group = numpy.where((pref_ori[run_ind,:]>5) & (pref_ori[run_ind,:]<35))[0]
                 right_group_125 = numpy.where((pref_ori[run_ind,:]>145) & (pref_ori[run_ind,:]<175))[0]
                 left_group_125 = numpy.where((pref_ori[run_ind,:]>75) & (pref_ori[run_ind,:]<105))[0]
-                fwhm_diff_runs[run_ind] = np.mean(fwhm_diff[run_ind, left_group])-np.mean(fwhm_diff[run_ind, right_group])
-                slope_diff_55_runs[run_ind] = np.mean(slopediff_55[run_ind, left_group])-np.mean(slopediff_55[run_ind, right_group])
-                slope_diff_125_runs[run_ind] = np.mean(slopediff_125[run_ind, left_group_125])-np.mean(slopediff_125[run_ind, right_group_125])
+                fwhm_diff_runs[run_ind] = jnp.mean(fwhm_diff[run_ind, left_group])-jnp.mean(fwhm_diff[run_ind, right_group])
+                slope_diff_55_runs[run_ind] = jnp.mean(slopediff_55[run_ind, left_group])-jnp.mean(slopediff_55[run_ind, right_group])
+                slope_diff_125_runs[run_ind] = jnp.mean(slopediff_125[run_ind, left_group_125])-jnp.mean(slopediff_125[run_ind, right_group_125])
                 colors_scatter_feature[run_ind, right_group] = 10
                 colors_scatter_feature[run_ind, left_group] = 100  
             print('delta fwhm for left-right group:', fwhm_diff_runs)
             print('delta slope for left-right group:', slope_diff_55_runs)
-            print('Mean and std of delta fwhm for left-right group:', np.nanmean(fwhm_diff_runs), np.nanstd(fwhm_diff_runs))
-            print('Mean and std of delta slope at 55 for left-right group:', np.nanmean(slope_diff_55_runs), np.nanstd(slope_diff_55_runs))
-            print('Mean and std of delta slope at 125 for left-right group:', np.nanmean(slope_diff_125_runs), np.nanstd(slope_diff_125_runs))  
+            print('Mean and std of delta fwhm for left-right group:', jnp.nanmean(fwhm_diff_runs), jnp.nanstd(fwhm_diff_runs))
+            print('Mean and std of delta slope at 55 for left-right group:', jnp.nanmean(slope_diff_55_runs), jnp.nanstd(slope_diff_55_runs))
+            print('Mean and std of delta slope at 125 for left-right group:', jnp.nanmean(slope_diff_125_runs), jnp.nanstd(slope_diff_125_runs))  
         elif color_by == 'pref_ori':
             colors_scatter_feature = pref_ori
         elif color_by == 'phase':
@@ -876,7 +876,7 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
             # Add colorbar
             if colors_scatter_feature is not None:
                 if (colors_scatter_feature == pref_ori).all():
-                    cbar = fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=np.min(pref_ori), vmax=np.max(pref_ori)), cmap='rainbow'),ax=axs,orientation='vertical')
+                    cbar = fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=jnp.min(pref_ori), vmax=jnp.max(pref_ori)), cmap='rainbow'),ax=axs,orientation='vertical')
                     cbar.set_label('Preferred orientation', fontsize=40)
                     cbar.ax.tick_params(labelsize=20) 
             else:
@@ -884,8 +884,8 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
                 display_legend = True
                 discrete_colors = ['red', 'blue', 'green', 'orange']  # Example discrete colors
                 if colors_scatter_feature is not None:
-                    unique_values = np.unique(colors_scatter_feature)
-                    discrete_colors = cmap(np.linspace(0, 1, len(unique_values)))
+                    unique_values = jnp.unique(colors_scatter_feature)
+                    discrete_colors = cmap(jnp.linspace(0, 1, len(unique_values)))
                     if len(discrete_colors)==5:
                         discrete_labels = ['Phase 0', 'Phase Pi/2', 'Phase 3Pi/2', 'Phase Pi', 'No phase']  # Corresponding labels
                     else:
@@ -1208,7 +1208,7 @@ def plot_corr_triangle(data, keys):
     """ In the given axis (ax), plot a correlation triangle between the data columns specified in keys """
     # Select data with keys
     data_keys = data[keys]
-    data_keys = data_keys.replace([np.inf, -np.inf], np.nan).dropna()
+    data_keys = data_keys.replace([jnp.inf, -jnp.inf], jnp.nan).dropna()
     
     # Keys and labels
     key_labels = match_keys_to_labels(keys)
@@ -1224,7 +1224,7 @@ def plot_corr_triangle(data, keys):
     # Define positions of labels
     left_bottom_text = [0,0]
     right_bottom_text = [2,0]
-    top_text = [2*np.cos(np.pi/3), 2*np.sin(np.pi/3)]
+    top_text = [2*jnp.cos(jnp.pi/3), 2*jnp.sin(jnp.pi/3)]
 
     # Define positions of correlation plots in the middle of the edges of the triangle
     width = 0.7

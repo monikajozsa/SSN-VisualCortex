@@ -1,5 +1,5 @@
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import numpy
 import shutil
 from datetime import datetime
@@ -30,9 +30,9 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
         log_key = f'log_{par_name}'
         if log_key in trained_pars:
             if 'I_' in par_name:
-                J = -np.exp(trained_pars[log_key]) 
+                J = -jnp.exp(trained_pars[log_key]) 
             else:
-                J = np.exp(trained_pars[log_key])
+                J = jnp.exp(trained_pars[log_key])
         # Check if the parameter itself is in trained_pars
         elif par_name in trained_pars:
             J = trained_pars[par_name]
@@ -46,12 +46,12 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
     J_IE_m = get_J('J_IE_m', trained_pars, ssn_pars)
     J_EI_m = get_J('J_EI_m', trained_pars, ssn_pars)
     J_EE_m = get_J('J_EE_m', trained_pars, ssn_pars)
-    J_2x2_m = np.array([[J_EE_m, J_EI_m], [J_IE_m, J_II_m]])
+    J_2x2_m = jnp.array([[J_EE_m, J_EI_m], [J_IE_m, J_II_m]])
     J_II_s = get_J('J_II_s', trained_pars, ssn_pars)
     J_IE_s = get_J('J_IE_s', trained_pars, ssn_pars)
     J_EI_s = get_J('J_EI_s', trained_pars, ssn_pars)
     J_EE_s = get_J('J_EE_s', trained_pars, ssn_pars)
-    J_2x2_s = np.array([[J_EE_s, J_EI_s], [J_IE_s, J_II_s]])
+    J_2x2_s = jnp.array([[J_EE_s, J_EI_s], [J_IE_s, J_II_s]])
 
     if 'cE_m' in trained_pars:
         cE_m = trained_pars['cE_m']
@@ -66,8 +66,8 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
         cE_s = ssn_pars.cE_s
         cI_s = ssn_pars.cI_s
     if 'log_f_E' in trained_pars:  
-        f_E = np.exp(trained_pars['log_f_E'])
-        f_I = np.exp(trained_pars['log_f_I'])
+        f_E = jnp.exp(trained_pars['log_f_E'])
+        f_I = jnp.exp(trained_pars['log_f_I'])
     elif 'f_E' in trained_pars:
         f_E = trained_pars['f_E']
         f_I = trained_pars['f_I']
@@ -81,14 +81,14 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
             if hasattr(ssn_pars, 'kappa'): # case when during pretraining we check training task accuracy
                 kappa = ssn_pars.kappa
             else:
-                kappa = np.array([[0.0, 0.0], [0.0, 0.0]])
+                kappa = jnp.array([[0.0, 0.0], [0.0, 0.0]])
     else:
         kappa = None
     if as_log_list:
         log_J_2x2_m = take_log(J_2x2_m)
         log_J_2x2_s = take_log(J_2x2_s)
-        log_f_E = np.log(f_E)
-        log_f_I = np.log(f_I)
+        log_f_E = jnp.log(f_E)
+        log_f_I = jnp.log(f_I)
         return [log_J_2x2_m.ravel()], [log_J_2x2_s.ravel()], [cE_m], [cI_m], [cE_s], [cI_s], [log_f_E], [log_f_I], [kappa.ravel()]
     else:
         return J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa
@@ -102,10 +102,10 @@ def cosdiff_ring(d_x, L):
     L: The total angle.
     """
     # Calculate the cosine of the scaled angular difference
-    cos_angle = np.cos(d_x * 2 * np.pi / L)
+    cos_angle = jnp.cos(d_x * 2 * jnp.pi / L)
 
     # Calculate scaled distance
-    distance = np.sqrt( (1 - cos_angle) * 2) * L / (2 * np.pi)
+    distance = jnp.sqrt( (1 - cos_angle) * 2) * L / (2 * jnp.pi)
 
     return distance
 
@@ -130,13 +130,13 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all, shuf
     # Vectorize target_ori calculation, label and jitter generation 
     uniform_dist_value = numpy.random.uniform(low = 0, high = 1, size = batch_size)
     mask = uniform_dist_value < 0.5
-    target_ori_vec = np.where(mask, ref_ori - offset, ref_ori + offset) # 1 when ref> target
+    target_ori_vec = jnp.where(mask, ref_ori - offset, ref_ori + offset) # 1 when ref> target
     labels = mask.astype(int)  # Converts True/False to 1/0
     jitter_val = stimuli_pars.jitter_val
-    jitter_vec = np.array(numpy.random.uniform(low = -jitter_val, high = jitter_val, size=batch_size))
+    jitter_vec = jnp.array(numpy.random.uniform(low = -jitter_val, high = jitter_val, size=batch_size))
 
     # Create reference and target gratings
-    ref_ori_vec = np.ones(batch_size)*ref_ori
+    ref_ori_vec = jnp.ones(batch_size)*ref_ori
     x = BW_image_jit_inp_all[4]
     y = BW_image_jit_inp_all[5]
     alpha_channel = BW_image_jit_inp_all[6]
@@ -148,7 +148,7 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all, shuf
 
     if shuffle_labels:
         dlabel_length = len(labels)
-        labels = np.array(numpy.random.randint(2, size=dlabel_length))
+        labels = jnp.array(numpy.random.randint(2, size=dlabel_length))
     
     data_dict['label']=labels
             
@@ -180,12 +180,12 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     mask = swap_numbers == 1
 
     # Swap values where mask is True
-    temp_num1 = np.copy(num1[mask]) # temporary array to hold the values of num1 where the mask is True
+    temp_num1 = jnp.copy(num1[mask]) # temporary array to hold the values of num1 where the mask is True
     num1[mask] = num2[mask]
     num2[mask] = temp_num1
     rnd_distances[mask] = -rnd_distances[mask]
     
-    return np.array(num1), np.array(num2), rnd_distances
+    return jnp.array(num1), jnp.array(num2), rnd_distances
 
 
 def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, numRnd_ori1=1):
@@ -207,13 +207,13 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
     mask = BW_image_jit_inp_all[7]
     
     # Generate noisy stimulus1 and stimulus2 with no jitter
-    stim1 = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ori1, jitter=np.zeros_like(ori1))
-    stim2 = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ori2, jitter=np.zeros_like(ori1))
+    stim1 = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ori1, jitter=jnp.zeros_like(ori1))
+    stim2 = BW_image_jit_noisy(BW_image_jit_inp_all[0:4], x, y, alpha_channel, mask, ori2, jitter=jnp.zeros_like(ori1))
     data_dict['ref']=stim1
     data_dict['target']=stim2
 
     # Define label as the normalized signed difference in angle
-    label = np.zeros_like(ori1_minus_ori2)
+    label = jnp.zeros_like(ori1_minus_ori2)
     data_dict['label'] = label.at[ori1_minus_ori2 > 0].set(1) # 1 when ref> target and 0 when ref<=target
     
     return data_dict
@@ -223,22 +223,22 @@ def sigmoid(x, epsilon=0.01):
     """
     Introduction of epsilon stops asymptote from reaching 1 (avoids NaN)
     """
-    sig_x = 1 / (1 + np.exp(-x))
+    sig_x = 1 / (1 + jnp.exp(-x))
     return (1 - 2 * epsilon) * sig_x + epsilon
 
 
 def take_log(J_2x2):
     """Take the log of the 2x2 matrix J"""
-    signs = np.array([[1, -1], [1, -1]])
-    logJ_2x2 = np.log(J_2x2 * signs)
+    signs = jnp.array([[1, -1], [1, -1]])
+    logJ_2x2 = jnp.log(J_2x2 * signs)
 
     return logJ_2x2
 
 
 def sep_exponentiate(J_2x2):
     """Exponentiate the J matrix"""
-    signs = np.array([[1, -1], [1, -1]])
-    new_J = np.exp(np.array(J_2x2, dtype = float)) * signs
+    signs = jnp.array([[1, -1], [1, -1]])
+    new_J = jnp.exp(jnp.array(J_2x2, dtype = float)) * signs
 
     return new_J
 
@@ -246,7 +246,7 @@ def sep_exponentiate(J_2x2):
 def leaky_relu(x, R_thresh, slope, height=0.15):
     """ Customized relu function for regulating the rates. """
     def x_greater_than(x, constant, slope, height):
-        return np.maximum(0, (x * slope - (1 - height)))
+        return jnp.maximum(0, (x * slope - (1 - height)))
 
 
     def x_less_than(x, constant, slope, height):
@@ -436,7 +436,7 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
     if 'kappa' in par_keys:
         if kappa_keys[0] in selected_row.keys():
             kappa_values = [selected_row[key] for key in kappa_keys]
-            trained_pars_dict['kappa'] = np.array(kappa_values).reshape(2, 2)
+            trained_pars_dict['kappa'] = jnp.array(kappa_values).reshape(2, 2)
         else: # case when kappa are not in selected_row but they are required in trained_pars (beginning of training)
             trained_pars_dict['kappa'] = trained_pars.kappa
     
@@ -454,7 +454,7 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
         middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
     w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
     w_sig_list = [float(selected_row[key]) for key in w_sig_keys]
-    w_sig_values = np.array(w_sig_list)
+    w_sig_values = jnp.array(w_sig_list)
     b_sig_value = float(selected_row['b_sig'])
     readout_pars_loaded = dict(w_sig=w_sig_values, b_sig=b_sig_value)
     readout_pars.b_sig = b_sig_value

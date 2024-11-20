@@ -1,7 +1,7 @@
 #import matplotlib.pyplot as plt
 import gc
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import vmap
 import optax
 import pandas as pd
@@ -52,13 +52,13 @@ def append_parameter_lists(trained_pars_dict, ssn_pars, key_list, value_list, as
             if as_log:
                 if key.startswith('log'):
                     nolog_key=key[4:]
-                    new_values.append(float(np.log(np.abs(getattr(ssn_pars, nolog_key)))))
+                    new_values.append(float(jnp.log(jnp.abs(getattr(ssn_pars, nolog_key)))))
                 else:
                     new_values.append(float(getattr(ssn_pars, key)))
             else:
                 new_values.append(float(getattr(ssn_pars, key)))
     if len(new_values) > 1:
-        value_list.append(np.array(new_values))
+        value_list.append(jnp.array(new_values))
     else:
         value_list.append(new_values[0])
     
@@ -109,7 +109,7 @@ def train_ori_discr(
     if pretrain_on:
         numSGD_steps = untrained_pars.pretrain_pars.SGD_steps
         min_acc_check_ind = untrained_pars.pretrain_pars.min_acc_check_ind
-        acc_check_ind = np.arange(0, numSGD_steps, untrained_pars.pretrain_pars.acc_check_freq)
+        acc_check_ind = jnp.arange(0, numSGD_steps, untrained_pars.pretrain_pars.acc_check_freq)
         acc_check_ind = acc_check_ind[(acc_check_ind > min_acc_check_ind) | (acc_check_ind <2)] # by leaving in 0, we make sure that it is not empty as we refer to it later
         pretrain_stage_1_acc_th = untrained_pars.pretrain_pars.pretrain_stage_1_acc_th
         stage_list = [0,1]
@@ -119,7 +119,7 @@ def train_ori_discr(
     test_offset_vec = numpy.array([1, 3, 7, 12, 20])  # offset values to define offset threshold where given accuracy is achieved
 
     # Define SGD_steps indices where losses an accuracy are validated
-    val_steps = np.arange(0, numSGD_steps, training_pars.validation_freq)
+    val_steps = jnp.arange(0, numSGD_steps, training_pars.validation_freq)
 
     print(
         "SGD_step: {} ¦ learning rate: {} ¦ batch size {}".format(
@@ -187,10 +187,10 @@ def train_ori_discr(
                 append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_E'], log_f_E, as_log=True)
                 append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_I'], log_f_I, as_log=True)
                 if 'kappa' in trained_pars_dict.keys():
-                    tanh_kappa = np.tanh(trained_pars_dict['kappa'])
+                    tanh_kappa = jnp.tanh(trained_pars_dict['kappa'])
                     kappas.append(tanh_kappa.ravel())
                 elif hasattr(ssn_pars, 'kappa'):
-                    tanh_kappa = np.tanh(ssn_pars.kappa)
+                    tanh_kappa = jnp.tanh(ssn_pars.kappa)
                     kappas.append(tanh_kappa.ravel())
                 if pretrain_on:
                     w_sigs.append(readout_pars_dict['w_sig'])
@@ -224,7 +224,7 @@ def train_ori_discr(
             # Check for early stopping during pre-training: break out from SGD_step loop and stages loop (using a flag)
             if pretrain_on:
                 if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(psychometric_offsets)>2:
-                    pretrain_stop_flag = all(np.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(np.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]) and has_plateaued(train_accs)
+                    pretrain_stop_flag = all(jnp.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(jnp.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]) and has_plateaued(train_accs)
                 if pretrain_stop_flag:
                     print('Stopping pretraining: desired accuracy achieved for training task.')
                     break
@@ -234,7 +234,7 @@ def train_ori_discr(
                 if SGD_step == 0:
                     avg_acc = train_acc
                 else:
-                    avg_acc = np.mean(np.asarray(train_accs[-min(SGD_step,3):]))
+                    avg_acc = jnp.mean(jnp.asarray(train_accs[-min(SGD_step,3):]))
                 if avg_acc > pretrain_stage_1_acc_th:
                     print("Early stop of stage 1: accuracy {} reached target {}".format(
                             avg_acc, pretrain_stage_1_acc_th)
@@ -250,7 +250,7 @@ def train_ori_discr(
                     stimuli_pars.offset =  min(stimuli_pars.offset + offset_step, stimuli_pars.max_train_offset)
                 else:
                     temp_threshold=1
-                    if SGD_step > 2 and np.sum(np.asarray(threshold_variables[-3:])) == 3:
+                    if SGD_step > 2 and jnp.sum(jnp.asarray(threshold_variables[-3:])) == 3:
                         stimuli_pars.offset =  stimuli_pars.offset - offset_step
                 if 'threshold_variables' in locals():
                     threshold_variables.append(temp_threshold)
@@ -264,8 +264,8 @@ def train_ori_discr(
                 #### Calculate loss and accuracy on new validation data set
                 val_acc_vec, val_loss_vec = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset)
             
-                val_loss = np.mean(val_loss_vec)
-                val_acc = np.mean(val_acc_vec)
+                val_loss = jnp.mean(val_loss_vec)
+                val_acc = jnp.mean(val_acc_vec)
                 if 'val_accs' in locals():
                     val_accs.append(val_acc)
                     val_losses.append(val_loss)
@@ -341,15 +341,15 @@ def train_ori_discr(
 
     # Define SGD_steps indices for training and validation
     if pretrain_on:
-        SGD_steps = np.arange(0, len(stages))
-        val_accs = np.array(val_accs)
-        val_steps_stage_0_and_1 = np.concatenate([val_steps, numSGD_steps+val_steps])
+        SGD_steps = jnp.arange(0, len(stages))
+        val_accs = jnp.array(val_accs)
+        val_steps_stage_0_and_1 = jnp.concatenate([val_steps, numSGD_steps+val_steps])
         val_SGD_steps = val_steps_stage_0_and_1[0:len(val_accs)]
-        acc_check_ind_stage_0_and_1 = np.concatenate([acc_check_ind, numSGD_steps+acc_check_ind])
+        acc_check_ind_stage_0_and_1 = jnp.concatenate([acc_check_ind, numSGD_steps+acc_check_ind])
         acc_check_ind = acc_check_ind_stage_0_and_1[0:len(psychometric_offsets)]
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps, acc_check_ind=acc_check_ind)
     else:
-        SGD_steps = np.arange(0, len(stages))
+        SGD_steps = jnp.arange(0, len(stages))
         val_SGD_steps = val_steps[0:len(val_accs)]
         step_indices = dict(SGD_steps=SGD_steps, val_SGD_steps=val_SGD_steps)
         
@@ -444,7 +444,7 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     else:
         J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars)
         ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa)
-    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m)    
+    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m, untrained_pars.dist_from_single_ori)
     
     # Run reference and target through the model
     [r_sup_ref, r_mid_ref], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
@@ -452,7 +452,7 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     
     # Select the middle grid and sum the contribution from the middle and the superficial layer
     if pretraining:
-        middle_grid_ind = np.arange(untrained_pars.grid_pars.gridsize_Nx ** 2)
+        middle_grid_ind = jnp.arange(untrained_pars.grid_pars.gridsize_Nx ** 2)
     else:
         middle_grid_ind = untrained_pars.middle_grid_ind
     
@@ -461,22 +461,22 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
         r_ref_box = sup_mid_contrib[0] * r_sup_ref[middle_grid_ind] + sup_mid_contrib[1] * r_mid_ref[middle_grid_ind]
         r_target_box = sup_mid_contrib[0] * r_sup_target[middle_grid_ind] + sup_mid_contrib[1] * r_mid_target[middle_grid_ind]
     else: # concatenate the two layers
-        r_ref_box = np.concatenate((sup_mid_contrib[1] * r_mid_ref[middle_grid_ind], sup_mid_contrib[0] * r_sup_ref[middle_grid_ind]))
-        r_target_box = np.concatenate((sup_mid_contrib[1] * r_mid_target[middle_grid_ind], sup_mid_contrib[0] * r_sup_target[middle_grid_ind]))
+        r_ref_box = jnp.concatenate((sup_mid_contrib[1] * r_mid_ref[middle_grid_ind], sup_mid_contrib[0] * r_sup_ref[middle_grid_ind]))
+        r_target_box = jnp.concatenate((sup_mid_contrib[1] * r_mid_target[middle_grid_ind], sup_mid_contrib[0] * r_sup_target[middle_grid_ind]))
     
     # Add noise
-    r_ref_box = r_ref_box + noise_ref*np.sqrt(jax.nn.softplus(r_ref_box))
-    r_target_box = r_target_box + noise_target*np.sqrt(jax.nn.softplus(r_target_box))
+    r_ref_box = r_ref_box + noise_ref*jnp.sqrt(jax.nn.softplus(r_ref_box))
+    r_target_box = r_target_box + noise_target*jnp.sqrt(jax.nn.softplus(r_target_box))
     
     # Define output from sigmoid layer and calculate losses
     w_sig = readout_pars_dict['w_sig']
     b_sig = readout_pars_dict['b_sig']
     # i) Multiply (reference - target) by sigmoid layer weights, add bias and apply sigmoid funciton
-    sig_input = np.dot(w_sig, (r_ref_box - r_target_box)) + b_sig     
+    sig_input = jnp.dot(w_sig, (r_ref_box - r_target_box)) + b_sig     
     sig_output = sigmoid(sig_input)
     # ii) Calculate readout loss and the predicted label
     loss_readout = binary_crossentropy_loss(train_data['label'], sig_output)
-    pred_label = np.round(sig_output)
+    pred_label = jnp.round(sig_output)
     # ii) Calculate other loss terms
     # Loss for max mean rates deviation from baseline
     Rmax_E = loss_pars.Rmax_E
@@ -484,17 +484,17 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     Rmean_E = loss_pars.Rmean_E
     Rmean_I = loss_pars.Rmean_I
     max_E_mid, max_I_mid, max_E_sup, max_I_sup
-    loss_rmax_mid= np.mean(np.maximum(0, (max_E_mid/Rmax_E - 1)) + np.maximum(0, (max_I_mid/Rmax_I - 1)))
-    loss_rmax_sup = np.mean(np.maximum(0, (max_E_sup/Rmax_E - 1)) + np.maximum(0, (max_I_sup/Rmax_I - 1)))
+    loss_rmax_mid= jnp.mean(jnp.maximum(0, (max_E_mid/Rmax_E - 1)) + jnp.maximum(0, (max_I_mid/Rmax_I - 1)))
+    loss_rmax_sup = jnp.mean(jnp.maximum(0, (max_E_sup/Rmax_E - 1)) + jnp.maximum(0, (max_I_sup/Rmax_I - 1)))
     loss_r_max = loss_pars.lambda_r_max*(loss_rmax_mid+loss_rmax_sup) # optionally, we could use leaky relu here
-    loss_rmean_mid = np.mean((mean_E_mid/Rmean_E[0] - 1) ** 2 + (mean_I_mid/Rmean_I[0] - 1) ** 2)
-    loss_rmean_sup = np.mean((mean_E_sup/Rmean_E[1] - 1) ** 2 + (mean_I_sup/Rmean_I[1] - 1) ** 2)
+    loss_rmean_mid = jnp.mean((mean_E_mid/Rmean_E[0] - 1) ** 2 + (mean_I_mid/Rmean_I[0] - 1) ** 2)
+    loss_rmean_sup = jnp.mean((mean_E_sup/Rmean_E[1] - 1) ** 2 + (mean_I_sup/Rmean_I[1] - 1) ** 2)
     loss_r_mean = loss_pars.lambda_r_mean*(loss_rmean_mid + loss_rmean_sup)
-    loss_dx_max = loss_pars.lambda_dx*np.mean(np.array([avg_dx_ref_mid, avg_dx_target_mid, avg_dx_ref_sup, avg_dx_target_sup])**2)
-    loss_w = loss_pars.lambda_w*(np.linalg.norm(w_sig)**2)
+    loss_dx_max = loss_pars.lambda_dx*jnp.mean(jnp.array([avg_dx_ref_mid, avg_dx_target_mid, avg_dx_ref_sup, avg_dx_target_sup])**2)
+    loss_w = loss_pars.lambda_w*(jnp.linalg.norm(w_sig)**2)
     loss_b = loss_pars.lambda_b*(b_sig**2)   
     loss = loss_readout + loss_w + loss_b +  loss_dx_max + loss_r_max + loss_r_mean
-    all_losses = np.vstack((loss_readout, loss_dx_max, loss_r_max, loss_r_mean, loss_w, loss_b, loss))
+    all_losses = jnp.vstack((loss_readout, loss_dx_max, loss_r_max, loss_r_mean, loss_w, loss_b, loss))
     
     return loss, all_losses, pred_label, sig_input, sig_output,  [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup]
 
@@ -526,10 +526,10 @@ def batch_loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, t
         total_loss, all_losses, pred_label, sig_input, sig_output, max_rates, mean_rates = vmap_ori_discrimination(trained_pars_dict, readout_pars_dict, untrained_pars, train_data, noise_ref, noise_target)
     
     # Average total loss within a batch (across trials)
-    loss= np.mean(total_loss)
+    loss= jnp.mean(total_loss)
     
     # Average individual losses within a batch (accross trials)
-    all_losses = np.mean(all_losses, axis = 0)
+    all_losses = jnp.mean(all_losses, axis = 0)
     
     # Find maximum rates  within a batch (across trials)
     max_rates = [item.max() for item in max_rates]
@@ -538,7 +538,7 @@ def batch_loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, t
     mean_rates = [item.mean() for item in mean_rates]
     
     # Calculate the proportion of labels that are predicted well (within a batch) 
-    true_accuracy = np.sum(train_data['label'] == pred_label)/len(train_data['label'])
+    true_accuracy = jnp.sum(train_data['label'] == pred_label)/len(train_data['label'])
 
     return loss, [all_losses, true_accuracy, sig_input, sig_output, max_rates, mean_rates]
 
@@ -551,14 +551,14 @@ training_loss_val_and_grad_ssn_only = jax.value_and_grad(batch_loss_ori_discr, a
 
 def binary_crossentropy_loss(n, x):
     """Loss function calculating binary cross entropy. n is the true label and x is the predicted label."""
-    return -(n * np.log(x) + (1 - n) * np.log(1 - x))
+    return -(n * jnp.log(x) + (1 - n) * jnp.log(1 - x))
 
 
 def generate_noise(batch_size, length, num_readout_noise=125, dt_readout = 0.2):
     """
     This function creates batch_size number of vectors of neural noise where each vector is of length = length. 
     """
-    sig_noise = 1/np.sqrt(num_readout_noise * dt_readout)
+    sig_noise = 1/jnp.sqrt(num_readout_noise * dt_readout)
     return sig_noise*numpy.random.randn(batch_size, length)
 
 
@@ -632,8 +632,8 @@ def mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_
             loss[i,j] = temp_loss
         
     # Calculate mean loss and accuracy
-    accuracy_mean = np.mean(accuracy, axis=1)
-    accuracy_std = np.std(accuracy, axis=1)
+    accuracy_mean = jnp.mean(accuracy, axis=1)
+    accuracy_std = jnp.std(accuracy, axis=1)
 
     return accuracy_mean, accuracy_std, accuracy, loss
 
@@ -645,32 +645,32 @@ def offset_at_baseline_acc(accuracies, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_va
         
     # Define x values for the log-linear curve fit
     offset_vec = numpy.array(offset_vec)
-    offset_vec[offset_vec == 0] = np.finfo(float).eps
-    log_offset_vec = np.log(offset_vec)
+    offset_vec[offset_vec == 0] = jnp.finfo(float).eps
+    log_offset_vec = jnp.log(offset_vec)
     # If accuracies is a matrix, then repeat log_offset_vec and flatten both
     if len(numpy.shape(accuracies)) > 1:
         log_offset_vec = numpy.repeat(log_offset_vec, numpy.shape(accuracies)[1])
         accuracies = accuracies.flatten()
         log_offset_vec = log_offset_vec.flatten()
     # Fit a log-linear learning curve
-    a, b = np.polyfit(log_offset_vec, accuracies, 1)
+    a, b = jnp.polyfit(log_offset_vec, accuracies, 1)
 
     # Evaluate curve at x_vals
-    x_vals[x_vals == 0] = np.finfo(float).eps
-    log_x_vals = np.log(x_vals)
+    x_vals[x_vals == 0] = jnp.finfo(float).eps
+    log_x_vals = jnp.log(x_vals)
     y_vals = a * log_x_vals + b
 
     # Find where y_vals cross baseline_acc
     if y_vals[-1] < baseline_acc:
-        offsets_at_bl_acc = np.array(180.0)
+        offsets_at_bl_acc = jnp.array(180.0)
     else:
         # Calculate the midpoint of the interval where y_vals crosses baseline_acc
-        sign_change_ind = np.where(np.diff(np.sign(y_vals - baseline_acc)))[0]
+        sign_change_ind = jnp.where(jnp.diff(jnp.sign(y_vals - baseline_acc)))[0]
         offsets_at_bl_acc = (x_vals[sign_change_ind] + x_vals[sign_change_ind + 1]) / 2
 
     if offsets_at_bl_acc.size ==0:
         mask = accuracies < baseline_acc
-        first_index = np.argmax(mask)
+        first_index = jnp.argmax(mask)
         offsets_at_bl_acc = offset_vec[first_index]
     elif offsets_at_bl_acc.size > 1:
         offsets_at_bl_acc = offsets_at_bl_acc[0]
@@ -690,11 +690,11 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         'acc': train_accs
     })
 
-    train_max_rates = np.vstack(np.asarray(train_max_rates))
-    train_mean_rates = np.vstack(np.asarray(train_mean_rates))
-    log_J_2x2_m = np.stack(log_J_2x2_m)
-    log_J_2x2_s = np.stack(log_J_2x2_s)
-    train_losses_all = np.stack(train_losses_all)
+    train_max_rates = jnp.vstack(jnp.asarray(train_max_rates))
+    train_mean_rates = jnp.vstack(jnp.asarray(train_mean_rates))
+    log_J_2x2_m = jnp.stack(log_J_2x2_m)
+    log_J_2x2_s = jnp.stack(log_J_2x2_s)
+    train_losses_all = jnp.stack(train_losses_all)
 
     # Add validation accuracies at specified SGD steps
     df['val_acc'] = None
@@ -723,8 +723,8 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     log_J_s_names = ['log_J_EE_s', 'log_J_EI_s', 'log_J_IE_s', 'log_J_II_s']
     J_m_names = ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m']
     J_s_names = ['J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']
-    J_2x2_m=np.transpose(np.array([np.exp(log_J_2x2_m[:,0]),-np.exp(log_J_2x2_m[:,1]),np.exp(log_J_2x2_m[:,2]),-np.exp(log_J_2x2_m[:,3])]))
-    J_2x2_s=np.transpose(np.array([np.exp(log_J_2x2_s[:,0]),-np.exp(log_J_2x2_s[:,1]),np.exp(log_J_2x2_s[:,2]),-np.exp(log_J_2x2_s[:,3])]))
+    J_2x2_m=jnp.transpose(jnp.array([jnp.exp(log_J_2x2_m[:,0]),-jnp.exp(log_J_2x2_m[:,1]),jnp.exp(log_J_2x2_m[:,2]),-jnp.exp(log_J_2x2_m[:,3])]))
+    J_2x2_s=jnp.transpose(jnp.array([jnp.exp(log_J_2x2_s[:,0]),-jnp.exp(log_J_2x2_s[:,1]),jnp.exp(log_J_2x2_s[:,2]),-jnp.exp(log_J_2x2_s[:,3])]))
     for i in range(len(log_J_2x2_m[0])):
         df[log_J_m_names[i]] = log_J_2x2_m[:,i]
     for i in range(len(log_J_2x2_s[0])):
@@ -739,21 +739,21 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     df['cI_s']=cI_s
     df['log_f_E']=log_f_E
     df['log_f_I']=log_f_I
-    df['f_E']=[np.exp(log_f_E[i]) for i in range(len(log_f_E))]
-    df['f_I']=[np.exp(log_f_I[i]) for i in range(len(log_f_I))]
+    df['f_E']=[jnp.exp(log_f_E[i]) for i in range(len(log_f_E))]
+    df['f_I']=[jnp.exp(log_f_I[i]) for i in range(len(log_f_I))]
 
     # Distinguish psychometric and staircase offsets
     df['psychometric_offset']=None
     max_stages = max(1,max(stages))
     if max_stages==1:
-        psychometric_offsets=np.hstack(psychometric_offsets)
+        psychometric_offsets=jnp.hstack(psychometric_offsets)
         df.loc[step_indices['acc_check_ind'],'psychometric_offset']=psychometric_offsets
     else:        
         df.loc[step_indices['val_SGD_steps'],'psychometric_offset']=psychometric_offsets
         df['staircase_offset']= staircase_offsets
     # save w_sigs when pretraining is on
     if max_stages==1:
-        w_sigs = np.stack(w_sigs)
+        w_sigs = jnp.stack(w_sigs)
         # Create a new DataFrame from the weight_data dictionary and concatenate it with the existing DataFrame
         weight_data = {}
         if w_sigs.shape[1] == readout_pars.readout_grid_size[0] ** 2:
@@ -771,7 +771,7 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
 
     # Add kappa_pre and kappa_post to the DataFrame
     if max_stages==2 and kappas is not None:
-        kappas_np=np.asarray(kappas)
+        kappas_np=jnp.asarray(kappas)
         kappa_names = ['kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post']
         for i in range(len(kappas_np[0])):
             df[kappa_names[i]] = kappas_np[:,i]

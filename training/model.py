@@ -1,4 +1,4 @@
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import vmap
 
 def evaluate_model_response(
@@ -25,19 +25,19 @@ def evaluate_model_response(
     # Apply Gabor filters to stimuli to create input of middle layer
     if stimuli.shape[0]==1:
         # handling the case when there are no batches
-        input_mid = np.reshape(np.matmul(gabor_filters, np.transpose(stimuli)),len(constant_vector))
+        input_mid = jnp.reshape(jnp.matmul(gabor_filters, jnp.transpose(stimuli)),len(constant_vector))
     else:
-        input_mid = np.matmul(gabor_filters, stimuli)
+        input_mid = jnp.matmul(gabor_filters, stimuli)
     input_mid = input_mid.ravel()
 
     # Rectify middle layer input before fix point calculation
-    SSN_mid_input = np.maximum(0, input_mid) + constant_vector
+    SSN_mid_input = jnp.maximum(0, input_mid) + constant_vector
 
     # Calculate steady state response of middle layer
     r_mid, fp_mid, avg_dx_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
 
     # Create input to (I and E neurons in) superficial layer
-    sup_input_ref = np.hstack([r_mid * f_E, r_mid * f_I]) + constant_vector_sup
+    sup_input_ref = jnp.hstack([r_mid * f_E, r_mid * f_I]) + constant_vector_sup
 
     # Calculate steady state response of superficial layer
     r_sup, fp_sup, avg_dx_sup, max_E_sup, max_I_sup, mean_E_sup, mean_I_sup = superficial_layer_fixed_point(
@@ -72,12 +72,12 @@ def evaluate_model_response_mid(
     # Apply Gabor filters to stimuli to create input of middle layer
     if stimuli.shape[0]==1:
         # handling the case when there are no batches
-        input_mid = np.reshape(np.matmul(gabor_filters, np.transpose(stimuli)),len(constant_vector))
+        input_mid = jnp.reshape(jnp.matmul(gabor_filters, jnp.transpose(stimuli)),len(constant_vector))
     else:
-        input_mid = np.matmul(gabor_filters, stimuli)
+        input_mid = jnp.matmul(gabor_filters, stimuli)
 
     # Rectify middle layer input before fix point calculation
-    SSN_mid_input = np.maximum(0, input_mid) + constant_vector
+    SSN_mid_input = jnp.maximum(0, input_mid) + constant_vector
 
     # Calculate steady state response of middle layer
     r_mid, fp_mid, avg_dx_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
@@ -91,7 +91,7 @@ def obtain_fixed_point(
     ssn, ssn_input, conv_pars
 ):
     """Calculate the fixed point of an SSN model."""
-    r_init = np.zeros(ssn_input.shape[0])
+    r_init = jnp.zeros(ssn_input.shape[0])
     dt = conv_pars.dt
     xtol = conv_pars.xtol
     Tmax = conv_pars.Tmax
@@ -105,7 +105,7 @@ def obtain_fixed_point(
         Tmax=Tmax,
     )
 
-    avg_dx = np.maximum(0, (avg_dx - 1))
+    avg_dx = jnp.maximum(0, (avg_dx - 1))
 
     return r_fp, avg_dx
 
@@ -121,19 +121,19 @@ def middle_layer_fixed_point(
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
     
     # Define excitatory and inhibitory cell indices and responses
-    map_numbers_E = np.arange(1, 2 * ssn.phases, 2) # 1,3,5,7
-    map_numbers_I = np.arange(2, 2 * ssn.phases + 1, 2) # 2,4,6,8
+    map_numbers_E = jnp.arange(1, 2 * ssn.phases, 2) # 1,3,5,7
+    map_numbers_I = jnp.arange(2, 2 * ssn.phases + 1, 2) # 2,4,6,8
     fp_E=ssn.select_type(fp, map_numbers_E)
     fp_I=ssn.select_type(fp, map_numbers = map_numbers_I)
  
     # Define output as sum of E neurons
-    layer_output = np.sum(fp_E, axis=0)
+    layer_output = jnp.sum(fp_E, axis=0)
     
     # Find maximum and mean rates
-    maxr_E =  np.max(fp_E)
-    maxr_I = np.max(fp_I)
-    meanr_E =  np.mean(fp_E)
-    meanr_I = np.mean(fp_I)
+    maxr_E =  jnp.max(fp_E)
+    maxr_I = jnp.max(fp_I)
+    meanr_E =  jnp.mean(fp_E)
+    meanr_I = jnp.mean(fp_I)
 
     if return_fp ==True:
         return layer_output, fp, avg_dx, maxr_E, maxr_I,  meanr_E, meanr_I
@@ -155,10 +155,10 @@ def superficial_layer_fixed_point(
     layer_output = fp[: ssn.Ne]
     
     # Find maximum and mean rates
-    maxr_E =  np.max(fp[: ssn.Ne])
-    maxr_I = np.max(fp[ssn.Ne:-1])
-    meanr_E = np.mean(fp[: ssn.Ne])
-    meanr_I = np.mean(fp[ssn.Ne:-1])
+    maxr_E =  jnp.max(fp[: ssn.Ne])
+    maxr_I = jnp.max(fp[ssn.Ne:-1])
+    meanr_E = jnp.mean(fp[: ssn.Ne])
+    meanr_I = jnp.mean(fp[ssn.Ne:-1])
 
     if return_fp ==True:
         return layer_output, fp, avg_dx,  maxr_E, maxr_I, meanr_E, meanr_I
@@ -170,18 +170,18 @@ def constant_to_vec(c_E, c_I, ssn, sup=False):
     """Create a vector from the baseline inihibitory and excitatory constants for the SSN model."""
     edge_length = ssn.grid_pars.gridsize_Nx
 
-    matrix_E = np.ones((edge_length, edge_length)) * c_E
-    vec_E = np.ravel(matrix_E)
+    matrix_E = jnp.ones((edge_length, edge_length)) * c_E
+    vec_E = jnp.ravel(matrix_E)
 
-    matrix_I = np.ones((edge_length, edge_length)) * c_I
-    vec_I = np.ravel(matrix_I)
+    matrix_I = jnp.ones((edge_length, edge_length)) * c_I
+    vec_I = jnp.ravel(matrix_I)
 
-    constant_vec = np.hstack((vec_E, vec_I, vec_E, vec_I))
+    constant_vec = jnp.hstack((vec_E, vec_I, vec_E, vec_I))
 
     if sup == False and ssn.phases == 4:
-        constant_vec = np.kron(np.asarray([1, 1]), constant_vec)
+        constant_vec = jnp.kron(jnp.asarray([1, 1]), constant_vec)
 
     if sup:
-        constant_vec = np.hstack((vec_E, vec_I))
+        constant_vec = jnp.hstack((vec_E, vec_I))
 
     return constant_vec

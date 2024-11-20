@@ -1,6 +1,7 @@
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import lax
+from jax import vmap
 
 class _SSN_Base(object):
     """ Base class for SSN models """
@@ -29,7 +30,7 @@ class _SSN_Base(object):
     ######## FIXED POINT FUNCTIONS ########
     def powlaw(self, u):
         """ Power-law nonlinearity """
-        return self.k * np.maximum(0, u) ** self.n
+        return self.k * jnp.maximum(0, u) ** self.n
 
     def drdt(self, r, inp_vec):
         """ Differential equation for the rate vector r """
@@ -38,18 +39,21 @@ class _SSN_Base(object):
     def fixed_point_r(self, inp_vec, r_init=None, Tmax=500, dt=1, xtol=1e-5, xmin=1e-0):
         """ Find the fixed point of the rate vector r """
         if r_init is None:
-            r_init = np.zeros(inp_vec.shape)
-        drdt = lambda r : self.drdt(r, inp_vec)
+            r_init = jnp.zeros(inp_vec.shape)
+        if len(jnp.shape(self.W)) == 3:
+            drdt = lambda r : self.drdt(self.W, r, inp_vec)
+        else:    
+            drdt = lambda r : self.drdt(r, inp_vec)
 
         Nmax = int(Tmax/dt)
         r_fp = r_init 
-        y = np.zeros(((Nmax)))  
+        y = jnp.zeros(((Nmax)))  
 		
         def loop(n, carry):
             r_fp, y = carry
             dr = drdt(r_fp) * dt
             r_fp = r_fp + dr
-            y = y.at[n].set(np.abs( dr /np.maximum(xmin, np.abs(r_fp)) ).max())
+            y = y.at[n].set(jnp.abs( dr /jnp.maximum(xmin, jnp.abs(r_fp)) ).max())
             return (r_fp, y)
 
         r_fp, y = jax.lax.fori_loop(0, Nmax, loop, (r_fp, y))
@@ -61,11 +65,11 @@ class _SSN_Base(object):
 
 class SSN_sup(_SSN_Base):
     """ Class for the superficial SSN layer. """
-    def __init__(self, ssn_pars, grid_pars, J_2x2, dist_from_single_ori, ori_dist, kappa= np.array([[0.0, 0.0], [0.0, 0.0]]), **kwargs):
+    def __init__(self, ssn_pars, grid_pars, J_2x2, dist_from_single_ori, ori_dist, kappa= jnp.array([[0.0, 0.0], [0.0, 0.0]]), **kwargs):
         Ni = Ne = grid_pars.gridsize_Nx**2
         tauE = ssn_pars.tauE
         tauI = ssn_pars.tauI
-        tau_vec = np.hstack([tauE * np.ones(Ne), tauI * np.ones(Ni)])
+        tau_vec = jnp.hstack([tauE * jnp.ones(Ne), tauI * jnp.ones(Ni)])
 
         super(SSN_sup, self).__init__(n=ssn_pars.n, k=ssn_pars.k, Ne=Ne, Ni=Ni,
                                     tau_vec=tau_vec, **kwargs)
@@ -95,12 +99,12 @@ class SSN_sup(_SSN_Base):
         """
         # Unpack parameters  
         p_local = self.p_local
-        tanh_kappa = np.tanh(kappa)
+        tanh_kappa = jnp.tanh(kappa)
         tanh_kappa_pre = [[tanh_kappa[0][0], 0], [tanh_kappa[0][1], 0]]
         tanh_kappa_post = [[tanh_kappa[1][0], 0], [tanh_kappa[1][1], 0]]
-        sigma_oris = self.sigma_oris * np.ones((2,2))
-        if np.isscalar(self.s_2x2):
-            s_2x2 = self.s_2x2 * np.ones((2,2))
+        sigma_oris = self.sigma_oris * jnp.ones((2,2))
+        if jnp.isscalar(self.s_2x2):
+            s_2x2 = self.s_2x2 * jnp.ones((2,2))
         else:
             s_2x2 = self.s_2x2
             assert s_2x2.shape == (2,2)
@@ -113,17 +117,17 @@ class SSN_sup(_SSN_Base):
             for b in range(2): # pre-synaptic cell type  
                 horizontal_conn_from_oris = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(45**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(45**2))            
                 if b == 0: # E projections
-                    W = np.exp(-xy_dist/s_2x2[a,b] - horizontal_conn_from_oris)
+                    W = jnp.exp(-xy_dist/s_2x2[a,b] - horizontal_conn_from_oris)
                 elif b == 1: # I projections 
-                    W = np.exp(-xy_dist**2/(s_2x2[a,b]**2) - horizontal_conn_from_oris)
+                    W = jnp.exp(-xy_dist**2/(s_2x2[a,b]**2) - horizontal_conn_from_oris)
 
                 # sparsify (set small weights to zero)
-                W = np.where(W < MinSyn, 0, W)
+                W = jnp.where(W < MinSyn, 0, W)
 
                 # row-wise normalize
-                tW = np.sum(W, axis=1)
+                tW = jnp.sum(W, axis=1)
                 if not CellWiseNormalized:
-                    tW = np.mean(tW)
+                    tW = jnp.mean(tW)
                     W =  W / tW
                 else:
                     W = W / tW[:, None]
@@ -131,11 +135,11 @@ class SSN_sup(_SSN_Base):
                 # for E projections, add the local part
                 # NOTE: alterntaively could do this before normalizing
                 if b == 0:
-                    W = p_local[a] * np.eye(*W.shape) + (1-p_local[a]) * W
+                    W = p_local[a] * jnp.eye(*W.shape) + (1-p_local[a]) * W
 
                 Wblks[a][b] = J_2x2[a, b] * W          
 
-        W_out = np.block(Wblks)
+        W_out = jnp.block(Wblks)
         return W_out
 
 
@@ -145,10 +149,10 @@ class SSN_sup(_SSN_Base):
         Nx = self.grid_pars.gridsize_Nx
         # reshape vector into matrix form
         if len(vec) == self.Ne:
-            maps = np.reshape(vec, (Nx, Nx))
+            maps = jnp.reshape(vec, (Nx, Nx))
         elif len(vec) == self.N:
-            maps = (np.reshape(vec[:self.Ne], (Nx, Nx)),
-                   np.reshape(vec[self.Ne:], (Nx, Nx)))
+            maps = (jnp.reshape(vec[:self.Ne], (Nx, Nx)),
+                   jnp.reshape(vec[self.Ne:], (Nx, Nx)))
 
         if select=='E': # second half
             return maps[0]
@@ -163,6 +167,8 @@ class SSN_mid(_SSN_Base):
         ssn_pars,
         grid_pars,
         J_2x2,
+        dist_from_single_ori,
+        kappa = jnp.array([[0.0, 0.0], [0.0, 0.0]]),
         **kwargs
     ):
         self.phases = ssn_pars.phases
@@ -170,22 +176,49 @@ class SSN_mid(_SSN_Base):
         self.Nc = grid_pars.gridsize_Nx**2 # number of cells per phase
 
         Ni = Ne = self.phases * self.Nc
-        tau_vec = np.hstack([ssn_pars.tauE * np.ones(self.Nc),  ssn_pars.tauI * np.ones(self.Nc)])
-        tau_vec = np.kron(np.ones((1, self.phases)), tau_vec).squeeze()
+        tau_vec = jnp.tile(jnp.array([ssn_pars.tauE,  ssn_pars.tauI]), self.phases)
+        #tau_vec = jnp.hstack([ssn_pars.tauE * jnp.ones(self.Nc),  ssn_pars.tauI * jnp.ones(self.Nc)])
+        #tau_vec = jnp.kron(jnp.ones((1, self.phases)), tau_vec).squeeze()
 
         super(SSN_mid, self).__init__(n=ssn_pars.n, k=ssn_pars.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs)
 
-        self.make_W(J_2x2)
+        self.make_W(J_2x2, jnp.tanh(kappa), dist_from_single_ori[:,0])
 
-    def drdt(self, r, inp_vec):
+    def drdt_old(self, r, inp_vec):
         """ Differential equation for the rate vector r """
-        r1 = np.reshape(r, (-1, self.Nc))
-        out = (-r + self.powlaw(np.ravel(self.W @ r1) + inp_vec)) / self.tau_vec
+        r1 = jnp.reshape(r, (-1, self.Nc))
+        out = (-r + self.powlaw(jnp.ravel(self.W @ r1) + inp_vec)) / self.tau_vec
+        return out
+    
+    def drdt_per_grid_point(self, W, r, inp_vec):
+        """ Differential equation for the rate vector r """
+        out = (-r + self.powlaw(jnp.ravel(W @ r) + inp_vec)) / self.tau_vec  # W is 8x8, r is 8, inp_vec is 8 and tau_vec is 8
         return out
 
-    def make_W(self, J_2x2):
+    def drdt(self, W, r, inp_vec):
+        """
+        Compute dr/dt for all grid points in parallel.
+        """
+        r_reshaped = jnp.reshape(r, (-1, self.Nc))
+        inp_vec_reshaped = jnp.reshape(inp_vec, (-1, self.Nc))
+        r_next = vmap(self.drdt_per_grid_point, in_axes=(2, 1, 1))(W, r_reshaped, inp_vec_reshaped) # Shape is (81, 8) - default vmap feature
+        r_next_transposed = jnp.transpose(r_next)  # Shape becomes (8, 81) again
+        r_next_flat = jnp.ravel(r_next_transposed)
+        return r_next_flat
+
+    def make_W(self, J_2x2, kappa, distance_from_single_ori):
         """Create the recurrent connectivity matrix W - a block diagonal matrix with J_2x2 as the block matrix."""
-        self.W = np.kron(np.eye(self.phases), np.asarray(J_2x2))
+        num_phases = self.phases
+        W_2x2_block = J_2x2 * jnp.exp(kappa)
+
+        # Repeat the 2x2 block to fill the 8x8 matrix
+        W_8x8_block = jnp.tile(W_2x2_block, (num_phases, num_phases))
+
+        # Repeat W_8x8_block along 3rd dimension, multiplying by distance_from_single_ori (self.Nc 1D array) to get the final Wmid
+        W = W_8x8_block[:, :, None] * distance_from_single_ori # Wmid is num_phases*num_types x num_phases*num_types x self.Nc
+
+        # Save the connectivity matrix to the instance
+        self.W = W
 
     def select_type(self, vec, map_numbers):
         """ Select the E or I part of the vector vec """
@@ -197,4 +230,4 @@ class SSN_mid(_SSN_Base):
             slice = lax.dynamic_slice(vec, (start,), (self.Nc,))
             out.append(slice)
 
-        return np.array(out)
+        return jnp.array(out)
