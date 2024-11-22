@@ -177,18 +177,10 @@ class SSN_mid(_SSN_Base):
 
         Ni = Ne = self.phases * self.Nc
         tau_vec = jnp.tile(jnp.array([ssn_pars.tauE,  ssn_pars.tauI]), self.phases)
-        #tau_vec = jnp.hstack([ssn_pars.tauE * jnp.ones(self.Nc),  ssn_pars.tauI * jnp.ones(self.Nc)])
-        #tau_vec = jnp.kron(jnp.ones((1, self.phases)), tau_vec).squeeze()
 
         super(SSN_mid, self).__init__(n=ssn_pars.n, k=ssn_pars.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs)
 
         self.make_W(J_2x2, jnp.tanh(kappa), dist_from_single_ori[:,0])
-
-    def drdt_old(self, r, inp_vec):
-        """ Differential equation for the rate vector r """
-        r1 = jnp.reshape(r, (-1, self.Nc))
-        out = (-r + self.powlaw(jnp.ravel(self.W @ r1) + inp_vec)) / self.tau_vec
-        return out
     
     def drdt_per_grid_point(self, W, r, inp_vec):
         """ Differential equation for the rate vector r """
@@ -196,26 +188,24 @@ class SSN_mid(_SSN_Base):
         return out
 
     def drdt(self, W, r, inp_vec):
-        """
-        Compute dr/dt for all grid points in parallel.
-        """
+        """ Compute dr/dt for all grid points in parallel. """
         r_reshaped = jnp.reshape(r, (-1, self.Nc))
         inp_vec_reshaped = jnp.reshape(inp_vec, (-1, self.Nc))
-        r_next = vmap(self.drdt_per_grid_point, in_axes=(2, 1, 1))(W, r_reshaped, inp_vec_reshaped) # Shape is (81, 8) - default vmap feature
+        r_next = vmap(self.drdt_per_grid_point, in_axes=(2, 1, 1))(W, r_reshaped, inp_vec_reshaped) # r_next shape is (81, 8) - default vmap feature
         r_next_transposed = jnp.transpose(r_next)  # Shape becomes (8, 81) again
         r_next_flat = jnp.ravel(r_next_transposed)
+
         return r_next_flat
 
-    def make_W(self, J_2x2, kappa, distance_from_single_ori):
+    def make_W(self, J_2x2, tanh_kappa, distance_from_single_ori):
         """Create the recurrent connectivity matrix W - a block diagonal matrix with J_2x2 as the block matrix."""
         num_phases = self.phases
-        W_2x2_block = J_2x2 * jnp.exp(kappa)
 
-        # Repeat the 2x2 block to fill the 8x8 matrix
-        W_8x8_block = jnp.tile(W_2x2_block, (num_phases, num_phases))
+        # Compute the 8x8x81 block with the exponential scaling per grid point
+        W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :])
 
-        # Repeat W_8x8_block along 3rd dimension, multiplying by distance_from_single_ori (self.Nc 1D array) to get the final Wmid
-        W = W_8x8_block[:, :, None] * distance_from_single_ori # Wmid is num_phases*num_types x num_phases*num_types x self.Nc
+        # Tile W_type_grid_block for num_phases x num_phases in the first two dimensions
+        W = jnp.tile(W_type_grid_block, (num_phases, num_phases, 1))  # Shape: (phases*num_types, phases*num_types, Nc)
 
         # Save the connectivity matrix to the instance
         self.W = W
