@@ -380,15 +380,15 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
     
     # Read pretraining_results.csv file, go over runs and check the last psychometric_offset within that run is in the range pretraining_pars.offset_threshold. If not, then add to the excluded_run_inds.
     run_indices = [i for i in range(num_training)]
-    _, _, untrained_pars = load_parameters(folder_path, run_index = i, stage = 1, iloc_ind = -1)
+    _, _, untrained_pars = load_parameters(folder_path, run_index = num_training-1, stage = 1, iloc_ind = -1)
     exclude_run_inds = []
     for j in run_indices:
         df = pd.read_csv(os.path.join(folder_path,'pretraining_results.csv'))
         df_j = filter_for_run_and_stage(df, j, stage=1)        
         last_non_nan = df_j['psychometric_offset'].last_valid_index()
-        if numpy.isnan(df_j['psychometric_offset'].iloc[-1]):
+        if numpy.isnan(df_j['psychometric_offset'].iloc[last_non_nan]):
             exclude_run_inds.append(j)
-        elif df_j['psychometric_offset'].iloc[-1] < untrained_pars.pretrain_pars.offset_threshold[0] or df_j['psychometric_offset'].iloc[-1] > untrained_pars.pretrain_pars.offset_threshold[1]:
+        elif df_j['psychometric_offset'].iloc[last_non_nan] < untrained_pars.pretrain_pars.offset_threshold[0] or df_j['psychometric_offset'].iloc[last_non_nan] > untrained_pars.pretrain_pars.offset_threshold[1]:
             exclude_run_inds.append(j)
     # Save excluded runs to a file
     with open(os.path.join(folder_path, 'excluded_runs_from_pretraining.csv'), 'w') as f:

@@ -1072,7 +1072,7 @@ def MVPA_anova(folder, file_name='MVPA_scores.csv'):
         
         # Perform two-way ANOVA using an OLS model
         model = ols('Score ~ C(SGD_step) + C(Ori) + C(SGD_step):C(Ori)', data=layer_data).fit()
-        anova_table = sm.stats.anova_lm(model, typ=2)
+        anova_table = sm.stats.anova_lm(model, typ=2) # *** ValueError array must not contain infs or NaNs
         
         print(f"ANOVA results for Layer {layer}:")
         print(anova_table)

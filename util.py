@@ -542,11 +542,6 @@ def set_up_config_folder(results_folder, conf_name):
     config_folder.mkdir(parents=True, exist_ok=True)
     figure_folder = config_folder / 'figures'
     figure_folder.mkdir(parents=True, exist_ok=True)
-
-    # copy pretraining related files to the config folder
-    shutil.copy(os.path.join(results_folder, 'orimap.csv'), config_folder / 'orimap.csv')
-    shutil.copy(os.path.join(results_folder, 'initial_parameters.csv'), config_folder / 'initial_parameters.csv')
-    shutil.copy(os.path.join(results_folder, 'pretraining_results.csv'), config_folder / 'pretraining_results.csv')
     return config_folder
 
 

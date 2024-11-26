@@ -46,8 +46,12 @@ def main_analysis(folder_path, num_runs, conf_names):
 
     # Replot boxplots and plot tuning curves
     # read 'excluded_runs_all.csv'
-    excluded_runs_df = pd.read_csv(os.path.join(folder_path, 'excluded_runs_all.csv'), header=None)
-    excluded_runs = excluded_runs_df.values.flatten()
+    file_name = os.path.join(folder_path, 'excluded_runs_all.csv')
+    if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
+        excluded_runs_df = pd.read_csv(file_name, header=None)
+        excluded_runs = excluded_runs_df.values.flatten()
+    else:
+        excluded_runs = []
     
     for i, conf in enumerate(conf_names):
         config_folder = os.path.join(folder_path, conf)
