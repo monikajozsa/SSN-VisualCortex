@@ -115,11 +115,12 @@ class SSN_sup(_SSN_Base):
         # Loop over post- (a) and pre-synaptic (b) cell-types
         for a in range(2): # post-synaptic cell type
             for b in range(2): # pre-synaptic cell type  
-                horizontal_conn_from_oris = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(45**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(45**2))            
+                ori_dist_contrib = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(45**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(45**2))
+                #ori_dist_contrib = ori_dist**2/(sigma_oris[a,b]**2)
                 if b == 0: # E projections
-                    W = jnp.exp(-xy_dist/s_2x2[a,b] - horizontal_conn_from_oris)
+                    W = jnp.exp(-xy_dist/s_2x2[a,b] - ori_dist_contrib)
                 elif b == 1: # I projections 
-                    W = jnp.exp(-xy_dist**2/(s_2x2[a,b]**2) - horizontal_conn_from_oris)
+                    W = jnp.exp(-xy_dist**2/(s_2x2[a,b]**2) - ori_dist_contrib)
 
                 # sparsify (set small weights to zero)
                 W = jnp.where(W < MinSyn, 0, W)
@@ -137,7 +138,8 @@ class SSN_sup(_SSN_Base):
                 if b == 0:
                     W = p_local[a] * jnp.eye(*W.shape) + (1-p_local[a]) * W
 
-                Wblks[a][b] = J_2x2[a, b] * W          
+                Wblks[a][b] = J_2x2[a, b] * W
+                #Wblks[a][b] = J_2x2[a, b] * W * jnp.exp(tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(45**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(45**2)))
 
         W_out = jnp.block(Wblks)
         return W_out
@@ -202,10 +204,10 @@ class SSN_mid(_SSN_Base):
         num_phases = self.phases
 
         # Compute the 8x8x81 block with the exponential scaling per grid point
-        W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :])
+        W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]) 
 
         # Tile W_type_grid_block for num_phases x num_phases in the first two dimensions
-        W = jnp.tile(W_type_grid_block, (num_phases, num_phases, 1))  # Shape: (phases*num_types, phases*num_types, Nc)
+        W = jnp.tile(W_type_grid_block, (num_phases, num_phases, 1)) / num_phases # Shape: (phases*num_types, phases*num_types, Nc)
 
         # Save the connectivity matrix to the instance
         self.W = W
