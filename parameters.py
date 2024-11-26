@@ -269,9 +269,10 @@ class TrainedSSNPars:
     """ relative strength of weights of I/E pre/post cell-type in superficial layer """
     J_II_s: float = 0.0
     """ relative strength of weights of I/I pre/post cell-type in superficial layer """
-    kappa = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+    kappa_Jsup = jnp.array([[0.0, 0.0], [0.0, 0.0]])
     """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity """
-
+    kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+    """ shaping parameter for middle layer horizontal connections to achieve orientation selectivity """
 
 @dataclass
 class PretrainedSSNPars:

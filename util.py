@@ -19,8 +19,8 @@ def check_header(filename):
     return header
 
 
-def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kappa= True):
-    """Unpacks the trained parameters and the untrained parameters. If as_log_list is True, then the J and f parameters are returned as a list of logs. If return_kappa is True, then the kappa parameter is returned."""
+def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kappa_Jsup= True):
+    """Unpacks the trained parameters and the untrained parameters. If as_log_list is True, then the J and f parameters are returned as a list of logs. If return_kappa_Jsup is True, then the kappa_Jsup parameter is returned."""
 
     def get_J(par_name, trained_pars, ssn_pars):
         """
@@ -74,24 +74,24 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
     else:
         f_E = ssn_pars.f_E
         f_I = ssn_pars.f_I
-    if return_kappa: 
-        if 'kappa' in trained_pars:
-            kappa = trained_pars['kappa']
+    if return_kappa_Jsup: 
+        if 'kappa_Jsup' in trained_pars:
+            kappa_Jsup = trained_pars['kappa_Jsup']
         else:
-            if hasattr(ssn_pars, 'kappa'): # case when during pretraining we check training task accuracy
-                kappa = ssn_pars.kappa
+            if hasattr(ssn_pars, 'kappa_Jsup'): # case when during pretraining we check training task accuracy
+                kappa_Jsup = ssn_pars.kappa_Jsup
             else:
-                kappa = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+                kappa_Jsup = jnp.array([[0.0, 0.0], [0.0, 0.0]])
     else:
-        kappa = None
+        kappa_Jsup = None
     if as_log_list:
         log_J_2x2_m = take_log(J_2x2_m)
         log_J_2x2_s = take_log(J_2x2_s)
         log_f_E = jnp.log(f_E)
         log_f_I = jnp.log(f_I)
-        return [log_J_2x2_m.ravel()], [log_J_2x2_s.ravel()], [cE_m], [cI_m], [cE_s], [cI_s], [log_f_E], [log_f_I], [kappa.ravel()]
+        return [log_J_2x2_m.ravel()], [log_J_2x2_s.ravel()], [cE_m], [cI_m], [cE_s], [cI_s], [log_f_E], [log_f_I], [kappa_Jsup.ravel()]
     else:
-        return J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa
+        return J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup
 
 
 def cosdiff_ring(d_x, L):
@@ -406,7 +406,7 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
     # Define parameter keys
     log_J_keys = ['log_J_EE_m','log_J_EI_m','log_J_IE_m','log_J_II_m', 'log_J_EE_s','log_J_EI_s','log_J_IE_s','log_J_II_s'] 
     J_keys = ['J_EE_m','J_EI_m','J_IE_m','J_II_m', 'J_EE_s','J_EI_s','J_IE_s','J_II_s']
-    kappa_keys = ['kappa_EE','kappa_EI','kappa_IE','kappa_II']
+    kappa_Jsup_keys = ['kappa_Jsup_EE','kappa_Jsup_EI','kappa_Jsup_IE','kappa_Jsup_II']
 
     # Initialize the trained parameters dictionary with the J parameters
     trained_pars_dict = {}
@@ -419,7 +419,7 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
             # Set the attribute J_key in ssn_pars to the value from the selected row
             setattr(ssn_pars, J_key, selected_row[J_key])
 
-    # Set c, f and kappa parameters
+    # Set c, f and kappa_Jsup parameters
     for param in ['cE_m', 'cI_m', 'cE_s', 'cI_s']:
         if param in par_keys or param in par_keys:
             trained_pars_dict[param] = selected_row[param]
@@ -433,12 +433,12 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
         trained_pars_dict['log_f_I'] = selected_row['log_f_I']
     else:
         ssn_pars.f_I = selected_row['f_I']
-    if 'kappa' in par_keys:
-        if kappa_keys[0] in selected_row.keys():
-            kappa_values = [selected_row[key] for key in kappa_keys]
-            trained_pars_dict['kappa'] = jnp.array(kappa_values).reshape(2, 2)
-        else: # case when kappa are not in selected_row but they are required in trained_pars (beginning of training)
-            trained_pars_dict['kappa'] = trained_pars.kappa
+    if 'kappa_Jsup' in par_keys:
+        if kappa_Jsup_keys[0] in selected_row.keys():
+            kappa_Jsup_values = [selected_row[key] for key in kappa_Jsup_keys]
+            trained_pars_dict['kappa_Jsup'] = jnp.array(kappa_Jsup_values).reshape(2, 2)
+        else: # case when kappa_Jsup are not in selected_row but they are required in trained_pars (beginning of training)
+            trained_pars_dict['kappa_Jsup'] = trained_pars.kappa_Jsup
     
     ###### Extract readout parameters from pretraining.csv and save it to readout pars ######
     # If stage is >0, then load the last row of pretraining_results.csv as readout parameters are not trained during training
@@ -677,7 +677,7 @@ def configure_parameters_file(root_folder, conf):
         updated_lines.append(line)
 
     #### Extract, Remove, and Add Attributes ####
-    all_keys = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_II_m', 'J_EI_m', 'J_IE_m', 'J_EE_m', 'J_II_s', 'J_EI_s', 'J_IE_s', 'J_EE_s', 'kappa']
+    all_keys = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_II_m', 'J_EI_m', 'J_IE_m', 'J_EE_m', 'J_II_s', 'J_EI_s', 'J_IE_s', 'J_EE_s', 'kappa_Jsup']
     ssnpars_keys = [key for key in all_keys if key not in trained_pars_list]
     
     # Extract attributes from both classes

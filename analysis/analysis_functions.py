@@ -311,7 +311,7 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=jnp.arang
 
     # Get the parameters from the trained_pars dictionary and untreatned_pars class
     ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
-    J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars, untrained_pars.ssn_pars)
+    J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup = unpack_ssn_parameters(trained_pars, untrained_pars.ssn_pars)
     ssn_pars = untrained_pars.ssn_pars        
     x_map = untrained_pars.grid_pars.x_map
     y_map = untrained_pars.grid_pars.y_map
@@ -319,7 +319,7 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=jnp.arang
     
     # Define the SSN layers
     ssn_mid = SSN_mid(ssn_pars, untrained_pars.grid_pars, J_2x2_m, untrained_pars.dist_from_single_ori)
-    ssn_sup = SSN_sup(ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa)
+    ssn_sup = SSN_sup(ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa_Jsup)
     
     # Flatten the grid indices and the x, y coordinates for vmap    
     num_rows, num_cols = x_map.shape
@@ -550,7 +550,7 @@ def param_offset_correlations(folder, num_time_inds=2, excluded_runs=[]):
     
     # Separate offsets, losses, and params
     offsets_rel_change = {key: value for key, value in rel_changes_train.items() if key.endswith('_offset')}
-    params_keys = ['J_', 'c', 'f_', 'kappa', 'EI_ratio_J_']
+    params_keys = ['J_', 'c', 'f_', 'kappa_Jsup', 'EI_ratio_J_']
     params_rel_change = {key: value for key, value in rel_changes_train.items() if any([key.startswith(param) for param in params_keys])}
     
     # Correlation results dictionaries
@@ -685,7 +685,7 @@ def smooth_data(X, gridsize_Nx, sigma = 1):
     return smoothed_data
 
 
-def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, cE_m = None, cI_m = None, cE_s=None, cI_s=None, f_E = None, f_I = None, kappa=None):
+def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, cE_m = None, cI_m = None, cE_s=None, cI_s=None, f_E = None, f_I = None, kappa_Jsup=None):
     """Generate model response for a given orientation and noise level using vmap_evaluate_model_response."""
     # Generate noisy data
     ori_vec = jnp.repeat(ori, n_noisy_trials)
@@ -700,7 +700,7 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
     
     # Create middle and superficial SSN layers
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m, untrained_pars.dist_from_single_ori)
-    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa=kappa)
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa_Jsup=kappa_Jsup)
 
     # Calculate fixed point for data    
     _, [r_mid, r_sup], _,  _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, test_grating, untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
@@ -823,12 +823,12 @@ def filtered_model_response(folder, run_ind, ori_list= jnp.asarray([55, 125, 0])
         # Load parameters from csv for given epoch
         _, trained_pars_stage2, untrained_pars = load_parameters(folder, run_index=run_ind, stage=stage, iloc_ind = iloc_ind_vec[stage_ind])
         # Get the parameters from the trained_pars dictionary and untreatned_pars class
-        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars_stage2, untrained_pars.ssn_pars)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup = unpack_ssn_parameters(trained_pars_stage2, untrained_pars.ssn_pars)
         
         # Iterate over the orientations
         for ori in ori_list:
             # Calculate model response for each orientation
-            r_mid, r_sup = vmap_model_response(untrained_pars, ori, num_noisy_trials, J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa)
+            r_mid, r_sup = vmap_model_response(untrained_pars, ori, num_noisy_trials, J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup)
             if r_noise:
                 # Add noise to the responses
                 noise_mid = generate_noise(num_noisy_trials, length = r_mid.shape[1], num_readout_noise = untrained_pars.num_readout_noise)

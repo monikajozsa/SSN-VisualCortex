@@ -143,7 +143,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         colors_cf = ['tab:orange', 'tab:green','tab:red', 'tab:blue', 'tab:red', 'tab:blue']
         linestyles_cf = ['-', '-', '-', '-', '--', '--']
         colors_metrics = [ 'tab:orange', 'tab:brown','tab:green']
-        keys_kappa = ['kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post']
+        keys_kappa_Jsup = ['kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post']
         colors_kappa = ['tab:red', 'red', 'tab:orange', 'orange']
         linestyles_kappa = ['-', '-', '-', '-']
         
@@ -176,7 +176,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         plot_readout_weights(axes[1,2], df, SGD_steps)
         plot_params_over_time(axes[2,0], df, keys_J_raw, colors_J, linestyles_J, title='J in middle and superficial layers', SGD_steps=SGD_steps)
         plot_params_over_time(axes[2,1], df, keys_cf, colors_cf, linestyles_cf, title='c: constant inputs, f: weights between mid and sup layers', SGD_steps=SGD_steps)
-        plot_params_over_time(axes[1,3], df, keys_kappa, colors_kappa, linestyles_kappa, title='kappas', SGD_steps=SGD_steps)
+        plot_params_over_time(axes[1,3], df, keys_kappa_Jsup, colors_kappa, linestyles_kappa, title='kappas Jsup', SGD_steps=SGD_steps)
         if not no_train_data:
             bars_params = axes[2,2].bar(keys_J_raw, values_J, color=colors_J)   
             bars_metrics = axes[0,3].bar(keys_metrics_rel_change, values_metrics, color=colors_metrics)
@@ -310,9 +310,9 @@ def barplots_from_csvs(folder, save_folder=None, excluded_runs = []):
 
     # Plotting bar plots of c, f and kappa parameters before and after  
     colors=['orange', 'orange', 'green', 'green', 'green', 'green', 'green', 'green', 'green', 'green']
-    keys_c_f_kappa = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post', 'f_I']
-    titles_c_f_kappa = [r'$c^{\text{mid}}_{\rightarrow E}$', r'$c^{\text{mid}}_{\rightarrow I}$', r'$c^{\text{sup}}_{\rightarrow E}$', r'$c^{\text{sup}}_{\rightarrow I}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$\kappa^{\text{pre}}_{E \rightarrow  E}$', r'$\kappa^{\text{pre}}_{I \rightarrow  E}$', r'$\kappa^{\text{post}}_{E \rightarrow  E}$', r'$\kappa^{\text{post}}_{I \rightarrow  E}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$']
-    barplot_params(colors, keys_c_f_kappa, titles_c_f_kappa, means_pre, means_post, vals_pre, vals_post, save_folder + '/c_f_kappa_pre_post.png')
+    keys_c_f_kappa_Jsup = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post', 'f_I']
+    titles_c_f_kappa_Jsup = [r'$c^{\text{mid}}_{\rightarrow E}$', r'$c^{\text{mid}}_{\rightarrow I}$', r'$c^{\text{sup}}_{\rightarrow E}$', r'$c^{\text{sup}}_{\rightarrow I}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$\kappa^{\text{pre}}_{E \rightarrow  E}$', r'$\kappa^{\text{pre}}_{I \rightarrow  E}$', r'$\kappa^{\text{post}}_{E \rightarrow  E}$', r'$\kappa^{\text{post}}_{I \rightarrow  E}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$']
+    barplot_params(colors, keys_c_f_kappa_Jsup, titles_c_f_kappa_Jsup, means_pre, means_post, vals_pre, vals_post, save_folder + '/c_f_kappa_Jsup_pre_post.png')
     
 
 def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_runs = []):
@@ -365,13 +365,13 @@ def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_r
     rel_changes_train, rel_changes_pretrain = rel_change_for_runs(folder, num_time_inds=num_time_inds, num_runs=num_training, excluded_runs=excluded_runs)
 
     # Define groups of parameters and plot each parameter group
-    keys_group = [['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m'], ['J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s'], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_EE_pre','kappa_IE_pre','kappa_EE_post','kappa_IE_post']]
+    keys_group = [['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m'], ['J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s'], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_Jsup_EE_pre','kappa_Jsup_IE_pre','kappa_Jsup_EE_post','kappa_Jsup_IE_post']]
     group_labels = [
         [r'$\Delta J^{\text{mid}}_{E \rightarrow E}$', r'$\Delta J^{\text{mid}}_{E \rightarrow I}$', r'$\Delta J^{\text{mid}}_{I \rightarrow E}$', r'$\Delta J^{\text{mid}}_{I \rightarrow I}$'],
         [r'$\Delta J^{\text{sup}}_{E \rightarrow E}$', r'$\Delta J^{\text{sup}}_{E \rightarrow I}$', r'$\Delta J^{\text{sup}}_{I \rightarrow E}$', r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'],
         [r'$\Delta c^{\text{mid}}_{\rightarrow E}$', r'$\Delta c^{\text{mid}}_{\rightarrow I}$', r'$\Delta c^{\text{sup}}_{\rightarrow E}$', r'$\Delta c^{\text{sup}}_{\rightarrow I}$'],
         [r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$'],
-        [r'$\Delta \kappa^{\text{pre}}_{E \rightarrow  E}$',r'$\Delta \kappa^{\text{pre}}_{E \rightarrow  I}$',r'$\Delta \kappa^{\text{post}}_{E \rightarrow  E}$',r'$\Delta \kappa^{\text{post}}_{E \rightarrow  I}$']
+        [r'$\Delta \kappa^{\text{pre}}_{J^s_{E \rightarrow  E}}$',r'$\Delta \kappa^{\text{pre}}_{J^s_{E \rightarrow  I}}$',r'$\Delta \kappa^{\text{post}}_{J^s_{E \rightarrow  E}}$',r'$\Delta \kappa^{\text{post}}_{J^s_{E \rightarrow  I}}$']
     ]
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
     c_box_colors = ['orange', 'orange', 'orange', 'orange']
@@ -1000,14 +1000,14 @@ def match_keys_to_labels(key_list):
             matched_labels[key] = r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$'
         elif 'f_I' in key:
             matched_labels[key] = r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$'
-        elif 'kappa_EE_pre' in key:
-            matched_labels[key] = r'$\Delta \kappa^{\text{pre}}_{E \rightarrow  E}$'
-        elif 'kappa_IE_pre' in key:
-            matched_labels[key] = r'$\Delta \kappa^{\text{pre}}_{E \rightarrow  I}$'
-        elif 'kappa_EE_post' in key:
-            matched_labels[key] = r'$\Delta \kappa^{\text{post}}_{E \rightarrow  E}$'
-        elif 'kappa_IE_post' in key:
-            matched_labels[key] = r'$\Delta \kappa^{\text{post}}_{E \rightarrow  I}$'
+        elif 'kappa_Jsup_EE_pre' in key:
+            matched_labels[key] = r'$\Delta \kappa^{\text{pre}}_{J^s_{E \rightarrow  E}}$'
+        elif 'kappa_Jsup_IE_pre' in key:
+            matched_labels[key] = r'$\Delta \kappa^{\text{pre}}_{J^s_{E \rightarrow  I}}$'
+        elif 'kappa_Jsup_EE_post' in key:
+            matched_labels[key] = r'$\Delta \kappa^{\text{post}}_{J^s_{E \rightarrow  E}}$'
+        elif 'kappa_Jsup_IE_post' in key:
+            matched_labels[key] = r'$\Delta \kappa^{\text{post}}_{J^s_{E \rightarrow  I}}$'
         elif 'offset_th' in key: # Psychometric offset threshold for correlation triangles
             matched_labels[key] = r'$\Delta \theta_{\text{offset}}$'
         else:
@@ -1053,11 +1053,11 @@ def plot_param_offset_correlations(folder, excluded_runs=[]):
     keys_a = ['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m', 'J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s']
     keys_b = ['J_E_m', 'J_I_m', 'EI_ratio_J_m', 'J_E_s', 'J_I_s', 'EI_ratio_J_s']
     keys_c = ['f_E', 'f_I', 'cE_m', 'cI_m', 'cE_s', 'cI_s']
-    keys_d = ['kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post']
+    keys_d = ['kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post']
     fig1a, axes1a = plt.subplots(nrows=2, ncols=4, figsize=(4*5, 2*5)) # raw J params
     fig1b, axes1b = plt.subplots(nrows=2, ncols=3, figsize=(3*5, 2*5)) # combined J params
     fig1c, axes1c = plt.subplots(nrows=3, ncols=2, figsize=(2*5, 3*5)) # f and c params
-    fig1d, axes1d = plt.subplots(nrows=2, ncols=2, figsize=(2*5, 2*5)) # kappa params
+    fig1d, axes1d = plt.subplots(nrows=2, ncols=2, figsize=(2*5, 2*5)) # kappa_Jsup params
     # Process each group of parameters
     parameter_groups = [keys_a, keys_b, keys_c, keys_d]
     x_labels = match_keys_to_labels(corr_psychometric_offset_param.keys())
@@ -1079,7 +1079,7 @@ def plot_param_offset_correlations(folder, excluded_runs=[]):
                 y_label = 'SUPERFICIAL LAYER \n'
             else:
                 y_label = None
-            # rows of the plot collect types of parameters: 1) mid, 2) sup, 3) f and kappa, 4) J combined
+            # rows of the plot collect types of parameters: 1) mid, 2) sup, 3) f and kappa_Jsup, 4) J combined
             corr_and_p_1 = corr_psychometric_offset_param[param_key]
             regplots(param_key, 'psychometric_offset', rel_changes_train, corr_and_p_1, axes_flat, j, x_labels[param_key], y_label)
             j += 1
@@ -1087,7 +1087,7 @@ def plot_param_offset_correlations(folder, excluded_runs=[]):
         save_fig(fig1a, folder, f'/figures/corr_psychometric_Jraw.png', title='Raw J parameters vs psychometric threshold')
         save_fig(fig1b, folder, f'/figures/corr_psychometric_Jcombined.png', title='Combined J parameters vs psychometric threshold')
         save_fig(fig1c, folder, f'/figures/corr_psychometric_f_c.png', title='f and c parameters vs psychometric threshold')
-        save_fig(fig1d, folder, f'/figures/corr_psychometric_kappa.png', title='kappa parameters vs psychometric threshold')
+        save_fig(fig1d, folder, f'/figures/corr_psychometric_kappa_Jsup.png', title='kappa Js parameters vs psychometric threshold')
 
 
 def plot_correlations(folder, num_training, num_time_inds=3):

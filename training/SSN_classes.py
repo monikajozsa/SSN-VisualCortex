@@ -40,9 +40,9 @@ class _SSN_Base(object):
         """ Find the fixed point of the rate vector r """
         if r_init is None:
             r_init = jnp.zeros(inp_vec.shape)
-        if len(jnp.shape(self.W)) == 3:
+        if len(jnp.shape(self.W)) == 3: # middle layer - vmapped over grid points
             drdt = lambda r : self.drdt(self.W, r, inp_vec)
-        else:    
+        else: # superficial layer
             drdt = lambda r : self.drdt(r, inp_vec)
 
         Nmax = int(Tmax/dt)
@@ -65,7 +65,7 @@ class _SSN_Base(object):
 
 class SSN_sup(_SSN_Base):
     """ Class for the superficial SSN layer. """
-    def __init__(self, ssn_pars, grid_pars, J_2x2, dist_from_single_ori, ori_dist, kappa= jnp.array([[0.0, 0.0], [0.0, 0.0]]), **kwargs):
+    def __init__(self, ssn_pars, grid_pars, J_2x2, dist_from_single_ori, ori_dist, kappa_Jsup= jnp.array([[0.0, 0.0], [0.0, 0.0]]), **kwargs):
         Ni = Ne = grid_pars.gridsize_Nx**2
         tauE = ssn_pars.tauE
         tauI = ssn_pars.tauI
@@ -82,7 +82,7 @@ class SSN_sup(_SSN_Base):
    
         xy_dist = grid_pars.xy_dist
 
-        self.W = self.make_W(J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa)
+        self.W = self.make_W(J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa_Jsup)
     
         
     def make_W(self, J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa, MinSyn=1e-4, CellWiseNormalized=False):

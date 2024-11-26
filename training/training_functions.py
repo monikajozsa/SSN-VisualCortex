@@ -186,12 +186,12 @@ def train_ori_discr(
                 append_parameter_lists(trained_pars_dict, ssn_pars, ['cI_s'], cI_s)
                 append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_E'], log_f_E, as_log=True)
                 append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_I'], log_f_I, as_log=True)
-                if 'kappa' in trained_pars_dict.keys():
-                    tanh_kappa = jnp.tanh(trained_pars_dict['kappa'])
-                    kappas.append(tanh_kappa.ravel())
-                elif hasattr(ssn_pars, 'kappa'):
-                    tanh_kappa = jnp.tanh(ssn_pars.kappa)
-                    kappas.append(tanh_kappa.ravel())
+                if 'kappa_Jsup' in trained_pars_dict.keys():
+                    tanh_kappa_Jsup = jnp.tanh(trained_pars_dict['kappa_Jsup'])
+                    kappas_Jsup.append(tanh_kappa_Jsup.ravel())
+                elif hasattr(ssn_pars, 'kappa_Jsup'):
+                    tanh_kappa_Jsup = jnp.tanh(ssn_pars.kappa_Jsup)
+                    kappas_Jsup.append(tanh_kappa_Jsup.ravel())
                 if pretrain_on:
                     w_sigs.append(readout_pars_dict['w_sig'])
                     b_sigs.append(readout_pars_dict['b_sig'])
@@ -203,7 +203,7 @@ def train_ori_discr(
                 train_accs=[train_acc]
                 train_max_rates=[train_max_rate]
                 train_mean_rates=[train_mean_rate]
-                log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas = unpack_ssn_parameters(trained_pars_dict, ssn_pars, as_log_list=True) 
+                log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas_Jsup = unpack_ssn_parameters(trained_pars_dict, ssn_pars, as_log_list=True) 
                 if pretrain_on:
                     w_sigs = [readout_pars_dict['w_sig']]
                     b_sigs = [readout_pars_dict['b_sig']]
@@ -357,7 +357,7 @@ def train_ori_discr(
     if stage < 2:  
         df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets)#, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
     else:
-        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas=kappas)#, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
+        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas_Jsup=kappas_Jsup)#, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
     df.insert(0, 'run_index', run_index) # insert run index as the first column 
     if results_filename:
         file_exists = os.path.isfile(results_filename)
@@ -439,11 +439,11 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     
     # Create middle and superficial SSN layers
     if pretraining:
-        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _ = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars, return_kappa=False)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _ = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars, return_kappa_Jsup=False)
         ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist)
     else:
-        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars)
-        ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars)
+        ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist, kappa_Jsup)
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m, untrained_pars.dist_from_single_ori)
     
     # Run reference and target through the model
@@ -679,7 +679,7 @@ def offset_at_baseline_acc(accuracies, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_va
 
 
 ####### Function for creating DataFrame from training results #######
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas=None, acc_means=None, acc_stds=None, test_offset_vec=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas_Jsup=None, acc_means=None, acc_stds=None, test_offset_vec=None):
     """ This function collects different variables from training results into a dataframe."""
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
@@ -770,11 +770,11 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         df['b_sig'] = b_sigs
 
     # Add kappa_pre and kappa_post to the DataFrame
-    if max_stages==2 and kappas is not None:
-        kappas_np=jnp.asarray(kappas)
-        kappa_names = ['kappa_EE_pre', 'kappa_IE_pre', 'kappa_EE_post', 'kappa_IE_post']
-        for i in range(len(kappas_np[0])):
-            df[kappa_names[i]] = kappas_np[:,i]
+    if max_stages==2 and kappas_Jsup is not None:
+        kappas_Jsup_np=jnp.asarray(kappas_Jsup)
+        kappa_Jsup_names = ['kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post']
+        for i in range(len(kappas_Jsup_np[0])):
+            df[kappa_Jsup_names[i]] = kappas_Jsup_np[:,i]
 
     if acc_means is not None:
         # create offset_{i} keys for each offset in test_offset_vec
