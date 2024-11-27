@@ -59,15 +59,15 @@ def main_analysis(folder_path, num_runs, conf_names):
             num_time_inds = 3
         else:
             num_time_inds = 2
-        #boxplots_from_csvs(config_folder, num_time_inds = num_time_inds, excluded_runs=excluded_runs)
-        #plot_param_offset_correlations(config_folder, excluded_runs=excluded_runs)
+        boxplots_from_csvs(config_folder, num_time_inds = num_time_inds, excluded_runs=excluded_runs)
+        plot_param_offset_correlations(config_folder, excluded_runs=excluded_runs)
         
         # plot tuning curves and features
         tc_cells=[10,40,100,130,172,202,262,292,334,364,424,454,496,526,586,616,650,690,740,760] 
         # these are indices of representative cells from the different layers and types: every pair is for off center and center from 
         # mEph0(1-2), mIph0(3-4), mEph1(5-6), mIph1(7-8), mEph2(9-10), mIph2(11-12), mEph3(13-14), mIph3(15-16), sE(17-18), sI(19-20)
         
-        #plot_tuning_curves(config_folder, tc_cells, num_runs, excluded_runs=excluded_runs)
+        plot_tuning_curves(config_folder, tc_cells, num_runs, excluded_runs=excluded_runs)
         if i == 0:
             stages = [0,1,2]
         else:
