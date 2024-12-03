@@ -2,7 +2,6 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 from jax import vmap
-import numpy
 
 class _SSN_Base(object):
     """ Base class for SSN models """
@@ -208,9 +207,9 @@ class SSN_mid(_SSN_Base):
         W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]) 
         
         num_type,_,grid_size_2D = jnp.shape(W_type_grid_block)
-        W = numpy.zeros((num_type*num_phases, num_type*num_phases, grid_size_2D))
+        W = jnp.zeros((num_type*num_phases, num_type*num_phases, grid_size_2D))
         for i in range(num_phases):
-            W[i*num_type:(i+1)*num_type, i*num_type:(i+1)*num_type, :] = W_type_grid_block
+            W = W.at[i*num_type:(i+1)*num_type, i*num_type:(i+1)*num_type, :].set(W_type_grid_block)
         # The next line is Wmid with mixed phase connections. Tile W_type_grid_block for num_phases x num_phases in the first two dimensions
         # W = jnp.tile(W_type_grid_block, (num_phases, num_phases, 1)) / num_phases # Shape: (phases*num_types, phases*num_types, Nc)
 
