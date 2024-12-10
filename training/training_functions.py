@@ -120,6 +120,7 @@ def train_ori_discr(
 
     # Define SGD_steps indices where losses an accuracy are validated
     val_steps = jnp.arange(0, numSGD_steps, training_pars.validation_freq)
+    print_steps = jnp.arange(0, numSGD_steps, 50)
 
     print(
         "SGD_step: {} ¦ learning rate: {} ¦ batch size {}".format(
@@ -168,8 +169,9 @@ def train_ori_discr(
                 acc_mean, acc_std, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
                 # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
                 psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
-                print('Mean accuracies:',acc_mean, 'for offsets', test_offset_vec)
-                print('estimated psychometric threshold:', psychometric_offset)
+                if SGD_step in print_steps:
+                    print('Mean accuracies:',acc_mean, 'for offsets', test_offset_vec)
+                    print('estimated psychometric threshold:', psychometric_offset)
 
             # ii) Store parameters and metrics (append or initialize lists)
             if 'stages' in locals():
@@ -281,7 +283,11 @@ def train_ori_discr(
                         psychometric_offsets.append(float(psychometric_offset))
                     else:
                         psychometric_offsets=[float(psychometric_offset)]
-                    print('Baseline acc is achieved at offset:', psychometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean)
+                    SGD_step_time = time.time() - start_time
+                    if SGD_step in print_steps:
+                        print('Baseline acc is achieved at offset:', psychometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean)                    
+                        print("Stage: {}¦ Readout loss: {:.3f}  ¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ SGD step: {} ¦ Psy. offset: {} ¦ Runtime: {:.4f} ".format(
+                            stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, psychometric_offset, SGD_step_time))
                     # Early stopping criteria for training - if accuracies in multiple relevant offsets did not change
                     if 'acc_means' in locals():
                         acc_means.append(acc_mean)
@@ -294,9 +300,6 @@ def train_ori_discr(
                         # If accuracy is stable for the last three offsets in test_offset_vec, then stop training
                         if has_plateaued(acc_means_np[:,0], window_size=10) and has_plateaued(acc_means_np[:,1], window_size=10) and has_plateaued(acc_means_np[:,2], window_size=10):
                             break
-                    SGD_step_time = time.time() - start_time
-                    print("Stage: {}¦ Readout loss: {:.3f}  ¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ SGD step: {} ¦ Psy. offset: {} ¦ Runtime: {:.4f} ".format(
-                        stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, psychometric_offset, SGD_step_time))
                 
             # v) Parameter update. Note that training has one-stage, pre-training has two-stages, where the second stage (stage 1) is skipped if the accuracy satisfies a minimum threshold criteria
             if pretrain_on:

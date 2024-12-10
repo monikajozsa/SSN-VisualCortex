@@ -319,8 +319,8 @@ def exclude_runs(folder_path, input_vector):
 
     # Adjust the 'run_index' column
     df_orimap_filtered['run_index'] = range(len(df_orimap_filtered))
-    df_init_params_filtered['run_index'][df_init_params_filtered['stage']==0] = range(len(df_orimap_filtered))
-    df_init_params_filtered['run_index'][df_init_params_filtered['stage']==1] = range(len(df_orimap_filtered))
+    df_init_params_filtered.loc[df_init_params_filtered['stage']==0, 'run_index'] = range(len(df_orimap_filtered)) # ChainedAssignmentError: behaviour will change in pandas 3.0
+    df_init_params_filtered.loc[df_init_params_filtered['stage']==1, 'run_index'] = range(len(df_orimap_filtered))
     for i in range(df_pretraining_results_filtered['run_index'].max() + 1):
         if i not in input_vector:
             shift_val = sum(x < i for x in input_vector)
