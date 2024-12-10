@@ -311,7 +311,7 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=jnp.arang
 
     # Get the parameters from the trained_pars dictionary and untreatned_pars class
     ref_ori_saved = float(untrained_pars.stimuli_pars.ref_ori)
-    J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup = unpack_ssn_parameters(trained_pars, untrained_pars.ssn_pars)
+    J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup,_,_ = unpack_ssn_parameters(trained_pars, untrained_pars.ssn_pars)
     ssn_pars = untrained_pars.ssn_pars        
     x_map = untrained_pars.grid_pars.x_map
     y_map = untrained_pars.grid_pars.y_map
@@ -823,7 +823,7 @@ def filtered_model_response(folder, run_ind, ori_list= jnp.asarray([55, 125, 0])
         # Load parameters from csv for given epoch
         _, trained_pars_stage2, untrained_pars = load_parameters(folder, run_index=run_ind, stage=stage, iloc_ind = iloc_ind_vec[stage_ind])
         # Get the parameters from the trained_pars dictionary and untreatned_pars class
-        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup = unpack_ssn_parameters(trained_pars_stage2, untrained_pars.ssn_pars)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup, _, _ = unpack_ssn_parameters(trained_pars_stage2, untrained_pars.ssn_pars)
         
         # Iterate over the orientations
         for ori in ori_list:

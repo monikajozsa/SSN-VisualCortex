@@ -8,9 +8,9 @@ import jax.numpy as jnp
 class PretrainingPars:
     is_on: bool = True
     """ flag for turning pretraining on or off """
-    ref_ori_int = [0, 180]
+    ref_ori_int = [15, 165]
     """ interval where the reference orientation is randomly chosen from """
-    ori_dist_int = [10, 25]
+    ori_dist_int = [5, 20]
     """ interval where the absolute orientation difference between reference and target is randomly chosen from """
     acc_th: float = 0.749
     """ accuracy threshold to calculate corresponding offset (training task) """
@@ -26,7 +26,7 @@ class PretrainingPars:
     """ maximum number of SGD steps during pretraining """
     min_stop_ind: int = 50
     """ minimum SGD step where pretraining can stop """
-    pretrain_stage_1_acc_th: float = 0.55
+    pretrain_stage_1_acc_th: float = 0.65
     """ accuracy threshold for early stopping criterium for the second stage of pretraining """
 
 pretraining_pars = PretrainingPars()
@@ -47,7 +47,7 @@ class TrainingPars:
     """ number of trials per SGD step """
     validation_freq: int = 10
     """ frequency of validation loss and accuracy calculation """
-    SGD_steps: int = 2000
+    SGD_steps: int = 1200
     """ number of SGD step """
     min_stop_ind: int = 1000
     """ minimum SGD step where training can stop """

@@ -16,7 +16,7 @@ from analysis.visualization import plot_results_from_csvs, barplots_from_csvs
 from analysis.main_analysis import main_analysis
 
 ## Set up number of runs and starting time
-num_pretraining = 50
+num_pretraining = 20
 starting_time_in_main= time.time()
 
 # Set up results folder and save note and scripts
@@ -37,7 +37,7 @@ num_training = main_pretraining(folder_path, num_pretraining, starting_time_in_m
 ########## ########## ##########
 ##########  Training  ##########
 ########## ########## ##########
-conf_dict, conf_names, conf_list = config(['special', 'excluded'])
+conf_dict, conf_names, conf_list = config(['special'])
 
 for i, conf in enumerate(conf_list):
     

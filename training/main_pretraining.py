@@ -200,7 +200,7 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_traini
     data = create_grating_pretraining(untrained_pars.pretrain_pars, N, untrained_pars.BW_image_jax_inp, numRnd_ori1=N)
 
     # Extract trained and untrained parameters
-    J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _= unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars, return_kappas=False)
+    J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _, _, _= unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars, return_kappas=False)
 
     # Define middle and superficial layers
     ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m, untrained_pars.dist_from_single_ori) 
@@ -343,7 +343,7 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
     while i < num_training and num_FailedRuns < 20:
 
         ##### RANDOM INITIALIZATION #####
-        numpy.random.seed(i)
+        numpy.random.seed(i + num_FailedRuns)
         
         ##### Randomize readout_pars, trained_pars, eta such that they satisfy certain conditions #####
         readout_pars_opt_dict, pretrain_pars_rand_dict, untrained_pars = randomize_params(folder_path, i)
