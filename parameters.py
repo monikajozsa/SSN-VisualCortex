@@ -273,6 +273,8 @@ class TrainedSSNPars:
     """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity """
     kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
     """ shaping parameter for middle layer horizontal connections to achieve orientation selectivity """
+    kappa_f = jnp.array([0.0, 0.0])
+    """ shaping parameter for feedforward connections to achieve orientation selectivity """
 
 @dataclass
 class PretrainedSSNPars:

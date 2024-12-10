@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from jax import jit, vmap
 import pandas as pd
 import os, sys
-from scipy.stats import chi2_contingency
+from scipy.stats import chisquare
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from parameters import StimuliPars
@@ -40,7 +40,10 @@ def test_uniformity(numbers, num_bins=18, alpha=0.25):
     if any([observed_freq[i] == 0 for i in range(num_bins)]):
         return False
     else:
-        _, p_value, _, expected_freq = chi2_contingency(observed_freq)
+        expected_freq_val = n / num_bins
+        expected_freq = expected_freq_val * numpy.ones_like(observed_freq)
+        # put together expected and observed frequencies into a 2D numpy array
+        stat, p_value = chisquare(f_obs=observed_freq, f_exp=expected_freq)
         if p_value <= alpha and jnp.all(jnp.array(observed_freq) > jnp.array(expected_freq) / 3) and jnp.all(jnp.array(observed_freq) < jnp.array(expected_freq) * 3):
             return False
         else:

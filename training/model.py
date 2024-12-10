@@ -38,8 +38,9 @@ def evaluate_model_response(
 
     # Create input to (I and E neurons in) superficial layer
     sup_input_ref = jnp.hstack([r_mid * f_E, r_mid * f_I]) + constant_vector_sup
-    # Yashar assumed that `distance_from_single_ori` has shape (81,) and `tanh_kappa_F` (which contains the kappas of f_E and f_I) has shape (2,)
-    # sup_input_ref = jnp.hstack([f_E * jnp.exp(tanh_kappa_F[0] * distance_from_single_ori) * r_mid, f_I * jnp.exp(tanh_kappa_F[1] * distance_from_single_ori) * r_mid]) + constant_vector_sup
+    # Yashar assumed that `distance_from_single_ori` has shape (81,) and `tanh_kappa_f` (which contains the kappas of f_E and f_I) has shape (2,)
+    # tanh_kappa_f = jnp.tanh(kappa_f) # kappa_f needs to be an input to evaluate_model_response
+    # sup_input_ref = jnp.hstack([f_E * jnp.exp(tanh_kappa_f[0] * distance_from_single_ori) * r_mid, f_I * jnp.exp(tanh_kappa_f[1] * distance_from_single_ori) * r_mid]) + constant_vector_sup
 
     # Calculate steady state response of superficial layer
     r_sup, fp_sup, avg_dx_sup, max_E_sup, max_I_sup, mean_E_sup, mean_I_sup = superficial_layer_fixed_point(

@@ -439,7 +439,7 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     
     # Create middle and superficial SSN layers
     if pretraining:
-        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _ = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars, return_kappa_Jsup=False)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _ = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars, return_kappas=False)
         ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist)
     else:
         J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars)
