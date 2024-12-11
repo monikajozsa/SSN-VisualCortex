@@ -20,10 +20,10 @@ num_pretraining = 20
 starting_time_in_main= time.time()
 
 # Set up results folder and save note and scripts
-note=f'Getting as much data with corrected kappas over the weekend as possible'
+note=f'Shortened training but pretrain_stage_1_acc_th raised to 0.65, xtol changed to 1e-2'
 root_folder = os.path.dirname(__file__)
 folder_path = save_code(note=note)
-#folder_path = os.path.join(root_folder, 'results', 'Nov19_v2')
+#folder_path = os.path.join(root_folder, 'results', 'Dec06_v0_new_version')
 
 ########## ########## ########## 
 ######### Pretraining ##########

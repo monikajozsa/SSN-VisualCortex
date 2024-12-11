@@ -120,7 +120,7 @@ def train_ori_discr(
 
     # Define SGD_steps indices where losses an accuracy are validated
     val_steps = jnp.arange(0, numSGD_steps, training_pars.validation_freq)
-    print_steps = jnp.arange(0, numSGD_steps, 50)
+    print_steps = jnp.arange(0, numSGD_steps, 50) # make this such that they are from val_steps - at the moment, printing happens within the validation steps
 
     print(
         "SGD_step: {} ¦ learning rate: {} ¦ batch size {}".format(
@@ -258,9 +258,7 @@ def train_ori_discr(
                     threshold_variables.append(temp_threshold)
                 else:
                     threshold_variables=[temp_threshold]
-            if SGD_step % 10 == 0:
-                print("Stage: {}¦ Readout loss: {:.3f}  ¦ Train loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ SGD step: {} ".format(
-                        stage, train_loss_all[0].item(), train_loss, train_acc, SGD_step))
+
             # iv) Loss and accuracy validation + printing results    
             if SGD_step in val_steps:
                 #### Calculate loss and accuracy on new validation data set
@@ -285,9 +283,8 @@ def train_ori_discr(
                         psychometric_offsets=[float(psychometric_offset)]
                     SGD_step_time = time.time() - start_time
                     if SGD_step in print_steps:
-                        print('Baseline acc is achieved at offset:', psychometric_offset, ' for step ', SGD_step, 'acc_vec:', acc_mean)                    
-                        print("Stage: {}¦ Readout loss: {:.3f}  ¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ SGD step: {} ¦ Psy. offset: {} ¦ Runtime: {:.4f} ".format(
-                            stage, train_loss_all[0].item(), train_loss, val_loss, train_acc, val_acc, SGD_step, psychometric_offset, SGD_step_time))
+                        print("Stage: {}¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Readout loss: {:.3f}  ¦ Dx loss: {:.3f} ¦ Rmax loss: {:.3f}  ¦ Rmean loss: {:.3f}  ¦ SGD step: {} ¦ Psy. offset: {} ¦ Runtime: {:.4f} ".format(
+                            stage, train_loss, val_loss, train_acc, val_acc, train_loss_all[0].item(), train_loss_all[1].item(),  train_loss_all[2].item(),  train_loss_all[3].item(), SGD_step, psychometric_offset, SGD_step_time))
                     # Early stopping criteria for training - if accuracies in multiple relevant offsets did not change
                     if 'acc_means' in locals():
                         acc_means.append(acc_mean)

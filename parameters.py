@@ -49,7 +49,7 @@ class TrainingPars:
     """ frequency of validation loss and accuracy calculation """
     SGD_steps: int = 1200
     """ number of SGD step """
-    min_stop_ind: int = 1000
+    min_stop_ind: int = 500
     """ minimum SGD step where training can stop """
 
 
@@ -58,7 +58,7 @@ class TrainingPars:
 class ConvPars:
     dt: float = 1.0
     """ step size during convergence of SSN """
-    xtol: float = 1e-04
+    xtol: float = 1e-02
     """ convergence tolerance of SSN """
     Tmax: float = 300.0 
     """ maximum number of steps to be taken during convergence of SSN """
