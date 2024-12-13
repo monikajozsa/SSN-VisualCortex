@@ -58,7 +58,7 @@ class TrainingPars:
 class ConvPars:
     dt: float = 1.0
     """ step size during convergence of SSN """
-    xtol: float = 1e-02
+    xtol: float = 1e-03
     """ convergence tolerance of SSN """
     Tmax: float = 300.0 
     """ maximum number of steps to be taken during convergence of SSN """
@@ -67,7 +67,7 @@ class ConvPars:
 # Loss parameters
 @dataclass
 class LossPars:
-    lambda_dx: float = 1
+    lambda_dx: float = 0.1
     """ constant for loss with respect to convergence of Euler function """
     lambda_w: float = 1
     """ constant for L2 regularizer of sigmoid layer weights """
@@ -76,7 +76,7 @@ class LossPars:
     lambda_r_max: float = 1
     """ constant for loss with respect to maximum rates in the network """
     lambda_r_mean: float = 0.01
-    """ constant for loss with respect to maximum rates in the network """
+    """ constant for loss with respect to maximum rates in the network; this is reset after pretraining """
     Rmax_E: float = 40
     """ maximum firing rate for E neurons - rates above this are penalised """
     Rmax_I: float = 80
@@ -218,6 +218,10 @@ class ReadoutPars:
 # general SSN parameters
 @dataclass
 class SSNPars:
+    kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+    """ shaping parameter for middle layer horizontal connections to achieve orientation selectivity """
+    kappa_f = jnp.array([0.0, 0.0])
+    """ shaping parameter for feedforward connections to achieve orientation selectivity """
     n: float = 2.0  
     """ power law parameter """
     k: float = 0.04  
@@ -271,10 +275,6 @@ class TrainedSSNPars:
     """ relative strength of weights of I/I pre/post cell-type in superficial layer """
     kappa_Jsup = jnp.array([[0.0, 0.0], [0.0, 0.0]])
     """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity """
-    kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
-    """ shaping parameter for middle layer horizontal connections to achieve orientation selectivity """
-    kappa_f = jnp.array([0.0, 0.0])
-    """ shaping parameter for feedforward connections to achieve orientation selectivity """
 
 @dataclass
 class PretrainedSSNPars:

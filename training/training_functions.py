@@ -151,7 +151,7 @@ def train_ori_discr(
             # i) Calculate model loss, accuracy, gradient
             train_loss, train_loss_all, train_acc, _, _, train_max_rate, train_mean_rate, grad = loss_and_grad_ori_discr(stage, trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=shuffle_labels)
 
-            if pretrain_on and stage == 1 and SGD_step == 0:
+            if stage == 1 and SGD_step == 0:
                 if train_acc > pretrain_stage_1_acc_th:
                     print("Early stop of stage 1: accuracy {} reached target {}".format(
                         train_acc, pretrain_stage_1_acc_th)
@@ -346,8 +346,8 @@ def train_ori_discr(
                 updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
                 trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
             
-            # Clear python cache data
-            gc.collect()
+        # Clear python cache data
+        gc.collect()
            
     ############# SAVING and RETURN OUTPUT #############
 
@@ -708,13 +708,6 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         'acc': train_accs
     })
     
-    # Copy df_train at step_indices['val_SGD_steps'] intp df_val 
-    # Note: train accuracy, val loss and acc and psychometric offset will be in both df_train and df_val for now to ease plotting
-    df_val = df_train.loc[step_indices['val_SGD_steps']].copy()
-    # Add validation accuracies and losses to df_val
-    df_val['val_acc'] = val_accs
-    df_val['val_loss'] = val_losses
-
     df_train['val_acc'] = None
     df_train['val_loss'] = None
     df_train.loc[step_indices['val_SGD_steps'],'val_acc'] = val_accs
@@ -771,8 +764,7 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     if max_stages==1:
         psychometric_offsets=jnp.hstack(psychometric_offsets)
         df_train.loc[step_indices['acc_check_ind'],'psychometric_offset']=psychometric_offsets
-    else:
-        df_val['psychometric_offset']=psychometric_offsets     
+    else:   
         df_train.loc[step_indices['val_SGD_steps'],'psychometric_offset']=psychometric_offsets
         step_indices['acc_check_ind'] = step_indices['val_SGD_steps']
         df_train['staircase_offset']= staircase_offsets
@@ -814,11 +806,19 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
             df_train[kappa_f_names[i]] = kappas_f_np[:,i]
 
     if acc_means is not None:
+        df_val = df_train.copy()
         # create offset_{i} keys for each offset in test_offset_vec
         for i in range(len(test_offset_vec)):
             acc_mean_new_col = f'acc_mean_offset_{test_offset_vec[i]}'
             acc_std_new_col = f'acc_std_offset_{test_offset_vec[i]}'
-            df_val[acc_mean_new_col] = jnp.asarray(acc_means)[:,i]
-            df_val[acc_std_new_col] = jnp.asarray(acc_stds)[:,i]
+            df_val[acc_mean_new_col] = None
+            df_val[acc_std_new_col] = None
+            df_val.loc[step_indices['acc_check_ind'],acc_mean_new_col] = jnp.asarray(acc_means)[:,i]
+            df_val.loc[step_indices['acc_check_ind'],acc_std_new_col] = jnp.asarray(acc_stds)[:,i]
+        df_val['psychometric_offset']=None
+        df_val.loc[step_indices['acc_check_ind'], 'psychometric_offset'] = psychometric_offsets  
+        df_val = df_val.loc[step_indices['acc_check_ind']].copy()
+    else:
+        df_val = df_train.loc[step_indices['acc_check_ind']].copy()
 
     return df_train, df_val

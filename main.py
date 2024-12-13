@@ -18,7 +18,7 @@ from analysis.visualization import plot_results_from_csvs, barplots_from_csvs
 from analysis.main_analysis import main_analysis
 
 ## Set up number of runs and starting time
-num_pretraining = 20
+num_pretraining = 50
 starting_time_in_main= time.time()
 
 # Set up results folder and save note and scripts
