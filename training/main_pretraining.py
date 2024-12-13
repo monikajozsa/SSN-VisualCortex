@@ -127,8 +127,8 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
     f_range= randomize_pars.f_range  
     cE_s, cI_s = random.uniform(low=[c_range[0], c_range[0]], high=[c_range[1], c_range[1]])
     f_E, f_I = random.uniform(low=[f_range[0], f_range[0]], high=[f_range[1], f_range[1]])
-    [r_train_sup,_],_ ,[avg_dx_mid, avg_dx_sup],[_, _, max_E_sup, max_I_sup], [_, _, mean_E_sup, mean_I_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
-    [r_pretrain_sup,_], _, [avg_dx_pretrain_mid, avg_dx_pretrain_sup],_,_ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
+    [r_train_sup,_],_ ,[avg_dx_mid, avg_dx_sup],[_, _, max_E_sup, max_I_sup], [_, _, mean_E_sup, mean_I_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, jnp.array([0.0,0.0]))
+    [r_pretrain_sup,_], _, [avg_dx_pretrain_mid, avg_dx_pretrain_sup],_,_ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, jnp.array([0.0,0.0]))
     
     # 2. Evaluate conditions   
     cond_dx_train = bool((avg_dx_mid < 100).all()) and bool((avg_dx_sup < 100).all())
@@ -209,8 +209,8 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_traini
 
     # Run reference and target data through the two layer model
     conv_pars = untrained_pars.conv_pars
-    [r_sup_ref, r_mid_ref], _,_, _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
-    [r_sup_target, r_mid_target], _, _, _, _= vmap_evaluate_model_response(ssn_mid, ssn_sup, data['target'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
+    [r_sup_ref, r_mid_ref], _,_, _, _ = vmap_evaluate_model_response(ssn_mid, ssn_sup, data['ref'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, jnp.array([0.0,0.0]))
+    [r_sup_target, r_mid_target], _, _, _, _= vmap_evaluate_model_response(ssn_mid, ssn_sup, data['target'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, jnp.array([0.0,0.0]))
     
     if for_training:
         # Readout configurations, when there is an additional logistic regression at the beginning of training

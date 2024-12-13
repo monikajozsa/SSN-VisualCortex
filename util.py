@@ -98,9 +98,9 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
             else:
                 kappa_f = jnp.array([0.0, 0.0])
     else:
-        kappa_Jsup = None
-        kappa_Jmid = None
-        kappa_f = None
+        kappa_Jsup = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+        kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+        kappa_f = jnp.array([0.0, 0.0])
     if as_log_list:
         log_J_2x2_m = take_log(J_2x2_m)
         log_J_2x2_s = take_log(J_2x2_s)

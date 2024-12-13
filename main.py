@@ -7,6 +7,8 @@ import time
 import numpy
 import shutil
 import subprocess
+# fix random seed
+numpy.random.seed(0)
 
 from configurations import config
 from util import configure_parameters_file, save_code, set_up_config_folder
@@ -23,7 +25,7 @@ starting_time_in_main= time.time()
 note=f'Shortened training but pretrain_stage_1_acc_th raised to 0.65, xtol changed to 1e-2'
 root_folder = os.path.dirname(__file__)
 folder_path = save_code(note=note)
-#folder_path = os.path.join(root_folder, 'results', 'Dec06_v0_new_version')
+#folder_path = os.path.join(root_folder, 'results', 'Dec12_v2')
 
 ########## ########## ########## 
 ######### Pretraining ##########
@@ -63,9 +65,9 @@ for i, conf in enumerate(conf_list):
 print('Finished all configurations')
 
 # Make the parameters.py.bak file the parameters.py file
-if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
-    shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
-time.sleep(1) # wait for the file to be saved
+#if os.path.exists(os.path.join(root_folder,'parameters.py.bak')):
+#    shutil.copy(os.path.join(root_folder,'parameters.py.bak'), os.path.join(root_folder,'parameters.py'))
+#time.sleep(1) # wait for the file to be saved
 
 ########## ########## ##########
 ######### Tuning curves ########

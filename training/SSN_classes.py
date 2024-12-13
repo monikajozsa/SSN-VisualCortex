@@ -40,7 +40,7 @@ class _SSN_Base(object):
         """ Find the fixed point of the rate vector r """
         if r_init is None:
             r_init = jnp.zeros(inp_vec.shape)
-        if len(jnp.shape(self.W)) == 3: # middle layer - vmapped over grid points
+        if len(jnp.shape(self.W)) == 3: # middle layer
             drdt = lambda r : self.drdt(self.W, r, inp_vec)
         else: # superficial layer
             drdt = lambda r : self.drdt(r, inp_vec)
@@ -184,43 +184,42 @@ class SSN_mid(_SSN_Base):
         self.Nc = grid_pars.gridsize_Nx**2 # number of cells per phase
 
         Ni = Ne = self.phases * self.Nc
-        tau_vec = jnp.tile(jnp.array([ssn_pars.tauE,  ssn_pars.tauI]), self.phases)
+        tau_vec = jnp.hstack([ssn_pars.tauE * jnp.ones(self.Nc),  ssn_pars.tauI * jnp.ones(self.Nc)])
+        tau_vec = jnp.kron(jnp.ones((1, self.phases)), tau_vec).squeeze()
 
         super(SSN_mid, self).__init__(n=ssn_pars.n, k=ssn_pars.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs)
 
         self.make_W(J_2x2, jnp.tanh(kappa), dist_from_single_ori[:,0])
     
-    def drdt_per_grid_point(self, W, r, inp_vec):
-        """ Differential equation for the rate vector r """
-        out = (-r + self.powlaw(jnp.ravel(W @ r) + inp_vec)) / self.tau_vec  # W is 8x8, r is 8, inp_vec is 8 and tau_vec is 8
-        return out
-
-    def drdt(self, W, r, inp_vec):
-        """ Compute dr/dt for all grid points in parallel. """
-        r_reshaped = jnp.reshape(r, (-1, self.Nc))
-        inp_vec_reshaped = jnp.reshape(inp_vec, (-1, self.Nc))
-        r_next = vmap(self.drdt_per_grid_point, in_axes=(2, 1, 1))(W, r_reshaped, inp_vec_reshaped) # r_next shape is (81, 8) - default vmap feature
-        r_next_transposed = jnp.transpose(r_next)  # Shape becomes (8, 81) again
-        r_next_flat = jnp.ravel(r_next_transposed)
-
-        return r_next_flat
 
     def make_W(self, J_2x2, tanh_kappa, distance_from_single_ori):
-        """Create the recurrent connectivity matrix W - a block diagonal matrix with J_2x2 as the block matrix."""
-        num_phases = self.phases
-
-        # Compute the 8x8x81 block with the exponential scaling per grid point
+        """ Compute the 2x2x81 block with the exponential scaling per grid point """
         W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]) 
-        
-        num_type,_,grid_size_2D = jnp.shape(W_type_grid_block)
-        W = jnp.zeros((num_type*num_phases, num_type*num_phases, grid_size_2D))
-        for i in range(num_phases):
-            W = W.at[i*num_type:(i+1)*num_type, i*num_type:(i+1)*num_type, :].set(W_type_grid_block)
-        # The next line is Wmid with mixed phase connections. Tile W_type_grid_block for num_phases x num_phases in the first two dimensions
-        # W = jnp.tile(W_type_grid_block, (num_phases, num_phases, 1)) / num_phases # Shape: (phases*num_types, phases*num_types, Nc)
+    
+        self.W = W_type_grid_block
 
-        # Save the connectivity matrix to the instance
-        self.W = W
+    def drdt(self, W, r, inp_vec):
+        """ Differential equation for the rate vector r """
+        r1 = jnp.reshape(r, (-1, 2, self.Nc)) # phase x type x grid-point
+        I =  W[None,:,:,:] * r1[:,None,:,:] # (4 x 2 x 2 x 81)  x recurrent input        
+        I = jnp.sum(I, axis=2) # n_phases x 2 x 81 sum over pre-synaptic type
+        I = I.ravel() # 648
+        out = (-r + self.powlaw(I + inp_vec)) / self.tau_vec
+        
+        return out
+    
+    '''
+    def drdt_ones(self, r, inp_vec):
+        """ Differential equation for the rate vector r """
+        r1 = jnp.reshape(r, (-1, 2, self.Nc)) # phase x type x grid-point
+        r1 = jnp.sum(r1, axis=0) # sum over phases - change from eye to ones
+        I =  self.W * r1[None, :, :] # 2 x 2 x 81m recurrent input        
+        I = jnp.sum(I, axis=1) # 2x81 sum over pre-synaptic type
+        # TODO: tile I num_phase times along a new first axis
+        out = (-r + self.powlaw(I + inp_vec)) / self.tau_vec
+        
+        return out
+    '''
 
     def select_type(self, vec, map_numbers):
         """ Select the E or I part of the vector vec """

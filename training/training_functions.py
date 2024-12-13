@@ -120,7 +120,7 @@ def train_ori_discr(
 
     # Define SGD_steps indices where losses an accuracy are validated
     val_steps = jnp.arange(0, numSGD_steps, training_pars.validation_freq)
-    print_steps = jnp.arange(0, numSGD_steps, 50) # make this such that they are from val_steps - at the moment, printing happens within the validation steps
+    print_steps = jnp.arange(0, numSGD_steps, 20) # make this such that they are from val_steps - at the moment, printing happens within the validation steps
 
     print(
         "SGD_step: {} ¦ learning rate: {} ¦ batch size {}".format(
@@ -194,6 +194,18 @@ def train_ori_discr(
                 elif hasattr(ssn_pars, 'kappa_Jsup'):
                     tanh_kappa_Jsup = jnp.tanh(ssn_pars.kappa_Jsup)
                     kappas_Jsup.append(tanh_kappa_Jsup.ravel())
+                if 'kappa_Jmid' in trained_pars_dict.keys():
+                    tanh_kappa_Jmid = jnp.tanh(trained_pars_dict['kappa_Jmid'])
+                    kappas_Jmid.append(tanh_kappa_Jmid.ravel())
+                elif hasattr(ssn_pars, 'kappa_Jmid'):
+                    tanh_kappa_Jmid = jnp.tanh(ssn_pars.kappa_Jmid)
+                    kappas_Jmid.append(tanh_kappa_Jmid.ravel())
+                if 'kappa_f' in trained_pars_dict.keys():
+                    tanh_kappa_f = jnp.tanh(trained_pars_dict['kappa_f'])
+                    kappas_f.append(tanh_kappa_f.ravel())
+                elif hasattr(ssn_pars, 'kappa_f'):
+                    tanh_kappa_f = jnp.tanh(ssn_pars.kappa_f)
+                    kappas_f.append(tanh_kappa_f.ravel())
                 if pretrain_on:
                     w_sigs.append(readout_pars_dict['w_sig'])
                     b_sigs.append(readout_pars_dict['b_sig'])
@@ -205,7 +217,7 @@ def train_ori_discr(
                 train_accs=[train_acc]
                 train_max_rates=[train_max_rate]
                 train_mean_rates=[train_mean_rate]
-                log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas_Jsup, _, _ = unpack_ssn_parameters(trained_pars_dict, ssn_pars, as_log_list=True) 
+                log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas_Jsup, kappas_Jmid, kappas_f = unpack_ssn_parameters(trained_pars_dict, ssn_pars, as_log_list=True) 
                 if pretrain_on:
                     w_sigs = [readout_pars_dict['w_sig']]
                     b_sigs = [readout_pars_dict['b_sig']]
@@ -355,18 +367,21 @@ def train_ori_discr(
         
     # Create DataFrame and save the DataFrame to a CSV file
     if stage < 2:  
-        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets)#, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
+        df_train, df_val = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
     else:
-        df = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas_Jsup=kappas_Jsup)#, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
-    df.insert(0, 'run_index', run_index) # insert run index as the first column 
+        df_train, df_val = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas_Jsup=kappas_Jsup, kappas_Jmid=kappas_Jmid, kappas_f=kappas_f, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
+    # insert run index as the first column 
+    df_train.insert(0, 'run_index', run_index) 
+    df_val.insert(0, 'run_index', run_index)
     if results_filename:
         file_exists = os.path.isfile(results_filename)
-        df.to_csv(results_filename, mode='a', header=not file_exists, index=False)
+        df_train.to_csv(results_filename, mode='a', header=not file_exists, index=False)
+        df_val.to_csv(results_filename + '_val', mode='a', header=not file_exists, index=False)
 
     # Clear jax cash data
     jax.clear_caches()
 
-    return df
+    return df_train
 
 
 def loss_and_grad_ori_discr(stage, trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, training_loss_val_and_grad, shuffle_labels=False):
@@ -439,7 +454,7 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     
     # Create middle and superficial SSN layers
     if pretraining:
-        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, _, _, _ = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars, return_kappas=False)
+        J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup, kappa_Jmid, kappa_f = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars, return_kappas=False)
         ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist)
     else:
         J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup, kappa_Jmid, kappa_f = unpack_ssn_parameters(trained_pars_dict, untrained_pars.ssn_pars)
@@ -450,8 +465,8 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
         ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m, untrained_pars.dist_from_single_ori)
     
     # Run reference and target through the model
-    [r_sup_ref, r_mid_ref], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
-    [r_sup_target,r_mid_target],_, [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters)
+    [r_sup_ref, r_mid_ref], _, [avg_dx_ref_mid, avg_dx_ref_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, kappa_f)
+    [r_sup_target,r_mid_target],_, [avg_dx_target_mid, avg_dx_target_sup], _, _= evaluate_model_response(ssn_mid, ssn_sup, train_data['target'], conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, kappa_f)
     
     # Select the middle grid and sum the contribution from the middle and the superficial layer
     if pretraining:
@@ -682,44 +697,49 @@ def offset_at_baseline_acc(accuracies, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_va
 
 
 ####### Function for creating DataFrame from training results #######
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas_Jsup=None, acc_means=None, acc_stds=None, test_offset_vec=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas_Jsup=None, kappas_Jmid=None, kappas_f=None, acc_means=None, acc_stds=None, test_offset_vec=None):
     """ This function collects different variables from training results into a dataframe."""
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
     # Create an empty DataFrame and initialize it with stages, SGD steps, and training accuracies
-    df = pd.DataFrame({
+    df_train = pd.DataFrame({
         'stage': stages,
         'SGD_steps': step_indices['SGD_steps'],
         'acc': train_accs
     })
+    
+    # Copy df_train at step_indices['val_SGD_steps'] intp df_val 
+    # Note: train accuracy, val loss and acc and psychometric offset will be in both df_train and df_val for now to ease plotting
+    df_val = df_train.loc[step_indices['val_SGD_steps']].copy()
+    # Add validation accuracies and losses to df_val
+    df_val['val_acc'] = val_accs
+    df_val['val_loss'] = val_losses
 
+    df_train['val_acc'] = None
+    df_train['val_loss'] = None
+    df_train.loc[step_indices['val_SGD_steps'],'val_acc'] = val_accs
+    df_train.loc[step_indices['val_SGD_steps'],'val_loss'] = val_losses
+    
     train_max_rates = jnp.vstack(jnp.asarray(train_max_rates))
     train_mean_rates = jnp.vstack(jnp.asarray(train_mean_rates))
     log_J_2x2_m = jnp.stack(log_J_2x2_m)
     log_J_2x2_s = jnp.stack(log_J_2x2_s)
     train_losses_all = jnp.stack(train_losses_all)
 
-    # Add validation accuracies at specified SGD steps
-    df['val_acc'] = None
-    df.loc[step_indices['val_SGD_steps'], 'val_acc'] = val_accs
-
     # Add different types of training and validation losses to df
     loss_names = ['loss_binary_cross_entr', 'loss_dx_max', 'loss_r_max', 'loss_r_mean', 'loss_w_sig', 'loss_b_sig', 'loss_all']
     for i in range(len(train_losses_all[0])):
-        df[loss_names[i]]=train_losses_all[:,i]
+        df_train[loss_names[i]]=train_losses_all[:,i]
     
-    df['val_loss']=None
-    df.loc[step_indices['val_SGD_steps'], 'val_loss']=val_losses
-
     # Add max rates data to df
     max_rates_names = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup']
     for i in range(len(train_max_rates[0])):
-        df[max_rates_names[i]]=train_max_rates[:,i]
+        df_train[max_rates_names[i]]=train_max_rates[:,i]
 
     # Add mean rates data to df
     mean_rates_names = ['meanr_E_mid', 'meanr_I_mid', 'meanr_E_sup', 'meanr_I_sup']
     for i in range(len(train_mean_rates[0])):
-        df[mean_rates_names[i]]=train_mean_rates[:,i]
+        df_train[mean_rates_names[i]]=train_mean_rates[:,i]
     
     # Add parameters that are trained in two stages during training and in one stage during pretraining
     log_J_m_names = ['log_J_EE_m', 'log_J_EI_m', 'log_J_IE_m', 'log_J_II_m']
@@ -729,31 +749,33 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     J_2x2_m=jnp.transpose(jnp.array([jnp.exp(log_J_2x2_m[:,0]),-jnp.exp(log_J_2x2_m[:,1]),jnp.exp(log_J_2x2_m[:,2]),-jnp.exp(log_J_2x2_m[:,3])]))
     J_2x2_s=jnp.transpose(jnp.array([jnp.exp(log_J_2x2_s[:,0]),-jnp.exp(log_J_2x2_s[:,1]),jnp.exp(log_J_2x2_s[:,2]),-jnp.exp(log_J_2x2_s[:,3])]))
     for i in range(len(log_J_2x2_m[0])):
-        df[log_J_m_names[i]] = log_J_2x2_m[:,i]
+        df_train[log_J_m_names[i]] = log_J_2x2_m[:,i]
     for i in range(len(log_J_2x2_s[0])):
-        df[log_J_s_names[i]] = log_J_2x2_s[:,i]
+        df_train[log_J_s_names[i]] = log_J_2x2_s[:,i]
     for i in range(len(log_J_2x2_m[0])):
-        df[J_m_names[i]] = J_2x2_m[:,i]
+        df_train[J_m_names[i]] = J_2x2_m[:,i]
     for i in range(len(log_J_2x2_s[0])):
-        df[J_s_names[i]] = J_2x2_s[:,i]
-    df['cE_m']=cE_m
-    df['cI_m']=cI_m
-    df['cE_s']=cE_s
-    df['cI_s']=cI_s
-    df['log_f_E']=log_f_E
-    df['log_f_I']=log_f_I
-    df['f_E']=[jnp.exp(log_f_E[i]) for i in range(len(log_f_E))]
-    df['f_I']=[jnp.exp(log_f_I[i]) for i in range(len(log_f_I))]
+        df_train[J_s_names[i]] = J_2x2_s[:,i]
+    df_train['cE_m']=cE_m
+    df_train['cI_m']=cI_m
+    df_train['cE_s']=cE_s
+    df_train['cI_s']=cI_s
+    df_train['log_f_E']=log_f_E
+    df_train['log_f_I']=log_f_I
+    df_train['f_E']=[jnp.exp(log_f_E[i]) for i in range(len(log_f_E))]
+    df_train['f_I']=[jnp.exp(log_f_I[i]) for i in range(len(log_f_I))]
 
     # Distinguish psychometric and staircase offsets
-    df['psychometric_offset']=None
+    df_train['psychometric_offset']=None
     max_stages = max(1,max(stages))
     if max_stages==1:
         psychometric_offsets=jnp.hstack(psychometric_offsets)
-        df.loc[step_indices['acc_check_ind'],'psychometric_offset']=psychometric_offsets
-    else:        
-        df.loc[step_indices['val_SGD_steps'],'psychometric_offset']=psychometric_offsets
-        df['staircase_offset']= staircase_offsets
+        df_train.loc[step_indices['acc_check_ind'],'psychometric_offset']=psychometric_offsets
+    else:
+        df_val['psychometric_offset']=psychometric_offsets     
+        df_train.loc[step_indices['val_SGD_steps'],'psychometric_offset']=psychometric_offsets
+        step_indices['acc_check_ind'] = step_indices['val_SGD_steps']
+        df_train['staircase_offset']= staircase_offsets
     # save w_sigs when pretraining is on
     if max_stages==1:
         w_sigs = jnp.stack(w_sigs)
@@ -767,22 +789,36 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
         for i in range(w_sigs.shape[1]):      
             weight_data[w_sig_keys[i]] = w_sigs[:,i]
         weight_df = pd.DataFrame(weight_data)
-        df = pd.concat([df, weight_df], axis=1)
+        df_train = pd.concat([df_train, weight_df], axis=1)
 
         # Add b_sig to the DataFrame
-        df['b_sig'] = b_sigs
+        df_train['b_sig'] = b_sigs
 
     # Add kappa_pre and kappa_post to the DataFrame
     if max_stages==2 and kappas_Jsup is not None:
         kappas_Jsup_np=jnp.asarray(kappas_Jsup)
         kappa_Jsup_names = ['kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post']
         for i in range(len(kappas_Jsup_np[0])):
-            df[kappa_Jsup_names[i]] = kappas_Jsup_np[:,i]
+            df_train[kappa_Jsup_names[i]] = kappas_Jsup_np[:,i]
+    
+    if max_stages==2 and kappas_Jmid is not None:
+        kappas_Jmid_np=jnp.asarray(kappas_Jmid)
+        kappa_Jmid_names = ['kappa_Jmid_EE_pre', 'kappa_Jmid_IE_pre', 'kappa_Jmid_EE_post', 'kappa_Jmid_IE_post']
+        for i in range(len(kappas_Jmid_np[0])):
+            df_train[kappa_Jmid_names[i]] = kappas_Jmid_np[:,i]
+    
+    if max_stages==2 and kappas_f is not None:
+        kappas_f_np=jnp.asarray(kappas_f)
+        kappa_f_names = ['kappa_f_E', 'kappa_f_I']
+        for i in range(len(kappas_f_np[0])):
+            df_train[kappa_f_names[i]] = kappas_f_np[:,i]
 
     if acc_means is not None:
         # create offset_{i} keys for each offset in test_offset_vec
         for i in range(len(test_offset_vec)):
-            df[f'acc_mean_offset_{test_offset_vec[i]}'] = acc_means[:,i]
-            df[f'acc_std_offset_{test_offset_vec[i]}'] = acc_stds[:,i]
+            acc_mean_new_col = f'acc_mean_offset_{test_offset_vec[i]}'
+            acc_std_new_col = f'acc_std_offset_{test_offset_vec[i]}'
+            df_val[acc_mean_new_col] = jnp.asarray(acc_means)[:,i]
+            df_val[acc_std_new_col] = jnp.asarray(acc_stds)[:,i]
 
-    return df
+    return df_train, df_val
