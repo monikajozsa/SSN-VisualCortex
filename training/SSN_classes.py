@@ -65,7 +65,7 @@ class _SSN_Base(object):
 
 class SSN_sup(_SSN_Base):
     """ Class for the superficial SSN layer. """
-    def __init__(self, ssn_pars, grid_pars, J_2x2, dist_from_single_ori, ori_dist, kappa_Jsup= jnp.array([[0.0, 0.0], [0.0, 0.0]]), **kwargs):
+    def __init__(self, ssn_pars, grid_pars, J_2x2, dist_from_single_ori, ori_dist, kappa_Jsup= jnp.array([[[0.0, 0.0], [0.0, 0.0]],[[0.0, 0.0], [0.0, 0.0]]]), **kwargs):
         Ni = Ne = grid_pars.gridsize_Nx**2
         tauE = ssn_pars.tauE
         tauI = ssn_pars.tauI
@@ -97,12 +97,11 @@ class SSN_sup(_SSN_Base):
         Output:
         self.W
         """
-        new_cell_wise_normalization = False
+        new_cell_wise_normalization = True
         # Unpack parameters  
         p_local = self.p_local
-        tanh_kappa = jnp.tanh(kappa)
-        tanh_kappa_pre = [[tanh_kappa[0][0], 0], [tanh_kappa[0][1], 0]]
-        tanh_kappa_post = [[tanh_kappa[1][0], 0], [tanh_kappa[1][1], 0]]
+        tanh_kappa_pre = jnp.tanh(kappa[0])
+        tanh_kappa_post = jnp.tanh(kappa[1])
         sigma_oris = self.sigma_oris * jnp.ones((2,2))
         if jnp.isscalar(self.s_2x2):
             s_2x2 = self.s_2x2 * jnp.ones((2,2))

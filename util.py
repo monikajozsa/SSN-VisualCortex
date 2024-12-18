@@ -82,7 +82,7 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
             if hasattr(ssn_pars, 'kappa_Jsup'): # case when during pretraining we check training task accuracy
                 kappa_Jsup = ssn_pars.kappa_Jsup
             else:
-                kappa_Jsup = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+                kappa_Jsup = jnp.array([[[0.0, 0.0], [0.0, 0.0]],[[0.0, 0.0], [0.0, 0.0]]])
         if 'kappa_Jmid' in trained_pars:
             kappa_Jmid = trained_pars['kappa_Jmid']
         else:
@@ -98,7 +98,7 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
             else:
                 kappa_f = jnp.array([0.0, 0.0])
     else:
-        kappa_Jsup = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+        kappa_Jsup = jnp.array([[[0.0, 0.0], [0.0, 0.0]],[[0.0, 0.0], [0.0, 0.0]]])
         kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
         kappa_f = jnp.array([0.0, 0.0])
     if as_log_list:

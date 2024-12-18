@@ -376,7 +376,7 @@ def train_ori_discr(
     if results_filename:
         file_exists = os.path.isfile(results_filename)
         df_train.to_csv(results_filename, mode='a', header=not file_exists, index=False)
-        df_val.to_csv(results_filename + '_val', mode='a', header=not file_exists, index=False)
+        df_val.to_csv('val_' + results_filename, mode='a', header=not file_exists, index=False)
 
     # Clear jax cash data
     jax.clear_caches()
@@ -789,7 +789,7 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     # Add kappa_pre and kappa_post to the DataFrame
     if max_stages==2 and kappas_Jsup is not None:
         kappas_Jsup_np=jnp.asarray(kappas_Jsup)
-        kappa_Jsup_names = ['kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post']
+        kappa_Jsup_names = ['kappa_Jsup_EE_pre', 'kappa_Jsup_EI_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_II_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_EI_post', 'kappa_Jsup_IE_post', 'kappa_Jsup_II_post']
         for i in range(len(kappas_Jsup_np[0])):
             df_train[kappa_Jsup_names[i]] = kappas_Jsup_np[:,i]
     

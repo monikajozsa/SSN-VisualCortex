@@ -26,7 +26,7 @@ class PretrainingPars:
     """ maximum number of SGD steps during pretraining """
     min_stop_ind: int = 50
     """ minimum SGD step where pretraining can stop """
-    pretrain_stage_1_acc_th: float = 0.65
+    pretrain_stage_1_acc_th: float = 0.51
     """ accuracy threshold for early stopping criterium for the second stage of pretraining """
 
 pretraining_pars = PretrainingPars()
@@ -49,7 +49,7 @@ class TrainingPars:
     """ frequency of validation loss and accuracy calculation """
     SGD_steps: int = 1200
     """ number of SGD step """
-    min_stop_ind: int = 500
+    min_stop_ind: int = 1000
     """ minimum SGD step where training can stop """
 
 
@@ -273,9 +273,10 @@ class TrainedSSNPars:
     """ relative strength of weights of I/E pre/post cell-type in superficial layer """
     J_II_s: float = 0.0
     """ relative strength of weights of I/I pre/post cell-type in superficial layer """
-    kappa_Jsup = jnp.array([[0.0, 0.0], [0.0, 0.0]])
-    """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity """
-
+    kappa_Jsup = jnp.array([[[0.0, 0.0], [0.0, 0.0]],[[0.0, 0.0], [0.0, 0.0]]])
+    """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity;
+    kappa_Jsup[0] and kappa_Jsup[1] are for pre- and post- synaptic connections, respectively """
+    
 @dataclass
 class PretrainedSSNPars:
     cE_m: float = 0.0 
