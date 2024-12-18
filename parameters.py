@@ -58,7 +58,7 @@ class TrainingPars:
 class ConvPars:
     dt: float = 1.0
     """ step size during convergence of SSN """
-    xtol: float = 1e-03
+    xtol: float = 1e-04
     """ convergence tolerance of SSN """
     Tmax: float = 300.0 
     """ maximum number of steps to be taken during convergence of SSN """
@@ -67,7 +67,7 @@ class ConvPars:
 # Loss parameters
 @dataclass
 class LossPars:
-    lambda_dx: float = 0.1
+    lambda_dx: float = 1
     """ constant for loss with respect to convergence of Euler function """
     lambda_w: float = 1
     """ constant for L2 regularizer of sigmoid layer weights """

@@ -506,8 +506,8 @@ def plot_tuning_curves(results_dir, tc_cells, num_runs, folder_to_save=None, see
     numpy.random.seed(seed)
     num_mid_cells = 648
     num_sup_cells = 164
-    num_runs_plotted = min(5,num_runs)
     valid_runs = numpy.setdiff1d(numpy.arange(num_runs), excluded_runs)
+    num_runs_plotted = min([5,num_runs, len(valid_runs)])
     for i in range(num_runs_plotted):
         # Select tuning curves for the current run
         mesh_i = tuning_curves[:,0]==valid_runs[i]

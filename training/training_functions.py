@@ -275,15 +275,19 @@ def train_ori_discr(
             if SGD_step in val_steps:
                 #### Calculate loss and accuracy on new validation data set
                 val_acc_vec, val_loss_vec = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset)
+                acc_vec_125, loss_vec_125 = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 125.0)
             
                 val_loss = jnp.mean(val_loss_vec)
                 val_acc = jnp.mean(val_acc_vec)
+                acc_125 = jnp.mean(acc_vec_125)
                 if 'val_accs' in locals():
                     val_accs.append(val_acc)
                     val_losses.append(val_loss)
+                    accs_125.append(acc_125)
                 else:
                     val_accs=[val_acc]
                     val_losses=[val_loss]
+                    accs_125=[acc_125]
                 
                 if not pretrain_on:
                     acc_mean, acc_std,_, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
@@ -355,6 +359,7 @@ def train_ori_discr(
     if pretrain_on:
         SGD_steps = jnp.arange(0, len(stages))
         val_accs = jnp.array(val_accs)
+        accs_125 = jnp.array(accs_125)
         val_steps_stage_0_and_1 = jnp.concatenate([val_steps, numSGD_steps+val_steps])
         val_SGD_steps = val_steps_stage_0_and_1[0:len(val_accs)]
         acc_check_ind_stage_0_and_1 = jnp.concatenate([acc_check_ind, numSGD_steps+acc_check_ind])
@@ -367,16 +372,16 @@ def train_ori_discr(
         
     # Create DataFrame and save the DataFrame to a CSV file
     if stage < 2:  
-        df_train, df_val = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
+        df_train, df_val = make_dataframe(stages, step_indices, train_accs, val_accs, accs_125, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
     else:
-        df_train, df_val = make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas_Jsup=kappas_Jsup, kappas_Jmid=kappas_Jmid, kappas_f=kappas_f, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
+        df_train, df_val = make_dataframe(stages, step_indices, train_accs, val_accs, accs_125, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas_Jsup=kappas_Jsup, kappas_Jmid=kappas_Jmid, kappas_f=kappas_f, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
     # insert run index as the first column 
     df_train.insert(0, 'run_index', run_index) 
     df_val.insert(0, 'run_index', run_index)
     if results_filename:
         file_exists = os.path.isfile(results_filename)
         df_train.to_csv(results_filename, mode='a', header=not file_exists, index=False)
-        df_val.to_csv('val_' + results_filename, mode='a', header=not file_exists, index=False)
+        df_val.to_csv(results_filename[:-4] + '_val' + results_filename[-4:], mode='a', header=not file_exists, index=False)
 
     # Clear jax cash data
     jax.clear_caches()
@@ -697,7 +702,7 @@ def offset_at_baseline_acc(accuracies, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_va
 
 
 ####### Function for creating DataFrame from training results #######
-def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas_Jsup=None, kappas_Jmid=None, kappas_f=None, acc_means=None, acc_stds=None, test_offset_vec=None):
+def make_dataframe(stages, step_indices, train_accs, val_accs, accs_125, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas_Jsup=None, kappas_Jmid=None, kappas_f=None, acc_means=None, acc_stds=None, test_offset_vec=None):
     """ This function collects different variables from training results into a dataframe."""
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
@@ -711,6 +716,7 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, train_losses_all,
     df_train['val_acc'] = None
     df_train['val_loss'] = None
     df_train.loc[step_indices['val_SGD_steps'],'val_acc'] = val_accs
+    df_train.loc[step_indices['val_SGD_steps'],'accs_125'] = accs_125
     df_train.loc[step_indices['val_SGD_steps'],'val_loss'] = val_losses
     
     train_max_rates = jnp.vstack(jnp.asarray(train_max_rates))
