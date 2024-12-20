@@ -238,7 +238,7 @@ def train_ori_discr(
             # Check for early stopping during pre-training: break out from SGD_step loop and stages loop (using a flag)
             if pretrain_on:
                 if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(psychometric_offsets)>2:
-                    pretrain_stop_flag = all(jnp.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(jnp.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]) and has_plateaued(train_accs)
+                    pretrain_stop_flag = all(jnp.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(jnp.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1])
                 if pretrain_stop_flag:
                     print('Stopping pretraining: desired accuracy achieved for training task.')
                     break
@@ -301,13 +301,13 @@ def train_ori_discr(
                     if SGD_step in print_steps:
                         print("Stage: {}¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Readout loss: {:.3f}  ¦ Dx loss: {:.3f} ¦ Rmax loss: {:.3f}  ¦ Rmean loss: {:.3f}  ¦ SGD step: {} ¦ Psy. offset: {} ¦ Runtime: {:.4f} ".format(
                             stage, train_loss, val_loss, train_acc, val_acc, train_loss_all[0].item(), train_loss_all[1].item(),  train_loss_all[2].item(),  train_loss_all[3].item(), SGD_step, psychometric_offset, SGD_step_time))
-                    # Early stopping criteria for training - if accuracies in multiple relevant offsets did not change
                     if 'acc_means' in locals():
                         acc_means.append(acc_mean)
                         acc_stds.append(acc_std)
                     else:
                         acc_means=[acc_mean]
                         acc_stds=[acc_std]
+                    # Early stopping criteria for training - if accuracies in multiple relevant offsets did not change
                     if SGD_step > training_pars.min_stop_ind:
                         acc_means_np = numpy.array(acc_means)
                         # If accuracy is stable for the last three offsets in test_offset_vec, then stop training
@@ -342,8 +342,8 @@ def train_ori_discr(
                         updates_readout, opt_state_readout = optimizer.update(grad[1], opt_state_readout)
                         readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
                     else:
-                        # Update readout parameters
-                        updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout) # *** grad was [0] for c and [1] for b and w - it should be just grad for b and w here
+                        # Update readout parameters for stage 1
+                        updates_readout, opt_state_readout = optimizer.update(grad, opt_state_readout)
                         readout_pars_dict = optax.apply_updates(readout_pars_dict, updates_readout)
             else:                                
                 # Update ssn layer parameters
@@ -715,9 +715,10 @@ def make_dataframe(stages, step_indices, train_accs, val_accs, accs_125, train_l
     
     df_train['val_acc'] = None
     df_train['val_loss'] = None
+    df_train['accs_125'] = None
     df_train.loc[step_indices['val_SGD_steps'],'val_acc'] = val_accs
-    df_train.loc[step_indices['val_SGD_steps'],'accs_125'] = accs_125
     df_train.loc[step_indices['val_SGD_steps'],'val_loss'] = val_losses
+    df_train.loc[step_indices['val_SGD_steps'],'accs_125'] = accs_125
     
     train_max_rates = jnp.vstack(jnp.asarray(train_max_rates))
     train_mean_rates = jnp.vstack(jnp.asarray(train_mean_rates))

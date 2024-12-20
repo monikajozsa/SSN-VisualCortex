@@ -161,9 +161,9 @@ class SSN_sup(_SSN_Base):
             maps = (jnp.reshape(vec[:self.Ne], (Nx, Nx)),
                    jnp.reshape(vec[self.Ne:], (Nx, Nx)))
 
-        if select=='E': # second half
+        if select=='E': # second half of vec
             return maps[0]
-        if select =='I': # first half
+        if select =='I': # first half of vec
             return maps[1]
 
 
@@ -188,14 +188,15 @@ class SSN_mid(_SSN_Base):
 
         super(SSN_mid, self).__init__(n=ssn_pars.n, k=ssn_pars.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs)
 
-        self.make_W(J_2x2, jnp.tanh(kappa), dist_from_single_ori[:,0])
+        self.W = self.make_W(J_2x2, dist_from_single_ori[:,0], kappa)
     
 
-    def make_W(self, J_2x2, tanh_kappa, distance_from_single_ori):
+    def make_W(self, J_2x2, distance_from_single_ori, kappa):
         """ Compute the 2x2x81 block with the exponential scaling per grid point """
-        W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]) 
+        tanh_kappa = jnp.tanh(kappa)
+        W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]**2/(45**2))
     
-        self.W = W_type_grid_block
+        return W_type_grid_block
 
     def drdt(self, W, r, inp_vec):
         """ Differential equation for the rate vector r """

@@ -312,11 +312,12 @@ class PretrainedSSNPars:
 # Ranges for the randomization of parameters (at initialization)
 class RandomizePars:
     J_range = [jnp.array([4, 5.5]),jnp.array([0.7,2]), jnp.array([4, 5.5]),jnp.array([0.7,1.2])]
-    """ range of the initial Jm and Js parameters """
+    """ range of the initial Jm and Js trainable parameters """
     c_range = jnp.array([4.5, 5.5])
-    """ range of the initial c parameters """
+    """ range of the initial c trainable parameters """
     f_range = jnp.array([0.6, 1.2])
-    """ range of the initial f parameters """
+    """ range of the initial f trainable parameters """
     g_range = jnp.array([0.15, 0.45])
-    """ range of the initial gE and gI parameters """
+    """ range of the gE and gI parameters """
     eta_range = jnp.array([3e-3, 5e-3])
+    """ range of the learning rate parameter """
