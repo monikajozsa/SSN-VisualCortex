@@ -91,7 +91,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         ax.set_title('Loss', fontsize=20)
         ax.set_xlabel('SGD steps', fontsize=20)
         # set ylim based on the min and max values after the first 2% of the training
-        ax.set_ylim(-0.1, max(1, max(df['loss'][int(0.02*SGD_steps):])+0.1))
+        ax.set_ylim(-0.1, max(1, max(df['loss_all'][int(0.02*SGD_steps):])+0.1))
 
     def plot_offset(ax, df, SGD_steps, keys_metrics):
         num_pretraining_steps= sum(df['stage'] == 0)

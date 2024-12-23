@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(__file__))
 
 from util import load_parameters, take_log, create_grating_training, create_grating_pretraining, unpack_ssn_parameters, filter_for_run_and_stage
 from util_gabor import update_untrained_pars, save_orimap
-from training_functions import train_ori_discr, task_acc_test, generate_noise
+from training_functions import train_ori_discr, task_acc_test, generate_noise, mean_training_task_acc_test, offset_at_baseline_acc
 from SSN_classes import SSN_mid, SSN_sup
 from model import vmap_evaluate_model_response, vmap_evaluate_model_response_mid
 
@@ -300,6 +300,7 @@ def create_initial_parameters_df(folder_path, initial_parameters, pretrained_par
 
     return initial_parameters_df
 
+
 def exclude_runs(folder_path, input_vector):
     """Exclude runs from the analysis by removing them from the CSV files - file modifications only happen within folder_path folders."""
     # Read the original CSV file
@@ -335,9 +336,21 @@ def exclude_runs(folder_path, input_vector):
 ############### PRETRAINING ###############
 def main_pretraining(folder_path, num_training, initial_parameters=None, starting_time_in_main=0):
     """ Initialize parameters randomly and run pretraining on the general orientation discrimination task """
+    def create_readout_init(data, log_regr, layer, sup_only, pretrained_readout_pars_dict, psychometric_offset, i, N):
+        """ Populate the data dictionary with readout parameters """
+        data['run_index'].append(i)
+        data['log_regr'].append(log_regr)
+        data['layer'].append(layer)
+        data['sup_only'].append(sup_only)
+        for j in range(N):
+            data[f'w_sig_{j}'].append(pretrained_readout_pars_dict['w_sig'][j])
+        data['b_sig'].append(pretrained_readout_pars_dict['b_sig'])
+        data['psychometric_offset'].append(psychometric_offset)
+
     # Run num_training number of pretraining + training
     num_FailedRuns = 0
-    i=0
+    i = 0
+    stage = 0
     
     run_indices=[]
     while i < num_training and num_FailedRuns < 20:
@@ -357,6 +370,7 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
                 readout_pars_opt_dict,
                 pretrain_pars_rand_dict,
                 untrained_pars,
+                stage,
                 results_filename=results_filename,
                 jit_on=True,
                 offset_step = 0.1,
@@ -368,6 +382,43 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
             print('######### Stopped run {} because of NaN values  - num failed runs = {} #########'.format(i, num_FailedRuns))
             num_FailedRuns = num_FailedRuns + 1
             continue  
+        
+        ##### STAGE 1 COULD BE CALLED HERE INSTEAD OF LOGISTIC REGRESSION ######
+
+        ##### LOGISTIC REGRESSION FOR READOUT PARAMETERS #####
+        test_offset_vec = numpy.array([1, 3, 7, 12, 20])
+        num_samples = 50000
+        pretrained_readout_pars_dict_no_log_regr, trained_pars_dict, untrained_pars, offset, _ = load_parameters(folder_path, run_index=i, stage=1, iloc_ind=-1, for_training=True)
+        N=len(pretrained_readout_pars_dict_no_log_regr['w_sig'])
+        # Initialize the dictionary to store data for the CSV
+        if os.path.exists(os.path.join(folder_path, 'init_readout_params.csv')):
+            data = pd.read_csv(os.path.join(folder_path, 'init_readout_params.csv')).to_dict(orient='list')
+        else:
+            data = {'run_index': [], 'log_regr': [],'layer': [], 'sup_only': []}
+            for j in range(N):
+                data[f'w_sig_{j}'] = []
+            data['b_sig'] = []
+            data['psychometric_offset'] = []
+            
+        create_readout_init(data, 0, 1, 1, pretrained_readout_pars_dict_no_log_regr, offset, i, N)    
+        # Add the optimized readout parameters for sup_only and mixed readout cases
+        untrained_pars.sup_mid_readout_contrib[0]=1
+        pretrained_readout_pars_dict = readout_pars_from_regr(trained_pars_dict, untrained_pars, num_samples, for_training=True)
+        # Calculate spychometric offset threshold
+        acc_mean, acc_std, _, _ = mean_training_task_acc_test(trained_pars_dict, pretrained_readout_pars_dict, untrained_pars, True, test_offset_vec, sample_size = 5)
+        psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+        create_readout_init(data, 1, 1, 1, pretrained_readout_pars_dict, psychometric_offset[0], i, N)
+        # fill up the dictionary with pretrained_readout_pars_dict['b_sig'] pretrained_readout_pars_dict['w_sig'][i], layer =1 and sup_only=1 and log_regr = 1
+        untrained_pars.sup_mid_readout_contrib=[0.5, 0.5]
+        pretrained_readout_pars_dict = readout_pars_from_regr(trained_pars_dict, untrained_pars, num_samples, for_training=True)
+        acc_mean, acc_std, _, _ = mean_training_task_acc_test(trained_pars_dict, pretrained_readout_pars_dict, untrained_pars, True, test_offset_vec, sample_size = 5)
+        psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
+        # NOTE: pretrained_readout_pars_dict['w_sig'] is 2N-long in the mixed readout case with middle layer (layer 0) being the first N and superficial layer (layer 1) being the last N
+        create_readout_init(data, 1, 0, 0, pretrained_readout_pars_dict, psychometric_offset[0], i, N)
+        pretrained_readout_pars_dict['w_sig'] = pretrained_readout_pars_dict['w_sig'][N:]
+        create_readout_init(data, 1, 1, 0, pretrained_readout_pars_dict, psychometric_offset[0], i, N)
+        df = pd.DataFrame(data)
+        df.to_csv(os.path.join(folder_path, 'init_readout_params.csv'), index=False)
 
         ##### Save final values into initial_parameters as initial parameters for training stage #####
         _, pretrained_pars_dict, untrained_pars = load_parameters(folder_path, run_index = i, stage = 1, iloc_ind = -1)
@@ -378,7 +429,7 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
         print('runtime of {} pretraining'.format(i), time.time()-starting_time_in_main)
         print('number of failed runs = ', num_FailedRuns)
     
-    # Read pretraining_results.csv file, go over runs and check the last psychometric_offset within that run is in the range pretraining_pars.offset_threshold. If not, then add to the excluded_run_inds.
+    # Read pretraining_results.csv file, go over runs and check if the last psychometric_offset within that run is in the range pretraining_pars.offset_threshold. If not, then add to the excluded_run_inds.
     run_indices = [i for i in range(num_training)]
     _, _, untrained_pars = load_parameters(folder_path, run_index = num_training-1, stage = 1, iloc_ind = -1)
     exclude_run_inds = []

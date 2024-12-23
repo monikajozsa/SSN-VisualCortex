@@ -387,7 +387,7 @@ def load_orientation_map(folder, run_ind):
     return orimap
 
 
-def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=False):
+def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=False, log_regr=0, sup_only=1):
     """Loads the parameters from the pretraining_results.csv or training_results.csv file depending on the stage. 
     If for_training is True, then the last row of pretraining_results.csv is loaded as readout parameters are not trained during training. 
     If for_training is False, then the full last row of training_results.csv is loaded. 
@@ -486,10 +486,54 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
         middle_grid_inds = readout_pars.middle_grid_ind
     else:
         middle_grid_inds = range(readout_pars.readout_grid_size[0]**2)
-    w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))] 
-    w_sig_list = [float(selected_row[key]) for key in w_sig_keys]
-    w_sig_values = jnp.array(w_sig_list)
-    b_sig_value = float(selected_row['b_sig'])
+    w_sig_keys = [f'w_sig_{middle_grid_inds[i]}' for i in range(len(middle_grid_inds))]
+    if log_regr==0:
+        w_sig_list = [float(selected_row[key]) for key in w_sig_keys]
+        b_sig_value = float(selected_row['b_sig'])
+        w_sig_values = jnp.array(w_sig_list)
+    else:
+        w_sig_keys_log_regr = [f'w_sig_{i}' for i in range(len(middle_grid_inds))]
+        # Load init_readout_params.csv as a DataFrame
+        init_readout_params = pd.read_csv(os.path.join(os.path.dirname(folder_path), 'init_readout_params.csv'))
+
+        if sup_only == 1:
+            # Filter rows for sup_only case
+            mesh_rows = (
+                (init_readout_params['run_index'] == run_index) &
+                (init_readout_params['log_regr'] == 1) &
+                (init_readout_params['sup_only'] == 1) &
+                (init_readout_params['layer'] == 1)
+            )
+            init_readout_params_meshed = init_readout_params[mesh_rows]
+            w_sig_list = [float(init_readout_params_meshed[key].iloc[0]) for key in w_sig_keys_log_regr]
+        else:
+            # Filter rows for mid layer
+            mesh_rows_mid = (
+                (init_readout_params['run_index'] == run_index) &
+                (init_readout_params['log_regr'] == 1) &
+                (init_readout_params['sup_only'] == 0) &
+                (init_readout_params['layer'] == 0)
+            )
+            init_readout_params_mid = init_readout_params[mesh_rows_mid]
+            w_sig_list_mid = [float(init_readout_params_mid[key].iloc[0]) for key in w_sig_keys_log_regr]
+
+            # Filter rows for sup layer
+            mesh_rows_sup = (
+                (init_readout_params['run_index'] == run_index) &
+                (init_readout_params['log_regr'] == 1) &
+                (init_readout_params['sup_only'] == 0) &
+                (init_readout_params['layer'] == 1)
+            )
+            init_readout_params_sup = init_readout_params[mesh_rows_sup]
+            w_sig_list_sup = [float(init_readout_params_sup[key].iloc[0]) for key in w_sig_keys_log_regr]
+
+            # Combine mid and sup lists
+            w_sig_list = w_sig_list_mid + w_sig_list_sup
+
+        # Extract bias value and convert weights to JAX array
+        b_sig_value = float(init_readout_params_meshed['b_sig'].iloc[0])
+        w_sig_values = jnp.array(w_sig_list)
+
     readout_pars_loaded = dict(w_sig=w_sig_values, b_sig=b_sig_value)
     readout_pars.b_sig = b_sig_value
     readout_pars.w_sig = w_sig_values
@@ -518,13 +562,16 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
     ###### Get other metrics needed for training ######
     if for_training:
         untrained_pars.pretrain_pars.is_on = False
-        if 'psychometric_offset' in df.keys():
-            offsets  = df['psychometric_offset'].dropna().reset_index(drop=True)
+        if log_regr==0:
+            if 'psychometric_offset' in df.keys():
+                offsets  = df['psychometric_offset'].dropna().reset_index(drop=True)
+            else:
+                for keys in df.keys():
+                    if 'ric_offset' in keys:
+                        offsets = df[keys].dropna().reset_index(drop=True)
+            offset_last = offsets[len(offsets)-1]
         else:
-            for keys in df.keys():
-                if 'ric_offset' in keys:
-                    offsets = df[keys].dropna().reset_index(drop=True)
-        offset_last = offsets[len(offsets)-1]
+            offset_last = float(init_readout_params_meshed['psychometric_offset'].iloc[0])
 
         if 'meanr_E_mid' in df.columns:
             meanr_vec=[[df['meanr_E_mid'][len(df)-1], df['meanr_E_sup'][len(df)-1]], [df['meanr_I_mid'][len(df)-1], df['meanr_I_sup'][len(df)-1]]]

@@ -18,7 +18,7 @@ class PretrainingPars:
     """ frequency (in SGD step) of accuracy check for the training task """
     min_acc_check_ind: int = 1
     """ minimum SGD step where accuracy check happens for the training task """
-    offset_threshold = [3,10]
+    offset_threshold = [5,25]
     """ threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining """
     batch_size: int = 100
     """ number of trials per SGD step during pretraining """
@@ -47,7 +47,7 @@ class TrainingPars:
     """ number of trials per SGD step """
     validation_freq: int = 10
     """ frequency of validation loss and accuracy calculation """
-    SGD_steps: int = 1200
+    SGD_steps: int = 1500
     """ number of SGD step """
     min_stop_ind: int = 1000
     """ minimum SGD step where training can stop """
@@ -218,10 +218,6 @@ class ReadoutPars:
 # general SSN parameters
 @dataclass
 class SSNPars:
-    kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
-    """ shaping parameter for middle layer horizontal connections to achieve orientation selectivity """
-    kappa_f = jnp.array([0.0, 0.0])
-    """ shaping parameter for feedforward connections to achieve orientation selectivity """
     n: float = 2.0  
     """ power law parameter """
     k: float = 0.04  
@@ -247,6 +243,10 @@ class SSNPars:
 # Trained SSN parameters - parameters can be moved between TrainedSSNPars and SSNPars depending on whether we want to train them or not
 @dataclass
 class TrainedSSNPars:
+    kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+    """ shaping parameter for middle layer horizontal connections to achieve orientation selectivity """
+    kappa_f = jnp.array([0.0, 0.0])
+    """ shaping parameter for feedforward connections to achieve orientation selectivity """
     cE_m: float = 0.0
     """ baseline excitatory input (constant added to the output of excitatory neurons at middle layer) """
     cI_m: float = 0.0
