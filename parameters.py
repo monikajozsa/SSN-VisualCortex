@@ -240,6 +240,8 @@ class SSNPars:
     """ relative strength of local parts of E projections in superficial layer """
     beta = stimuli_pars.ref_ori
     """ shaping tuning curves depending on the reference orientation of the stimulus """
+    kappa_range = 90
+    """ scaling the effect of all kappa parameters through: tanh_kappa*dist_from_single_ori**2/(2*(kappa_range**2)) """
     
 
 # Trained SSN parameters - parameters can be moved between TrainedSSNPars and SSNPars depending on whether we want to train them or not

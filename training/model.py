@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from jax import vmap
 
 def evaluate_model_response(
-    ssn_mid, ssn_sup, stimuli, conv_pars,  cE_m, cI_m, cE_s, cI_s, f_E, f_I, gabor_filters, distance_from_single_ori, kappa_f=jnp.array([0.0,0.0])
+    ssn_mid, ssn_sup, stimuli, conv_pars,  cE_m, cI_m, cE_s, cI_s, f_E, f_I, gabor_filters, distance_from_single_ori, kappa_f=jnp.array([0.0,0.0]), kappa_range=90
 ):
     """
     Run individual stimulus through two layer model. 
@@ -39,7 +39,7 @@ def evaluate_model_response(
     # Create input to (I and E neurons in) superficial layer
     # sup_input_ref = jnp.hstack([r_mid * f_E, r_mid * f_I]) + constant_vector_sup # this is the original line without kappa_f
     tanh_kappa_f = jnp.tanh(kappa_f) # kappa_f needs to be an input to evaluate_model_response
-    sup_input_ref = jnp.hstack([f_E * jnp.exp(tanh_kappa_f[0] * distance_from_single_ori[:,0]) * r_mid, f_I * jnp.exp(tanh_kappa_f[1] * distance_from_single_ori[:,0]) * r_mid]) + constant_vector_sup
+    sup_input_ref = jnp.hstack([f_E * jnp.exp(tanh_kappa_f[0] * distance_from_single_ori[:,0]**2/(2*kappa_range**2)) * r_mid, f_I * jnp.exp(tanh_kappa_f[1] * distance_from_single_ori[:,0]) * r_mid]) + constant_vector_sup
 
     # Calculate steady state response of superficial layer
     r_sup, fp_sup, avg_dx_sup, max_E_sup, max_I_sup, mean_E_sup, mean_I_sup = superficial_layer_fixed_point(
@@ -48,7 +48,7 @@ def evaluate_model_response(
 
     return [r_sup, r_mid], [fp_mid, fp_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup]
 
-vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None, None, None, None, None))
+vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None, None, None, None, None, None))
 
 
 def evaluate_model_response_mid(

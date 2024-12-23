@@ -90,6 +90,8 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         ax.legend(loc='upper right', fontsize=20)
         ax.set_title('Loss', fontsize=20)
         ax.set_xlabel('SGD steps', fontsize=20)
+        # set ylim based on the min and max values after the first 2% of the training
+        ax.set_ylim(-0.1, max(1, max(df['loss'][int(0.02*SGD_steps):])+0.1))
 
     def plot_offset(ax, df, SGD_steps, keys_metrics):
         num_pretraining_steps= sum(df['stage'] == 0)
@@ -143,9 +145,15 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         colors_cf = ['tab:orange', 'tab:green','tab:red', 'tab:blue', 'tab:red', 'tab:blue']
         linestyles_cf = ['-', '-', '-', '-', '--', '--']
         colors_metrics = [ 'tab:orange', 'tab:brown','tab:green']
-        keys_kappa_Jsup = ['kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post']
-        colors_kappa = ['tab:red', 'red', 'tab:orange', 'orange']
-        linestyles_kappa = ['-', '-', '-', '-']
+        keys_kappa_Jsup = ['kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre','kappa_Jsup_EI_pre', 'kappa_Jsup_II_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post', 'kappa_Jsup_EI_post', 'kappa_Jsup_II_post']
+        colors_kappa_Jsup = ['tab:red', 'red', 'tab:green','blue','tab:red', 'red', 'tab:green','blue']
+        linestyles_kappa_Jsup = ['-', '-', '-', '-', '--', '--', '--', '--']
+        keys_kappa_Jmid = ['kappa_Jmid_EE_pre', 'kappa_Jmid_IE_pre','kappa_Jmid_EI_pre', 'kappa_Jmid_II_pre', 'kappa_Jmid_EE_post', 'kappa_Jmid_IE_post', 'kappa_Jmid_EI_post', 'kappa_Jmid_II_post']
+        colors_kappa_Jmid = ['tab:red', 'tab:green', 'red', 'blue']
+        linestyles_kappa_Jmid = ['-', '-', '-', '-']
+        colors_kappa_f = ['tab:red', 'blue']
+        linestyles_kappa_f = ['-', '-']
+        keys_kappa_f = ['kappa_f_E', 'kappa_f_I']
         
         # Define keys for the metrics - might be different than keys_metrics_rel_change in case there is no training data
         keys_offsets = [key for key in df.keys() if '_offset' in key]
@@ -165,7 +173,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
             values_fc = [rel_changes_train[key]for key in keys_cf]        
 
         # Create the figure
-        fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(60, 45))
+        fig, axes = plt.subplots(nrows=3, ncols=5, figsize=(75, 45))
 
         # Plot each section
         plot_accuracy(axes[0,0], df, SGD_steps)
@@ -176,7 +184,9 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         plot_readout_weights(axes[1,2], df, SGD_steps)
         plot_params_over_time(axes[2,0], df, keys_J_raw, colors_J, linestyles_J, title='J in middle and superficial layers', SGD_steps=SGD_steps)
         plot_params_over_time(axes[2,1], df, keys_cf, colors_cf, linestyles_cf, title='c: constant inputs, f: weights between mid and sup layers', SGD_steps=SGD_steps)
-        plot_params_over_time(axes[1,3], df, keys_kappa_Jsup, colors_kappa, linestyles_kappa, title='kappas Jsup', SGD_steps=SGD_steps)
+        plot_params_over_time(axes[1,3], df, keys_kappa_Jsup, colors_kappa_Jsup, linestyles_kappa_Jsup, title='kappas Jsup', SGD_steps=SGD_steps)
+        plot_params_over_time(axes[1,4], df, keys_kappa_Jmid, colors_kappa_Jmid, linestyles_kappa_Jmid, title='kappas Jmid', SGD_steps=SGD_steps)
+        plot_params_over_time(axes[2,4], df, keys_kappa_f, colors_kappa_f, linestyles_kappa_f, title='kappas f', SGD_steps=SGD_steps)
         if not no_train_data:
             bars_params = axes[2,2].bar(keys_J_raw, values_J, color=colors_J)   
             bars_metrics = axes[0,3].bar(keys_metrics_rel_change, values_metrics, color=colors_metrics)

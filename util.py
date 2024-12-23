@@ -61,11 +61,15 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
         cE_m = ssn_pars.cE_m
         cI_m = ssn_pars.cI_m
     if 'cE_s' in trained_pars:
-        cE_s = trained_pars['cE_s']
-        cI_s = trained_pars['cI_s']
+        #cE_s = trained_pars['cE_s']
+        #cI_s = trained_pars['cI_s']
+        cE_s = trained_pars['cE_m']
+        cI_s = trained_pars['cI_m']
     else:
-        cE_s = ssn_pars.cE_s
-        cI_s = ssn_pars.cI_s
+        #cE_s = ssn_pars.cE_s
+        #cI_s = ssn_pars.cI_s
+        cE_s = ssn_pars.cE_m
+        cI_s = ssn_pars.cI_m
     if 'log_f_E' in trained_pars:  
         f_E = jnp.exp(trained_pars['log_f_E'])
         f_I = jnp.exp(trained_pars['log_f_I'])

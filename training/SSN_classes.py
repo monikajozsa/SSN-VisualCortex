@@ -82,10 +82,10 @@ class SSN_sup(_SSN_Base):
    
         xy_dist = grid_pars.xy_dist
 
-        self.W = self.make_W(J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa_Jsup)
+        self.W = self.make_W(J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa_Jsup, ssn_pars.kappa_range)
     
         
-    def make_W(self, J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa, MinSyn=1e-4, CellWiseNormalized=False):
+    def make_W(self, J_2x2, xy_dist, ori_dist, dist_from_single_ori, kappa, kappa_range, MinSyn=1e-4, CellWiseNormalized=False):
         """
         Make the full recurrent connectivity matrix W
         Input:
@@ -97,7 +97,7 @@ class SSN_sup(_SSN_Base):
         Output:
         self.W
         """
-        new_normalization = True
+        new_normalization = False
         # Unpack parameters  
         p_local = self.p_local
         tanh_kappa_pre = jnp.tanh(kappa[0])
@@ -118,7 +118,7 @@ class SSN_sup(_SSN_Base):
                 if new_normalization:
                     ori_dist_contrib = ori_dist**2/(sigma_oris[a,b]**2)
                 else:
-                    ori_dist_contrib = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(45**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(45**2))
+                    ori_dist_contrib = ori_dist**2/(sigma_oris[a,b]**2) + tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(kappa_range**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(kappa_range**2))
                 
                 if b == 0: # E projections
                     W = jnp.exp(-xy_dist/s_2x2[a,b] - ori_dist_contrib)
@@ -188,13 +188,13 @@ class SSN_mid(_SSN_Base):
 
         super(SSN_mid, self).__init__(n=ssn_pars.n, k=ssn_pars.k, Ne=Ne, Ni=Ni, tau_vec=tau_vec, **kwargs)
 
-        self.W = self.make_W(J_2x2, dist_from_single_ori[:,0], kappa)
+        self.W = self.make_W(J_2x2, dist_from_single_ori[:,0], kappa, ssn_pars.kappa_range)
     
 
-    def make_W(self, J_2x2, distance_from_single_ori, kappa):
+    def make_W(self, J_2x2, distance_from_single_ori, kappa, kappa_range):
         """ Compute the 2x2x81 block with the exponential scaling per grid point """
         tanh_kappa = jnp.tanh(kappa)
-        W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]**2/(45**2))
+        W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]**2/(2*kappa_range**2))
     
         return W_type_grid_block
 

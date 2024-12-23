@@ -12,7 +12,7 @@ def config(config_groups):
     ## 6. opt_readout_before_training: whether there is a logistic regression optimization for readout parameters or not before training (default: False)
 
     # special cases
-    conf_baseline = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa_Jsup']]#, 'kappa_Jmid', 'kappa_f']] # training all parameters (baseline case)
+    conf_baseline = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa_Jsup', 'kappa_Jmid', 'kappa_f']] # training all parameters (baseline case)
     conf_gentask = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa_Jsup', 'kappa_Jmid', 'kappa_f'], [1.0, 0.0], True] # training with general discrimination task (control case)
     conf_no_horiconn = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa_Jsup', 'kappa_Jmid', 'kappa_f'], [1.0, 0.0], False, [1.0, 1.0]] 
     conf_shuffled_labels = [['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m', 'J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s', 'kappa_Jsup', 'kappa_Jmid', 'kappa_f'], [1.0, 0.0], False, [0.4, 0.7], True]
