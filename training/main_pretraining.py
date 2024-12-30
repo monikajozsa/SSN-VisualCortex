@@ -123,9 +123,14 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
     J_EE_s, J_EI_s_nosign, J_IE_s, J_II_s_nosign = random.uniform(low=[J_range[0][0], J_range[1][0], J_range[2][0], J_range[3][0]],high=[J_range[0][1], J_range[1][1], J_range[2][1], J_range[3][1]])
     J_2x2_s = jnp.array([[J_EE_s, -J_EI_s_nosign],[J_IE_s, -J_II_s_nosign]])
     ssn_sup = SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist)
-    c_range= randomize_pars.c_range  
-    f_range= randomize_pars.f_range  
-    cE_s, cI_s = random.uniform(low=[c_range[0], c_range[0]], high=[c_range[1], c_range[1]])
+    
+    if untrained_pars.ssn_pars.couple_c_ms:
+        cE_s = cE_m
+        cI_s = cI_m
+    else:
+        c_range= randomize_pars.c_range 
+        cE_s, cI_s = random.uniform(low=[c_range[0], c_range[0]], high=[c_range[1], c_range[1]])
+    f_range= randomize_pars.f_range
     f_E, f_I = random.uniform(low=[f_range[0], f_range[0]], high=[f_range[1], f_range[1]])
     [r_train_sup,_],_ ,[avg_dx_mid, avg_dx_sup],[_, _, max_E_sup, max_I_sup], [_, _, mean_E_sup, mean_I_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, jnp.array([0.0,0.0]), untrained_pars.ssn_pars.kappa_range)
     [r_pretrain_sup,_], _, [avg_dx_pretrain_mid, avg_dx_pretrain_sup],_,_ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, jnp.array([0.0,0.0]), untrained_pars.ssn_pars.kappa_range)
@@ -350,7 +355,6 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
     # Run num_training number of pretraining + training
     num_FailedRuns = 0
     i = 0
-    stage = 0
     
     run_indices=[]
     while i < num_training and num_FailedRuns < 20:
@@ -370,7 +374,7 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
                 readout_pars_opt_dict,
                 pretrain_pars_rand_dict,
                 untrained_pars,
-                stage,
+                stage = 0,
                 results_filename=results_filename,
                 jit_on=True,
                 offset_step = 0.1,
@@ -383,7 +387,18 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
             num_FailedRuns = num_FailedRuns + 1
             continue  
         
-        ##### STAGE 1 COULD BE CALLED HERE INSTEAD OF LOGISTIC REGRESSION ######
+        ##### STAGE 1: SGD algorithm for readout parameters ######
+        pretrained_readout_pars_dict_no_log_regr, trained_pars_dict, untrained_pars, _, _ = load_parameters(folder_path, run_index=i, stage=1, iloc_ind=-1, for_training=True)
+        training_output_df = train_ori_discr(
+                pretrained_readout_pars_dict_no_log_regr,
+                trained_pars_dict,
+                untrained_pars,
+                stage = 1,
+                results_filename=results_filename,
+                jit_on=True,
+                offset_step = 0.1,
+                run_index = i
+            )
 
         ##### LOGISTIC REGRESSION FOR READOUT PARAMETERS #####
         test_offset_vec = numpy.array([1, 3, 7, 12, 20])
@@ -404,19 +419,20 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
         # Add the optimized readout parameters for sup_only and mixed readout cases
         untrained_pars.sup_mid_readout_contrib[0]=1
         pretrained_readout_pars_dict = readout_pars_from_regr(trained_pars_dict, untrained_pars, num_samples, for_training=True)
-        # Calculate spychometric offset threshold
+        # Calculate psychometric offset threshold
         acc_mean, acc_std, _, _ = mean_training_task_acc_test(trained_pars_dict, pretrained_readout_pars_dict, untrained_pars, True, test_offset_vec, sample_size = 5)
         psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
-        create_readout_init(data, 1, 1, 1, pretrained_readout_pars_dict, psychometric_offset[0], i, N)
+
+        create_readout_init(data, 1, 1, 1, pretrained_readout_pars_dict, float(psychometric_offset), i, N)
         # fill up the dictionary with pretrained_readout_pars_dict['b_sig'] pretrained_readout_pars_dict['w_sig'][i], layer =1 and sup_only=1 and log_regr = 1
         untrained_pars.sup_mid_readout_contrib=[0.5, 0.5]
         pretrained_readout_pars_dict = readout_pars_from_regr(trained_pars_dict, untrained_pars, num_samples, for_training=True)
         acc_mean, acc_std, _, _ = mean_training_task_acc_test(trained_pars_dict, pretrained_readout_pars_dict, untrained_pars, True, test_offset_vec, sample_size = 5)
         psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
         # NOTE: pretrained_readout_pars_dict['w_sig'] is 2N-long in the mixed readout case with middle layer (layer 0) being the first N and superficial layer (layer 1) being the last N
-        create_readout_init(data, 1, 0, 0, pretrained_readout_pars_dict, psychometric_offset[0], i, N)
+        create_readout_init(data, 1, 0, 0, pretrained_readout_pars_dict, float(psychometric_offset), i, N)
         pretrained_readout_pars_dict['w_sig'] = pretrained_readout_pars_dict['w_sig'][N:]
-        create_readout_init(data, 1, 1, 0, pretrained_readout_pars_dict, psychometric_offset[0], i, N)
+        create_readout_init(data, 1, 1, 0, pretrained_readout_pars_dict, float(psychometric_offset), i, N)
         df = pd.DataFrame(data)
         df.to_csv(os.path.join(folder_path, 'init_readout_params.csv'), index=False)
 

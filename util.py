@@ -60,16 +60,21 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
     else:
         cE_m = ssn_pars.cE_m
         cI_m = ssn_pars.cI_m
-    if 'cE_s' in trained_pars:
-        #cE_s = trained_pars['cE_s']
-        #cI_s = trained_pars['cI_s']
-        cE_s = trained_pars['cE_m']
-        cI_s = trained_pars['cI_m']
+    if ssn_pars.couple_c_ms:
+        if 'cE_s' in trained_pars:
+            cE_s = trained_pars['cE_m']
+            cI_s = trained_pars['cI_m']
+        else:
+            cE_s = ssn_pars.cE_m
+            cI_s = ssn_pars.cI_m
     else:
-        #cE_s = ssn_pars.cE_s
-        #cI_s = ssn_pars.cI_s
-        cE_s = ssn_pars.cE_m
-        cI_s = ssn_pars.cI_m
+        if 'cE_s' in trained_pars:
+            cE_s = trained_pars['cE_s']
+            cI_s = trained_pars['cI_s']
+        else:
+            cE_s = ssn_pars.cE_s
+            cI_s = ssn_pars.cI_s
+        
     if 'log_f_E' in trained_pars:  
         f_E = jnp.exp(trained_pars['log_f_E'])
         f_I = jnp.exp(trained_pars['log_f_I'])
@@ -773,3 +778,22 @@ def configure_parameters_file(root_folder, conf):
         file.writelines(updated_lines)
 
     print(f"Updated parameters.py with new parameters.")
+
+def update_csv_with_df(df, filename):
+    # Load the existing file
+    existing_df = pd.read_csv(filename)
+    
+    # Get the union of all column names preserving the original column order
+    original_columns = existing_df.columns.tolist()
+    new_columns = [col for col in df.columns if col not in original_columns]
+    all_columns = original_columns + new_columns
+    
+    # Reindex both dataframes to have the same columns
+    existing_df = existing_df.reindex(columns=all_columns)
+    df = df.reindex(columns=all_columns)
+    
+    # Append the new dataframe to the existing one
+    updated_df = pd.concat([existing_df, df], ignore_index=True)
+    
+    # Save the updated dataframe back to the file
+    updated_df.to_csv(filename, index=False)

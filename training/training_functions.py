@@ -13,7 +13,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from util import create_grating_training, sigmoid, create_grating_pretraining, unpack_ssn_parameters
+from util import create_grating_training, sigmoid, create_grating_pretraining, unpack_ssn_parameters, update_csv_with_df
 from training.SSN_classes import SSN_mid, SSN_sup
 from training.model import evaluate_model_response
 
@@ -69,7 +69,7 @@ def train_ori_discr(
     readout_pars_dict,
     trained_pars_dict,
     untrained_pars,
-    stage,
+    stage = 0,
     threshold = 0.75,
     offset_step = 0.25,
     results_filename=None,
@@ -125,8 +125,8 @@ def train_ori_discr(
     print_steps = jnp.arange(0, numSGD_steps, 20) # make this such that they are from val_steps - at the moment, printing happens within the validation steps
 
     print(
-        "SGD_step: {} ¦ learning rate: {} ¦ batch size {}".format(
-            numSGD_steps, training_pars.eta, training_pars.batch_size,
+        "Stage: {} ¦ Num SGD steps: {} ¦ Learning rate: {} ¦ Batch size {}".format(
+            stage, numSGD_steps, training_pars.eta, training_pars.batch_size,
         )
     )
 
@@ -166,8 +166,12 @@ def train_ori_discr(
             append_parameter_lists(trained_pars_dict, ssn_pars, ['log_J_EE_s', 'log_J_EI_s', 'log_J_IE_s', 'log_J_II_s'], log_J_2x2_s, as_log=True)
             append_parameter_lists(trained_pars_dict, ssn_pars, ['cE_m'], cE_m)
             append_parameter_lists(trained_pars_dict, ssn_pars, ['cI_m'], cI_m)
-            append_parameter_lists(trained_pars_dict, ssn_pars, ['cE_s'], cE_s)
-            append_parameter_lists(trained_pars_dict, ssn_pars, ['cI_s'], cI_s)
+            if ssn_pars.couple_c_ms:
+                append_parameter_lists(trained_pars_dict, ssn_pars, ['cE_m'], cE_s)
+                append_parameter_lists(trained_pars_dict, ssn_pars, ['cI_m'], cI_s)
+            else:
+                append_parameter_lists(trained_pars_dict, ssn_pars, ['cE_s'], cE_s)
+                append_parameter_lists(trained_pars_dict, ssn_pars, ['cI_s'], cI_s)
             append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_E'], log_f_E, as_log=True)
             append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_I'], log_f_I, as_log=True)
             if 'kappa_Jsup' in trained_pars_dict.keys():
@@ -198,7 +202,7 @@ def train_ori_discr(
             train_accs=[train_acc]
             train_max_rates=[train_max_rate]
             train_mean_rates=[train_mean_rate]
-            log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas_Jsup, kappas_Jmid, kappas_f = unpack_ssn_parameters(trained_pars_dict, ssn_pars, as_log_list=True) 
+            log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas_Jsup, kappas_Jmid, kappas_f = unpack_ssn_parameters(trained_pars_dict, ssn_pars, as_log_list=True)
             if stage<2:
                 w_sigs = [readout_pars_dict['w_sig']]
                 b_sigs = [readout_pars_dict['b_sig']]
@@ -215,7 +219,44 @@ def train_ori_discr(
                 acc_means=[acc_mean]
                 acc_stds=[acc_std]
 
-        # iii) Early stopping during pre-training and training
+        # iii) Staircase algorithm during training: 3-down 1-up adjustment rule for the offset
+        if stage==2:
+            if train_acc < threshold:
+                temp_threshold=0
+                stimuli_pars.offset =  min(stimuli_pars.offset + offset_step, stimuli_pars.max_train_offset)
+            else:
+                temp_threshold=1
+                if SGD_step > 2 and jnp.sum(jnp.asarray(threshold_variables[-3:])) == 3:
+                    stimuli_pars.offset =  stimuli_pars.offset - offset_step
+            if 'threshold_variables' in locals():
+                threshold_variables.append(temp_threshold)
+            else:
+                threshold_variables=[temp_threshold]
+
+        # iv) Loss and accuracy validation + printing results    
+        if SGD_step in val_steps:
+            #### Calculate loss and accuracy on new validation data set
+            val_acc_vec, val_loss_vec = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset)
+            acc_vec_125, loss_vec_125 = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 125.0)
+        
+            val_loss = jnp.mean(val_loss_vec)
+            val_acc = jnp.mean(val_acc_vec)
+            acc_125 = jnp.mean(acc_vec_125)
+            if 'val_accs' in locals():
+                val_accs.append(val_acc)
+                val_losses.append(val_loss)
+                accs_125.append(acc_125)
+            else:
+                val_accs=[val_acc]
+                val_losses=[val_loss]
+                accs_125=[acc_125]
+            
+            SGD_step_time = time.time() - start_time
+            if SGD_step in print_steps:
+                print("Stage: {}¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Readout loss: {:.3f}  ¦ Dx loss: {:.3f} ¦ Rmax loss: {:.3f}  ¦ Rmean loss: {:.3f}  ¦ SGD step: {} ¦ Psy. offset: {} ¦ Runtime: {:.4f} ".format(
+                    stage, train_loss, val_loss, train_acc, val_acc, train_loss_all[0].item(), train_loss_all[1].item(),  train_loss_all[2].item(),  train_loss_all[3].item(), SGD_step, psychometric_offset, SGD_step_time))
+        
+        # v) Early stopping during pre-training and training
         # Check for early stopping during pre-training: break out from SGD_step loop and stages loop
         if stage==0:
             if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(psychometric_offsets)>2:
@@ -238,45 +279,9 @@ def train_ori_discr(
                 acc_means_np = numpy.array(acc_means)
                 # If accuracy is stable for the last three offsets in test_offset_vec, then stop training
                 if has_plateaued(acc_means_np[:,0], window_size=10) and has_plateaued(acc_means_np[:,1], window_size=10) and has_plateaued(acc_means_np[:,2], window_size=10):
+                    print("Early stop of stage 2; mean accuracies plateaued.")
                     break
-
-        # iv) Staircase algorithm during training: 3-down 1-up adjustment rule for the offset
-        if stage==2:
-            if train_acc < threshold:
-                temp_threshold=0
-                stimuli_pars.offset =  min(stimuli_pars.offset + offset_step, stimuli_pars.max_train_offset)
-            else:
-                temp_threshold=1
-                if SGD_step > 2 and jnp.sum(jnp.asarray(threshold_variables[-3:])) == 3:
-                    stimuli_pars.offset =  stimuli_pars.offset - offset_step
-            if 'threshold_variables' in locals():
-                threshold_variables.append(temp_threshold)
-            else:
-                threshold_variables=[temp_threshold]
-
-        # v) Loss and accuracy validation + printing results    
-        if SGD_step in val_steps:
-            #### Calculate loss and accuracy on new validation data set
-            val_acc_vec, val_loss_vec = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset)
-            acc_vec_125, loss_vec_125 = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 125.0)
         
-            val_loss = jnp.mean(val_loss_vec)
-            val_acc = jnp.mean(val_acc_vec)
-            acc_125 = jnp.mean(acc_vec_125)
-            if 'val_accs' in locals():
-                val_accs.append(val_acc)
-                val_losses.append(val_loss)
-                accs_125.append(acc_125)
-            else:
-                val_accs=[val_acc]
-                val_losses=[val_loss]
-                accs_125=[acc_125]
-            
-            SGD_step_time = time.time() - start_time
-            if SGD_step in print_steps:
-                print("Stage: {}¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Readout loss: {:.3f}  ¦ Dx loss: {:.3f} ¦ Rmax loss: {:.3f}  ¦ Rmean loss: {:.3f}  ¦ SGD step: {} ¦ Psy. offset: {} ¦ Runtime: {:.4f} ".format(
-                    stage, train_loss, val_loss, train_acc, val_acc, train_loss_all[0].item(), train_loss_all[1].item(),  train_loss_all[2].item(),  train_loss_all[3].item(), SGD_step, psychometric_offset, SGD_step_time))
-            
         # vi) Parameter update. Note that training has one-stage, pre-training has two-stages, where the second stage (stage 1) is skipped if the accuracy satisfies a minimum threshold criteria
         if stage==0:
             # linear regression to check if acc_mean is decreasing (happens when pretraining goes on while solving the flipped training task)
@@ -344,8 +349,13 @@ def train_ori_discr(
     
     if results_filename:
         file_exists = os.path.isfile(results_filename)
-        df_train.to_csv(results_filename, mode='a', header=not file_exists, index=False)
-        df_val.to_csv(results_filename[:-4] + '_val' + results_filename[-4:], mode='a', header=not file_exists, index=False)
+        if file_exists:
+            update_csv_with_df(df_train, results_filename)
+            update_csv_with_df(df_val, results_filename[:-4] + '_val' + results_filename[-4:])
+        else:
+            # If the file does not exist, save the dataframe as a new file
+            df_train.to_csv(results_filename, mode='a', header=not file_exists, index=False)
+            df_val.to_csv(results_filename[:-4] + '_val' + results_filename[-4:], mode='a', header=not file_exists, index=False)
 
     # Clear jax cash data
     jax.clear_caches()

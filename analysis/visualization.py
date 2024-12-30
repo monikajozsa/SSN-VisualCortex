@@ -63,7 +63,8 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
     """ Plot the results on the parameters from a signle result csv file """
     def plot_params_over_time(ax, df, keys, colors, linestyles, title, SGD_steps):
         for i, key in enumerate(keys):
-            ax.plot(range(SGD_steps), df[key], label=key, color=colors[i], linestyle=linestyles[i])
+            if key in df.keys():
+                ax.plot(range(SGD_steps), df[key], label=key, color=colors[i], linestyle=linestyles[i])
         ax.set_title(title, fontsize=20)
         ax.legend(loc='upper right', fontsize=20)
         ax.set_xlabel('SGD steps', fontsize=20)
@@ -148,7 +149,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         keys_kappa_Jsup = ['kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre','kappa_Jsup_EI_pre', 'kappa_Jsup_II_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post', 'kappa_Jsup_EI_post', 'kappa_Jsup_II_post']
         colors_kappa_Jsup = ['tab:red', 'red', 'tab:green','blue','tab:red', 'red', 'tab:green','blue']
         linestyles_kappa_Jsup = ['-', '-', '-', '-', '--', '--', '--', '--']
-        keys_kappa_Jmid = ['kappa_Jmid_EE_pre', 'kappa_Jmid_IE_pre','kappa_Jmid_EI_pre', 'kappa_Jmid_II_pre', 'kappa_Jmid_EE_post', 'kappa_Jmid_IE_post', 'kappa_Jmid_EI_post', 'kappa_Jmid_II_post']
+        keys_kappa_Jmid = ['kappa_Jmid_EE_pre', 'kappa_Jmid_IE_pre','kappa_Jmid_EE_post', 'kappa_Jmid_IE_post']
         colors_kappa_Jmid = ['tab:red', 'tab:green', 'red', 'blue']
         linestyles_kappa_Jmid = ['-', '-', '-', '-']
         colors_kappa_f = ['tab:red', 'blue']
@@ -248,18 +249,18 @@ def barplots_from_csvs(folder, save_folder=None, excluded_runs = []):
         for j in range(len(data[0])):
             ax.plot([0, 1], [data[0, j], data[1, j]], color='black', alpha=0.2)
         
-    def barplot_params(colors, keys, titles, means_pre, means_post, vals_pre, vals_post, figname, ylims=None):
+    def barplot_params(colors, keys, titles, means_pre, means_post, vals_pre, vals_post, figname, ylims=None, num_rows=2):
         if len(keys) == 1:
             fig, ax = plt.subplots()
         elif len(keys) == 2:
             fig, ax = plt.subplots(1, 2, figsize=(10, 5))
             ax_flat = ax
         else:
-            fig, ax = plt.subplots(2, len(keys)//2, figsize=(len(keys)//2 * 5, 10))
+            fig, ax = plt.subplots(num_rows, len(keys)//num_rows, figsize=(len(keys)//num_rows * 5, num_rows * 5))
             ax_flat = ax.flatten()
         # Colors for bars
-        param_means_pre = [means_pre[keys[i]] for i in range(len(keys))]
-        param_means_post = [means_post[keys[i]] for i in range(len(keys))]
+        param_means_pre = [means_pre[keys[i]] if keys[i] in means_pre.keys() else 0 for i in range(len(keys))]
+        param_means_post = [means_post[keys[i]] if keys[i] in means_post.keys() else 0 for i in range(len(keys))]
         x_positions = [0, 1]
         x_labels = ['Pre', 'Post']
         for i in range(len(keys)):
@@ -272,7 +273,8 @@ def barplots_from_csvs(folder, save_folder=None, excluded_runs = []):
             ax_i.set_xticks(x_positions)
             ax_i.set_xticklabels(x_labels, fontsize=20)
             annotate_bar(ax_i, bars, [param_means_pre[i], param_means_post[i]])
-            scatter_data_with_lines(ax_i, numpy.abs(numpy.array([vals_pre[keys[i]], vals_post[keys[i]]])))
+            if keys[i] in vals_pre.keys():
+                scatter_data_with_lines(ax_i, numpy.array([vals_pre[keys[i]], vals_post[keys[i]]]))
             if ylims is not None:
                 ax_i.set_ylim(ylims[i])
         plt.tight_layout()
@@ -319,18 +321,32 @@ def barplots_from_csvs(folder, save_folder=None, excluded_runs = []):
     barplot_params(colors, keys_r, titles_r, means_pre, means_post, vals_pre, vals_post, save_folder + '/r_pre_post.png')
 
     # Plotting bar plots of c, f and kappa parameters before and after  
-    colors=['orange', 'orange', 'green', 'green', 'green', 'green', 'green', 'green', 'green', 'green']
-    keys_c_f_kappa_Jsup = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post', 'f_I']
-    titles_c_f_kappa_Jsup = [r'$c^{\text{mid}}_{\rightarrow E}$', r'$c^{\text{mid}}_{\rightarrow I}$', r'$c^{\text{sup}}_{\rightarrow E}$', r'$c^{\text{sup}}_{\rightarrow I}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$\kappa^{\text{pre}}_{E \rightarrow  E}$', r'$\kappa^{\text{pre}}_{I \rightarrow  E}$', r'$\kappa^{\text{post}}_{E \rightarrow  E}$', r'$\kappa^{\text{post}}_{I \rightarrow  E}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$']
-    barplot_params(colors, keys_c_f_kappa_Jsup, titles_c_f_kappa_Jsup, means_pre, means_post, vals_pre, vals_post, save_folder + '/c_f_kappa_Jsup_pre_post.png')
+    colors=['orange', 'orange', 'orange', 'orange', 'green', 'green', 'green', 'green']
+    keys_c_f_kappa_f = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'kappa_f_E', 'kappa_f_I']
+    titles_c_f_kappa_f = [r'$c^{\text{mid}}_{\rightarrow E}$', r'$c^{\text{mid}}_{\rightarrow I}$', r'$c^{\text{sup}}_{\rightarrow E}$', r'$c^{\text{sup}}_{\rightarrow I}$', 
+                          r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$', r'$\kappa^{\text{f}}_{E}$', r'$\kappa^{\text{f}}_{I}$']
+    barplot_params(colors, keys_c_f_kappa_f, titles_c_f_kappa_f, means_pre, means_post, vals_pre, vals_post, save_folder + '/c_f_kappa_f.png')
+
+    colors = ['red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue']
+    keys_kappas = ['kappa_Jmid_EE_pre', 'kappa_Jmid_IE_pre', 'kappa_Jmid_EE_post', 'kappa_Jmid_IE_post', 
+                   'kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EI_pre', 'kappa_Jsup_II_pre', 
+                   'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post', 'kappa_Jsup_EI_post', 'kappa_Jsup_II_post']
+    titles_kappas =[r'$\kappa^{\text{mid, pre}}_{E \rightarrow  E}$', r'$\kappa^{\text{mid, pre}}_{E \rightarrow  I}$',
+                    r'$\kappa^{\text{mid, post}}_{E \rightarrow  E}$', r'$\kappa^{\text{mid, post}}_{E \rightarrow  I}$', 
+                    r'$\kappa^{\text{sup, pre}}_{E \rightarrow E}$', r'$\kappa^{\text{sup, pre}}_{E \rightarrow I}$', 
+                    r'$\kappa^{\text{sup, pre}}_{I \rightarrow E}$', r'$\kappa^{\text{sup, pre}}_{I \rightarrow I}$', 
+                    r'$\kappa^{\text{sup, post}}_{E \rightarrow E}$', r'$\kappa^{\text{sup, post}}_{E \rightarrow I}$', 
+                    r'$\kappa^{\text{sup, post}}_{I \rightarrow E}$', r'$\kappa^{\text{sup, post}}_{I \rightarrow I}$']
+    barplot_params(colors, keys_kappas, titles_kappas, means_pre, means_post, vals_pre, vals_post, save_folder + '/kappas_Jmidsup.png', num_rows=3)
     
 
 def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_runs = []):
     """ Create boxplots and barplots for the relative changes of the parameters before and after training """
-    def boxplot_params(keys_group, rel_changes, group_labels, box_colors, full_path, set_ylim=False):
+    def boxplot_params(keys_group, rel_changes, group_labels, box_colors, full_path, set_ylim=False, num_rows=1):
         num_groups=len(keys_group)
         num_training = len(rel_changes[keys_group[0][0]])
-        fig, axs = plt.subplots(1, num_groups, figsize=(6*num_groups, 5))  # Create subplots
+        fig, axs = plt.subplots(num_rows, num_groups//num_rows, figsize=(5* num_groups//num_rows, 5*num_rows))
+        axs_flat = axs.flatten()
         
         for i, label in enumerate(group_labels):
             group_data = numpy.zeros((num_training, len(keys_group[i])))
@@ -340,25 +356,25 @@ def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_r
                 else:
                     group_data[:, var_ind] = numpy.zeros(num_training)
             
-            bp = axs[i].boxplot(group_data, labels=label, patch_artist=True)
+            bp = axs_flat[i].boxplot(group_data, labels=label, patch_artist=True)
             for median in bp['medians']:
                 median.set(color='black', linewidth=2.5)
             for box, color in zip(bp['boxes'], box_colors[i]):
                 box.set_facecolor(color)
-            axs[i].axhline(y=0, color='black', linestyle='--')
-            axes_format(axs[i], fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=False)
-            if i == num_groups - 1:
-                axs[i].set_ylabel('Absolute change', fontsize=20)
+            axs_flat[i].axhline(y=0, color='black', linestyle='--')
+            axes_format(axs_flat[i], fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=False)
+            if keys_group[i][0].startswith('kappa'):
+                axs_flat[i].set_ylabel('Absolute change', fontsize=20)
             else:
-                axs[i].set_ylabel('Relative change (%)', fontsize=20)
+                axs_flat[i].set_ylabel('Relative change (%)', fontsize=20)
             if set_ylim:
                 if i < len(group_labels) - 1:
-                    axs[i].set_ylim(-60, 100)
+                    axs_flat[i].set_ylim(-60, 100)
                 else:
-                    axs[i].set_ylim(-2.5, 2.5)
+                    axs_flat[i].set_ylim(-2.5, 2.5)
                 # set the y-ticks to be at -60, -30, 0, 30, 60 for the first 4 plots and -2.5, -1.25, 0, 1.25, 2.5 for the last plot
                 yticks = numpy.linspace(-60, 60, 5) if i < len(group_labels) - 1 else numpy.linspace(-2.5, 2.5, 5)
-                axs[i].set_yticks(yticks)
+                axs_flat[i].set_yticks(yticks)
                 
         plt.tight_layout()
         fig.subplots_adjust(wspace=0.5)
@@ -375,19 +391,29 @@ def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_r
     rel_changes_train, rel_changes_pretrain = rel_change_for_runs(folder, num_time_inds=num_time_inds, num_runs=num_training, excluded_runs=excluded_runs)
 
     # Define groups of parameters and plot each parameter group
-    keys_group = [['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m'], ['J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s'], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], ['kappa_Jsup_EE_pre','kappa_Jsup_IE_pre','kappa_Jsup_EE_post','kappa_Jsup_IE_post']]
+    keys_group = [['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m'], ['J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s'], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], 
+                  ['kappa_Jmid_EE','kappa_Jmid_IE','kappa_Jmid_EI','kappa_Jmid_II'],
+                  ['kappa_Jsup_EE_pre','kappa_Jsup_IE_pre','kappa_Jsup_EI_pre','kappa_Jsup_II_pre'],
+                  ['kappa_Jsup_EE_pre','kappa_Jsup_IE_pre','kappa_Jsup_EI_post','kappa_Jsup_II_post'],
+                  ['kappa_f_E','kappa_f_I']]
     group_labels = [
         [r'$\Delta J^{\text{mid}}_{E \rightarrow E}$', r'$\Delta J^{\text{mid}}_{E \rightarrow I}$', r'$\Delta J^{\text{mid}}_{I \rightarrow E}$', r'$\Delta J^{\text{mid}}_{I \rightarrow I}$'],
         [r'$\Delta J^{\text{sup}}_{E \rightarrow E}$', r'$\Delta J^{\text{sup}}_{E \rightarrow I}$', r'$\Delta J^{\text{sup}}_{I \rightarrow E}$', r'$\Delta J^{\text{sup}}_{I \rightarrow I}$'],
         [r'$\Delta c^{\text{mid}}_{\rightarrow E}$', r'$\Delta c^{\text{mid}}_{\rightarrow I}$', r'$\Delta c^{\text{sup}}_{\rightarrow E}$', r'$\Delta c^{\text{sup}}_{\rightarrow I}$'],
         [r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$\Delta f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$'],
-        [r'$\Delta \kappa^{\text{pre}}_{J^s_{E \rightarrow  E}}$',r'$\Delta \kappa^{\text{pre}}_{J^s_{E \rightarrow  I}}$',r'$\Delta \kappa^{\text{post}}_{J^s_{E \rightarrow  E}}$',r'$\Delta \kappa^{\text{post}}_{J^s_{E \rightarrow  I}}$']
+        [r'$\Delta \kappa^{\text{mid}}_{E \rightarrow  E}$', r'$\Delta \kappa^{\text{mid}}_{E \rightarrow  I}$', r'$\Delta \kappa^{\text{mid}}_{I \rightarrow  E}$', r'$\Delta \kappa^{\text{mid}}_{I \rightarrow  I}$'],
+        [r'$\Delta \kappa^{\text{pre}}_{J^s_{E \rightarrow  E}}$',r'$\Delta \kappa^{\text{pre}}_{J^s_{E \rightarrow  I}}$',r'$\Delta \kappa^{\text{pre}}_{J^s_{I \rightarrow  E}}$',r'$\Delta \kappa^{\text{pre}}_{J^s_{I \rightarrow  I}}$'],
+        [r'$\Delta \kappa^{\text{post}}_{J^s_{E \rightarrow  E}}$',r'$\Delta \kappa^{\text{post}}_{J^s_{E \rightarrow  I}}$',r'$\Delta \kappa^{\text{post}}_{J^s_{I \rightarrow  E}}$',r'$\Delta \kappa^{\text{post}}_{J^s_{I \rightarrow  I}}$'],
+        [r'$\Delta \kappa^{\text{f}}_{E}$', r'$\Delta \kappa^{\text{f}}_{I}$']
     ]
     J_box_colors = ['tab:red','tab:red','tab:blue','tab:blue']
     c_box_colors = ['orange', 'orange', 'orange', 'orange']
     f_box_colors = ['orange', 'orange']
-    kappa_box_colors = ['tab:green','tab:green','tab:green','tab:green']    
-    box_colors = [J_box_colors,J_box_colors,c_box_colors, f_box_colors, kappa_box_colors]
+    kappa_Jmid_box_colors = ['tab:orange','tab:orange','tab:green','tab:green']
+    kappa_Jspre_box_colors = ['tab:orange','tab:orange','tab:green','tab:green']
+    kappa_Jspost_box_colors = ['tab:orange','tab:orange','tab:green','tab:green']
+    kappa_f_box_colors = ['tab:orange','tab:green']
+    box_colors = [J_box_colors,J_box_colors,c_box_colors, f_box_colors, kappa_Jmid_box_colors, kappa_Jspre_box_colors, kappa_Jspost_box_colors, kappa_f_box_colors]
     
     # Create boxplots and save the figure
     pretrain_fig_folder = os.path.join(os.path.dirname(folder),'pretraining_figures')
@@ -395,8 +421,8 @@ def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_r
         os.makedirs(pretrain_fig_folder)
     if num_time_inds == 3:
         boxplot_params(keys_group, rel_changes_pretrain, group_labels, box_colors, os.path.join(pretrain_fig_folder,'boxplot_relative_changes.png'))
-    boxplot_params(keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes.png'))
-    boxplot_params(keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes_ylim.png'), set_ylim=True)
+    boxplot_params(keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes.png'), num_rows = 2)
+    boxplot_params(keys_group, rel_changes_train, group_labels, box_colors, os.path.join(save_folder,'boxplot_relative_changes_ylim.png'), set_ylim=True, num_rows = 2)
     plt.close()
 
 
@@ -1472,5 +1498,3 @@ def ori_histograms(folder):
     ax[1].set_xlabel('Orientation')
     ax[1].set_ylabel('Count')
     plt.savefig(folder + '/ori_histograms.png')
-
-

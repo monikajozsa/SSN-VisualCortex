@@ -70,6 +70,7 @@ class SSN_sup(_SSN_Base):
         tauE = ssn_pars.tauE
         tauI = ssn_pars.tauI
         tau_vec = jnp.hstack([tauE * jnp.ones(Ne), tauI * jnp.ones(Ni)])
+        self.couple_c_ms = ssn_pars.couple_c_ms
 
         super(SSN_sup, self).__init__(n=ssn_pars.n, k=ssn_pars.k, Ne=Ne, Ni=Ni,
                                     tau_vec=tau_vec, **kwargs)

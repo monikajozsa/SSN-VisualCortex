@@ -26,7 +26,7 @@ class PretrainingPars:
     """ maximum number of SGD steps during pretraining """
     min_stop_ind: int = 50
     """ minimum SGD step where pretraining can stop """
-    pretrain_stage_1_acc_th: float = 0.51
+    pretrain_stage_1_acc_th: float = 0.65
     """ accuracy threshold for early stopping criterium for the second stage of pretraining """
 
 pretraining_pars = PretrainingPars()
@@ -218,6 +218,8 @@ class ReadoutPars:
 # general SSN parameters
 @dataclass
 class SSNPars:
+    couple_c_ms = True
+    """ if True then c_m=c_s """
     n: float = 2.0  
     """ power law parameter """
     k: float = 0.04  

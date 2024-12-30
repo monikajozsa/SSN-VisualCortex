@@ -20,7 +20,10 @@ def evaluate_model_response(
     """
     # Create vector using extrasynaptic constants
     constant_vector = constant_to_vec(c_E=cE_m, c_I=cI_m, ssn=ssn_mid)
-    constant_vector_sup = constant_to_vec(c_E=cE_s, c_I=cI_s, ssn=ssn_sup, sup=True)
+    if ssn_sup.couple_c_ms:
+        constant_vector_sup = constant_to_vec(c_E=cE_m, c_I=cI_m, ssn=ssn_sup, sup=True) # if c_m = c_s then this is needed so that the gradient of c_m reflects the correct effect
+    else:    
+        constant_vector_sup = constant_to_vec(c_E=cE_s, c_I=cI_s, ssn=ssn_sup, sup=True)
 
     # Apply Gabor filters to stimuli to create input of middle layer
     if stimuli.shape[0]==1:

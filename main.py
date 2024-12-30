@@ -25,7 +25,7 @@ starting_time_in_main= time.time()
 note=f'Shortened training but pretrain_stage_1_acc_th raised to 0.65, xtol changed to 1e-2'
 root_folder = os.path.dirname(__file__)
 folder_path = save_code(note=note)
-#folder_path = os.path.join(root_folder, 'results', 'Dec12_v2')
+#folder_path = os.path.join(root_folder, 'results', 'Dec30_v12')
 
 ########## ########## ########## 
 ######### Pretraining ##########
@@ -35,7 +35,7 @@ pretraining_pars = PretrainingPars() # Setting pretraining to be true (pretrain_
 if not pretraining_pars.is_on:
     raise ValueError('Pretraining is not on. Please set pretraining_pars.is_on=True in parameters.py')
 num_training = main_pretraining(folder_path, num_pretraining, starting_time_in_main=starting_time_in_main)
-
+#num_training = num_pretraining
 ########## ########## ##########
 ##########  Training  ##########
 ########## ########## ##########
