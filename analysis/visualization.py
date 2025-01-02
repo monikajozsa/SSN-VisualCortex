@@ -149,7 +149,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         keys_kappa_Jsup = ['kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre','kappa_Jsup_EI_pre', 'kappa_Jsup_II_pre', 'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post', 'kappa_Jsup_EI_post', 'kappa_Jsup_II_post']
         colors_kappa_Jsup = ['tab:red', 'red', 'tab:green','blue','tab:red', 'red', 'tab:green','blue']
         linestyles_kappa_Jsup = ['-', '-', '-', '-', '--', '--', '--', '--']
-        keys_kappa_Jmid = ['kappa_Jmid_EE_pre', 'kappa_Jmid_IE_pre','kappa_Jmid_EE_post', 'kappa_Jmid_IE_post']
+        keys_kappa_Jmid = ['kappa_Jmid_EE', 'kappa_Jmid_IE','kappa_Jmid_EI', 'kappa_Jmid_II']
         colors_kappa_Jmid = ['tab:red', 'tab:green', 'red', 'blue']
         linestyles_kappa_Jmid = ['-', '-', '-', '-']
         colors_kappa_f = ['tab:red', 'blue']
@@ -328,7 +328,7 @@ def barplots_from_csvs(folder, save_folder=None, excluded_runs = []):
     barplot_params(colors, keys_c_f_kappa_f, titles_c_f_kappa_f, means_pre, means_post, vals_pre, vals_post, save_folder + '/c_f_kappa_f.png')
 
     colors = ['red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue']
-    keys_kappas = ['kappa_Jmid_EE_pre', 'kappa_Jmid_IE_pre', 'kappa_Jmid_EE_post', 'kappa_Jmid_IE_post', 
+    keys_kappas = ['kappa_Jmid_EE', 'kappa_Jmid_IE', 'kappa_Jmid_EI', 'kappa_Jmid_II', 
                    'kappa_Jsup_EE_pre', 'kappa_Jsup_IE_pre', 'kappa_Jsup_EI_pre', 'kappa_Jsup_II_pre', 
                    'kappa_Jsup_EE_post', 'kappa_Jsup_IE_post', 'kappa_Jsup_EI_post', 'kappa_Jsup_II_post']
     titles_kappas =[r'$\kappa^{\text{mid, pre}}_{E \rightarrow  E}$', r'$\kappa^{\text{mid, pre}}_{E \rightarrow  I}$',
@@ -368,12 +368,12 @@ def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_r
             else:
                 axs_flat[i].set_ylabel('Relative change (%)', fontsize=20)
             if set_ylim:
-                if i < len(group_labels) - 1:
-                    axs_flat[i].set_ylim(-60, 100)
+                if keys_group[i][0].startswith('kappa'):
+                    axs_flat[i].set_ylim(-2, 2)
+                    yticks = numpy.linspace(-2.5, 2.5, 5)
                 else:
-                    axs_flat[i].set_ylim(-2.5, 2.5)
-                # set the y-ticks to be at -60, -30, 0, 30, 60 for the first 4 plots and -2.5, -1.25, 0, 1.25, 2.5 for the last plot
-                yticks = numpy.linspace(-60, 60, 5) if i < len(group_labels) - 1 else numpy.linspace(-2.5, 2.5, 5)
+                    axs_flat[i].set_ylim(-60, 100)                    
+                    yticks = numpy.linspace(-60, 60, 5)
                 axs_flat[i].set_yticks(yticks)
                 
         plt.tight_layout()
@@ -392,7 +392,7 @@ def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_r
 
     # Define groups of parameters and plot each parameter group
     keys_group = [['J_EE_m', 'J_IE_m', 'J_EI_m', 'J_II_m'], ['J_EE_s', 'J_IE_s', 'J_EI_s', 'J_II_s'], ['cE_m', 'cI_m','cE_s', 'cI_s'], ['f_E', 'f_I'], 
-                  ['kappa_Jmid_EE','kappa_Jmid_IE','kappa_Jmid_EI','kappa_Jmid_II'],
+                  ['kappa_Jmid_EE', 'kappa_Jmid_IE', 'kappa_Jmid_EI', 'kappa_Jmid_II'],
                   ['kappa_Jsup_EE_pre','kappa_Jsup_IE_pre','kappa_Jsup_EI_pre','kappa_Jsup_II_pre'],
                   ['kappa_Jsup_EE_pre','kappa_Jsup_IE_pre','kappa_Jsup_EI_post','kappa_Jsup_II_post'],
                   ['kappa_f_E','kappa_f_I']]
@@ -413,7 +413,7 @@ def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_r
     kappa_Jspre_box_colors = ['tab:orange','tab:orange','tab:green','tab:green']
     kappa_Jspost_box_colors = ['tab:orange','tab:orange','tab:green','tab:green']
     kappa_f_box_colors = ['tab:orange','tab:green']
-    box_colors = [J_box_colors,J_box_colors,c_box_colors, f_box_colors, kappa_Jmid_box_colors, kappa_Jspre_box_colors, kappa_Jspost_box_colors, kappa_f_box_colors]
+    box_colors = [J_box_colors, J_box_colors,c_box_colors, f_box_colors, kappa_Jmid_box_colors, kappa_Jspre_box_colors, kappa_Jspost_box_colors, kappa_f_box_colors]
     
     # Create boxplots and save the figure
     pretrain_fig_folder = os.path.join(os.path.dirname(folder),'pretraining_figures')
