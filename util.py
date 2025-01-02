@@ -173,8 +173,8 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all, shuf
     data_dict['target']=target
 
     if shuffle_labels:
-        dlabel_length = len(labels)
-        labels = jnp.array(numpy.random.randint(2, size=dlabel_length))
+        label_length = len(labels)
+        labels = jnp.array(numpy.random.randint(2, size=label_length))
     
     data_dict['label']=labels
             
@@ -214,7 +214,7 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     return jnp.array(num1), jnp.array(num2), rnd_distances
 
 
-def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, numRnd_ori1=1):
+def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, numRnd_ori1=1, shuffle_labels=False):
     """
     Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
     Output:
@@ -239,8 +239,14 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
     data_dict['target']=stim2
 
     # Define label as the normalized signed difference in angle
-    label = jnp.zeros_like(ori1_minus_ori2)
-    data_dict['label'] = label.at[ori1_minus_ori2 > 0].set(1) # 1 when ref> target and 0 when ref<=target
+    labels = jnp.zeros_like(ori1_minus_ori2)
+    if shuffle_labels:
+        label_length = len(labels)
+        labels = jnp.array(numpy.random.randint(2, size=label_length))
+    else:        
+        labels = labels.at[ori1_minus_ori2 > 0].set(1) # 1 when ref> target and 0 when ref<=target
+
+    data_dict['label'] = labels
     
     return data_dict
 
