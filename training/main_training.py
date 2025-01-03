@@ -12,7 +12,7 @@ from training_functions import train_ori_discr
 from main_pretraining import readout_pars_from_regr
 
 ############### TRAINING ###############
-def main_training(folder_path, num_training, starting_time_training=0, run_indices=None, log_regr = 1):
+def main_training(folder_path, num_training, starting_time_training=0, run_indices=None, log_regr = 0):
     """ Run training on the discrimination task with the configuration specified in the parameters.py file and initial_parameters from the pretraining. """
     if run_indices is None:
         run_indices = range(num_training)
@@ -22,7 +22,7 @@ def main_training(folder_path, num_training, starting_time_training=0, run_indic
         numpy.random.seed(i)
 
         # Load the last parameters from the pretraining
-        pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=1, iloc_ind=-1, for_training=True, log_regr = 0)
+        pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=1, iloc_ind=-1, for_training=True, log_regr = log_regr)
         
         # Change mean rate homeostatic loss
         if meanr_vec is not None:

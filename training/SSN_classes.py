@@ -131,11 +131,11 @@ class SSN_sup(_SSN_Base):
 
                 # row-wise normalize
                 tW = jnp.sum(W, axis=1)
-                if not CellWiseNormalized:
-                    tW = jnp.mean(tW)
-                    W =  W / tW
-                else:
+                if CellWiseNormalized:
                     W = W / tW[:, None]
+                else:
+                    tW = jnp.mean(tW)
+                    W =  W / tW                    
 
                 # for E projections, add the local part
                 # NOTE: alterntaively could do this before normalizing
@@ -143,7 +143,7 @@ class SSN_sup(_SSN_Base):
                     W = p_local[a] * jnp.eye(*W.shape) + (1-p_local[a]) * W
 
                 if new_normalization:
-                    Wblks[a][b] = J_2x2[a, b] * W * jnp.exp(tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(45**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(45**2)))
+                    Wblks[a][b] = J_2x2[a, b] * W * jnp.exp(tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(kappa_range**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(kappa_range**2)))
                 else:
                     Wblks[a][b] = J_2x2[a, b] * W
 
@@ -192,12 +192,19 @@ class SSN_mid(_SSN_Base):
         self.W = self.make_W(J_2x2, dist_from_single_ori[:,0], kappa, ssn_pars.kappa_range)
     
 
-    def make_W(self, J_2x2, distance_from_single_ori, kappa, kappa_range):
+    def make_W(self, J_2x2, distance_from_single_ori, kappa, kappa_range, MinSyn=1e-4):
         """ Compute the 2x2x81 block with the exponential scaling per grid point """
         tanh_kappa = jnp.tanh(kappa)
-        W_type_grid_block = J_2x2[:, :, None] * jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]**2/(2*kappa_range**2))
-    
-        return W_type_grid_block
+        
+        W_type_grid_block = jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]**2/(2*kappa_range**2))
+        
+        # sparsify (set small weights to zero)
+        W_type_grid_block = jnp.where(W_type_grid_block < MinSyn, 0, W_type_grid_block)
+        
+        # connection-type-wise normalize
+        W_out = J_2x2[:, :, None] * W_type_grid_block / jnp.expand_dims(jnp.mean(W_type_grid_block, axis=2), axis=2)
+        
+        return W_out
 
     def drdt(self, W, r, inp_vec):
         """ Differential equation for the rate vector r """
