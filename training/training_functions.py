@@ -775,7 +775,7 @@ def make_dataframe(stage, step_indices, train_accs, val_accs, accs_125, train_lo
     
     if stage==2 and kappas_Jmid is not None:
         kappas_Jmid_np=jnp.asarray(kappas_Jmid)
-        kappa_Jmid_names = ['kappa_Jmid_EE_pre', 'kappa_Jmid_IE_pre', 'kappa_Jmid_EE_post', 'kappa_Jmid_IE_post']
+        kappa_Jmid_names = ['kappa_Jmid_EE', 'kappa_Jmid_EI', 'kappa_Jmid_IE', 'kappa_Jmid_II']
         for i in range(len(kappas_Jmid_np[0])):
             df_train[kappa_Jmid_names[i]] = kappas_Jmid_np[:,i]
     
