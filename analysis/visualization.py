@@ -237,7 +237,7 @@ def plot_results_from_csvs(folder_path, num_runs=3, starting_run=0):
         plot_results_from_csv(folder_path, j, results_fig_filename)
 
 
-def barplots_from_csvs(folder, save_folder=None, excluded_runs = []):
+def barplots_from_csvs(folder, save_folder=None, excluded_runs = [], add_to_file_name=''):
     def scatter_data_with_lines(ax, data):
         for i in range(2):
             group_data = data[i, :]
@@ -306,26 +306,26 @@ def barplots_from_csvs(folder, save_folder=None, excluded_runs = []):
     keys_offset = ['staircase_offset', 'psychometric_offset']
     titles_offset = ['Staircase offset threshold', 'Psychometric offset threshold']
     colors = ['green', 'forestgreen']
-    barplot_params(colors, keys_offset, titles_offset, means_pre, means_post, vals_pre, vals_post, save_folder + '/offset_pre_post.png', ylims=[[0, 20], [0, 20]])
+    barplot_params(colors, keys_offset, titles_offset, means_pre, means_post, vals_pre, vals_post, save_folder + '/offset_pre_post'+ add_to_file_name + '.png', ylims=[[0, 20], [0, 20]])
 
     # Plotting bar plots of J parameters before and after training or pretraining 
     colors=['red' ,'tab:red','blue', 'tab:blue' ,'red' ,'tab:red', 'blue', 'tab:blue']
     keys_J = ['J_EE_m', 'J_IE_m', 'J_EI_m_abs', 'J_II_m_abs', 'J_EE_s', 'J_IE_s', 'J_EI_s_abs', 'J_II_s_abs']
     titles_J = [ r'$J^{\text{mid}}_{E \rightarrow E}$', r'$J^{\text{mid}}_{E \rightarrow I}$', r'$J^{\text{mid}}_{I \rightarrow E}$', r'$J^{\text{mid}}_{I \rightarrow I}$', r'$J^{\text{sup}}_{E \rightarrow E}$', r'$J^{\text{sup}}_{E \rightarrow I}$', r'$J^{\text{sup}}_{I \rightarrow E}$', r'$J^{\text{sup}}_{I \rightarrow I}$']
-    barplot_params(colors, keys_J, titles_J, means_pre, means_post, vals_pre, vals_post, save_folder + '/J_pre_post.png')
+    barplot_params(colors, keys_J, titles_J, means_pre, means_post, vals_pre, vals_post, save_folder + '/J_pre_post'+ add_to_file_name + '.png')
 
     # Plotting bar plots of r parameters before and after training or pretraining
     colors=['red' ,'blue', 'tab:red', 'tab:blue' ,'red' , 'blue','tab:red', 'tab:blue']
     keys_r = ['maxr_E_mid', 'maxr_I_mid', 'maxr_E_sup', 'maxr_I_sup', 'meanr_E_mid', 'meanr_I_mid', 'meanr_E_sup', 'meanr_I_sup']
     titles_r = [r'$r^{\text{mid}}_{\text{max},E}$', r'$r^{\text{mid}}_{\text{max},I}$', r'$r^{\text{sup}}_{\text{max},E}$', r'$r^{\text{sup}}_{\text{max},I}$', r'$r^{\text{mid}}_{\text{mean},E}$', r'$r^{\text{mid}}_{\text{mean},I}$', r'$r^{\text{sup}}_{\text{mean},E}$', r'$r^{\text{sup}}_{\text{mean},I}$']
-    barplot_params(colors, keys_r, titles_r, means_pre, means_post, vals_pre, vals_post, save_folder + '/r_pre_post.png')
+    barplot_params(colors, keys_r, titles_r, means_pre, means_post, vals_pre, vals_post, save_folder + '/r_pre_post'+ add_to_file_name + '.png')
 
     # Plotting bar plots of c, f and kappa parameters before and after  
     colors=['orange', 'orange', 'orange', 'orange', 'green', 'green', 'green', 'green']
     keys_c_f_kappa_f = ['cE_m', 'cI_m', 'cE_s', 'cI_s', 'f_E', 'f_I', 'kappa_f_E', 'kappa_f_I']
     titles_c_f_kappa_f = [r'$c^{\text{mid}}_{\rightarrow E}$', r'$c^{\text{mid}}_{\rightarrow I}$', r'$c^{\text{sup}}_{\rightarrow E}$', r'$c^{\text{sup}}_{\rightarrow I}$', 
                           r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow E}$', r'$f^{\text{mid}\rightarrow \text{sup}}_{E \rightarrow I}$', r'$\kappa^{\text{f}}_{E}$', r'$\kappa^{\text{f}}_{I}$']
-    barplot_params(colors, keys_c_f_kappa_f, titles_c_f_kappa_f, means_pre, means_post, vals_pre, vals_post, save_folder + '/c_f_kappa_f.png')
+    barplot_params(colors, keys_c_f_kappa_f, titles_c_f_kappa_f, means_pre, means_post, vals_pre, vals_post, save_folder + '/c_f_kappa_f'+ add_to_file_name + '.png')
 
     colors = ['red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue']
     keys_kappas = ['kappa_Jmid_EE', 'kappa_Jmid_IE', 'kappa_Jmid_EI', 'kappa_Jmid_II', 
@@ -337,7 +337,7 @@ def barplots_from_csvs(folder, save_folder=None, excluded_runs = []):
                     r'$\kappa^{\text{sup, pre}}_{I \rightarrow E}$', r'$\kappa^{\text{sup, pre}}_{I \rightarrow I}$', 
                     r'$\kappa^{\text{sup, post}}_{E \rightarrow E}$', r'$\kappa^{\text{sup, post}}_{E \rightarrow I}$', 
                     r'$\kappa^{\text{sup, post}}_{I \rightarrow E}$', r'$\kappa^{\text{sup, post}}_{I \rightarrow I}$']
-    barplot_params(colors, keys_kappas, titles_kappas, means_pre, means_post, vals_pre, vals_post, save_folder + '/kappas_Jmidsup.png', num_rows=3)
+    barplot_params(colors, keys_kappas, titles_kappas, means_pre, means_post, vals_pre, vals_post, save_folder + '/kappas_Jmidsup'+ add_to_file_name + '.png', num_rows=3)
     
 
 def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_runs = []):

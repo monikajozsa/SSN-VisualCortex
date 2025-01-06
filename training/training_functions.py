@@ -115,7 +115,7 @@ def train_ori_discr(
         min_acc_check_ind = untrained_pars.pretrain_pars.min_acc_check_ind
         acc_check_ind = jnp.arange(0, numSGD_steps, untrained_pars.pretrain_pars.acc_check_freq)
         acc_check_ind = acc_check_ind[(acc_check_ind > min_acc_check_ind) | (acc_check_ind <2)] # by leaving in 0, we make sure that it is not empty as we refer to it later
-        pretrain_stage_1_acc_th = untrained_pars.pretrain_pars.pretrain_stage_1_acc_th
+        stage_1_acc_th = untrained_pars.pretrain_pars.stage_1_acc_th
     else:
         numSGD_steps = training_pars.SGD_steps
     test_offset_vec = numpy.array([1, 3, 7, 12, 20])  # offset values to define offset threshold where given accuracy is achieved
@@ -253,24 +253,28 @@ def train_ori_discr(
             
             SGD_step_time = time.time() - start_time
             if SGD_step in print_steps:
-                print("Stage: {}¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Readout loss: {:.3f}  ¦ Dx loss: {:.3f} ¦ Rmax loss: {:.3f}  ¦ Rmean loss: {:.3f}  ¦ SGD step: {} ¦ Psy. offset: {} ¦ Runtime: {:.4f} ".format(
-                    stage, train_loss, val_loss, train_acc, val_acc, train_loss_all[0].item(), train_loss_all[1].item(),  train_loss_all[2].item(),  train_loss_all[3].item(), SGD_step, psychometric_offset, SGD_step_time))
+                print("Stage: {}¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Readout loss: {:.3f}  ¦ Dx loss: {:.3f} ¦ Rmax loss: {:.3f}  ¦ Rmean loss: {:.3f}  ¦ SGD step: {} ¦ Psy. offset: {} ¦ Staircase offset: {} ¦ Runtime: {:.4f} ".format(
+                    stage, train_loss, val_loss, train_acc, val_acc, train_loss_all[0].item(), train_loss_all[1].item(),  train_loss_all[2].item(),  train_loss_all[3].item(), SGD_step, psychometric_offset, stimuli_pars.offset, SGD_step_time))
         
         # v) Early stopping during pre-training and training
         # Check for early stopping during pre-training: break out from SGD_step loop and stages loop
         if stage==0:
-            if SGD_step > untrained_pars.pretrain_pars.min_stop_ind and len(psychometric_offsets)>2:
-                if all(jnp.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(jnp.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]):
+            if SGD_step > untrained_pars.pretrain_pars.min_stop_ind_stage_0 and len(psychometric_offsets)>2:
+                if untrained_pars.pretrain_pars.shuffle_labels:
+                    if train_loss_all[0]>0.95*train_loss:
+                        print('Stopping pretraining - regularization terms are small enough.')
+                        break
+                elif all(jnp.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(jnp.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]):
                     print('Stopping pretraining: desired accuracy achieved for training task.')
                     break
 
-        if stage==1:
+        if stage==1 and 'psychometric_offset' in locals():
             if SGD_step == 0:
                 avg_acc = train_acc
             else:
                 avg_acc = jnp.mean(jnp.asarray(train_accs[-min(SGD_step,3):]))
-            if avg_acc > pretrain_stage_1_acc_th:
-                print("Early stop of stage 1: accuracy {} reached target {}".format(avg_acc, pretrain_stage_1_acc_th))
+            if avg_acc > stage_1_acc_th and float(psychometric_offset) < 10:
+                print("Early stop of stage 1: psychometric_offsets is {} and accuracy {} reached target {}".format(psychometric_offset, avg_acc, stage_1_acc_th))
                 break
         
          # Early stopping criteria for training - if accuracies in multiple relevant offsets did not change
@@ -288,7 +292,7 @@ def train_ori_discr(
             acc_mean_slope, _, _, p_value, _ = linregress(range(len(acc_mean)), acc_mean)
             # During pretraining, if the validation accuracy is low and accuracy is decreasing as the offset increases, then flip the readout parameters
             train_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False) 
-            if (acc_mean_slope < -0.01) and (p_value < 0.05) and train_acc_test<0.5:
+            if (not untrained_pars.pretrain_pars.shuffle_labels) and (acc_mean_slope < -0.01) and (p_value < 0.05) and train_acc_test<0.5:
                 # Flip the center readout parameters if validation accuracy is low (which corresponds to training task) and training task accuracy is decreasing as offset increases
                 readout_pars_dict['w_sig'] = readout_pars_dict['w_sig'].at[untrained_pars.middle_grid_ind].set(-readout_pars_dict['w_sig'][untrained_pars.middle_grid_ind])
                 readout_pars_dict['b_sig'] = -readout_pars_dict['b_sig']
@@ -316,6 +320,7 @@ def train_ori_discr(
             # Update ssn layer parameters
             updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
             trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
+    print(f'#### End of stage {stage} #### ')
         
     # Clear python cache data
     gc.collect()

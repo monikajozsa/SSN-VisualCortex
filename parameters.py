@@ -24,10 +24,12 @@ class PretrainingPars:
     """ number of trials per SGD step during pretraining """
     SGD_steps: int = 1000
     """ maximum number of SGD steps during pretraining """
-    min_stop_ind: int = 50
+    min_stop_ind_stage_0: int = 50
     """ minimum SGD step where pretraining can stop """
-    pretrain_stage_1_acc_th: float = 0.65
-    """ accuracy threshold for early stopping criterium for the second stage of pretraining """
+    stage_1_acc_th: float = 0.65
+    """ accuracy threshold for early stopping criterium for stage 1 """
+    shuffle_labels: bool = True
+    """ flag for shuffling the labels of the pretraining data """
 
 pretraining_pars = PretrainingPars()
 

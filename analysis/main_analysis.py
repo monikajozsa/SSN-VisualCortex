@@ -4,7 +4,7 @@ import numpy
 import pandas as pd
 
 from analysis.analysis_functions import save_tc_features, MVPA_anova, make_exclude_run_csv, csv_to_numpy, main_MVPA
-from analysis.visualization import plot_tuning_curves, plot_corr_triangles, plot_tc_features, plot_param_offset_correlations, boxplots_from_csvs, plot_MVPA_or_Mahal_scores, plot_MVPA_or_Mahal_scores_match_Kes_fig
+from analysis.visualization import plot_tuning_curves, plot_corr_triangles, plot_tc_features, plot_param_offset_correlations, boxplots_from_csvs, plot_MVPA_or_Mahal_scores, plot_MVPA_or_Mahal_scores_match_Kes_fig, barplots_from_csvs
 
 def main_analysis(folder_path, num_runs, conf_names):
     ''' Main function for analysis of the training results. 
@@ -59,6 +59,7 @@ def main_analysis(folder_path, num_runs, conf_names):
             num_time_inds = 3
         else:
             num_time_inds = 2
+        barplots_from_csvs(config_folder, add_to_file_name='_train')
         boxplots_from_csvs(config_folder, num_time_inds = num_time_inds, excluded_runs=excluded_runs)
         plot_param_offset_correlations(config_folder, excluded_runs=excluded_runs)
         
