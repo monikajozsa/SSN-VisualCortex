@@ -192,7 +192,7 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
         attrib_vals = [cE_m, cI_m, cE_s, cI_s, f_E, f_I, J_EE_s, -J_EI_s_nosign, J_IE_s, -J_II_s_nosign]
         untrained_pars.ssn_pars = fill_attribute_list(untrained_pars.ssn_pars, attrib_keys, attrib_vals)
 
-        save_orimap(untrained_pars, run_index, folder_to_save=folder)
+        save_orimap(untrained_pars.oris, run_index, folder_to_save=folder)
 
         return optimized_readout_pars, randomized_pars_log, untrained_pars
 
