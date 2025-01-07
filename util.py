@@ -10,7 +10,7 @@ import os
 from training.util_gabor import BW_image_jit_noisy
 
 def check_header(filename):
-    """Checking if csv file has a header or not"""
+    """ This function checks if file filename has a header. It returns 0 if the file has a header and None if it does not. """
     first_row = pd.read_csv(filename, nrows=1, header=None).iloc[0]
     if first_row.apply(lambda x: isinstance(x, str)).any():
         header = 0
@@ -20,12 +20,22 @@ def check_header(filename):
 
 
 def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kappas= True):
-    """Unpacks the trained parameters and the untrained parameters. If as_log_list is True, then the J and f parameters are returned as a list of logs. 
-    If return_kappas is True, then the kappa_Jsup, kappa_Jmid, kappa_f parameters are returned."""
+    """ This function unpacks the trained parameters and the untrained parameters to help storing them iteratively throughout training. 
+    Inputs:
+        trained_pars: Dictionary of the trained parameters.
+        ssn_pars: Instance of the SSNPars class containing the untrained ssn parameters.
+        as_log_list: If True, the J and f parameters are returned as a list of logs.
+        return_kappas: If True, the kappa_Jsup, kappa_Jmid, kappa_f parameters are returned.
+    Outputs:
+        J_2x2_m, J_2x2_s: The matries of the excitatory and inhibitory connections  in the layers.
+        cE_m, cI_m, cE_s, cI_s: The baseline input in the different layers and cell types.
+        f_E, f_I: The feedforward connection scaling constants.
+        kappa_Jsup, kappa_Jmid, kappa_f: The kappa parameter for the Jsup.
+        """
 
     def get_J(par_name, trained_pars, ssn_pars):
         """
-        Returns the value of J based on the provided parameters.
+        Returns an element of a J matrix given by par_name stored in either trained_pars or ssn_pars.
         """
         # Check if 'log_' version of the parameter is in trained_pars
         log_key = f'log_{par_name}'
@@ -122,10 +132,12 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
 
 def cosdiff_ring(d_x, L):
     """
-    Calculate the cosine-based distance.
-    Parameters:
-    d_x: The difference in the angular position.
-    L: The total angle.
+    This function calculates the cosine-based distance.
+    Inputs:
+        d_x: The difference in the angular position.
+        L: The total angle.
+    Output:
+        distance: The cosine-based distance.
     """
     # Calculate the cosine of the scaled angular difference
     cos_angle = jnp.cos(d_x * 2 * jnp.pi / L)
@@ -139,16 +151,17 @@ def cosdiff_ring(d_x, L):
 ##### Functions to create training data #####
 def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all, shuffle_labels=False):
     """
-    Create input stimuli gratings. Both the refence and the target are jitted by the same angle. 
-    Input:
-       stimuli pars
-       batch_size - batch size
-    
+    This function creates grating images with labels for training. NOTE: Both the refence and the target gratingsare jitted by the same angle. 
+    Inputs:
+        stimuli_pars: instance from the StimuliPars class
+        batch_size: number of data (pairs of images and labels) to generate  
+        BW_image_jit_inp_all: parameters that do not need to be recalculated during training
+        shuffle_labels: if True, the labels are shuffled
     Output:
-        dictionary containing reference target and label 
+        data_dict: dictionary containing reference images, target images and label 
     """
     
-    #initialise empty arrays
+    # Initialise empty arrays
     ref_ori = stimuli_pars.ref_ori
     offset = stimuli_pars.offset
     data_dict = {'ref':[], 'target': [], 'label':[]}
@@ -183,7 +196,16 @@ def create_grating_training(stimuli_pars, batch_size, BW_image_jit_inp_all, shuf
 
 def generate_random_pairs(min_value, max_value, min_distance, max_distance=None, batch_size=1, numRnd_ori1=1, numRnd_dist=None):
     """
-    Create batch_size number of pairs of numbers between min_value and max_value with ori distance between min_distance and max_distance. numRnd_ori1 is the number of different values for the first number. numRnd_dist is the number of different distances.
+    This function creates pairs of randomly generated numbers from a given interval with distance lying between another given interval.
+    and a given distance with ori distance between min_distance and max_distance. numRnd_ori1 is the number of different values for the first number. numRnd_dist is the number of different distances.
+    Inputs:
+        min_value, max_value: minimum and maximum values for the numbers
+        min_distance, max_distance: minimum and maximum values for distance between the numbers
+        batch_size: number of pairs to generate
+        numRnd_ori1: number of different values for the first number of the pairs
+        numRnd_dist: number of different distances
+    Output:
+        num1, num2, rnd_distances: arrays of the first number, second number and the distance between them
     """
     if max_distance==None:
         max_distance = max_value - min_value
@@ -201,11 +223,9 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
     # Generate the second numbers with correction if they are out of the specified range
     num2 = num1 - rnd_distances # order and sign are important!
 
-    # Create a mask where flip_numbers equals 1
+    # Swap the numbers with a probability of 0.5
     swap_numbers = numpy.random.choice([0, 1], batch_size) 
     mask = swap_numbers == 1
-
-    # Swap values where mask is True
     temp_num1 = jnp.copy(num1[mask]) # temporary array to hold the values of num1 where the mask is True
     num1[mask] = num2[mask]
     num2[mask] = temp_num1
@@ -216,9 +236,14 @@ def generate_random_pairs(min_value, max_value, min_distance, max_distance=None,
 
 def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, numRnd_ori1=1):
     """
-    Create input stimuli gratings for pretraining by randomizing ref_ori for both reference and target (with random difference between them)
+    This function creates grating images with labels for pretraining.
+    Inputs:
+        pretrain_pars: instance from the PretrainingPars class
+        batch_size: number of data (pairs of images and labels) to generate
+        BW_image_jit_inp_all: parameters that do not need to be recalculated during training
+        numRnd_ori1: number of different values for the first number of the pairs
     Output:
-        dictionary containing grating1, grating2 and difference between gratings that is calculated from features
+        data_dict: dictionary containing reference images, target images and label
     """
     
     # Initialise empty data dictionary - names are not describing the purpose of the variables but this allows for reusing code
@@ -253,54 +278,43 @@ def create_grating_pretraining(pretrain_pars, batch_size, BW_image_jit_inp_all, 
 ##### Other helper functions #####
 def sigmoid(x, epsilon=0.01):
     """
-    Introduction of epsilon stops asymptote from reaching 1 (avoids NaN)
+    This function calculates the sigmoid function of x with an epsilon adjustment. NOTE: Introduction of epsilon stops asymptote from reaching 1 (avoids NaN).
     """
     sig_x = 1 / (1 + jnp.exp(-x))
     return (1 - 2 * epsilon) * sig_x + epsilon
 
 
 def take_log(J_2x2):
-    """Take the log of the 2x2 matrix J"""
+    """ This function takes the log of a 2x2 matrix J_2x2, where [0,1] and [1,1] elements are negative (inhibitory projections) and thus the log is taken with a negative sign. """
     signs = jnp.array([[1, -1], [1, -1]])
     logJ_2x2 = jnp.log(J_2x2 * signs)
 
     return logJ_2x2
 
 
-def sep_exponentiate(J_2x2):
-    """Exponentiate the J matrix"""
+def sep_exponentiate(logJ_2x2):
+    """ This function exponentiates a 2x2 matrix logJ_2x2, where [0,1] and [1,1] elements are inhibitory projections and thus the appropriate signs are recovered after exponentiating. """
     signs = jnp.array([[1, -1], [1, -1]])
-    new_J = jnp.exp(jnp.array(J_2x2, dtype = float)) * signs
+    J_2x2 = jnp.exp(jnp.array(logJ_2x2, dtype = float)) * signs
 
-    return new_J
-
-
-def leaky_relu(x, R_thresh, slope, height=0.15):
-    """ Customized relu function for regulating the rates. """
-    def x_greater_than(x, constant, slope, height):
-        return jnp.maximum(0, (x * slope - (1 - height)))
+    return J_2x2
 
 
-    def x_less_than(x, constant, slope, height):
-        return constant * (x**2)
-    constant = height / (R_thresh**2)
-    # jax.lax.cond(cond, func1, func2, args - same for both functions) meaning if cond then apply func1, if not then apply func2 with the given arguments
-    y = jax.lax.cond(
-        (x < R_thresh), x_less_than, x_greater_than, x, constant, slope, height
-    )
-
-    return y
-
-
-def save_code(final_folder_path=None, note=None):
+def save_code(folder_path=None, note=None):
     """
-    This function saves code files to make results replicable.
+    This function saves source code files to make results replicable.
     1) Creates a folder for results, scripts and figures.
     2) Copies specific code files into a folder called 'scripts'.
     3) Returns the path to save the results into.
+    Inputs:
+        folder_path: path to the folder where the script folder is created with the code files.
+        note: optional note to save in the folder.
+    Output:
+        folder_path: path to the folder where the script folder is created with the code files.
     """
 
     def create_versioned_folder(base_path):
+        """ Create a versioned folder by adding a version number to the folder name. """
         version = 0
         while base_path.with_name(f"{base_path.name}_v{version}").exists():
             version += 1
@@ -309,6 +323,7 @@ def save_code(final_folder_path=None, note=None):
         return versioned_folder
 
     def copy_files(source_folder, destination_folder, file_pattern):
+        """ Copy files from the source folder to the destination folder. """
         destination_folder.mkdir(parents=True, exist_ok=True)
         for file in source_folder.glob(file_pattern):
             shutil.copy(file, destination_folder / file.name)
@@ -317,23 +332,22 @@ def save_code(final_folder_path=None, note=None):
     current_date = datetime.now().strftime("%b%d")
 
     # Determine the final folder path
-    if final_folder_path is None:
+    if folder_path is None:
         base_folder = Path("results") / current_date
-        final_folder_path = create_versioned_folder(base_folder)
+        folder_path = create_versioned_folder(base_folder)
     else:
-        final_folder_path = Path(final_folder_path)
+        folder_path = Path(folder_path)
 
     # Save note if provided
     if note:
-        with open(final_folder_path / 'note.txt', 'w') as f:
+        with open(folder_path / 'note.txt', 'w') as f:
             f.write(note)
 
     # Create subfolders
-    script_folder = final_folder_path / 'scripts'
+    script_folder = folder_path / 'scripts'
 
     # Define source  and destination folders
     script_from_folder = Path(__file__).parent
-
 
     # Copy root files, 'training' files and 'analysis' files
     copy_files(script_from_folder, script_folder, '*.py')
@@ -342,11 +356,17 @@ def save_code(final_folder_path=None, note=None):
 
     print(f"Script files copied successfully to: {script_folder}")
 
-    return str(final_folder_path)
+    return str(folder_path)
 
 
 def save_numpy_to_csv(numpy_array, file_name):
-    """ Save mul numpy array to csv file """
+    """ This function saves a 4D NumPy array to a csv file by creating columns for the meaning of the four dimensions: run_index, layer, stage and ori.
+    Inputs:
+        numpy_array: 4D NumPy array
+        file_name: name of the csv file
+    Output:
+        df: pandas dataframe of the saved NumPy array
+    """
     data = []
     for run_index in range(numpy.shape(numpy_array)[0]):
         for layer in range(numpy.shape(numpy_array)[1]):
@@ -360,7 +380,12 @@ def save_numpy_to_csv(numpy_array, file_name):
 
 
 def csv_to_numpy(file_name):
-    """ Reads a CSV file and converts it back to a 4D NumPy array."""
+    """ This funciton reads a CSV file saved by save_numpy_to_csv and converts it back to a 4D NumPy array.
+    Inputs:
+        file_name: name of the csv file
+    Output:
+        numpy_array: 4D NumPy array
+    """
     # Read the CSV into a DataFrame
     df = pd.read_csv(file_name)
     
@@ -388,7 +413,13 @@ def csv_to_numpy(file_name):
 
 
 def load_orientation_map(folder, run_ind):
-    """Loads the orientation map from the folder for the training indexed by run_ind."""
+    """ This function loads the orientation map from a given folder for the run indexed by run_ind.
+    Inputs:
+        folder: path to the folder containing the orientation map
+        run_ind: index of the run
+    Output:
+        orimap: orientation map for the run indexed by run_ind as a NumPy array
+    """
     orimap_filename = os.path.join(folder, "orimap.csv")
     orimaps = pd.read_csv(orimap_filename, header=0)
     mesh_run = orimaps['run_index']==float(run_ind)
@@ -399,11 +430,22 @@ def load_orientation_map(folder, run_ind):
 
 
 def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=False, log_regr=0, sup_only=1):
-    """Loads the parameters from the pretraining_results.csv or training_results.csv file depending on the stage. 
-    If for_training is True, then the last row of pretraining_results.csv is loaded as readout parameters are not trained during training. 
-    If for_training is False, then the full last row of training_results.csv is loaded. 
-    The parameters are then used to initialize the untrained parameters and readout parameters.
-    The offset_last is the last offset value from the psychometric offsets."""
+    """ This function loads the parameters from the pretraining_results.csv or training_results.csv file in the folder depending on the stage.
+    Inputs:
+        folder_path: path to the folder containing the pretraining_results.csv or training_results.csv file
+        run_index: index of the run
+        stage: stage of the training
+        iloc_ind: index of the row to load from the csv file
+        for_training: if True, then the last row of pretraining_results.csv is loaded. Otherwise, the last row of training_results.csv is loaded.
+        log_regr: if 1, then the readout parameters are loaded from init_readout_params.csv
+        sup_only: if 1 and log_regr=1, then the readout parameters are loaded for the sup layer only
+    Outputs:
+        readout_pars_loaded: dictionary containing the readout parameters
+        trained_pars_dict: dictionary containing the trained parameters
+        untrained_pars: dictionary containing the untrained parameters
+        offset_last: last psychometric offset value (returned only if for_training=True)
+        meanr_vec: mean response vector (returned only if for_training=True)
+    """
 
     from training.util_gabor import init_untrained_pars
     from parameters import SSNPars, ReadoutPars, TrainedSSNPars, PretrainedSSNPars, GridPars, FilterPars, StimuliPars, ConvPars, TrainingPars, LossPars, PretrainingPars
@@ -595,7 +637,14 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
 
 
 def filter_for_run_and_stage(df, run_index, stage=None):
-    """Filters the dataframe for the run_index and stage."""
+    """ This function returns the rows of a dataframe that correspond to a specific run_index and stage.
+    Inputs:
+        df: dataframe to filter
+        run_index: index of the run
+        stage: stage of the training
+    Output:
+        df_stage: filtered dataframe
+    """
 
     # Convert run_index to numeric and filter the dataframe for the run_index
     df['run_index'] = pd.to_numeric(df['run_index'], errors='coerce')
@@ -629,7 +678,13 @@ def filter_for_run_and_stage(df, run_index, stage=None):
 
 
 def set_up_config_folder(results_folder, conf_name):
-    """Create a folder for the training configuration and copy the necessary files to it."""
+    """ This function creates a folder for the training configuration and copies the necessary files to it.
+    Inputs:
+        results_folder: path to the folder where the configuration folder is created
+        conf_name: name of the configuration
+    Output:
+        config_folder: path to the configuration folder
+    """
     config_folder = Path(results_folder + '/' + conf_name)
     config_folder.mkdir(parents=True, exist_ok=True)
     figure_folder = config_folder / 'figures'
@@ -638,8 +693,10 @@ def set_up_config_folder(results_folder, conf_name):
 
 
 def configure_parameters_file(root_folder, conf):
-    """
-    Load parameters.py, change the parameters according to the input of this function, and then save parameters.py with these new parameters.
+    """ This function loads parameters.py from root_folder and changes it according to the specifications given by conf.
+    Inputs:
+        root_folder: path to the root folder containing parameters.py
+        conf: list of configuration parameters (see configurations.py for more details)
     """
     def extract_attributes(lines, class_names, keys):
         """Extract attributes and descriptions from a specific class based on keys."""
@@ -786,6 +843,11 @@ def configure_parameters_file(root_folder, conf):
     print(f"Updated parameters.py with new parameters.")
 
 def update_csv_with_df(df, filename):
+    """ This function updates an existing CSV file with a new DataFrame.
+    Inputs:
+        df: new DataFrame to append to the existing CSV file
+        filename: name of the existing CSV file
+    """
     # Load the existing file
     existing_df = pd.read_csv(filename)
     
