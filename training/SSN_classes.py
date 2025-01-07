@@ -90,13 +90,14 @@ class SSN_sup(_SSN_Base):
         """
         Make the full recurrent connectivity matrix W
         Input:
-            J_2x2 = total strength of weights of different pre/post cell-type
+            J_2x2 = total strength of weights of different pre/post cell-types
             xy_dist = distance matrix of spatial distance between grid points
             ori_dist = distance matrix of preferred orientation difference
             dist_from_single_ori = distance of each orientation in the map from the beta orientation
-            kappa = strength of dist_from_single_ori contribution in the horizontal connections
+            kappa = strength of dist_from_single_ori contribution
+            kappa_range = scaling factor for the contribution from distance_from_single_ori
         Output:
-        self.W
+            W_out = full recurrent connectivity matrix
         """
         new_normalization = False
         # Unpack parameters  
@@ -196,7 +197,14 @@ class SSN_mid(_SSN_Base):
     
 
     def make_W(self, J_2x2, distance_from_single_ori, kappa, kappa_range, MinSyn=1e-4):
-        """ Compute the 2x2x81 block with the exponential scaling per grid point """
+        """ Compute the recurrent connectivity array (2 x 2 x grid points).
+        Input:
+            J_2x2 = total strength of weights of different pre/post cell-types
+            distance_from_single_ori = distance of each orientation in the map from the beta orientation
+            kappa = strength of dist_from_single_ori contribution
+            kappa_range = scaling factor for the contribution from distance_from_single_ori
+        Output:
+            W_out = recurrent connectivity matrix (jnp array of shape (2, 2, grid points))"""
         tanh_kappa = jnp.tanh(kappa)
         
         W_type_grid_block = jnp.exp(tanh_kappa[:, :, None] * distance_from_single_ori[None, None, :]**2/(2*kappa_range**2))
@@ -210,7 +218,13 @@ class SSN_mid(_SSN_Base):
         return W_out
 
     def drdt(self, W, r, inp_vec):
-        """ Differential equation for the rate vector r """
+        """ Differential equation for the rate vector r.
+        Input:
+            W = connectivity matrix. shape: (2, 2, grid points)
+            r = rate vector. shape or reshaped to: (4 x 2 x grid points)
+            inp_vec = input vector
+        Output:
+            out = rate vector time derivative"""
         r1 = jnp.reshape(r, (-1, 2, self.Nc)) # phase x type x grid-point
         I =  W[None,:,:,:] * r1[:,None,:,:] # (4 x 2 x 2 x 81)  x recurrent input        
         I = jnp.sum(I, axis=2) # n_phases x 2 x 81 sum over pre-synaptic type
