@@ -232,7 +232,7 @@ class SSNPars:
     """ time constant for inhibitory neurons in ms """
     phases: int = 4 
     """ number of inh. and exc. neurons (with different Gabor filt.) per grid point in middle layer (has to be an even integer) """
-    sigma_oris = jnp.asarray([180.0, 180.0])
+    sigma_oris = jnp.asarray([90.0, 90.0])
     """ range of weights in terms of preferred orientation difference (in degree) """
     s_2x2_s = jnp.array([[0.2, 0.09], [0.4, 0.09]])
     """ ranges of weights between different pre/post cell-type """

@@ -143,7 +143,7 @@ def cosdiff_ring(d_x, L):
     cos_angle = jnp.cos(d_x * 2 * jnp.pi / L)
 
     # Calculate scaled distance
-    distance = jnp.sqrt( (1 - cos_angle) * 2) * L / (2 * jnp.pi)
+    distance = jnp.sqrt( 2 * (1 - cos_angle) ) * L / (2 * jnp.pi)
 
     return distance
 

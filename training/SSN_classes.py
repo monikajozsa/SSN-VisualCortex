@@ -120,14 +120,14 @@ class SSN_sup(_SSN_Base):
                 kappa_contrib = tanh_kappa_pre[a][b]*dist_from_single_ori**2/(2*(kappa_range**2)) + tanh_kappa_post[a][b]*dist_from_single_ori.T**2/(2*(kappa_range**2))
                 # dependence of connectivity on the distance from trained orientation and distance between grid point orientations (ori_dist)
                 if new_normalization:
-                    ori_dist_contrib = ori_dist**2/(sigma_oris[a,b]**2)
+                    ori_dist_contrib = ori_dist**2/(2*sigma_oris[a,b]**2)
                 else:
-                    ori_dist_contrib = ori_dist**2/(sigma_oris[a,b]**2) + kappa_contrib
+                    ori_dist_contrib = ori_dist**2/(2*sigma_oris[a,b]**2) + kappa_contrib
                 
                 if b == 0: # E projections
                     W = jnp.exp(-xy_dist/s_2x2[a,b] - ori_dist_contrib)
                 elif b == 1: # I projections 
-                    W = jnp.exp(-xy_dist**2/(s_2x2[a,b]**2) - ori_dist_contrib)
+                    W = jnp.exp(-xy_dist**2/(2*s_2x2[a,b]**2) - ori_dist_contrib)
 
                 # sparsify (set small weights to zero)
                 W = jnp.where(W < MinSyn, 0, W)
