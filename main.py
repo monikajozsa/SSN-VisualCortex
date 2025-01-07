@@ -1,13 +1,14 @@
-# This code runs pretraining for a general orientation task on a 2-layer SSN that models the middle and superficial layers of V1. 
-# After pretraining, it trains the model in several configurations and saves the results in separate folders.
-# It then calculates tuning curves and features for both pretraining and training with different configurations.
+# This script runs a pretraining and a training on a model for perceptual learning in the visual cortex. 
+# The pretrainig is done with a single configuration and for a general orientation discrimination task. 
+# The training is done with several configurations and for a fine orientation discrimination task.
+# The script then runs an analysis that includes evaluating parameter changes, calculating tuning curves and 
+# their features at different stages of the training, and mimicking an MVPA analysis based on experimental setups.
 
 import os
 import time
 import numpy
 import shutil
 import subprocess
-# fix random seed
 numpy.random.seed(0)
 
 from configurations import config
@@ -17,7 +18,7 @@ from analysis.analysis_functions import save_tc_features, main_tuning_curves
 from analysis.visualization import plot_results_from_csvs, barplots_from_csvs
 from analysis.main_analysis import main_analysis
 
-## Set up number of runs and starting time
+# Number of runs (parameter initializations) and starting time
 num_pretraining = 50
 starting_time_in_main= time.time()
 

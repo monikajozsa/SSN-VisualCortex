@@ -5,18 +5,19 @@ def evaluate_model_response(
     ssn_mid, ssn_sup, stimuli, conv_pars,  cE_m, cI_m, cE_s, cI_s, f_E, f_I, gabor_filters, distance_from_single_ori, kappa_f=jnp.array([0.0,0.0]), kappa_range=90
 ):
     """
-    Run individual stimulus through two layer model. 
-    
+    This function runs individual stimulus through two layer model.    
     Inputs:
-     ssn_mid, ssn_sup: middle and superficial layer classes
-     stimuli: stimuli to pass through network
-     conv_pars: convergence parameters for ssn 
-     c_E, c_I: baseline inhibition for middle and superficial layers
-     f_E, f_I: feedforward connections between layers
-    
+        ssn_mid, ssn_sup: instances of SSN_mid and SSN_sup classes
+        stimuli: stimuli to pass through network
+        conv_pars: instance of ConvPars class containing convergence parameters for ssn 
+        c_E, c_I: baseline inhibition for middle and superficial layers
+        f_E, f_I: feedforward connections between layers    
     Outputs:
-     r_sup, r_mid - fixed point of output neurons in middle and superficial layers (excitatory neurons in middle and center 5x5 grid in superficial layer)
-     loss related terms (wrt to middle and superficial layers)
+        r_sup, r_mid: fixed point of output neurons in middle and superficial layers (excitatory neurons in middle and all neurons that contribute to readout from superficial layer)
+        fp_mid, fp_sup: fixed point of all neurons in middle and superficial layers
+        avg_dx_mid, avg_dx_sup: average change in the second half of the fixed point calculation
+        max_E_mid, max_I_mid, max_E_sup, max_I_sup: maximum rates of excitatory and inhibitory neurons in middle and superficial layers
+        mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup: mean rates of excitatory and inhibitory neurons in middle and superficial layers
     """
     # Create vector using extrasynaptic constants
     constant_vector = constant_to_vec(c_E=cE_m, c_I=cI_m, ssn=ssn_mid)
@@ -51,6 +52,7 @@ def evaluate_model_response(
 
     return [r_sup, r_mid], [fp_mid, fp_sup], [avg_dx_mid, avg_dx_sup], [max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup]
 
+# vmap evaluate_model_response along bach dimension
 vmap_evaluate_model_response = vmap(evaluate_model_response, in_axes = (None, None, 0, None, None, None, None, None, None, None, None, None, None, None))
 
 
@@ -58,18 +60,18 @@ def evaluate_model_response_mid(
     ssn_mid, stimuli, conv_pars, c_E, c_I, gabor_filters
 ):
     """
-    Run individual stimulus through one layer model. 
-    
+    This function runs individual stimulus through the first (referred to as middle) layer of the model.   
     Inputs:
-     ssn_mid: middle layer class
-     stimuli: stimuli to pass through network
-     conv_pars: convergence parameters for ssn 
-     c_E, c_I: baseline inhibition for middle layer
-    
+        ssn_mid: instance of SSN_mid class
+        stimuli: stimuli to pass through network
+        conv_pars: instance of ConvPars class containing convergence parameters for ssn 
+        c_E, c_I: baseline inhibition for middle layer    
     Outputs:
-     r_mid - fixed point of excitatory neurons in middle layer
-     fp_mid - fixed point of all neurons in middle layer
-     loss related terms (wrt to middle layer)     
+        r_mid: fixed point of excitatory neurons
+        fp_mid: fixed point of all neurons
+        avg_dx_mid: average change in the second half of the fixed point calculation
+        max_E_mid, max_I_mid: maximum rates of excitatory and inhibitory neurons
+        mean_E_mid, mean_I_mid: mean rates of excitatory and inhibitory neurons
     """
     # Create vector using extrasynaptic constants
     constant_vector = constant_to_vec(c_E=c_E, c_I=c_I, ssn=ssn_mid)
@@ -88,14 +90,22 @@ def evaluate_model_response_mid(
     r_mid, fp_mid, avg_dx_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid = middle_layer_fixed_point(ssn_mid, SSN_mid_input, conv_pars, return_fp=True)
 
     return r_mid, fp_mid, avg_dx_mid, max_E_mid, max_I_mid, mean_E_mid, mean_I_mid
-
+# vmap evaluate_model_response_mid along bach dimension
 vmap_evaluate_model_response_mid = vmap(evaluate_model_response_mid, in_axes = (None, 0, None, None, None, None))
 
 
 def obtain_fixed_point(
     ssn, ssn_input, conv_pars
 ):
-    """Calculate the fixed point of an SSN model."""
+    """ This function calculates the fixed point of an SSN model. 
+    Inputs:
+        ssn: instance of _SSN_Base class (either SSN_mid or SSN_sup)
+        ssn_input: input to the SSN model
+        conv_pars: instance of ConvPars class containing convergence parameters for SSN model
+    Outputs:
+        r_fp: final values of the fixed point calculation
+        avg_dx: average change in the second half of the fixed point calculation
+    """
     r_init = jnp.zeros(ssn_input.shape[0])
     dt = conv_pars.dt
     xtol = conv_pars.xtol
@@ -121,7 +131,17 @@ def middle_layer_fixed_point(
     conv_pars,
     return_fp=False,
 ):
-    """Calculate the fixed point of the middle layer of the SSN model."""
+    """ This function calculates the fixed point of the middle layer of the SSN model.
+    Inputs:
+        ssn: instance of SSN_mid class
+        ssn_input: input to the middle layer
+        conv_pars: instance of ConvPars class containing convergence parameters for ssn
+    Outputs:
+        layer_output: output of the middle layer
+        avg_dx: average change in the second half of the fixed point calculation
+        maxr_E, maxr_I: maximum rate of excitatory and inhibitory neurons
+        meanr_E, meanr_I: mean rate of excitatory and inhibitory neurons
+    """
     # Calculate layer response and SSN convergence level
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
     
@@ -152,7 +172,17 @@ def superficial_layer_fixed_point(
     conv_pars,
     return_fp=False,
 ):    
-    """Calculate the fixed point of the superficial layer of the SSN model."""
+    """ This function calculates the fixed point of the superficial layer of the SSN model.
+    Inputs:
+        ssn: instance of SSN_sup class
+        ssn_input: input to the superficial layer
+        conv_pars: instance of ConvPars class containing convergence parameters for ssn
+    Outputs:
+        layer_output: output of the superficial layer
+        avg_dx: average change in the second half of the fixed point calculation
+        maxr_E, maxr_I: maximum rate of excitatory and inhibitory neurons
+        meanr_E, meanr_I: mean rate of excitatory and inhibitory neurons
+    """
     # Calculate layer response and SSN convergence level
     fp, avg_dx = obtain_fixed_point(ssn=ssn, ssn_input = ssn_input, conv_pars = conv_pars)
 
@@ -172,7 +202,14 @@ def superficial_layer_fixed_point(
 
 
 def constant_to_vec(c_E, c_I, ssn, sup=False):
-    """Create a vector from the baseline inihibitory and excitatory constants for the SSN model."""
+    """ This function create a vector from the baseline inihibitory and excitatory constants for the SSN model.
+    Inputs:
+        c_E, c_I: baseline excitation and inhibition added to the fixed points of middle and/or superficial layers
+        ssn: instance of SSN_mid or SSN_sup class
+        sup: bool indicating if the vector is for the superficial layer
+    Outputs:
+        constant_vec: vector of baseline inhibition for the SSN model
+    """
     edge_length = ssn.grid_pars.gridsize_Nx
 
     matrix_E = jnp.ones((edge_length, edge_length)) * c_E
