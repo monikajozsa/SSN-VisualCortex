@@ -60,7 +60,7 @@ def annotate_bar(ax, bars, values, ylabel=None, title=None):
 ######### PLOT RESULTS ON PARAMETERS ############
 
 def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
-    """ Plot the results on the parameters from a signle result csv file """
+    """ Plot the results on the parameters from a single run from fig_filename csv file """
     def plot_params_over_time(ax, df, keys, colors, linestyles, title, SGD_steps):
         for i, key in enumerate(keys):
             if key in df.keys():
@@ -83,6 +83,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         ax.set_xlabel('SGD steps', fontsize=20)
 
     def plot_loss(ax, df, SGD_steps):
+        """Plot loss changes over time."""
         for column in df.columns:
             if 'loss_' in column and 'val_loss' not in column:
                 ax.plot(range(SGD_steps), df[column], label=column, alpha=0.6)
@@ -95,6 +96,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         ax.set_ylim(-0.1, max(1, max(df['loss_all'][int(0.02*SGD_steps):])+0.1))
 
     def plot_offset(ax, df, SGD_steps, keys_metrics):
+        """Plot offset changes over time."""
         num_pretraining_steps= sum(df['stage'] == 0)
         ax.plot(range(num_pretraining_steps), jnp.ones(num_pretraining_steps)*6, alpha=0.6, c='black', linestyle='--')
         if len(keys_metrics)>1:
@@ -110,6 +112,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         ax.legend(loc='upper right', fontsize=20)
 
     def plot_readout_weights(ax, df, SGD_steps):
+        """Plot readout bias and weights over time."""
         ax.plot(range(SGD_steps), df['b_sig'], label='b_sig', linestyle='--', linewidth = 3)
         ax.set_xlabel('SGD steps', fontsize=20)
         i=0
@@ -124,7 +127,7 @@ def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
         ax.set_title('Readout bias and weights', fontsize=20)
         ax.legend(loc='upper right', fontsize=20)
     
-    # check if filename fig_filename + ".png" exists, if it does, return
+    # check if filename fig_filename + ".png" exists, if it does, do not recalculate the figure and return
     if os.path.exists(fig_filename + ".png"):
         return
     else:    
@@ -238,7 +241,9 @@ def plot_results_from_csvs(folder_path, num_runs=3, starting_run=0):
 
 
 def barplots_from_csvs(folder, save_folder=None, excluded_runs = [], add_to_file_name=''):
+    """ Plot bar plots of the parameters before and after training or pretraining over not-excluded runs """
     def scatter_data_with_lines(ax, data):
+        """Add data points for before and after and connect them with lines"""
         for i in range(2):
             group_data = data[i, :]
             # let the position be i 
@@ -250,6 +255,7 @@ def barplots_from_csvs(folder, save_folder=None, excluded_runs = [], add_to_file
             ax.plot([0, 1], [data[0, j], data[1, j]], color='black', alpha=0.2)
         
     def barplot_params(colors, keys, titles, means_pre, means_post, vals_pre, vals_post, figname, ylims=None, num_rows=2):
+        """Plot bar plots of the parameters before and after training or pretraining"""
         if len(keys) == 1:
             fig, ax = plt.subplots()
         elif len(keys) == 2:
@@ -489,6 +495,7 @@ def plot_tuning_curves_all_cells(results_dir, run_index, folder_to_save, num_rnd
 
 
 def plot_slope_config_groups(results_dir, config_groups, folder_to_save):
+    """Plot the slope differences for different configuration groups"""
     slope_data = pd.read_csv(os.path.join(results_dir, 'tc_slopediff_train.csv'))
     fig, axes = plt.subplots(nrows=2, ncols=len(config_groups), figsize=(15*len(config_groups), 10*2))
     layers = ['mid', 'sup']
@@ -756,6 +763,7 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
         ax.plot(lowess_I[:, 0], lowess_I[:, 1], color=shades+'blue', linewidth=10, alpha=0.8)
 
     def mesh_for_feature(data, feature, mesh_cells):
+        """Return the filtered data where feature is the given feature"""
         mesh_feature = data['feature']==feature
         feature_data = data[mesh_feature]
         feature_data = feature_data.loc[:,mesh_cells]
@@ -989,6 +997,7 @@ def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False
 
 ################### CORRELATION ANALYSIS ###################
 def match_keys_to_labels(key_list):
+    """ Match the keys to LaTeX notation. """
     # Create an empty dictionary to store the matching
     matched_labels = {}
     
@@ -1065,6 +1074,7 @@ def plot_param_offset_correlations(folder, excluded_runs=[]):
             return 'gray', 'lightgray'  # Insignificant correlation
         
     def regplots(param_key, y_key, rel_changes_train, corr_and_p_1, axes_flat, j, x_labels=None, y_labels=None):
+        """Plot the regression plot for the given parameter and y_key (psychometric offset threshold)."""
         if x_labels is None:
             x_labels = param_key
         line_color1, scatter_color = get_color(corr_and_p_1)
@@ -1078,6 +1088,7 @@ def plot_param_offset_correlations(folder, excluded_runs=[]):
         axes_flat[j].text(0.05, 0.05, f'r= {corr_and_p_1[0]:.2f}', transform=axes_flat[j].transAxes, fontsize=20)
 
     def save_fig(fig, folder, filename, title=None):
+        """Save the figure and close it."""
         if title is not None:
             fig.suptitle(title, fontsize=20)
         fig.tight_layout()
@@ -1127,6 +1138,7 @@ def plot_param_offset_correlations(folder, excluded_runs=[]):
 
 
 def plot_correlations(folder, num_training, num_time_inds=3):
+    """ Plot the correlations between the psychometric offset threshold and the model parameters. """
     offset_staircase_pars_corr, offset_psychometric_pars_corr, MVPA_corrs, data = MVPA_param_offset_correlations(folder, num_training, num_time_inds, mesh_for_valid_offset=False)
 
     ########## Plot the correlation between offset_th_rel_change and the combination of the J_m_E_rel_change, J_m_I_rel_change, J_s_E_rel_change, and J_s_I_rel_change ##########
@@ -1241,7 +1253,7 @@ def plot_correlations(folder, num_training, num_time_inds=3):
 ################## MVPA related plots ##################
 
 def plot_corr_triangle(data, keys):
-    """ In the given axis (ax), plot a correlation triangle between the data columns specified in keys """
+    """ Plot a correlation triangle for the given keys. """
     # Select data with keys
     data_keys = data[keys]
     data_keys = data_keys.replace([jnp.inf, -jnp.inf], jnp.nan).dropna()
@@ -1404,7 +1416,7 @@ def plot_corr_triangles(folder_path, excluded_runs=[]):
 
 def plot_MVPA_or_Mahal_scores(folder_path, file_name):
     """ Plot the MVPA scores or Mahalanobis distances for the two layers and two orientations. 
-    scores dimensions are runs x layers x SGD_inds x ori_inds """
+    MVPA and Mahalanobis score dimensions are runs x layers x SGD_inds x ori_inds """
     
     #Load the scores
     if file_name.endswith('MVPA_scores'):
@@ -1479,6 +1491,7 @@ def plot_MVPA_or_Mahal_scores_match_Kes_fig(folder_path, file_name):
     plt.close()
 
 def ori_histograms(folder):
+    ''' Plot histograms of the orientation maps for the middle and outside grid separately.'''
     #load orimap.csv as numpy array and reshape it to 9x9xnum_runs
     orimap = pd.read_csv(folder + '/orimap.csv')
     num_runs = int(orimap['run_index'].max() + 1)
