@@ -28,6 +28,7 @@ def fill_attribute_list(class_to_fill, attr_list, value_list):
 
     return class_to_fill
 
+
 def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pars=None, J_2x2_m=None, cE_m=None, cI_m=None, ssn_mid=None, train_data=None, pretrain_data=None):
     """Randomize the middle layer parameters of the model and check if the inequality and response conditions are satisfied."""
     if num_calls > 300:

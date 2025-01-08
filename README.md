@@ -96,38 +96,46 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 - **`main.py`**: The main entry point of the project. It calls functions for pretraining, training with different configurations and analysis on the results.
 - **`parameters.py`**: Contains parameter definitions used throughout training and analysis. The different training configurations are achieved by changing some of these parameters.
 - **`util.py`**: Provides utility functions used across different modules.
+- **`configurations.py`**: Defines a function that returns required training configurations
 <details>
 <summary>Functions called from `main.py`</summary>
 
+- **`save_code`**: Location: `util.py`
 - **`main_pretraining`**: Location: `training\main_pretraining.py`
+- **`config`**: Location: `configurations.py`
 - **`set_up_config_folder`**: Location: `util.py`
 - **`configure_parameters_file`**: Location: `util.py`
+- **`plot_results_from_csvs`**: Location: `analysis\visualization.py`
+- **`barplots_from_csvs`**: Location: `analysis\visualization.py`
 - **`main_training`**: Location: `training\main_training.py`
-- **`main_tuning_curves`**: Location: `analysis\main_analysis.py`
-- **`plot_results_on_parameters`**: Location: `analysis\main_analysis.py`
+- **`main_tuning_curves`**: Location: `analysis\analysis_functions.py`
+- **`save_tc_features`**: Location: `analysis\analysis_functions.py`
+- **`main_analysis`**: Location: `analysis\main_analysis.py`
 
 </details>
 
 <details>
 <summary>Classes in `parameters.py`</summary>
 
-- **`ConvPars`**: Parameters related to the convergence of the SSN (Stabilized Supralinear Network), including step size, tolerance, and maximum steps.
-- **`FilterPars`**: Parameters for Gabor filters used in the network, including Gaussian standard deviation, scaling parameters for input-to-middle layer and spatial frequency, and conversion parameters between degree of visual field, millimeters and pixel number.
-- **`GridPars`**: Defines the 2D grid's size and characteristics, such as distances between grid points (using `xy_distance` function in `parameters.py`), grid size, hypercolumn size and conversion parameters between degrees and millimeters.
-- **`LossPars`**: Contains parameters for loss calculations, including regularization constants and firing rate constraints (that are reset after pretraining).
-- **`PretrainedSSNPars`**: Parameters that are pretrained, including baseline excitatory and inhibitory constants (cE_m, cI_m, cE_s, cI_s), feedforward weights between middle and superficial layers (f_E, f_I), and weights and bias for the sigmoid layer.
 - **`PretrainingPars`**: Parameters specific to pretraining, including the frequency of accuracy checks, batch size, SGD steps, intervals for reference orientation and offset, and other parameters for early stopping criteria.
-- **`RandomizePars`**: Defines the ranges for random initialization of parameters such as cell type specific connection strengths (J_2x2_m, J_2x2_s), feedforward weights between middle and superficial layers (f_E, f_I), baseline inhibition and excitation (cE_m, cI_m, cE_s, cI_s), scaling parameter between input and middle layer (gE_m, gI_m) and learning rate. These parameters are all pretrained except for gE_m, gI_m and the learning rate.
-- **`ReadoutPars`**: Parameters for the readout sigmoid layer, including contributions from different layers, grid sizes, and noise levels (added to responses from layers).
-- **`SSNPars`**: General parameters for the middle and superficial layer SSNs, including power law parameters, time constants, number of phases in middle layer and parameters of the superficial layer connectivity matrix.
+- **`TrainingPars`**: Parameters specific to training (stage 2), including the frequency of validation, batch size, minimum and maximum SGD steps, and other parameters to handle specific configurations.
+- **`ConvPars`**: Parameters related to the convergence of the SSN (Stabilized Supralinear Network), including step size, tolerance, and maximum steps.
+- **`LossPars`**: Contains parameters for loss calculations, including regularization constants and firing rate constraints. Note that some of these change after pretraining.
+- **`GridPars`**: Defines the 2D grid's size and characteristics, such as distances between grid points (using `xy_distance` function in `parameters.py`), grid size, hypercolumn size and conversion parameters between degrees and millimeters.
+- **`FilterPars`**: Parameters for Gabor filters used in the network, including Gaussian standard deviation, scaling parameters for input-to-middle layer and spatial frequency, and conversion parameters between degree of visual field, millimeters and pixel number.
 - **`StimuliPars`**: Parameters defining stimulus characteristics, such as radius, contrast, and noise levels.
-- **`TrainedSSNPars`**: Parameters that are trained. Possible attributes are baseline excitatory and inhibitory constants (cE_m, cI_m, cE_s, cI_s), feedforward weights between middle and superficial layers (f_E, f_I), cell type specific connection strengths (J_2x2_m, J_2x2_s), and shaping parameter for superficial layer horizontal connections (\(\kappa \)).
+- **`ReadoutPars`**: Parameters for the readout sigmoid layer, including contributions from different layers, grid sizes, and noise levels (added to responses from layers).
+- **`SSNPars`**: General parameters for the middle and superficial layer SSNs, including power law parameters, time constants, number of phases in middle layer and parameters of the superficial layer connectivity matrix. Attributes of this class change  depending on what parameters are trained (they get moved between SSNPars and TrainedSSNPars). This class only contains untrained parameters during training.
+- **`TrainedSSNPars`**: Trained parameters. Possible attributes are baseline excitatory and inhibitory constants (cE_m, cI_m, cE_s, cI_s), feedforward weights between middle and superficial layers (f_E, f_I), cell type specific connection strengths (J_2x2_m, J_2x2_s), and shaping parameter for superficial layer horizontal connections (\(\kappa \)).
+- **`PretrainedSSNPars`**: Parameters that are pretrained, including baseline excitatory and inhibitory constants (cE_m, cI_m, cE_s, cI_s), feedforward weights between middle and superficial layers (f_E, f_I), and weights and bias for the sigmoid layer.
+- **`RandomizePars`**: Defines the ranges for random initialization of parameters such as cell type specific connection strengths (J_2x2_m, J_2x2_s), feedforward weights between middle and superficial layers (f_E, f_I), baseline inhibition and excitation (cE_m, cI_m, cE_s, cI_s), scaling parameter between input and middle layer (gE_m, gI_m) and learning rate. These parameters are all pretrained except for gE_m, gI_m and the learning rate.
 
 </details>
 
 <details>
 <summary> Functions in `util.py`</summary>
 
+- **`check_header`**: Checks if a file has header and returns 0 if the file has a header and None if it does not.
 - **`unpack_ssn_parameters`**: Unpacks key SSN parameters from a dictionary for trained parameters and a class for untrained parameters, returning them in the desired format.
 - **`cosdiff_ring`**: Computes the cosine-based angular distance for a given difference in angular positions.
 - **`create_grating_training`**: Generates input grating image for fine orientation discrimination task. It returns a dictionary of reference gratings, target grating, and labels for their relative orientations.
@@ -136,43 +144,73 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 - **`sigmoid`**: Computes the sigmoid function.
 - **`take_log`**: Takes the logarithm of a matrix with alternating signs. Used for taking log of the $J$ parameters before it enters the loss function.
 - **`sep_exponentiate`**: Exponentiates elements of a matrix with alternating signs. Used for exponentiating the $J$ parameters for model evaluation.
-- **`leaky_relu`**: Implements a customized leaky ReLU function to regulate activation rates in a neural model.
 - **`save_code`**: Saves the scripts to a designated folder to ensure reproducibility of results. Also creates folder for training results and figures and returns the root foldred path.
+- **`save_numpy_to_csv`**: Saves a 4D NumPy array to a csv file. The meaning of dimensions are fixed.
+- **`csv_to_numpy`**: Loads a 4D NumPy from a csv file. The meaning of dimensions are fixed.
 - **`load_orientation_map`**: Loads an orientation map for a specific training run from a given folder.
 - **`load_parameters`**: Loads and parameters to initialize trained parameters dictionary, untrained parameter class and readout parameter dictionary for training or pretraining stages.
 - **`filter_for_run_and_stage`**: Filters a DataFrame to retrieve data corresponding to a specific training run and stage.
 - **`set_up_config_folder`**: Creates folders for training configurations and copies the necessary files to it.
-- **`configure_parameters_file`**: Change `parameters.py` according to the training configuration. This function moves attributes between `TrainedSSNPars` and `SSNPars` classes and adjust `sup_mid_readout_contrib` in class `ReadoutPars` and `pretraining_task` in class `TrainingPars` depending on the configuration.
+- **`configure_parameters_file`**: Changes `parameters.py` according to the training configuration. This function moves attributes between `TrainedSSNPars` and `SSNPars` classes and adjust `sup_mid_readout_contrib` in class `ReadoutPars` and `pretraining_task` in class `TrainingPars` depending on the configuration.
+- **`update_csv_with_df`**: updates an existing CSV file with a new DataFrame. It allows for new columns but otherwise, keeps the ordering of the original columns.
 
+</details>
+
+<details>
+<summary> Functions in `configurations.py`</summary>
+
+- **`config`**: Returns configuration specifications for a group of configurations that is one of the following: special, readout, excluded, only.
 
 </details>
 
 
 ### Training Folder
-- **`main_training.py`**: Contains the main flow for training (`main_training`) with a given configuration. Called with subprocess module and takes inputs through command line arguments. This is to enable redefining jax-jit functions that rely on parameters.py.
-- **`main_pretraining.py`**: Trains the model (including readout weights) for the general discrimination task on randomized parameters.
+- **`main_pretraining.py`**: As stage 0, it trains the model (including readout weights) for the general discrimination task on randomized parameters. Then, as stage 1, it trains the readout parameters of the model for the fine discrimination task.
+- **`main_training.py`**: Contains the main flow for stage 2 training (`main_training`) with a given configuration. Called with subprocess module and takes inputs through command line arguments. This is to enable redefining jax-jit functions that rely on parameters.py.
 - **`training_functions.py`**: Implements training and evaluation of a two-layer SSN model for the general and the fine orientation discrimination tasks. It includes functions for managing model parameters, calculating loss and accuracy, training the model with SGD, logging results into a DataFrame and saving it to a csv file.
 - **`SSN_classes.py`**: Defines classes for modeling Stabilized Supralinear Networks (SSN), focusing on two layers. These classes represent and simulate the dynamics of neural circuits based on shared parameters of neurons and parameters describing the connectivities between neurons.
 - **`model.py`**: Provides functions for simulating the response (fixed point) of neurons in both the middle and superficial layers. It includes vectorized versions of these functions to handle batch processing. The functions also compute maximum and mean firing rates that are homeostatic terms in the loss function.
 - **`util_gabor.py`**: Utility functions to handle orientation maps, Gabor filters and 
 
 <details>
-<summary>Functions called from `main_training` functions</summary>
-
-- **`train_ori_discr`**: Location: `training/training_functions.py`
-- **`load_parameters`**: Location: `util.py`
-
-</details>
-
-<details>
 <summary>Functions in `main_pretraining.py`</summary>
 
-- **`randomize_params`**: Randomizes parameters while ensuring that predefined inequality and response conditions are met. 
 - **`fill_attribute_list`**: Fills the attributes of a class with the provided values.
 - **`randomize_mid_params`**: Randomizes parameters for the middle layer of the model, checking that certain inequality and response conditions are met. If conditions are violated, it recursively attempts to find suitable parameters.
 - **`randomize_params`**: Randomizes initial parameters for the model, including both middle (by calling `randomize_mid_params`) and superficial layers. It also optimizes readout parameters using logistic regression (by calling `readout_pars_from_regr`), and ensures all randomized parameters satisfy the required conditions.
 - **`readout_pars_from_regr`**: Optimizes the readout parameters using logistic regression based on the pretraining general orientation discrimination task.
 - **`create_initial_parameters_df`**: Creates or updates a DataFrame with initial parameters used for pretraining and training (parameters at the end of pretraining). The parameters are saved to a CSV file that is accessed at the beginning of training.
+- **`exclude_runs`**: Checks for runs that do not meet certain conditions and removes them from the CSV files.
+- **`main_pretraining`**: Initializes parameters randomly such that they meet several conditions, and runs stage 0 and 1. 
+   <details>
+   <summary>Functions called from `main_pretraining` function</summary>
+
+   - **`create_readout_init`**: (nested function) Fills up a data dictionary wit readout parameters for the different settings.
+   - **`train_ori_discr`**: Main training function running the SGD algorithm. Location: `training/training_functions.py` 
+   - **`readout_pars_from_regr`** 
+   - **`mean_training_task_acc_test`**:  Location: `training/training_functions.py` 
+   - **`offset_at_baseline_acc`**:  Location: `util.py`
+   - **`load_parameters`**:  Location: `util.py`
+   - **`create_initial_parameters_df`**
+   - **`filter_for_run_and_stage`**: Location: `util.py`
+   - **`exclude_runs`** 
+
+   </details>
+
+</details>
+
+
+<details>
+<summary>Functions called from `main_training.py`</summary>
+
+- **`main_training`**: Runs stage 2 training with the configuration specified in the parameters.py file and initial_parameters from the pretraining.
+   <details>
+   <summary>Functions called from `main_training` function</summary>
+
+   - **`load_parameters`**:  Location: `util.py`
+   - **`train_ori_discr`**: Main training function running the SGD algorithm. Location: `training/training_functions.py` 
+
+   </details>
 
 </details>
 
@@ -226,17 +264,11 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 <details>
 <summary> Functions and classes in `util_gabor.py`</summary>
 
-- **`UntrainedPars`**: A class to store parameters that are not trained. This includes grid parameters, stimuli settings, orientation map, Gabor filters, and more.
-
 - **`test_uniformity`**: Tests the uniformity of a given orientation map by dividing the orientations into bins and comparing the observed frequencies against expected frequencies using a chi-squared test.
 
 - **`make_orimap`**: Generates an orientation map for a grid by superimposing plane waves, which represent orientations.
 
 - **`save_orimap`**: Saves the generated orientation map to a CSV file, including the run index for traceability.
-
-- **`init_untrained_pars`**: Initializes untrained parameters for the SSN model, either by generating a new orientation map or loading a pre-existing one, and prepares the Gabor filters and other related parameters.
-
-- **`update_untrained_pars`**: Recalculates and/or updates the Gabor filter parameters in the untrained parameters.
 
 - **`BW_image_jax_supp`**: Prepares supporting variables for generating black-and-white grating images, such as coordinates and alpha channels, which do not need to be recalculated during the training loop.
 
@@ -251,6 +283,12 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 - **`find_gabor_A`**: Calculates a scaling constant for Gabor filters to ensure consistent contrast across stimuli.
 
 - **`create_gabor_filters_ori_map`**: Generates Gabor filters for each orientation and phase in the orientation map (by calling `gabor_filter`). Gebors filters are applied to the stimuli that is then passed to the neurons in the middle layer.
+
+- **`UntrainedPars`**: A class to store parameters that are not trained. This includes grid parameters, stimuli settings, orientation map, Gabor filters, and more.
+
+- **`init_untrained_pars`**: Initializes untrained parameters for the SSN model, either by generating a new orientation map or loading a pre-existing one, and prepares the Gabor filters and other related parameters.
+
+- **`update_untrained_pars`**: Recalculates and/or updates the Gabor filter parameters in the untrained parameters.
 
 </details>
 
