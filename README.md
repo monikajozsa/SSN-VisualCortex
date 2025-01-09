@@ -165,7 +165,7 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 
 
 ### Training Folder
-- **`main_pretraining.py`**: As stage 0, it trains the model (including readout weights) for the general discrimination task on randomized parameters. Then, as stage 1, it trains the readout parameters of the model for the fine discrimination task.
+- **`main_pretraining.py`**: This script trains the model (including readout weights) for the general discrimination task on randomized parameters (stage 0). Then, as stage 1, it trains the readout parameters of the model for the fine discrimination task.
 - **`main_training.py`**: Contains the main flow for stage 2 training (`main_training`) with a given configuration. Called with subprocess module and takes inputs through command line arguments. This is to enable redefining jax-jit functions that rely on parameters.py.
 - **`training_functions.py`**: Implements training and evaluation of a two-layer SSN model for the general and the fine orientation discrimination tasks. It includes functions for managing model parameters, calculating loss and accuracy, training the model with SGD, logging results into a DataFrame and saving it to a csv file.
 - **`SSN_classes.py`**: Defines classes for modeling Stabilized Supralinear Networks (SSN), focusing on two layers. These classes represent and simulate the dynamics of neural circuits based on shared parameters of neurons and parameters describing the connectivities between neurons.
@@ -237,9 +237,7 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 <summary> Classes in `SSN_classes.py`</summary>
 
 - **`_SSN_Base`**: A base class for SSN models, containing methods and properties such as neuron parameters, power-law nonlinearity, and functions to calculate the fixed points of the rate vector.
-  
 - **`SSN_sup`**: A class representing the superficial layer of the model. It extends `_SSN_Base` and includes methods for generating the recurrent connectivity matrix (`W`) based on spatial and orientation distance, as well as functions for selecting excitatory (`E`) or inhibitory (`I`) neuron types from vectors.
-  
 - **`SSN_mid`**: A class representing the middle layer of the model. It also extends `_SSN_Base` and adds specific functionality for handling multiple phases of neurons. It includes methods to create the recurrent connectivity matrix as a block diagonal matrix and functions for selecting excitatory (`E`) or inhibitory (`I`)  neurons across different phases.
 
 </details>
@@ -248,13 +246,9 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 <summary> Functions in `model.py`</summary>
 
 - **`evaluate_model_response`**: Simulates the response of a two-layer SSN model (middle and superficial layers) to a given stimulus. It returns the fixed points of the neurons from both layers along with related metrics.
-  
 - **`vmap_evaluate_model_response`**: A vectorized version of `evaluate_model_response` that allows for batch processing of multiple stimuli inputs simultaneously.
-
 - **`evaluate_model_response_mid`**: Simulates the response of the middle layer of the SSN model to a given stimulus, calculating  the fixed point of neurons. It returns the fixed points and related metrics.
-
 - **`vmap_evaluate_model_response_mid`**: A vectorized version of `evaluate_model_response_mid` for batch processing, similar to `vmap_evaluate_model_response` but focused on the middle layer only.
-
 - **`obtain_fixed_point`**: Calculates the fixed point of an SSN model.
 - **`middle_layer_fixed_point`**: Calculates the fixed point of the middle layer of the SSN model.
 - **`superficial_layer_fixed_point`**: Calculate the fixed point of the superficial layer of the SSN model.
@@ -265,36 +259,79 @@ We use stochastic gradient descent (SGD) to update network parameters. Our loss 
 <summary> Functions and classes in `util_gabor.py`</summary>
 
 - **`test_uniformity`**: Tests the uniformity of a given orientation map by dividing the orientations into bins and comparing the observed frequencies against expected frequencies using a chi-squared test.
-
 - **`make_orimap`**: Generates an orientation map for a grid by superimposing plane waves, which represent orientations.
-
 - **`save_orimap`**: Saves the generated orientation map to a CSV file, including the run index for traceability.
-
 - **`BW_image_jax_supp`**: Prepares supporting variables for generating black-and-white grating images, such as coordinates and alpha channels, which do not need to be recalculated during the training loop.
-
 - **`BW_image_jax`**: Generates grating images based on given parameters, including orientation and jitter, applying a mask to blend the stimulus with a gray background.
-
 - **`BW_image_jit_noisy`**: Calls the `BW_image_jit` function to generate grating images and adds Gaussian noise to it.
-
 - **`calculate_shifted_coords_mm`**: Calculates shifted coordinates of the 2D grid in millimeters that are centered at a given point.
-
 - **`gabor_filter`**: Creates a Gabor filter at a specified location, orientation, and phase, used for simulating the receptive fields of neurons in the middle layer SSN.
-
 - **`find_gabor_A`**: Calculates a scaling constant for Gabor filters to ensure consistent contrast across stimuli.
-
 - **`create_gabor_filters_ori_map`**: Generates Gabor filters for each orientation and phase in the orientation map (by calling `gabor_filter`). Gebors filters are applied to the stimuli that is then passed to the neurons in the middle layer.
-
 - **`UntrainedPars`**: A class to store parameters that are not trained. This includes grid parameters, stimuli settings, orientation map, Gabor filters, and more.
-
 - **`init_untrained_pars`**: Initializes untrained parameters for the SSN model, either by generating a new orientation map or loading a pre-existing one, and prepares the Gabor filters and other related parameters.
-
 - **`update_untrained_pars`**: Recalculates and/or updates the Gabor filter parameters in the untrained parameters.
 
 </details>
 
 ### Analysis Folder - to be written when analysis is finalized
-- **`main_analysis.py`**: 
+- **`main_analysis.py`**: Visualizes and runs analysis on parameter changes, correlations, MVPA scores Mahalanobis distances.
+- **`analysis_functions.py`**: Contains the key functions for the analysis and tuning curve calulation.
+- **`visualization.py`**: Contains the key functions for visualizing the results and analysis.
 
+
+<details>
+<summary> Functions in `main_analysis.py`</summary>
+
+- **`main_analysis`**: Runs the analysis for given configurations and number of runs within a given folder.
+   <details>
+   <summary> Functions called from `main_analysis` function</summary>
+
+   - **`make_exclude_run_csv`**: Location: `analysis.analysis_functions`
+   - **`barplots_from_csvs`**: Location: `analysis.visualization`
+   - **`boxplots_from_csvs`**: Location: `analysis.visualization`
+   - **`plot_param_offset_correlations`**: Location: `analysis.visualization`
+   - **`plot_tuning_curves`**: Location: `analysis.visualization`
+   - **`plot_tc_features`**: Location: `analysis.visualization`
+   - **`main_MVPA`**: Location: `analysis.analysis_functions`
+   - **`plot_MVPA_or_Mahal_scores`**: Location: `analysis.visualization`
+   - **`plot_MVPA_or_Mahal_scores_match_Kes_fig`**: Location: `analysis.visualization`   
+   - **`MVPA_anova`**: Location: `analysis.analysis_functions`
+   - **`plot_corr_triangles`**: Location: `analysis.visualization`
+</details>
+
+<details>
+<summary> Functions in `analysis_functions.py`</summary>
+
+- **`data_from_run`**: Reads CSV files, filters them for run and returns the combined dataframe together with the time indices where stages change. Calls `filter_for_run_and_stage`, `SGD_indices_at_stages`
+- **`calc_rel_change_supp`**: Calculates the relative change in a variable between two time points.
+- **`rel_change_for_run`**: Calculates the relative changes in the parameters for a single run. Calls `data_from_run`, `calc_rel_change_supp`. 
+- **`rel_change_for_runs`**: Calculate the relative changes in parameters for all runs. Calls `rel_change_for_run` and its nested functions: `load_existing_data`, `save_to_csv`.
+- **`pre_post_for_runs`**: Calculates the pre and post training values for runs that are not excluded. Calls `data_from_run`
+- **`gabor_tuning`**: Calculates the responses of the gabor filters to stimuli with different orientations. Calls `BW_image_jax_supp`, `BW_image_jit`.
+- **`tc_grid_point`**: Calculates the responses of the middle and superficial layers to gratings at a single grid point - used for phase matched tuning curve calculation. Calls `BW_image_jax_supp`, `BW_image_jit`, `vmap_evaluate_model_response` and `vmap_evaluate_model_response_mid`. Vmapped version defined as `vmapped_tc_grid_point`.
+- **`tuning_curve`**: Calculates responses of middle and superficial layers to gratings (of full images without added noise) with different orientations. Calls `unpack_ssn_parameters`, `SSN_mid`, `SSN_sup` and `vmapped_tc_grid_point`.
+- **`save_tc_features`**: Calls compute_features for each stage and run index and saves the results into a CSV file. Calls `check_header` and `compute_features`.
+- **`compute_features`**: Computes tuning curve features for each cell. Calls its nested functions:
+   - **`full_width_half_max`**: Calculates width of tuning curve at half-maximum. This method should not be applied when tuning curve has multiple bumps. 
+   - **`tc_cubic`**: Cubic interpolation of tuning curve data.
+- **`param_offset_correlations`**: Calculates the Pearson correlation coefficient between the offset threshold and the parameters. Calls `rel_change_for_runs`, and its nested function: `calculate_correlations`: Calculates correlation coefficient between a main variable and given parameters.
+- **`MVPA_param_offset_correlations`**: Calculates the Pearson correlation coefficient between the offset threshold, the parameter differences and the MVPA scores. Calls `rel_change_for_runs`, `csv_to_numpy`, 
+- **`select_type_mid`**: Selects the excitatory or inhibitory cell responses. Vmapped version defined as `vmap_select_type_mid`.
+- **`gaussian_filter_jax`**: Applies Gaussian filter to a 2D JAX array (image). Calls its nested function `gaussian_kernel`: Generates a 2D Gaussian kernel.
+- **`smooth_trial`**: Smooths a single trial of responses over grid points. Calls `gaussian_filter_jax`. Vmapped version defined as `vmap_smooth_trial`.
+- **`vmap_model_response`**: Generates model response for a given orientation and noise level. Calls `BW_image_jit_noisy`, `SSN_mid`, `SSN_sup` and `vmap_evaluate_model_response`.
+- **`SGD_indices_at_stages`**: Gets the indices of the SGD steps at the end and beginning of stages.
+- **`select_response`**: Selects the response for a given SGD step, layer and ori from the responses dictionary. If the dictionary has ref and target responses, it returns the difference between them.   
+- **`mahal`**: Returns the Mahalanobis distance (in squared units) of each observation in a dataset from the sample data.
+- **`filtered_model_response`**: Calculates filtered model response for each orientation in a given orientation list and for each required parameter set. Calls `load_parameters`, `vmap_model_response`, `generate_noise`, `vmap_select_type_mid` and its nested function `smooth_data`: Smooth data matrix over grid points. Data is reshaped into 9x9 grid before smoothing and then flattened again. Calls `vmap_smooth_trial`.
+- **`MVPA_Mahal_analysis`**: Calculates MVPA and Mahalanobis distances for each run and layer at different stages of training. Calls `filtered_model_response`, `mahal`. NOTE: MVPA is based on `sklearn.linear_model.SGDClassifier`.
+- **`MVPA_anova`**: Performs two-way ANOVA on MVPA or Mahalanobis scores to measure the effect of SGD steps and orientation. Calls `csv_to_numpy`
+- **`make_exclude_run_csv`**: Creates a csv file with the indices of the runs that should be excluded from the analysis based on missing data and the offset condition. Calls `data_from_run`
+- **`main_tuning_curves`**: Calculates tuning curves for the different runs and different stages in each run. Calls `load_parameters` and `tuning_curve`.
+- **`main_MVPA`**: Calculates MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer. Calls `MVPA_Mahal_analysis`, `save_numpy_to_csv`, `csv_to_numpy`.
+
+</details>
 
 ## Reconstructing results - to be written when results are finalized
 

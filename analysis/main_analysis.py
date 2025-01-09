@@ -3,15 +3,16 @@ import time
 import numpy
 import pandas as pd
 
-from analysis.analysis_functions import save_tc_features, MVPA_anova, make_exclude_run_csv, csv_to_numpy, main_MVPA
-from analysis.visualization import plot_tuning_curves, plot_corr_triangles, plot_tc_features, plot_param_offset_correlations, boxplots_from_csvs, plot_MVPA_or_Mahal_scores, plot_MVPA_or_Mahal_scores_match_Kes_fig, barplots_from_csvs
+from analysis.analysis_functions import  MVPA_anova, make_exclude_run_csv, main_MVPA
+from analysis.visualization import plot_tuning_curves, plot_tc_features, barplots_from_csvs, boxplots_from_csvs, plot_param_offset_correlations, plot_corr_triangles,plot_MVPA_or_Mahal_scores_match_Kes_fig, plot_MVPA_or_Mahal_scores
+
 
 def main_analysis(folder_path, num_runs, conf_names):
-    ''' Main function for analysis of the training results. 
+    """ Main function for analysis of the training results. 
     1) Creates excluded_runs_all.csv
     2) plot boxplots, param_offset_correlations, tuning_curves and tuning curve features
     3) run MVPA and plot MVPA scores, Mahalanobis scores, anova results and correlation triangles
-    '''
+    """
     
     ######### ######### ######### ######### ######### #########
     ######## Asses run indices that should be excluded ########

@@ -27,7 +27,7 @@ from training.util_gabor import BW_image_jit_noisy, BW_image_jax_supp, BW_image_
 
 ############## Analysis functions ##########
 def data_from_run(folder, run_index=0, num_indices=3):
-    """Read CSV files, filter them for run and return the combined dataframe together with the time indices where stages change."""
+    """ Read CSV files, filter them for run and return the combined dataframe together with the time indices where stages change."""
     
     pretrain_filepath = os.path.join(os.path.dirname(folder), 'pretraining_results.csv') # this reaches the pretraining_results.csv file in the same folder as the training_results.csv file
     train_filepath = os.path.join(folder, 'training_results.csv')
@@ -73,7 +73,7 @@ def calc_rel_change_supp(variable, time_start, time_end):
             return 100*(end_value - start_value) / start_value
     
 def rel_change_for_run(folder, training_ind=0, num_indices=3):
-    """Calculate the relative changes in the parameters for a single run."""
+    """ Calculate the relative changes in the parameters for a single run."""
 
     # Load the data for the given training index and drop irrelevant columns
     data, time_inds, no_train_data = data_from_run(folder, training_ind, num_indices)
@@ -118,7 +118,7 @@ def rel_change_for_run(folder, training_ind=0, num_indices=3):
     return rel_change_train, rel_change_pretrain, time_inds
 
 def rel_change_for_runs(folder, num_time_inds=3, num_runs=None, excluded_runs=[]):
-    """Calculate the relative changes in parameters for all runs."""
+    """ Calculate the relative changes in parameters for all runs."""
     
     def load_existing_data(filepath):
         if os.path.exists(filepath):
@@ -190,8 +190,9 @@ def rel_change_for_runs(folder, num_time_inds=3, num_runs=None, excluded_runs=[]
 
     return rel_changes_train, rel_changes_pretrain
 
+
 def pre_post_for_runs(folder, num_training, num_time_inds=3, excluded_runs=[]):
-    ''' Calculate the pre and post training values for runs that are not excluded. '''
+    """ Calculate the pre and post training values for runs that are not excluded. """
     included_runs = numpy.setdiff1d(numpy.arange(num_training), excluded_runs)
     for i, run_ind in enumerate(included_runs):
         df_i, stage_time_inds, no_train_data = data_from_run(folder, run_index=run_ind, num_indices=num_time_inds)
@@ -218,7 +219,7 @@ def pre_post_for_runs(folder, num_training, num_time_inds=3, excluded_runs=[]):
 
 
 def gabor_tuning(untrained_pars, ori_vec=jnp.arange(0,180,6)):
-    """Calculate the responses of the gabor filters to stimuli with different orientations."""
+    """ Calculate the responses of the gabor filters to stimuli with different orientations."""
     gabor_filters = untrained_pars.gabor_filters
     num_ori = len(ori_vec)
     # Getting the 'blank' alpha_channel and mask for a full image version stimuli with no background
@@ -251,7 +252,7 @@ def gabor_tuning(untrained_pars, ori_vec=jnp.arange(0,180,6)):
 
 
 def tc_grid_point(inds_maps_flat, ssn_mid, ssn_sup, num_phases, untrained_pars, ori_vec, num_ori, grid_size, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_f = jnp.array([0.0, 0.0])):
-    """Calculate the responses of the middle and superficial layers to gratings at a single grid point - used for phase matched tuning curve calculation."""
+    """ Calculate the responses of the middle and superficial layers to gratings at a single grid point - used for phase matched tuning curve calculation."""
     
     x_ind = inds_maps_flat[0]
     y_ind = inds_maps_flat[1]
@@ -358,55 +359,6 @@ def tuning_curve(untrained_pars, trained_pars, file_path=None, ori_vec=jnp.arang
     return responses_sup_phase_match_2D, responses_mid_phase_match_2D
 
 
-def full_width_half_max(vector, d_theta):
-    """ Calculate width of tuning curve at half-maximum. This method should not be applied when tuning curve has multiple bumps. """
-    # Remove baseline, calculate half-max
-    vector = vector-vector.min()
-    half_height = vector.max()/2
-
-    # Get the number of points above half-max and multiply it by the delta angle to get width in angle
-    point_inds = numpy.arange(len(vector))
-    point_inds_above = point_inds[vector>half_height]
-    
-    # check if points_above is consecutive
-    point_above_diff = point_inds_above[1:] - point_inds_above[0:-1]
-    if not numpy.all(point_above_diff==1):
-        # Get longest consecutive sequence of points above half-max
-        point_inds_above = numpy.split(point_inds_above, numpy.where(numpy.diff(point_inds_above) != 1)[0]+1)
-        # concatenate the point_inds_above[0] and point_inds_above[-1] if point_inds_above[0][0] == 0 and point_inds_above[-1][-1] == len(vector)-1
-        if point_inds_above[0][0] == 0 and point_inds_above[-1][-1] == len(vector)-1:
-            point_inds_above[0] = numpy.concatenate([point_inds_above[0], point_inds_above[-1]])
-            point_inds_above.pop()
-        num_points_above = numpy.max([len(x) for x in point_inds_above])
-    else:
-        num_points_above = len(point_inds_above)
-    distance = d_theta * num_points_above
-    
-    return distance
-
-
-def tc_cubic(x,y, d_theta=0.5):
-    """ Cubic interpolation of tuning curve data. """
-
-    # add first value as last value to make the interpolation periodic
-    if 360 not in x:
-        x = numpy.append(x, 360)
-        y = numpy.append(y, y[0])
-    
-    mask = ~jnp.isnan(y)
-    if numpy.sum(mask) < len(y)*0.9:
-        print('Warning: More than 10% of the tuning curve data is missing.')
-
-    # Create cubic interpolation object
-    cubic_interpolator = interp1d(x[mask], y[mask], kind='cubic')
-
-    # Create new x values and get interpolated values
-    x_interp = numpy.arange(0, max(x), d_theta)
-    y_interp = cubic_interpolator(x_interp)
-
-    return x_interp, y_interp
-
-
 def save_tc_features(training_tc_file, num_runs=1, ori_list=jnp.arange(0,180,6), ori_to_center_slope=[55, 125], stages=[1, 2], filename='tuning_curve_features.csv'):
     """ Calls compute_features for each stage and run index and saves the results into a CSV file. """
     output_filename = os.path.join(os.path.dirname(training_tc_file), filename)
@@ -463,9 +415,54 @@ def save_tc_features(training_tc_file, num_runs=1, ori_list=jnp.arange(0,180,6),
 
 
 def compute_features(tuning_curves, num_cells, ori_list, oris_to_calc_slope_at, d_theta_interp=0.2):
-    """
-    Computes tuning curve features for each cell.
-    """
+    """ Computes tuning curve features for each cell."""
+    def full_width_half_max(vector, d_theta):
+        """ Calculate width of tuning curve at half-maximum. This method should not be applied when tuning curve has multiple bumps. """
+        # Remove baseline, calculate half-max
+        vector = vector-vector.min()
+        half_height = vector.max()/2
+
+        # Get the number of points above half-max and multiply it by the delta angle to get width in angle
+        point_inds = numpy.arange(len(vector))
+        point_inds_above = point_inds[vector>half_height]
+        
+        # check if points_above is consecutive
+        point_above_diff = point_inds_above[1:] - point_inds_above[0:-1]
+        if not numpy.all(point_above_diff==1):
+            # Get longest consecutive sequence of points above half-max
+            point_inds_above = numpy.split(point_inds_above, numpy.where(numpy.diff(point_inds_above) != 1)[0]+1)
+            # concatenate the point_inds_above[0] and point_inds_above[-1] if point_inds_above[0][0] == 0 and point_inds_above[-1][-1] == len(vector)-1
+            if point_inds_above[0][0] == 0 and point_inds_above[-1][-1] == len(vector)-1:
+                point_inds_above[0] = numpy.concatenate([point_inds_above[0], point_inds_above[-1]])
+                point_inds_above.pop()
+            num_points_above = numpy.max([len(x) for x in point_inds_above])
+        else:
+            num_points_above = len(point_inds_above)
+        distance = d_theta * num_points_above
+        
+        return distance
+
+    def tc_cubic(x,y, d_theta=0.5):
+        """ Cubic interpolation of tuning curve data. """
+
+        # add first value as last value to make the interpolation periodic
+        if 360 not in x:
+            x = numpy.append(x, 360)
+            y = numpy.append(y, y[0])
+        
+        mask = ~jnp.isnan(y)
+        if numpy.sum(mask) < len(y)*0.9:
+            print('Warning: More than 10% of the tuning curve data is missing.')
+
+        # Create cubic interpolation object
+        cubic_interpolator = interp1d(x[mask], y[mask], kind='cubic')
+
+        # Create new x values and get interpolated values
+        x_interp = numpy.arange(0, max(x), d_theta)
+        y_interp = cubic_interpolator(x_interp)
+
+        return x_interp, y_interp
+
     # Initialize feature arrays
     features = {
         'fwhm': numpy.zeros(num_cells),
@@ -539,6 +536,7 @@ def param_offset_correlations(folder, num_time_inds=2, excluded_runs=[]):
     
     # Helper function to calculate Pearson correlation
     def calculate_correlations(main_var, params, result_dict):
+        """ Calculate the Pearson correlation coefficient between the main variable and the parameters."""
         for _, main_value in main_var.items():
             for param_key, param_values in params.items():
                 corr, p_value = scipy.stats.pearsonr(main_value, param_values)
@@ -621,7 +619,7 @@ def MVPA_param_offset_correlations(folder, num_time_inds=3, x_labels=None):
 ############################## helper functions for MVPA and Mahal distance analysis ##############################
 
 def select_type_mid(r_mid, cell_type='E', phases=4):
-    """Selects the excitatory or inhibitory cell responses. This function assumes that r_mid is 3D (trials x grid points x celltype and phase)"""
+    """ Selects the excitatory or inhibitory cell responses. This function assumes that r_mid is 3D (trials x grid points x celltype and phase)"""
     if cell_type=='E':
         map_numbers = jnp.arange(1, 2 * phases, 2)-1 # 0,2,4,6
     else:
@@ -635,19 +633,17 @@ def select_type_mid(r_mid, cell_type='E', phases=4):
 
 vmap_select_type_mid = jax.vmap(select_type_mid, in_axes=(0, None, None))
 
-
-def gaussian_kernel(size: int, sigma: float):
-    """Generates a 2D Gaussian kernel."""
-    x = jnp.arange(-size // 2 + 1., size // 2 + 1.)
-    y = jnp.arange(-size // 2 + 1., size // 2 + 1.)
-    xx, yy = jnp.meshgrid(x, y)
-    kernel = jnp.exp(-(xx**2 + yy**2) / (2 * sigma**2))
-    kernel = kernel / jnp.sum(kernel)
-    return kernel
-
-
 def gaussian_filter_jax(image, sigma: float):
-    """Applies Gaussian filter to a 2D JAX array (image)."""
+    """ Applies Gaussian filter to a 2D JAX array (image)."""
+    def gaussian_kernel(size: int, sigma: float):
+        """ Generates a 2D Gaussian kernel."""
+        x = jnp.arange(-size // 2 + 1., size // 2 + 1.)
+        y = jnp.arange(-size // 2 + 1., size // 2 + 1.)
+        xx, yy = jnp.meshgrid(x, y)
+        kernel = jnp.exp(-(xx**2 + yy**2) / (2 * sigma**2))
+        kernel = kernel / jnp.sum(kernel)
+        return kernel
+    
     size = int(jnp.ceil(3 * sigma) * 2 + 1)  # Kernel size
     kernel = gaussian_kernel(size, sigma)
     smoothed_image = jax.scipy.signal.convolve2d(image, kernel, mode='same')
@@ -655,7 +651,7 @@ def gaussian_filter_jax(image, sigma: float):
 
 
 def smooth_trial(X_trial, num_phases, gridsize_Nx, sigma, num_grid_points):
-    """Smooths a single trial of responses over grid points."""
+    """ Smooths a single trial of responses over grid points."""
     smoothed_data_trial = jnp.zeros((gridsize_Nx,gridsize_Nx,num_phases))
     for phase in range(num_phases):
         trial_response = X_trial[phase*num_grid_points:(phase+1)*num_grid_points]
@@ -667,26 +663,8 @@ def smooth_trial(X_trial, num_phases, gridsize_Nx, sigma, num_grid_points):
 vmap_smooth_trial = jax.vmap(smooth_trial, in_axes=(0, None, None, None, None))
 
 
-def smooth_data(X, gridsize_Nx, sigma = 1):
-    """ Smooth data matrix (trials x cells or single trial) over grid points. Data is reshaped into 9x9 grid before smoothing and then flattened again. """
-    # if it is a single trial, add a batch dimension for vectorization
-    original_dim = X.ndim
-    if original_dim == 1:
-        X = X.reshape(1, -1) 
-    num_grid_points=gridsize_Nx*gridsize_Nx
-    num_phases = int(X.shape[1]/num_grid_points)
-
-    smoothed_data = vmap_smooth_trial(X, num_phases, gridsize_Nx, sigma, num_grid_points)
-
-    # if it was a single trial, remove the batch dimension before returning
-    if original_dim == 1:
-        smoothed_data = smoothed_data.reshape(-1, num_grid_points)
-    
-    return smoothed_data
-
-
 def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = None, J_2x2_s = None, cE_m = None, cI_m = None, cE_s=None, cI_s=None, f_E = None, f_I = None, kappa_Jsup=jnp.array([[0.0,0.0],[0.0,0.0]]), kappa_Jmid=jnp.array([[0.0,0.0],[0.0,0.0]]), kappa_f=jnp.array([0.0,0.0])):
-    """Generate model response for a given orientation and noise level using vmap_evaluate_model_response."""
+    """ Generate model response for a given orientation and noise level using vmap_evaluate_model_response."""
     # Generate noisy data
     ori_vec = jnp.repeat(ori, n_noisy_trials)
     jitter_vec = jnp.repeat(0, n_noisy_trials)
@@ -709,7 +687,7 @@ def vmap_model_response(untrained_pars, ori, n_noisy_trials = 100, J_2x2_m = Non
 
 
 def SGD_indices_at_stages(df, num_indices=2, peak_offset_flag=False):
-    """Get the indices of the SGD steps at the end (and at the beginning if num_indices=3) of pretraining and at the end of training."""
+    """ Get the indices of the SGD steps at the end (and at the beginning if num_indices=3) of pretraining and at the end of training."""
     # get the number of rows in the dataframe
     num_SGD_steps = len(df)
     SGD_step_inds = numpy.zeros(num_indices, dtype=int)
@@ -809,6 +787,23 @@ def filtered_model_response(folder, run_ind, ori_list= jnp.asarray([55, 125, 0])
     """
     Calculate filtered model response for each orientation in ori_list and for each parameter set (that come from file_name at num_SGD_inds rows)
     """
+    def smooth_data(X, gridsize_Nx, sigma = 1):
+        """ Smooth data matrix (trials x cells or single trial) over grid points. Data is reshaped into 9x9 grid before smoothing and then flattened again. """
+        # if it is a single trial, add a batch dimension for vectorization
+        original_dim = X.ndim
+        if original_dim == 1:
+            X = X.reshape(1, -1) 
+        num_grid_points=gridsize_Nx*gridsize_Nx
+        num_phases = int(X.shape[1]/num_grid_points)
+
+        smoothed_data = vmap_smooth_trial(X, num_phases, gridsize_Nx, sigma, num_grid_points)
+
+        # if it was a single trial, remove the batch dimension before returning
+        if original_dim == 1:
+            smoothed_data = smoothed_data.reshape(-1, num_grid_points)
+        
+        return smoothed_data
+
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
 
@@ -1089,8 +1084,9 @@ def MVPA_anova(folder, file_name='MVPA_scores.csv'):
         print(f'125 mean:{numpy.mean(untrained)}, std:{numpy.std(untrained)}')
         '''
 
+
 def make_exclude_run_csv(folder, num_runs, offset_condition=True):
-    '''Create a csv file with the indices of the runs that should be excluded from the analysis based on missing data and the offset condition.'''
+    """ Create a csv file with the indices of the runs that should be excluded from the analysis based on missing data and the offset condition."""
     excluded_inds = []
     keys_metrics = ['psychometric_offset', 'staircase_offset']
     for run_index in range(num_runs):
@@ -1155,7 +1151,7 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
 
 ########## CALCULATE MVPA SCORES AND MAHALANOBIS DISTANCES ############
 def main_MVPA(folder, num_runs, num_stages=2, sigma_filter=5, r_noise=True, num_noisy_trials=100, excluded_runs=[]):
-    """ Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer"""
+    """ Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer. """
     
     if not os.path.exists(folder +'/MVPA_scores.csv'):
         MVPA_scores, Mahal_scores = MVPA_Mahal_analysis(folder,num_runs=num_runs, num_stages=num_stages, r_noise = r_noise, sigma_filter=sigma_filter, num_noisy_trials=num_noisy_trials, excluded_runs=excluded_runs)
