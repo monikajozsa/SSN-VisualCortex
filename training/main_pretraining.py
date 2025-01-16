@@ -42,7 +42,7 @@ def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pa
     while not (cond_ineq1 and cond_ineq2):
         J_EE_m, J_EI_m_nosign, J_IE_m, J_II_m_nosign = random.uniform(low=[J_range[0][0], J_range[1][0], J_range[2][0], J_range[3][0]],high=[J_range[0][1], J_range[1][1], J_range[2][1], J_range[3][1]])
         gE_m, gI_m = random.uniform(low=[g_range[0], g_range[0]], high=[g_range[1], g_range[1]])
-        cond_ineq1 = jnp.abs(J_EE_m*J_II_m_nosign*1.1 < J_EI_m_nosign*J_IE_m)
+        cond_ineq1 = jnp.abs(J_EE_m*J_II_m_nosign)*1.1 < abs(J_EI_m_nosign*J_IE_m)
         cond_ineq2 = jnp.abs(J_EI_m_nosign*gI_m)*1.1 < jnp.abs(J_II_m_nosign*gE_m)
         i = i+1
         if i>200:
@@ -65,8 +65,7 @@ def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pa
         ssn_pars = fill_attribute_list(ssn_pars, ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m'], [J_EE_m, -J_EI_m_nosign, J_IE_m, -J_II_m_nosign])
 
         # Initialize untrained parameters
-        untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, 
-                    loss_pars, training_pars, pretraining_pars, readout_pars)
+        untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, loss_pars, training_pars, pretraining_pars, readout_pars)
     else:
         untrained_pars = update_untrained_pars(untrained_pars, readout_pars, gE_m, gI_m)
         

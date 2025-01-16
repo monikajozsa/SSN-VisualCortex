@@ -11,7 +11,7 @@ import sys
 from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, MVPA_param_offset_correlations, data_from_run, param_offset_correlations, pre_post_for_runs
+from analysis.analysis_functions import rel_change_for_run, rel_change_for_runs, MVPA_param_offset_correlations, data_from_run, param_offset_correlations, pre_post_for_runs, get_psychometric_threshold_for_configs
 from util import check_header, csv_to_numpy
 
 plt.rcParams['xtick.labelsize'] = 12 # Set the size for x-axis tick labels
@@ -19,6 +19,7 @@ plt.rcParams['ytick.labelsize'] = 12 # Set the size for y-axis tick labels
 
 ######### HELPER FUNCTIONS ############
 def axes_format(axs, fs_ticks=20, ax_width=2, tick_width=5, tick_length=10, xtick_flag=True, ytick_flag=True):
+    """Format the axes of the plot based on the input parameters"""
     # Adjust axes line width (spines thickness)
     for spine in axs.spines.values():
         spine.set_linewidth(ax_width)
@@ -62,6 +63,7 @@ def annotate_bar(ax, bars, values, ylabel=None, title=None):
 def plot_results_from_csv(folder, run_index = 0, fig_filename=''):
     """ Plot the results on the parameters from a single run from fig_filename csv file """
     def plot_params_over_time(ax, df, keys, colors, linestyles, title, SGD_steps):
+        """Plot parameters changes over time."""
         for i, key in enumerate(keys):
             if key in df.keys():
                 ax.plot(range(SGD_steps), df[key], label=key, color=colors[i], linestyle=linestyles[i])
@@ -349,6 +351,7 @@ def barplots_from_csvs(folder, save_folder=None, excluded_runs = [], add_to_file
 def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_runs = []):
     """ Create boxplots and barplots for the relative changes of the parameters before and after training """
     def boxplot_params(keys_group, rel_changes, group_labels, box_colors, full_path, set_ylim=False, num_rows=1):
+        """Create boxplots for the relative changes of the parameters before and after training"""
         num_groups=len(keys_group)
         num_training = len(rel_changes[keys_group[0][0]])
         fig, axs = plt.subplots(num_rows, num_groups//num_rows, figsize=(5* num_groups//num_rows, 5*num_rows))
@@ -433,104 +436,6 @@ def boxplots_from_csvs(folder, save_folder = None, num_time_inds = 3, excluded_r
 
 
 ################### TUNING CURVES ###################
-def plot_tuning_curves_all_cells(results_dir, run_index, folder_to_save, num_rnd_cells=81):
-    """Plot example tuning curves for middle and superficial layer cells at different stages of training"""
-    if num_rnd_cells == 81:
-        tc_cells = numpy.arange(81)
-    else:
-        tc_cells_unsorted = numpy.random.choice(81, num_rnd_cells, replace=False)
-        tc_cells = numpy.sort(tc_cells_unsorted)
-
-    # Load tuning curves
-    train_tc_filename = os.path.join(results_dir, 'tuning_curves.csv')
-    train_tuning_curves = numpy.array(pd.read_csv(train_tc_filename, header=None))
-    pretrain_tc_filename = os.path.join(os.path.dirname(results_dir), 'pretraining_tuning_curves.csv')
-    pretrain_tuning_curves = numpy.array(pd.read_csv(pretrain_tc_filename, header=0))
-
-    # Combine pretraining and training tuning curves
-    tuning_curves = numpy.vstack((pretrain_tuning_curves, train_tuning_curves))
-
-    # Select tuning curves for the current run
-    mesh_i = tuning_curves[:,0]==run_index
-    tuning_curve_i = tuning_curves[mesh_i,1:]
-    
-    # Select tuning curves for each stage of training
-    mesh_stage_0 = tuning_curve_i[:,0]==0
-    tc_0 = tuning_curve_i[mesh_stage_0,1:]
-    mesh_stage_1 = tuning_curve_i[:,0]==1
-    tc_1 = tuning_curve_i[mesh_stage_1,1:]
-    mesh_stage_2 = tuning_curve_i[:,0]==2
-    tc_2 = tuning_curve_i[mesh_stage_2,1:]
-
-    # Create figure of 2 x 5 subplot arranged as E-I for the two rows and mid-phase0, mid-phase1, mid-phase2, mid-phase3, and sup for the columns
-    fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(5*5, 5*2))
-    num_oris = tc_1.shape[0]
-    # Plot tuning curves
-    for cell_ind in range(len(tc_cells)):
-        for i in range(2):
-            # Middle layer cells
-            for j in range(4):
-                axes[i,j].plot(numpy.arange(num_oris)*180/num_oris, tc_0[:,j*162+i*81+cell_ind], label='pretraining',linewidth=2, color='black', alpha=0.2)
-                axes[i,j].plot(numpy.arange(num_oris)*180/num_oris, tc_1[:,j*162+i*81+cell_ind], label='post-pretraining',linewidth=2, color='orange', alpha=0.4)
-                axes[i,j].plot(numpy.arange(num_oris)*180/num_oris, tc_2[:,j*162+i*81+cell_ind], label='post-training',linewidth=2, color='green', alpha=0.6)
-                # emphasize 55 on the x-axis
-                axes[i,j].axvline(x=55, color='black', linestyle='--', alpha=0.5)
-            
-            # Superficial layer cells        
-            axes[i,4].plot(numpy.arange(num_oris)*180/num_oris, tc_0[:,648+i*81+cell_ind], label='pretraining',linewidth=2, color='black', alpha=0.2)
-            axes[i,4].plot(numpy.arange(num_oris)*180/num_oris, tc_1[:,648+i*81+cell_ind], label='post-pretraining',linewidth=2, color='orange', alpha=0.4)
-            axes[i,4].plot(numpy.arange(num_oris)*180/num_oris, tc_2[:,648+i*81+cell_ind], label='post-training',linewidth=2, color='green', alpha=0.6)
-            # emphasize 55 on the x-axis
-            axes[i,4].axvline(x=55, color='black', linestyle='--')
-    # axes[0,0].legend(loc='upper left', fontsize=20)
-    # Set main title
-    fig.suptitle('Top: E, Bottom: I, Left 4: mid, Right 1: sup, Black: prepre, Orange: pre, Green:post', fontsize=20)
-
-    # Save plot
-    if folder_to_save is not None:
-        fig.savefig(os.path.join(folder_to_save,f'tc_fig_all_cells_run{run_index}.png'))
-    else:
-        fig.savefig(os.path.join(results_dir,f'tc_fig_all_cells_run{run_index}.png'))
-    plt.close()
-
-
-def plot_slope_config_groups(results_dir, config_groups, folder_to_save):
-    """Plot the slope differences for different configuration groups"""
-    slope_data = pd.read_csv(os.path.join(results_dir, 'tc_slopediff_train.csv'))
-    fig, axes = plt.subplots(nrows=2, ncols=len(config_groups), figsize=(15*len(config_groups), 10*2))
-    layers = ['mid', 'sup']
-    color_shades_of_blue = ['slategray', 'blue', 'teal', 'deepskyblue', 'darkblue']
-    color_shades_of_red = ['rosybrown', 'red', 'salmon', 'darkred', 'orangered']
-    for i, config_group in enumerate(config_groups):
-        for j in range(len(config_group)):
-            mesh_config = slope_data['configuration']==config_group[j]
-            slope_data_config = slope_data[mesh_config]
-            for ori in ['57', '123']:
-                if ori == '57':
-                    linestyle = '-'
-                else:
-                    linestyle = '--'
-                for type in ['E', 'I']:
-                    if type == 'E':
-                        color = color_shades_of_blue[j]
-                    else:
-                        color = color_shades_of_red[j]
-                    for layer_ind in range(2):
-                        layer = layers[layer_ind]
-                        x_data = slope_data_config[f'slope_{ori}_diff_{type}_{layer}_x']
-                        y_data = slope_data_config[f'slope_{ori}_diff_{type}_{layer}_y']
-                        label = f'{config_group[j]} ({type}, ori {ori})'
-                        axes[layer_ind, i].plot(x_data, y_data, label=label, linewidth=2, color=color, linestyle=linestyle)
-                        # Add legend outside the axes
-                        axes[layer_ind, i].legend(loc='upper left', bbox_to_anchor=(1.05, 1), fontsize=12, borderaxespad=0.)
-    plt.tight_layout(rect=[0, 0, 0.85, 0.95]) # Adjust rect to make space for legends
-    fig.suptitle('Top: Mid, Bottom: Sup, Blue: I, Red: E, Solid: 57, Dashed: 123', fontsize=25)
-    if folder_to_save is not None:
-        fig.savefig(os.path.join(folder_to_save,'slope_fig_config_groups.png'))
-    else:
-        fig.savefig(os.path.join(results_dir,'slope_fig_config_groups.png'))
-
-
 def plot_tuning_curves(results_dir, tc_cells, num_runs, folder_to_save=None, seed=0, tc_cell_labels=None, excluded_runs=[]):
     """Plot example tuning curves for middle and superficial layer cells at different stages of training"""
     if folder_to_save is None:
@@ -594,33 +499,6 @@ def plot_tuning_curves(results_dir, tc_cells, num_runs, folder_to_save=None, see
     else:
         fig.savefig(os.path.join(results_dir,'tc_fig.png'))
     plt.close()
-
-
-def plot_pre_post_scatter(ax, x_axis, y_axis, orientations, indices_to_plot, num_training, title, colors=None, linecolor='black'):
-    """Scatter plot of pre vs post training values for a given set of indices"""
-    if colors is None:
-        ax.scatter(x_axis[:,indices_to_plot], y_axis[:,indices_to_plot], s=20, alpha=0.5)
-    else:
-        for run_ind in range(num_training):
-            bin_indices = numpy.digitize(numpy.abs(orientations[run_ind,:]), [4, 12, 20, 28, 36, 44, 50, 180])
-        
-            # Iterate over bins rather than individual points
-        
-            for bin_idx, color in enumerate(colors, start=1):  # Adjust as needed
-                # Find indices within this bin
-                in_bin = numpy.where(bin_indices == bin_idx)[0]
-                # Find intersection with indices_to_plot
-                plot_indices = numpy.intersect1d(in_bin, indices_to_plot)
-                
-                if len(plot_indices) > 0:
-                    ax.scatter(x_axis[run_ind,plot_indices], y_axis[run_ind,plot_indices], color=color, s=20, alpha=0.5)
-            
-    # Plot x = y line
-    xpoints = ypoints = ax.get_xlim()
-    ax.plot(xpoints, ypoints, color=linecolor, linewidth=2)
-    ax.set_xlabel('Pre training')
-    ax.set_ylabel('Post training')
-    ax.set_title(title)
 
 
 def plot_tc_features(results_dir, stages=[0,1,2], color_by=None, add_cross=False, only_slope_plot=False, only_center_cells=False, excluded_runs=[]):
@@ -1060,6 +938,7 @@ def match_keys_to_labels(key_list):
     
     return matched_labels
 
+
 def plot_param_offset_correlations(folder, excluded_runs=[]):
     """ Plot the correlations between the psychometric offset threshold and the model parameters. """
     # Helper functions
@@ -1490,24 +1369,60 @@ def plot_MVPA_or_Mahal_scores_match_Kes_fig(folder_path, file_name):
     plt.savefig(os.path.join(folder_path, 'figures', "MVPA_match_paper_fig.png"))
     plt.close()
 
-def ori_histograms(folder):
-    ''' Plot histograms of the orientation maps for the middle and outside grid separately.'''
-    #load orimap.csv as numpy array and reshape it to 9x9xnum_runs
-    orimap = pd.read_csv(folder + '/orimap.csv')
-    num_runs = int(orimap['run_index'].max() + 1)
-    # drop the run_index column
-    orimap = orimap.drop(columns=['run_index'])
-    orimap = orimap.to_numpy().reshape((9,9,num_runs))
-    # plot histograms for middle grid and outside grid separately
-    fig, ax = plt.subplots(1, 2, figsize=(20, 10))
-    # middle grid
-    ax[0].hist(orimap[2:7, 2:7, :].flatten(), bins=36, color='blue', alpha=0.5)
-    ax[0].set_title('Middle grid')
-    ax[0].set_xlabel('Orientation')
-    ax[0].set_ylabel('Count')
-    # outside grid
-    ax[1].hist(numpy.array([orimap[0:2, 0:2, :], orimap[7:, 7:, :]]).flatten(), bins=36, color='red', alpha=0.5)
-    ax[1].set_title('Outside grid')
-    ax[1].set_xlabel('Orientation')
-    ax[1].set_ylabel('Count')
-    plt.savefig(folder + '/ori_histograms.png')
+################ Ablation study related plots ################
+
+def plot_threshold_from_ablation(root_folder, num_training):
+    """ Plot the threshold changes for the different ablation configurations. """
+    labels_dic = dict(baseline='bl',
+                    cms=r'$c_x$',
+                    kappa=r'$\kappa$',
+                    Js=r'$J_{\text{sup}}$',                  
+                    Jm=r'$J_{\text{mid}}$',
+                    JI=r'$J_{xI}$',
+                    f=r'$f_x$',
+                    JE=r'$J_{xE}$',      
+                    #sup_layer_readout = r'Superficial',
+                    mixed_readout = r'Mixed',
+                    #mid_layer_readout = r'Middle',                  
+                    sup_nohori_readout = 'Superficial \n  no hori. conn.',
+                    )
+    labels = list(labels_dic.values())[1:]
+    pyschometric_offsets, pyschometric_offsets_readout, config_names, config_names_readout = get_psychometric_threshold_for_configs(root_folder, num_training)
+    # format: [excluded, only] i.e. [freeze, anti-freeze] (expect for baseline, which is [pre, post]) -- all are psychometric thresholds
+    thresh_base_pre = (pyschometric_offsets['conf_baseline_pre']).mean()
+    #thresh_base_post = (pyschometric_offsets['conf_baseline']).mean()
+    d_th_excl = [thresh_base_pre-pyschometric_offsets[config_name].mean() for config_name in config_names[1:] if config_name.endswith('excluded')]
+    d_th_only = [pyschometric_offsets[config_name].mean() for config_name in config_names[1:] if config_name.endswith('only')]
+
+    # Number of bars
+    n = len(d_th_excl)
+    x = numpy.arange(n)
+
+    # Bar width
+    width = 0.6
+    fig, ax = plt.subplots(figsize=(18, 5))
+
+    # Plotting the bars
+    plt.bar(x, d_th_only, width=width, color='lightgreen', label='unique')
+    plt.bar(x, d_th_excl, width=width/2, color='darkgreen', label='freeze')
+
+    # Adding the readout cases
+    readout_x = (n + numpy.arange(2))
+    config_names_readout_to_plot =['conf_mixed_readout','conf_suponly_no_hori_readout']
+    readout_vals = [(pyschometric_offsets_readout[config_name] - pyschometric_offsets_readout['conf_suponly_readout']).mean() for config_name in config_names_readout_to_plot]
+    plt.bar(readout_x, readout_vals, width=width, color='tab:orange', label='readout')
+
+    # Adding labels and title
+    x_combined = numpy.concatenate((x, readout_x))
+    plt.xlabel('Training configurations for ablation study', fontsize=20)
+    plt.ylabel(r'$\Delta$ threshold (degrees)', fontsize=20)
+    plt.title('Effectiveness of different sets of parameters and readout configurations \n', fontsize=20)
+    plt.xticks(x_combined, labels, rotation=30, ha="right", fontsize=20)
+    plt.yticks(fontsize=18) 
+
+    # Add black dashed line for mean conf_baseline threshold
+    #plt.axhline(y=thresh_base_pre, color='black', linestyle='--', label='baseline-pre')
+
+    # Add legend
+    plt.legend(loc='upper right', fontsize=18)
+    plt.savefig(os.path.join(root_folder, 'threshold_ablation.pdf'), bbox_inches='tight')

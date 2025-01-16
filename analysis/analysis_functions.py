@@ -135,6 +135,7 @@ def rel_change_for_runs(folder, num_time_inds=3, num_runs=None, excluded_runs=[]
     if num_runs is None:
         pretrain_filepath = os.path.join(os.path.dirname(folder), 'pretraining_results.csv')
         pretrain_df = pd.read_csv(pretrain_filepath)
+        pretrain_df = pretrain_df.dropna(how='all')
         num_runs = pretrain_df['run_index'].iloc[-1] + 1
 
     # Load pre-existing data if available
@@ -1160,3 +1161,76 @@ def main_MVPA(folder, num_runs, num_stages=2, sigma_filter=5, r_noise=True, num_
     else:
         MVPA_scores = csv_to_numpy(folder +'/MVPA_scores.csv')
         Mahal_scores = csv_to_numpy(folder +'/Mahal_scores.csv')
+
+def get_psychometric_threshold_for_configs(root_folder, num_training):
+    """ Calculate the psychometric threshold for different configurations and return the average of the last three values for each configuration. """
+    def last_three_offsets(num_training, train_filepath):
+
+        df_train = pd.read_csv(train_filepath)
+        psychom_offsets_pre = numpy.zeros(num_training)
+        psychom_offsets_post = numpy.zeros(num_training)
+        for i in range(num_training):
+            df_train_i = filter_for_run_and_stage(df_train, i, 2)
+            psychom_offset = df_train_i['psychometric_offset'].values
+            last_three_non_NAN = psychom_offset[numpy.isnan(psychom_offset)==False][-5:]
+            first_non_NAN = psychom_offset[numpy.isnan(psychom_offset)==False][0]
+            psychom_offsets_post[i] = last_three_non_NAN.mean()
+            psychom_offsets_pre[i] = first_non_NAN.mean()
+            
+        return psychom_offsets_post, psychom_offsets_pre
+
+    # Define the configuration names
+    config_names=['conf_baseline',
+    'conf_cms_excluded',
+    'conf_cms_only',
+    'conf_kappa_excluded',
+    'conf_kappa_only',
+    'conf_Js_excluded',
+    'conf_Js_only',
+    'conf_Jm_excluded',
+    'conf_Jm_only',
+    'conf_JI_excluded',
+    'conf_JI_only',
+    'conf_f_excluded',
+    'conf_f_only',
+    'conf_JE_excluded',
+    'conf_JE_only',
+    ]
+    config_names_readout =['conf_suponly_readout',
+    'conf_mixed_readout',
+    'conf_midonly_readout',
+    'conf_suponly_no_hori_readout']
+
+    # Initialize dictionaries to store the pyschometric offsets and filters for runs with less than 50 degrees offset
+    pyschometric_offsets_readout = {}
+    pyschometric_offsets = {}
+    mesh_pre_post = numpy.ones(num_training, dtype=bool)
+    mesh_pre_post_readout = numpy.ones(num_training, dtype=bool)
+
+    # Filter for the runs that have less than 50 degrees offset
+    for config_name in config_names:
+        config_folder = os.path.join(root_folder, config_name)
+        pyschometric_offsets_config, pyschometric_offsets_config_pre = last_three_offsets(num_training, os.path.join(config_folder, 'training_results.csv'))
+        mesh_pre_post_config = (pyschometric_offsets_config_pre<50)
+        mesh_pre_post = mesh_pre_post & mesh_pre_post_config
+    # Fill in the pyschometric offsets for the configurations in config_names
+    for config_name in config_names:
+        config_folder = os.path.join(root_folder, config_name)
+        pyschometric_offsets_config, pyschometric_offsets_config_pre = last_three_offsets(num_training, os.path.join(config_folder, 'training_results.csv'))
+        pyschometric_offsets[config_name] = pyschometric_offsets_config[mesh_pre_post]
+        pyschometric_offsets[config_name+'_pre'] = pyschometric_offsets_config_pre[mesh_pre_post]
+       
+    # Filter for the runs that have less than 50 degrees offset
+    for i,config_name in enumerate(config_names_readout):
+        config_folder = os.path.join(root_folder, config_name)
+        pyschometric_offsets_readout_config, pyschometric_offsets_readout_config_pre = last_three_offsets(num_training, os.path.join(config_folder, 'training_results.csv'))
+        mesh_pre_post_readout_config = (pyschometric_offsets_readout_config<50)
+        mesh_pre_post_readout = mesh_pre_post_readout & mesh_pre_post_readout_config
+    # Fill in the pyschometric offsets for the readout configurations in config_names_readout
+    for i,config_name in enumerate(config_names_readout):
+        config_folder = os.path.join(root_folder, config_name)
+        pyschometric_offsets_readout_config, pyschometric_offsets_readout_config_pre = last_three_offsets(num_training, os.path.join(config_folder, 'training_results.csv'))   
+        pyschometric_offsets_readout[config_name] = pyschometric_offsets_readout_config[mesh_pre_post]
+        pyschometric_offsets_readout[config_name+'_pre'] = pyschometric_offsets_readout_config_pre[mesh_pre_post]
+    
+    return pyschometric_offsets, pyschometric_offsets_readout, config_names, config_names_readout
