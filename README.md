@@ -113,6 +113,9 @@ This section provides an explanation of how to use the scripts.
       (ii) PretrainingPars.is_on should be set to False in `parameters.py`.
       </details>
 
+   <details><summary>Running pretraining with existing random initializations:</summary> Pretraining can be run with existing initial parameters. For this, create a folder with the `orimap.csv`, `init_parameters.csv` in it and set the folder_path variable in `main.py` to be this folder. Make sure to set PretrainingPars.is_on = True in `parameters.py`.
+      </details>
+
 ## Output File Structure
 
 This section describes the folders and files that the scripts generate arranged by the procedures that generate them. 
