@@ -175,22 +175,22 @@ def train_ori_discr(
             append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_E'], log_f_E, as_log=True)
             append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_I'], log_f_I, as_log=True)
             if 'kappa_Jsup' in trained_pars_dict.keys():
-                tanh_kappa_Jsup = jnp.tanh(trained_pars_dict['kappa_Jsup'])
+                tanh_kappa_Jsup = jnp.sqrt(jnp.tanh(trained_pars_dict['kappa_Jsup']))/ ssn_pars.kappa_range
                 kappas_Jsup.append(tanh_kappa_Jsup.ravel())
             elif hasattr(ssn_pars, 'kappa_Jsup'):
-                tanh_kappa_Jsup = jnp.tanh(ssn_pars.kappa_Jsup)
+                tanh_kappa_Jsup = jnp.sqrt(jnp.tanh(ssn_pars.kappa_Jsup))/ ssn_pars.kappa_range
                 kappas_Jsup.append(tanh_kappa_Jsup.ravel())
             if 'kappa_Jmid' in trained_pars_dict.keys():
-                tanh_kappa_Jmid = jnp.tanh(trained_pars_dict['kappa_Jmid'])
+                tanh_kappa_Jmid = jnp.sqrt(jnp.tanh(trained_pars_dict['kappa_Jmid']))/ ssn_pars.kappa_range
                 kappas_Jmid.append(tanh_kappa_Jmid.ravel())
             elif hasattr(ssn_pars, 'kappa_Jmid'):
-                tanh_kappa_Jmid = jnp.tanh(ssn_pars.kappa_Jmid)
+                tanh_kappa_Jmid = jnp.sqrt(jnp.tanh(ssn_pars.kappa_Jmid)) / ssn_pars.kappa_range
                 kappas_Jmid.append(tanh_kappa_Jmid.ravel())
             if 'kappa_f' in trained_pars_dict.keys():
-                tanh_kappa_f = jnp.tanh(trained_pars_dict['kappa_f'])
+                tanh_kappa_f = jnp.sqrt(jnp.tanh(trained_pars_dict['kappa_f']))/ ssn_pars.kappa_range
                 kappas_f.append(tanh_kappa_f.ravel())
             elif hasattr(ssn_pars, 'kappa_f'):
-                tanh_kappa_f = jnp.tanh(ssn_pars.kappa_f)
+                tanh_kappa_f = jnp.sqrt(jnp.tanh(ssn_pars.kappa_f)) / ssn_pars.kappa_range
                 kappas_f.append(tanh_kappa_f.ravel())
             if stage<2:
                 w_sigs.append(readout_pars_dict['w_sig'])
