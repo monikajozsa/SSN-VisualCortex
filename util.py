@@ -130,7 +130,7 @@ def unpack_ssn_parameters(trained_pars, ssn_pars, as_log_list=False, return_kapp
         return J_2x2_m, J_2x2_s, cE_m, cI_m, cE_s, cI_s, f_E, f_I, kappa_Jsup, kappa_Jmid, kappa_f
 
 
-def cosdiff_ring(d_x, L):
+def cosdiff_ring(d_x, L=180):
     """
     This function calculates the cosine-based distance.
     Inputs:

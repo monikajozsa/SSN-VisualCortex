@@ -9,6 +9,7 @@ import time
 import numpy
 import shutil
 import subprocess
+import pandas as pd
 numpy.random.seed(0)
 
 from configurations import config
@@ -25,8 +26,11 @@ starting_time_in_main= time.time()
 # Set up results folder and save note and scripts
 note=f'Shortened training but pretrain_stage_1_acc_th raised to 0.65, xtol changed to 1e-2'
 root_folder = os.path.dirname(__file__)
-folder_path = save_code(note=note)
+
+# Set up folder_path if working with already existing results
 #folder_path = os.path.join(root_folder, 'results', 'Dec30_v12')
+if 'folder_path' not in locals():
+    folder_path = save_code(note=note)
 
 ########## ########## ########## 
 ######### Pretraining ##########
@@ -34,9 +38,19 @@ folder_path = save_code(note=note)
 from parameters import PretrainingPars
 pretraining_pars = PretrainingPars() # Setting pretraining to be true (pretrain_pars.is_on=True) should happen in parameters.py because w_sig depends on it
 if not pretraining_pars.is_on:
-    raise ValueError('Pretraining is not on. Please set pretraining_pars.is_on=True in parameters.py')
-num_training = main_pretraining(folder_path, num_pretraining, starting_time_in_main=starting_time_in_main)
-#num_training = num_pretraining
+    print('Pretraining is not on. Are you sure you want to skip pretraining? If yes, press "y"; if not, then press any other key, which will stop the run. Then, set pretraining_pars.is_on=True in parameters.py.')
+    key = 'y'
+    user_input = input(f"Type '{key}' to proceed without pretraining: ")
+    if user_input != key:
+        raise ValueError('Pretraining is off unintentionally. Stopping the run.')
+    if os.path.exists(os.path.join(root_folder, 'excluded_runs_from_pretraining.csv')):
+        excluded_runs_df = pd.read_csv(os.path.join(root_folder, 'excluded_runs_from_pretraining.csv'), header=None)
+        num_training = num_pretraining - len(excluded_runs_df)
+    else:
+        num_training = num_pretraining
+else:
+    num_training = main_pretraining(folder_path, num_pretraining, starting_time_in_main=starting_time_in_main)
+
 ########## ########## ##########
 ##########  Training  ##########
 ########## ########## ##########
@@ -46,7 +60,6 @@ for i, conf in enumerate(conf_list):
     
     # create a configuration folder and copy relevant files to it
     config_folder = set_up_config_folder(folder_path, conf_names[i])
-    #config_folder = os.path.join(folder_path, conf_names[i])
     
     # configure the parameters.py file and copy it as a backup file in the config folder
     configure_parameters_file(root_folder, conf)

@@ -277,7 +277,7 @@ def train_ori_discr(
                 print("Early stop of stage 1: psychometric_offsets is {} and accuracy {} reached target {}".format(psychometric_offset, avg_acc, stage_1_acc_th))
                 break
         
-         # Early stopping criteria for training - if accuracies in multiple relevant offsets did not change
+        # Early stopping criteria for training - if accuracies in multiple relevant offsets did not change
         if stage==2 and SGD_step in val_steps:
             if SGD_step > training_pars.min_stop_ind:
                 acc_means_np = numpy.array(acc_means)
