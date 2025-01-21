@@ -235,7 +235,7 @@ def train_ori_discr(
         if SGD_step in val_steps:
             #### Calculate loss and accuracy on new validation data set
             val_acc_vec, val_loss_vec = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset)
-            acc_vec_125, loss_vec_125 = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 125.0)
+            acc_vec_125, loss_vec_125 = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, stimuli_pars.offset, ref_ori = 125.0)
         
             val_loss = jnp.mean(val_loss_vec)
             val_acc = jnp.mean(val_acc_vec)
@@ -564,7 +564,7 @@ def generate_noise(batch_size, length, num_readout_noise=125, dt_readout = 0.2):
 
 
 ####### Functions for testing training task accuracy for different offsets and finding the offset value where it crosses baseline accuracy 
-def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset, batch_size=300, pretrain_task= False):
+def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset, ref_ori=None, batch_size=300, pretrain_task= False):
     """
     This function tests the accuracy of the training orientation discrimination task given a set of parameters across different stimulus offsets.
     
@@ -584,6 +584,7 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
     """
     # Create copies of offset, pretrain_pars.is_on and readout_pars_dict because their values may change in this function
     offset_saved = untrained_pars.stimuli_pars.offset
+    ref_ori_saved = untrained_pars.stimuli_pars.ref_ori
     pretrain_is_on_saved = untrained_pars.pretrain_pars.is_on
     
     if pretrain_is_on_saved and not pretrain_task:
@@ -601,6 +602,8 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
         train_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size, untrained_pars.BW_image_jax_inp, numRnd_ori1=batch_size)
     else:
         untrained_pars.stimuli_pars.offset = test_offset
+        if ref_ori is not None:
+            untrained_pars.stimuli_pars.ref_ori = ref_ori
         train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size, untrained_pars.BW_image_jax_inp)
     
     # Calculate loss and accuracy
@@ -612,6 +615,7 @@ def task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, 
         # Restore the original values of pretrain_is_on and offset
         untrained_pars.pretrain_pars.is_on = pretrain_is_on_saved
         untrained_pars.stimuli_pars.offset = offset_saved
+        untrained_pars.stimuli_pars.ref_ori = ref_ori_saved
         
     return acc, loss
 
