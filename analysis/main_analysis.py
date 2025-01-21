@@ -7,7 +7,7 @@ from analysis.analysis_functions import  MVPA_anova, make_exclude_run_csv, main_
 from analysis.visualization import plot_tuning_curves, plot_tc_features, barplots_from_csvs, boxplots_from_csvs, plot_param_offset_correlations, plot_corr_triangles,plot_MVPA_or_Mahal_scores_match_Kes_fig, plot_MVPA_or_Mahal_scores
 
 
-def main_analysis(folder_path, num_runs, conf_names):
+def main_analysis(folder_path, num_runs, conf_names, verbose=True):
     """ Main function for analysis of the training results. 
     1) Creates excluded_runs_all.csv
     2) plot boxplots, param_offset_correlations, tuning_curves and tuning curve features
@@ -91,7 +91,7 @@ def main_analysis(folder_path, num_runs, conf_names):
     for i, conf in enumerate(conf_names):
         start_time = time.time()
         config_folder = os.path.join(folder_path, conf)
-        main_MVPA(config_folder, num_runs=num_runs, num_stages=3, sigma_filter=2, r_noise=True, num_noisy_trials=200, excluded_runs=excluded_runs)
+        main_MVPA(config_folder, num_runs=num_runs, num_stages=3, sigma_filter=2, r_noise=True, num_noisy_trials=200, excluded_runs=excluded_runs, verbose=verbose)
         print('Done with calculating MVPA for configuration ', conf, ' in ', time.time()-start_time, ' seconds')
     
     for conf in conf_names:

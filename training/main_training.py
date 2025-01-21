@@ -12,7 +12,7 @@ from training_functions import train_ori_discr
 from main_pretraining import readout_pars_from_regr
 
 ############### TRAINING ###############
-def main_training(folder_path, num_training, starting_time_training=0, run_indices=None, log_regr = 0):
+def main_training(folder_path, num_training, starting_time_training=0, run_indices=None, log_regr = 0, verbose=True):
     """ Run training on the discrimination task with the configuration specified in the parameters.py file and initial_parameters from the pretraining. """
     if run_indices is None:
         run_indices = range(num_training)
@@ -44,7 +44,8 @@ def main_training(folder_path, num_training, starting_time_training=0, run_indic
                 results_filename=results_filename,
                 jit_on=True,
                 offset_step=0.1,
-                run_index = i
+                run_index = i,
+                verbose=verbose
             )
         if df is None:
             print(f'No training results saved for run {i}. Runtime:', time.time()-starting_time_training)
@@ -63,8 +64,9 @@ if __name__ == "__main__":
     parser.add_argument('folder_path', type=str, help='Path to the configuration folder.')
     parser.add_argument('num_training', type=int, help='Number of training iterations.')
     parser.add_argument('starting_time_training', type=float, help='Starting time of the training for a specific configuration.')
+    parser.add_argument('verbose', type=bool, help='Flag to print training results.')
 
     args = parser.parse_args()
 
     # Call the main_training function with parsed arguments
-    main_training(args.folder_path, args.num_training, args.starting_time_training)
+    main_training(args.folder_path, args.num_training, args.starting_time_training, verbose=args.verbose)

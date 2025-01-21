@@ -879,7 +879,7 @@ def filtered_model_response(folder, run_ind, ori_list= jnp.asarray([55, 125, 0])
 
 
 ######### Calculate MVPA and Mahalanobis distance for before pretraining, after pretraining and after training #########
-def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, filtered_r_noise_std=1.0, excluded_runs=[]):
+def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_filter=1, num_noisy_trials=100, filtered_r_noise_std=1.0, excluded_runs=[], verbose=True):
     """ Calculate MVPA and Mahalanobis distance for each run and layer at different stages of training."""
     # Shared parameters
     ori_list = numpy.asarray([55, 125, 0])
@@ -949,7 +949,8 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
                 num_PC_used_run = numpy.argmax(variance_explained_cumsum > 0.7) + 1
                 num_PC_used_run = max(num_PC_used_run, 2)         
                 r_pca = score[:, :num_PC_used_run]
-                print(f"Variance explained by {num_PC_used_run+1} PCs: {numpy.sum(variance_explained[0:num_PC_used_run+1]):.2%}")
+                if verbose:
+                    print(f"Variance explained by {num_PC_used_run+1} PCs: {numpy.sum(variance_explained[0:num_PC_used_run+1]):.2%}")
 
                 for stage_ind in range(num_stages): 
                     # Define filter to select the responses corresponding to stage_ind
@@ -1028,8 +1029,8 @@ def MVPA_Mahal_analysis(folder, num_runs, num_stages=2, r_noise = True, sigma_fi
                     LMI_across[i,layer,stage_ind_] = (mahal_train_control_mean[i,layer,stage_ind_+1] - mahal_train_control_mean[i,layer,stage_ind_]) - (mahal_untrain_control_mean[i,layer,stage_ind_+1] - mahal_untrain_control_mean[i,layer,stage_ind_] )
                     LMI_within[i,layer,stage_ind_] = (mahal_within_train_mean[i,layer,stage_ind_+1] - mahal_within_train_mean[i,layer,stage_ind_]) - (mahal_within_untrain_mean[i,layer,stage_ind_+1] - mahal_within_untrain_mean[i,layer,stage_ind_] )
                     LMI_ratio[i,layer,stage_ind_] = (train_SNR_mean[i,layer,stage_ind_+1] - train_SNR_mean[i,layer,stage_ind_]) - (untrain_SNR_mean[i,layer,stage_ind_+1] - untrain_SNR_mean[i,layer,stage_ind_] )
-        
-        print(f'runtime of run {run_ind}:',time.time()-start_time)
+        if verbose:
+            print(f'runtime of MVPA analysis for run {run_ind}:',time.time()-start_time)
 
     ################# Create dataframes for the Mahalanobis distances and LMI #################
     Mahal_scores[:,:,:,0] = mahal_train_control_mean
@@ -1151,11 +1152,11 @@ def main_tuning_curves(folder_path, num_training, start_time_in_main, stage_inds
 
 
 ########## CALCULATE MVPA SCORES AND MAHALANOBIS DISTANCES ############
-def main_MVPA(folder, num_runs, num_stages=2, sigma_filter=5, r_noise=True, num_noisy_trials=100, excluded_runs=[]):
+def main_MVPA(folder, num_runs, num_stages=2, sigma_filter=5, r_noise=True, num_noisy_trials=100, excluded_runs=[], verbose=True):
     """ Calculate MVPA scores for before pretraining, after pretraining and after training - score should increase for trained ori more than for other two oris especially in superficial layer. """
     
     if not os.path.exists(folder +'/MVPA_scores.csv'):
-        MVPA_scores, Mahal_scores = MVPA_Mahal_analysis(folder,num_runs=num_runs, num_stages=num_stages, r_noise = r_noise, sigma_filter=sigma_filter, num_noisy_trials=num_noisy_trials, excluded_runs=excluded_runs)
+        MVPA_scores, Mahal_scores = MVPA_Mahal_analysis(folder,num_runs=num_runs, num_stages=num_stages, r_noise = r_noise, sigma_filter=sigma_filter, num_noisy_trials=num_noisy_trials, excluded_runs=excluded_runs, verbose=verbose)
         _ = save_numpy_to_csv(MVPA_scores, folder + '/MVPA_scores.csv')
         _ = save_numpy_to_csv(Mahal_scores, folder + '/Mahal_scores.csv')
     else:

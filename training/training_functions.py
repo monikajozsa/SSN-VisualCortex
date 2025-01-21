@@ -74,7 +74,8 @@ def train_ori_discr(
     offset_step = 0.25,
     results_filename=None,
     jit_on=True,
-    run_index = 0
+    run_index = 0,
+    verbose = True,
 ):
     """
     Trains a two-layer SSN network model in a pretraining and a training stage. It first trains the SSN layer parameters and the readout parameters for a general orientation discrimination task. Then, it further trains the SSN layer parameters for a fine orientation discrimination task.
@@ -124,11 +125,8 @@ def train_ori_discr(
     val_steps = jnp.arange(0, numSGD_steps, training_pars.validation_freq)
     print_steps = jnp.arange(0, numSGD_steps, 20) # make this such that they are from val_steps - at the moment, printing happens within the validation steps
 
-    print(
-        "Stage: {} ¦ Num SGD steps: {} ¦ Learning rate: {} ¦ Batch size {}".format(
-            stage, numSGD_steps, training_pars.eta, training_pars.batch_size,
-        )
-    )
+    if verbose:
+        print("Stage: {} ¦ Num SGD steps: {} ¦ Learning rate: {} ¦ Batch size {}".format(stage, numSGD_steps, training_pars.eta, training_pars.batch_size))
 
     if results_filename:
         print("Will be saving results to ", results_filename)
@@ -152,7 +150,7 @@ def train_ori_discr(
             acc_mean, acc_std, _, _ = mean_training_task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset_vec, sample_size = 5)
             # fit log-linear curve to acc_mean_max and test_offset_vec and find where it crosses baseline_acc=0.794
             psychometric_offset = offset_at_baseline_acc(acc_mean, offset_vec=test_offset_vec, baseline_acc= untrained_pars.pretrain_pars.acc_th)
-            if SGD_step in print_steps:
+            if (SGD_step in print_steps) and verbose:
                 print('Mean accuracies:',acc_mean, 'for offsets', test_offset_vec, 'at step', SGD_step)
                 print('estimated psychometric threshold:', psychometric_offset, 'at step', SGD_step)
 
@@ -162,8 +160,8 @@ def train_ori_discr(
             train_accs.append(train_acc)
             train_max_rates.append(train_max_rate)
             train_mean_rates.append(train_mean_rate)
-            append_parameter_lists(trained_pars_dict, ssn_pars, ['log_J_EE_m', 'log_J_EI_m', 'log_J_IE_m', 'log_J_II_m'], log_J_2x2_m, as_log=True)
-            append_parameter_lists(trained_pars_dict, ssn_pars, ['log_J_EE_s', 'log_J_EI_s', 'log_J_IE_s', 'log_J_II_s'], log_J_2x2_s, as_log=True)
+            append_parameter_lists(trained_pars_dict, ssn_pars, ['log_J_EE_m', 'log_J_EI_m', 'log_J_IE_m', 'log_J_II_m'], log_J_m, as_log=True)
+            append_parameter_lists(trained_pars_dict, ssn_pars, ['log_J_EE_s', 'log_J_EI_s', 'log_J_IE_s', 'log_J_II_s'], log_J_s, as_log=True)
             append_parameter_lists(trained_pars_dict, ssn_pars, ['cE_m'], cE_m)
             append_parameter_lists(trained_pars_dict, ssn_pars, ['cI_m'], cI_m)
             if ssn_pars.couple_c_ms:
@@ -175,22 +173,22 @@ def train_ori_discr(
             append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_E'], log_f_E, as_log=True)
             append_parameter_lists(trained_pars_dict, ssn_pars, ['log_f_I'], log_f_I, as_log=True)
             if 'kappa_Jsup' in trained_pars_dict.keys():
-                tanh_kappa_Jsup = jnp.sqrt(jnp.tanh(trained_pars_dict['kappa_Jsup']))/ ssn_pars.kappa_range
+                tanh_kappa_Jsup = jnp.tanh(trained_pars_dict['kappa_Jsup']) / (ssn_pars.kappa_range ** 2)
                 kappas_Jsup.append(tanh_kappa_Jsup.ravel())
             elif hasattr(ssn_pars, 'kappa_Jsup'):
-                tanh_kappa_Jsup = jnp.sqrt(jnp.tanh(ssn_pars.kappa_Jsup))/ ssn_pars.kappa_range
+                tanh_kappa_Jsup = jnp.tanh(ssn_pars.kappa_Jsup) / (ssn_pars.kappa_range ** 2)
                 kappas_Jsup.append(tanh_kappa_Jsup.ravel())
             if 'kappa_Jmid' in trained_pars_dict.keys():
-                tanh_kappa_Jmid = jnp.sqrt(jnp.tanh(trained_pars_dict['kappa_Jmid']))/ ssn_pars.kappa_range
+                tanh_kappa_Jmid = jnp.tanh(trained_pars_dict['kappa_Jmid']) / (ssn_pars.kappa_range ** 2)
                 kappas_Jmid.append(tanh_kappa_Jmid.ravel())
             elif hasattr(ssn_pars, 'kappa_Jmid'):
-                tanh_kappa_Jmid = jnp.sqrt(jnp.tanh(ssn_pars.kappa_Jmid)) / ssn_pars.kappa_range
+                tanh_kappa_Jmid = jnp.tanh(ssn_pars.kappa_Jmid) / (ssn_pars.kappa_range ** 2)
                 kappas_Jmid.append(tanh_kappa_Jmid.ravel())
             if 'kappa_f' in trained_pars_dict.keys():
-                tanh_kappa_f = jnp.sqrt(jnp.tanh(trained_pars_dict['kappa_f']))/ ssn_pars.kappa_range
+                tanh_kappa_f = jnp.tanh(trained_pars_dict['kappa_f']) / (ssn_pars.kappa_range ** 2)
                 kappas_f.append(tanh_kappa_f.ravel())
             elif hasattr(ssn_pars, 'kappa_f'):
-                tanh_kappa_f = jnp.sqrt(jnp.tanh(ssn_pars.kappa_f)) / ssn_pars.kappa_range
+                tanh_kappa_f = jnp.tanh(ssn_pars.kappa_f) / (ssn_pars.kappa_range ** 2)
                 kappas_f.append(tanh_kappa_f.ravel())
             if stage<2:
                 w_sigs.append(readout_pars_dict['w_sig'])
@@ -202,7 +200,7 @@ def train_ori_discr(
             train_accs=[train_acc]
             train_max_rates=[train_max_rate]
             train_mean_rates=[train_mean_rate]
-            log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas_Jsup, kappas_Jmid, kappas_f = unpack_ssn_parameters(trained_pars_dict, ssn_pars, as_log_list=True)
+            log_J_m, log_J_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, kappas_Jsup, kappas_Jmid, kappas_f = unpack_ssn_parameters(trained_pars_dict, ssn_pars, as_log_list=True)
             if stage<2:
                 w_sigs = [readout_pars_dict['w_sig']]
                 b_sigs = [readout_pars_dict['b_sig']]
@@ -252,7 +250,7 @@ def train_ori_discr(
                 accs_125=[acc_125]
             
             SGD_step_time = time.time() - start_time
-            if SGD_step in print_steps:
+            if (SGD_step in print_steps) and verbose:
                 print("Stage: {}¦ Train loss: {:.3f} ¦ Val loss: {:.3f} ¦ Train accuracy: {:.3f} ¦ Val accuracy: {:.3f} ¦ Readout loss: {:.3f}  ¦ Dx loss: {:.3f} ¦ Rmax loss: {:.3f}  ¦ Rmean loss: {:.3f}  ¦ SGD step: {} ¦ Psy. offset: {} ¦ Staircase offset: {} ¦ Runtime: {:.4f} ".format(
                     stage, train_loss, val_loss, train_acc, val_acc, train_loss_all[0].item(), train_loss_all[1].item(),  train_loss_all[2].item(),  train_loss_all[3].item(), SGD_step, psychometric_offset, stimuli_pars.offset, SGD_step_time))
         
@@ -303,8 +301,9 @@ def train_ori_discr(
                 m[1]['w_sig']=m[1]['w_sig'].at[untrained_pars.middle_grid_ind].set(-m[1]['w_sig'][untrained_pars.middle_grid_ind])
                 
                 # Print out the changes in accuracy
-                pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True)                  
-                print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc:', train_acc_test)
+                pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True) 
+                if verbose:                
+                    print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc:', train_acc_test)
             else:
                 # Update ssn layer parameters 
                 updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
@@ -320,8 +319,8 @@ def train_ori_discr(
             # Update ssn layer parameters
             updates_ssn, opt_state_ssn = optimizer.update(grad, opt_state_ssn)
             trained_pars_dict = optax.apply_updates(trained_pars_dict, updates_ssn)
-    print(f'#### End of stage {stage} #### ')
-        
+    print("#### End of stage {} ¦ Train loss improvement: {:.3f} ¦ Psy. threshold improvement: {} ¦ Runtime: {:.4f} ####".format(
+            stage, train_losses_all[0][0]-train_losses_all[-1][0], psychometric_offsets[0]-psychometric_offsets[-1], SGD_step_time))
     # Clear python cache data
     gc.collect()
            
@@ -343,9 +342,9 @@ def train_ori_discr(
         
     # Create DataFrame and save the DataFrame to a CSV file
     if stage < 2:  
-        df_train, df_val = make_dataframe(stage, step_indices, train_accs, val_accs, accs_125, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
+        df_train, df_val = make_dataframe(stage, step_indices, train_accs, val_accs, accs_125, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_m, log_J_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs, w_sigs, None, psychometric_offsets, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
     else:
-        df_train, df_val = make_dataframe(stage, step_indices, train_accs, val_accs, accs_125, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas_Jsup=kappas_Jsup, kappas_Jmid=kappas_Jmid, kappas_f=kappas_f, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
+        df_train, df_val = make_dataframe(stage, step_indices, train_accs, val_accs, accs_125, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_m, log_J_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, staircase_offsets=staircase_offsets, psychometric_offsets=psychometric_offsets, kappas_Jsup=kappas_Jsup, kappas_Jmid=kappas_Jmid, kappas_f=kappas_f, acc_means=acc_means, acc_stds=acc_stds, test_offset_vec=test_offset_vec)
     # insert stage and run index as the first column 
     df_train.insert(0, 'stage', stage) 
     df_val.insert(0, 'stage', stage)
@@ -681,7 +680,7 @@ def offset_at_baseline_acc(accuracies, offset_vec=[2, 4, 6, 9, 12, 15, 20], x_va
 
 
 ####### Function for creating DataFrame from training results #######
-def make_dataframe(stage, step_indices, train_accs, val_accs, accs_125, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_2x2_m, log_J_2x2_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas_Jsup=None, kappas_Jmid=None, kappas_f=None, acc_means=None, acc_stds=None, test_offset_vec=None):
+def make_dataframe(stage, step_indices, train_accs, val_accs, accs_125, train_losses_all, val_losses, train_max_rates, train_mean_rates, log_J_m, log_J_s, cE_m, cI_m, cE_s, cI_s, log_f_E, log_f_I, b_sigs=None, w_sigs=None, staircase_offsets=None, psychometric_offsets=None, kappas_Jsup=None, kappas_Jmid=None, kappas_f=None, acc_means=None, acc_stds=None, test_offset_vec=None):
     """ This function collects different variables from training results into a dataframe."""
     from parameters import ReadoutPars
     readout_pars = ReadoutPars()
@@ -700,8 +699,8 @@ def make_dataframe(stage, step_indices, train_accs, val_accs, accs_125, train_lo
     
     train_max_rates = jnp.vstack(jnp.asarray(train_max_rates))
     train_mean_rates = jnp.vstack(jnp.asarray(train_mean_rates))
-    log_J_2x2_m = jnp.stack(log_J_2x2_m)
-    log_J_2x2_s = jnp.stack(log_J_2x2_s)
+    log_J_m = jnp.stack(log_J_m)
+    log_J_s = jnp.stack(log_J_s)
     train_losses_all = jnp.stack(train_losses_all)
 
     # Add different types of training and validation losses to df
@@ -724,16 +723,16 @@ def make_dataframe(stage, step_indices, train_accs, val_accs, accs_125, train_lo
     log_J_s_names = ['log_J_EE_s', 'log_J_EI_s', 'log_J_IE_s', 'log_J_II_s']
     J_m_names = ['J_EE_m', 'J_EI_m', 'J_IE_m', 'J_II_m']
     J_s_names = ['J_EE_s', 'J_EI_s', 'J_IE_s', 'J_II_s']
-    J_2x2_m=jnp.transpose(jnp.array([jnp.exp(log_J_2x2_m[:,0]),-jnp.exp(log_J_2x2_m[:,1]),jnp.exp(log_J_2x2_m[:,2]),-jnp.exp(log_J_2x2_m[:,3])]))
-    J_2x2_s=jnp.transpose(jnp.array([jnp.exp(log_J_2x2_s[:,0]),-jnp.exp(log_J_2x2_s[:,1]),jnp.exp(log_J_2x2_s[:,2]),-jnp.exp(log_J_2x2_s[:,3])]))
-    for i in range(len(log_J_2x2_m[0])):
-        df_train[log_J_m_names[i]] = log_J_2x2_m[:,i]
-    for i in range(len(log_J_2x2_s[0])):
-        df_train[log_J_s_names[i]] = log_J_2x2_s[:,i]
-    for i in range(len(log_J_2x2_m[0])):
-        df_train[J_m_names[i]] = J_2x2_m[:,i]
-    for i in range(len(log_J_2x2_s[0])):
-        df_train[J_s_names[i]] = J_2x2_s[:,i]
+    J_m=jnp.transpose(jnp.array([jnp.exp(log_J_m[:,0]),-jnp.exp(log_J_m[:,1]),jnp.exp(log_J_m[:,2]),-jnp.exp(log_J_m[:,3])]))
+    J_s=jnp.transpose(jnp.array([jnp.exp(log_J_s[:,0]),-jnp.exp(log_J_s[:,1]),jnp.exp(log_J_s[:,2]),-jnp.exp(log_J_s[:,3])]))
+    for i in range(len(log_J_m[0])):
+        df_train[log_J_m_names[i]] = log_J_m[:,i]
+    for i in range(len(log_J_s[0])):
+        df_train[log_J_s_names[i]] = log_J_s[:,i]
+    for i in range(len(log_J_m[0])):
+        df_train[J_m_names[i]] = J_m[:,i]
+    for i in range(len(log_J_s[0])):
+        df_train[J_s_names[i]] = J_s[:,i]
     df_train['cE_m']=cE_m
     df_train['cI_m']=cI_m
     df_train['cE_s']=cE_s

@@ -24,6 +24,7 @@ num_pretraining = 50
 starting_time_in_main= time.time()
 
 # Set up results folder and save note and scripts
+verbose = False
 note=f'Shortened training but pretrain_stage_1_acc_th raised to 0.65, xtol changed to 1e-2'
 root_folder = os.path.dirname(__file__)
 
@@ -49,7 +50,7 @@ if not pretraining_pars.is_on:
     else:
         num_training = num_pretraining
 else:
-    num_training = main_pretraining(folder_path, num_pretraining, starting_time_in_main=starting_time_in_main)
+    num_training = main_pretraining(folder_path, num_pretraining, starting_time_in_main=starting_time_in_main, verbose=verbose)
 
 ########## ########## ##########
 ##########  Training  ##########
@@ -68,7 +69,7 @@ for i, conf in enumerate(conf_list):
     
     # run training with the configured parameters.py file
     main_training_source = os.path.join(root_folder, "training", "main_training.py")
-    subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time())])
+    subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time()), verbose])
     
     # plot results on parameters
     plot_results_from_csvs(config_folder, num_training)
@@ -105,4 +106,4 @@ for i, conf in enumerate(conf_names):
     tc_file_name = os.path.join(config_folder, 'tuning_curves.csv')
     save_tc_features(tc_file_name, num_runs=num_training, ori_list=tc_ori_list, ori_to_center_slope=[55, 125])
 
-main_analysis(folder_path, num_training, conf_names)
+main_analysis(folder_path, num_training, conf_names, verbose=verbose)

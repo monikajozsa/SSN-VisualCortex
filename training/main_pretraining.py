@@ -29,7 +29,7 @@ def fill_attribute_list(class_to_fill, attr_list, value_list):
     return class_to_fill
 
 
-def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pars=None, J_2x2_m=None, cE_m=None, cI_m=None, ssn_mid=None, train_data=None, pretrain_data=None):
+def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pars=None, J_2x2_m=None, cE_m=None, cI_m=None, ssn_mid=None, train_data=None, pretrain_data=None, verbose = True):
     """Randomize the middle layer parameters of the model and check if the inequality and response conditions are satisfied."""
     if num_calls > 300:
         raise Exception(f'More than {num_calls} calls to initialize middle layer parameters.')
@@ -47,7 +47,8 @@ def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pa
         i = i+1
         if i>200:
             raise Exception(" ########### Randomized parameters violate conditions 1 or 2 after 200 sampling. ###########")
-    print(f'Parameters found that satisfy inequalities in {i} steps')
+    if verbose:
+        print(f'Parameters found that satisfy inequalities in {i} steps')
     J_2x2_m = jnp.array([[J_EE_m, -J_EI_m_nosign],[J_IE_m, -J_II_m_nosign]])
     
     ##### Initialize untrained parameters if they are not given #####
@@ -96,16 +97,152 @@ def randomize_mid_params(randomize_pars, readout_pars, num_calls=0, untrained_pa
         if not (cond_dx_mid and cond_rmax_mid and cond_rmean_mid and cond_r_pretrain_mid):
             # RECURSIVE FUNCTION CALL
             num_calls=num_calls+1
-            return randomize_mid_params(randomize_pars, readout_pars, num_calls, untrained_pars, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data)
+            return randomize_mid_params(randomize_pars, readout_pars, num_calls, untrained_pars, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data, verbose = verbose)
         else:
             return untrained_pars, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data
     else:
         # RECURSIVE FUNCTION CALL
         num_calls=num_calls+1
-        return randomize_mid_params(randomize_pars, readout_pars, num_calls, untrained_pars, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data)
-    
+        return randomize_mid_params(randomize_pars, readout_pars, num_calls, untrained_pars, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data, verbose = verbose)
 
-def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True, num_mid_calls=0, num_calls=0, start_time=time.time(), J_2x2_m=None, cE_m=None, cI_m=None, ssn_mid=None, train_data=None, pretrain_data=None):
+
+def randomize_params_old(folder, run_index, untrained_pars=None, logistic_regr=True, trained_pars_dict=None, num_init=0, start_time=time.time(), verbose=True):
+    def randomize_params_supp(param_dict, randomize_pars):
+        import copy
+        '''Randomize all values in a dictionary by a percentage of their values. The randomization is done by uniformly sampling random values from predefined ranges.'''
+        param_randomized = copy.deepcopy(param_dict)
+        attributes = dir(randomize_pars)
+        
+        for key, param_array in param_dict.items():
+            matching_attributes = [attr for attr in attributes if attr.startswith(key[0])]
+            param_range = getattr(randomize_pars, matching_attributes[0])
+            if key.startswith('J_EE'):
+                # handling the J_2x2_m and J_2x2_s matrices
+                param_randomized[key] = random.uniform(low=param_range[0][0], high=param_range[0][1])
+            elif key.startswith('J_EI'):
+                param_randomized[key] = -random.uniform(low=param_range[1][0], high=param_range[1][1])
+            elif key.startswith('J_IE'):
+                param_randomized[key] = random.uniform(low=param_range[2][0], high=param_range[2][1])
+            elif key.startswith('J_II'):
+                param_randomized[key] = -random.uniform(low=param_range[3][0], high=param_range[3][1])
+                #Clara's settings: np.array([[4.4, -1.66], [5, -1.24]])
+            else:
+                random_sample = random.uniform(low=param_range[0], high=param_range[1])
+                param_randomized[key] = random_sample
+                
+        return param_randomized
+    
+    if untrained_pars is None: # Initialize untrained parameters if they are not given - trained SSN parameters will be 0 by default
+        from util_gabor import init_untrained_pars
+        from parameters import GridPars, FilterPars, StimuliPars, SSNPars, ConvPars, TrainingPars, LossPars, PretrainingPars, ReadoutPars
+        grid_pars, filter_pars, stimuli_pars, ssn_pars = GridPars(), FilterPars(), StimuliPars(), SSNPars()
+        conv_pars, training_pars, loss_pars, pretraining_pars, readout_pars = ConvPars(), TrainingPars(), LossPars(), PretrainingPars(), ReadoutPars()
+
+        # Initialize untrained parameters
+        untrained_pars = init_untrained_pars(grid_pars, stimuli_pars, filter_pars, ssn_pars, conv_pars, loss_pars, training_pars, pretraining_pars, readout_pars)
+    
+    from parameters import RandomizePars, ReadoutPars, TrainedSSNPars
+    randomize_pars, readout_pars, trained_pars = RandomizePars(), ReadoutPars(), TrainedSSNPars()
+    # define the parameters to randomize
+    if trained_pars_dict is None: 
+        trained_pars_dict = dict(J_EE_m=trained_pars.J_EE_m, J_IE_m=trained_pars.J_IE_m, J_EI_m=trained_pars.J_EI_m, J_II_m=trained_pars.J_II_m, J_EE_s=trained_pars.J_EE_s, J_IE_s=trained_pars.J_IE_s, J_EI_s=trained_pars.J_EI_s, J_II_s=trained_pars.J_II_s)
+        for key, value in vars(trained_pars).items():
+            if key.startswith('cE_') or key.startswith('cI_') or key.startswith('f_'):
+                trained_pars_dict[key] = value    
+        
+    # Initialize parameters such that conditions are satisfied for J_mid and convergence of the differential equations of the model
+    i=0
+    cond_ineq1 = False # parameter inequality on Jm
+    cond_ineq2 = False # parameter inequality on Jm and gE, gI
+
+    while not (cond_ineq1 and cond_ineq2):
+        randomized_pars = randomize_params_supp(trained_pars_dict, randomize_pars)
+        if untrained_pars.ssn_pars.couple_c_ms:
+            randomized_pars['cE_s'] = randomized_pars['cE_m']
+            randomized_pars['cI_s'] = randomized_pars['cI_m']
+        cond_ineq1 = jnp.abs(randomized_pars['J_EE_m']*randomized_pars['J_II_m'])*1.1 < jnp.abs(randomized_pars['J_EI_m']*randomized_pars['J_IE_m'])
+        # randomize gE and gI
+        untrained_pars.filter_pars.gI_m = random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
+        untrained_pars.filter_pars.gE_m = random.uniform(low=randomize_pars.g_range[0], high=randomize_pars.g_range[1])
+        cond_ineq2 = jnp.abs(randomized_pars['J_EI_m']*untrained_pars.filter_pars.gI_m)*1.1 < jnp.abs(randomized_pars['J_II_m']*untrained_pars.filter_pars.gE_m)   
+        i = i+1
+    
+    # Calculate model response to check the convergence of the differential equations
+    J_2x2_m = jnp.array([[randomized_pars['J_EE_m'], randomized_pars['J_EI_m']],[randomized_pars['J_IE_m'], randomized_pars['J_II_m']]])
+    J_2x2_s = jnp.array([[randomized_pars['J_EE_s'], randomized_pars['J_EI_s']],[randomized_pars['J_IE_s'], randomized_pars['J_II_s']]])
+    ssn_mid=SSN_mid(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_m, untrained_pars.dist_from_single_ori)
+    ssn_sup=SSN_sup(untrained_pars.ssn_pars, untrained_pars.grid_pars, J_2x2_s, untrained_pars.dist_from_single_ori, untrained_pars.ori_dist)
+    train_data = create_grating_training(untrained_pars.stimuli_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp) 
+    pretrain_data = create_grating_pretraining(untrained_pars.pretrain_pars, batch_size=5, BW_image_jit_inp_all=untrained_pars.BW_image_jax_inp)
+    if 'cE_m' in randomized_pars:
+        cE_m = randomized_pars['cE_m']
+        cI_m = randomized_pars['cI_m']
+    else:
+        cE_m = untrained_pars.ssn_pars.cE_m
+        cI_m = untrained_pars.ssn_pars.cI_m
+    if 'cE_s' in randomized_pars:
+        cE_s = randomized_pars['cE_s']
+        cI_s = randomized_pars['cI_s']
+    else:
+        cE_s = untrained_pars.ssn_pars.cE_s
+        cI_s = untrained_pars.ssn_pars.cI_s
+    if 'f_E' in randomized_pars:
+        f_E = randomized_pars['f_E']
+        f_I = randomized_pars['f_I']
+    else:
+        f_E = untrained_pars.ssn_pars.f_E
+        f_I = untrained_pars.ssn_pars.f_I
+    [r_train,_],_ ,[avg_dx_mid, avg_dx_sup],[max_E_mid, max_I_mid, max_E_sup, max_I_sup], [mean_E_mid, mean_I_mid, mean_E_sup, mean_I_sup] = vmap_evaluate_model_response(ssn_mid, ssn_sup, train_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, jnp.array([0.0,0.0]), untrained_pars.ssn_pars.kappa_range)
+    [r_pretrain,_],_, _,_,_ = vmap_evaluate_model_response(ssn_mid, ssn_sup, pretrain_data['ref'], untrained_pars.conv_pars, cE_m, cI_m, cE_s, cI_s, f_E, f_I, untrained_pars.gabor_filters, untrained_pars.dist_from_single_ori, jnp.array([0.0,0.0]), untrained_pars.ssn_pars.kappa_range)
+    cond_dx = bool((avg_dx_mid + avg_dx_sup < 50).all())
+    cond_rmax = min([float(jnp.min(max_E_mid)), float(jnp.min(max_I_mid)), float(jnp.min(max_E_sup)), float(jnp.min(max_I_sup))])>10 and max([float(jnp.max(max_E_mid)), float(jnp.max(max_I_mid)), float(jnp.max(max_E_sup)), float(jnp.max(max_I_sup))])<151
+    cond_rmean = min([float(jnp.min(mean_E_mid)), float(jnp.min(mean_I_mid)), float(jnp.min(mean_E_sup)), float(jnp.min(mean_I_sup))])>5 and max([float(jnp.max(mean_E_mid)), float(jnp.max(mean_I_mid)), float(jnp.max(mean_E_sup)), float(jnp.max(mean_I_sup))])<80
+    cond_r_pretrain = not numpy.any(jnp.isnan(r_pretrain))
+    cond_r_train = not numpy.any(jnp.isnan(r_train))
+    if not (cond_dx and cond_rmax and cond_rmean and cond_r_pretrain and cond_r_train):
+        if num_init>2000:
+            raise Exception(" ########### Randomized parameters violate conditions even after 1000 sampling. ###########")
+        else:
+            num_init = num_init+i
+            print(f'Randomized parameters {num_init} times',[bool(cond_ineq1),bool(cond_ineq2),cond_dx,cond_rmax,cond_rmean,cond_r_pretrain,cond_r_train])
+            optimized_readout_pars, randomized_pars_log, untrained_pars = randomize_params_old(folder, run_index, untrained_pars, logistic_regr, trained_pars_dict, num_init, start_time)
+    else:
+        print(f'Parameters found that satisfy conditions in {time.time() - start_time:.2f} seconds')
+        # Take log of the J and f parameters (if f_I, f_E are in the randomized parameters)
+        log_J_2x2_m= take_log(J_2x2_m)
+        log_J_2x2_s= take_log(J_2x2_s)
+        randomized_pars_log = dict(
+            log_J_EE_m = log_J_2x2_m[0,0],
+            log_J_EI_m = log_J_2x2_m[0,1],
+            log_J_IE_m = log_J_2x2_m[1,0],
+            log_J_II_m = log_J_2x2_m[1,1],
+            log_J_EE_s = log_J_2x2_s[0,0],
+            log_J_EI_s = log_J_2x2_s[0,1],
+            log_J_IE_s = log_J_2x2_s[1,0],
+            log_J_II_s = log_J_2x2_s[1,1],
+            cE_m = cE_m,
+            cI_m = cI_m,
+            cE_s = cE_s,    
+            cI_s = cI_s,
+            log_f_E = jnp.log(f_E),
+            log_f_I = jnp.log(f_I))
+
+        # Optimize readout parameters by using log-linear regression
+        if logistic_regr:
+            optimized_readout_pars = readout_pars_from_regr(randomized_pars_log, untrained_pars)
+        else:
+            optimized_readout_pars = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
+        optimized_readout_pars['w_sig'] = (optimized_readout_pars['w_sig'] / jnp.std(optimized_readout_pars['w_sig']) ) * 0.25 / int(jnp.sqrt(len(optimized_readout_pars['w_sig']))) # get the same std as before - see param
+
+        # Randomize learning rate
+        untrained_pars.training_pars.eta = random.uniform(randomize_pars.eta_range[0], randomize_pars.eta_range[1])
+
+        save_orimap(untrained_pars.oris, run_index, folder_to_save=folder)
+    
+    return optimized_readout_pars, randomized_pars_log, untrained_pars
+
+
+def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True, num_mid_calls=0, num_calls=0, start_time=time.time(), J_2x2_m=None, cE_m=None, cI_m=None, ssn_mid=None, train_data=None, pretrain_data=None, verbose = True):
     """Randomize the required initial parameters of the model and optimize the readout parameters using logistic regression. 
     The randomization is done by uniformly sampling random values from predefined ranges."""
 
@@ -113,10 +250,11 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
     from parameters import RandomizePars, ReadoutPars
     randomize_pars, readout_pars = RandomizePars(), ReadoutPars()
     if num_calls==0 or num_calls>100:
-        untrained_pars, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data = randomize_mid_params(randomize_pars, readout_pars, untrained_pars=untrained_pars)
+        untrained_pars, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data = randomize_mid_params(randomize_pars, readout_pars, untrained_pars=untrained_pars, verbose = verbose)
         num_calls = 0
         num_mid_calls = num_mid_calls + 1
-        print(f'Middle layer parameters found that satisfy conditions in {time.time() - start_time:.2f} seconds.')
+        if verbose:
+            print(f'Middle layer parameters found that satisfy conditions in {time.time() - start_time:.2f} seconds.')
 
     ##### Initialize superficial layer parameters such that response conditions are satisfied #####
     J_range=randomize_pars.J_range
@@ -154,13 +292,15 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
             raise Exception(f" ########### Randomized parameters violate conditions after {num_calls} sampling. ###########")
         else:
             num_calls = num_calls + 1
-            print(f'Randomized superficial parameters {num_calls} time(s)',[cond_dx, cond_rmax_sup,cond_rmean_sup,cond_r_pretrain_sup,cond_r_train_sup])
+            if verbose:
+                print(f'Randomized superficial parameters {num_calls} time(s)',[cond_dx, cond_rmax_sup,cond_rmean_sup,cond_r_pretrain_sup,cond_r_train_sup])
             # RECURSIVE FUNCTION CALL
-            return randomize_params(folder, run_index, untrained_pars, logistic_regr, num_mid_calls, num_calls, start_time, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data)
+            return randomize_params(folder, run_index, untrained_pars, logistic_regr, num_mid_calls, num_calls, start_time, J_2x2_m, cE_m, cI_m, ssn_mid, train_data, pretrain_data, verbose=verbose)
     else:
         # 4. If conditions hold, calculate logarithms of f and J parameters and optimize readout parameters
-        print(f'Conditions rmax', rmax_min_sup, rmax_max_sup, ' rmean ', rmean_min_sup, rmean_max_sup, ' dx ', avg_dx_sup)
-        print(f'Parameters found that satisfy conditions in {time.time() - start_time:.2f} seconds')
+        if verbose:
+            print(f'Conditions rmax', rmax_min_sup, rmax_max_sup, ' rmean ', rmean_min_sup, rmean_max_sup, ' dx ', avg_dx_sup)
+            print(f'Parameters found that satisfy conditions in {time.time() - start_time:.2f} seconds')
         # Take log of the J and f parameters (if f_I, f_E are in the randomized parameters)
         log_J_2x2_m = take_log(J_2x2_m)
         log_J_2x2_s = take_log(J_2x2_s)
@@ -182,7 +322,7 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
 
         # Optimize readout parameters by using logistic regression
         if logistic_regr:
-            optimized_readout_pars = readout_pars_from_regr(randomized_pars_log, untrained_pars)
+            optimized_readout_pars = readout_pars_from_regr(randomized_pars_log, untrained_pars, verbose=verbose)
         else:
             optimized_readout_pars = dict(w_sig=readout_pars.w_sig, b_sig=readout_pars.b_sig)
         optimized_readout_pars['w_sig'] = (optimized_readout_pars['w_sig'] / jnp.std(optimized_readout_pars['w_sig']) ) * 0.25 / int(jnp.sqrt(len(optimized_readout_pars['w_sig']))) # get the same std as before - see param
@@ -197,7 +337,7 @@ def randomize_params(folder, run_index, untrained_pars=None, logistic_regr=True,
         return optimized_readout_pars, randomized_pars_log, untrained_pars
 
 
-def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_training=False):
+def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_training=False, verbose=True):
     """
     This function sets readout_pars based on N sample data using logistic regression. This method is to initialize w_sig, b_sig optimally (given limited data) for a set of randomized trained_pars_dict parameters (to be trained).
     """
@@ -246,9 +386,10 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_traini
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=0, shuffle=False)
     log_reg = LogisticRegression(max_iter=100)
     log_reg.fit(X_train, y_train)
-    y_pred = log_reg.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    print('accuracy of logistic regression on test data', accuracy)
+    if verbose:
+        y_pred = log_reg.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        print('accuracy of logistic regression on test data', accuracy)
         
     # Set the readout parameters based on the results of the logistic regression
     readout_pars_opt = {'b_sig': 0, 'w_sig': jnp.zeros(len(X[0]))}
@@ -262,9 +403,10 @@ def readout_pars_from_regr(trained_pars_dict, untrained_pars, N=1000, for_traini
         readout_pars_opt['w_sig'] = w_sig[untrained_pars.middle_grid_ind]
 
     # Check how well the optimized readout parameters solve the tasks
-    acc_train, _ = task_acc_test( trained_pars_dict, readout_pars_opt, untrained_pars, True, 4)
-    acc_pretrain, _ = task_acc_test( trained_pars_dict, readout_pars_opt, untrained_pars, jit_on=True, test_offset=None, batch_size=300, pretrain_task=True)
-    print('accuracy of training and pretraining with task_acc_test', acc_train, acc_pretrain)
+    if verbose:
+        acc_train, _ = task_acc_test( trained_pars_dict, readout_pars_opt, untrained_pars, True, 4)
+        acc_pretrain, _ = task_acc_test( trained_pars_dict, readout_pars_opt, untrained_pars, jit_on=True, test_offset=None, batch_size=300, pretrain_task=True)
+        print('accuracy of training and pretraining with task_acc_test', acc_train, acc_pretrain)
 
     return readout_pars_opt
 
@@ -339,7 +481,7 @@ def exclude_runs(folder_path, input_vector):
 
 
 ############### PRETRAINING ###############
-def main_pretraining(folder_path, num_training, initial_parameters=None, starting_time_in_main=0):
+def main_pretraining(folder_path, num_training, initial_parameters=None, starting_time_in_main=0, verbose=True):
     """ Initialize parameters randomly and run pretraining on the general orientation discrimination task """
     def create_readout_init(data, log_regr, layer, sup_only, pretrained_readout_pars_dict, psychometric_offset, i, N):
         """ Populate the data dictionary with readout parameters """
@@ -363,7 +505,7 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
         numpy.random.seed(i + num_FailedRuns)
         
         ##### Randomize readout_pars, trained_pars, eta such that they satisfy certain conditions #####
-        readout_pars_opt_dict, pretrain_pars_rand_dict, untrained_pars = randomize_params(folder_path, i)
+        readout_pars_opt_dict, pretrain_pars_rand_dict, untrained_pars = randomize_params_old(folder_path, i, verbose = verbose)
 
         ##### Save initial parameters into initial_parameters variable #####
         initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, pretrain_pars_rand_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =0)
@@ -378,7 +520,8 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
                 results_filename=results_filename,
                 jit_on=True,
                 offset_step = 0.1,
-                run_index = i
+                run_index = i,
+                verbose = verbose
             )
         
         # Handle the case when pretraining failed (possible reason can be the divergence of ssn diff equations)
@@ -397,7 +540,8 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
                 results_filename=results_filename,
                 jit_on=True,
                 offset_step = 0.1,
-                run_index = i
+                run_index = i,
+                verbose = verbose
             )
 
         ##### LOGISTIC REGRESSION FOR READOUT PARAMETERS #####
@@ -442,7 +586,7 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
         
         run_indices.append(i)
         i = i + 1
-        print('runtime of {} pretraining'.format(i), time.time()-starting_time_in_main)
+        print('Runtime of {} pretraining'.format(i), time.time()-starting_time_in_main, ' Estimated time left from pretraining', (time.time()-starting_time_in_main)*(num_training-i)/i)
         print('number of failed runs = ', num_FailedRuns)
     
     # Read pretraining_results.csv file, go over runs and check if the last psychometric_offset within that run is in the range pretraining_pars.offset_threshold. If not, then add to the excluded_run_inds.
@@ -464,5 +608,6 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
 
     # Exclude runs with indices exclude_run_inds from the initial_parameters, orimap and pretraining_results files
     exclude_runs(folder_path, exclude_run_inds)
+    print('Number of runs excluded from pretraining:', len(exclude_run_inds), 'out of', len(run_indices))
 
     return len(run_indices)-len(exclude_run_inds)
