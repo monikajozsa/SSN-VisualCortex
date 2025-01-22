@@ -69,7 +69,7 @@ for i, conf in enumerate(conf_list):
     
     # run training with the configured parameters.py file
     main_training_source = os.path.join(root_folder, "training", "main_training.py")
-    subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time()), verbose])
+    subprocess.run(["python3", str(main_training_source), config_folder, str(num_training), str(time.time()), str(verbose)])
     
     # plot results on parameters
     plot_results_from_csvs(config_folder, num_training)
