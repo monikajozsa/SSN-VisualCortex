@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.dirname(__file__))
 
-from util import load_parameters, take_log, create_grating_training, create_grating_pretraining, unpack_ssn_parameters, filter_for_run_and_stage
+from util import load_parameters, take_log, create_grating_training, create_grating_pretraining, unpack_ssn_parameters, filter_for_run_and_stage, set_loss_pars_constants_for_training
 from util_gabor import update_untrained_pars, save_orimap
 from training_functions import train_ori_discr, task_acc_test, generate_noise, mean_training_task_acc_test, offset_at_baseline_acc
 from SSN_classes import SSN_mid, SSN_sup
@@ -505,7 +505,7 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
         numpy.random.seed(i + num_FailedRuns)
         
         ##### Randomize readout_pars, trained_pars, eta such that they satisfy certain conditions #####
-        readout_pars_opt_dict, pretrain_pars_rand_dict, untrained_pars = randomize_params_old(folder_path, i, verbose = verbose)
+        readout_pars_opt_dict, pretrain_pars_rand_dict, untrained_pars = randomize_params(folder_path, i, verbose = verbose)
 
         ##### Save initial parameters into initial_parameters variable #####
         initial_parameters = create_initial_parameters_df(folder_path, initial_parameters, pretrain_pars_rand_dict, untrained_pars.training_pars.eta, untrained_pars.filter_pars.gE_m,untrained_pars.filter_pars.gI_m, run_index = i, stage =0)
@@ -531,7 +531,9 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
             continue  
         
         ##### STAGE 1: SGD algorithm for readout parameters ######
-        pretrained_readout_pars_dict_no_log_regr, trained_pars_dict, untrained_pars, _, _ = load_parameters(folder_path, run_index=i, stage=1, iloc_ind=-1, for_training=True)
+        pretrained_readout_pars_dict_no_log_regr, trained_pars_dict, untrained_pars, _, meanr_vec = load_parameters(folder_path, run_index=i, stage=0, iloc_ind=-1, for_training=True)
+        untrained_pars.loss_pars = set_loss_pars_constants_for_training(untrained_pars.loss_pars, meanr_vec)
+
         training_output_df = train_ori_discr(
                 pretrained_readout_pars_dict_no_log_regr,
                 trained_pars_dict,
@@ -599,7 +601,7 @@ def main_pretraining(folder_path, num_training, initial_parameters=None, startin
         last_non_nan = df_j['psychometric_offset'].last_valid_index()
         if numpy.isnan(df_j['psychometric_offset'].iloc[last_non_nan]):
             exclude_run_inds.append(j)
-        elif df_j['psychometric_offset'].iloc[last_non_nan] < untrained_pars.pretrain_pars.offset_threshold[0] or df_j['psychometric_offset'].iloc[last_non_nan] > untrained_pars.pretrain_pars.offset_threshold[1]:
+        elif df_j['psychometric_offset'].iloc[last_non_nan] > untrained_pars.pretrain_pars.offset_threshold[1]: # we require the psychometric offset threshold to be less than the upper limit of offset_threshold but do not require it to be larger than the lower limit because of stage 1
             exclude_run_inds.append(j)
     # Save excluded runs to a file
     with open(os.path.join(folder_path, 'excluded_runs_from_pretraining.csv'), 'w') as f:

@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.dirname(__file__))
 import argparse
 
-from util import load_parameters
+from util import load_parameters, set_loss_pars_constants_for_training
 from training_functions import train_ori_discr
 from main_pretraining import readout_pars_from_regr
 
@@ -25,10 +25,7 @@ def main_training(folder_path, num_training, starting_time_training=0, run_indic
         pretrained_readout_pars_dict, trained_pars_dict, untrained_pars, offset_last, meanr_vec = load_parameters(folder_path, run_index=i, stage=1, iloc_ind=-1, for_training=True, log_regr = log_regr)
         
         # Change mean rate homeostatic loss
-        if meanr_vec is not None:
-            untrained_pars.loss_pars.lambda_r_mean = 0.25
-            untrained_pars.loss_pars.Rmean_E = meanr_vec[0]
-            untrained_pars.loss_pars.Rmean_I = meanr_vec[1]
+        untrained_pars.loss_pars = set_loss_pars_constants_for_training(untrained_pars.loss_pars, meanr_vec)
 
         # Set the offset to the offset threshold, where a given accuracy is achieved with the parameters from the last SGD step (loaded as offset_last)
         untrained_pars.stimuli_pars.offset = min(offset_last,untrained_pars.stimuli_pars.max_train_offset)

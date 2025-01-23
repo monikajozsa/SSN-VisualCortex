@@ -13,13 +13,13 @@ class PretrainingPars:
     ori_dist_int = [5, 20]
     """ interval where the absolute orientation difference between reference and target is randomly chosen from """
     acc_th: float = 0.749
-    """ accuracy threshold to calculate corresponding offset (training task) """
+    """ accuracy threshold to calculate corresponding offset threshold (fine discrimination task) """
     acc_check_freq: int = 2
     """ frequency (in SGD step) of accuracy check for the training task """
     min_acc_check_ind: int = 1
     """ minimum SGD step where accuracy check happens for the training task """
     offset_threshold = [5,25]
-    """ threshold for offset where training task achieves accuracy threshold (acc_th)  - used for early stopping of pretraining """
+    """ interval for offset threshold where training task achieves accuracy threshold (acc_th) - used for early stopping of pretraining """
     batch_size: int = 100
     """ number of trials per SGD step during pretraining """
     SGD_steps: int = 1000
@@ -38,7 +38,7 @@ pretraining_pars = PretrainingPars()
 @dataclass
 class TrainingPars:
     pretraining_task: bool = False
-    """ flag for training for the pretraining (general) task or the training (fine) discrimination task """
+    """ flag for training for the pretraining (general) task or the training (fine) discrimination task during stages 1 and 2 """
     shuffle_labels: bool = False
     """ flag for shuffling the labels of the training data """
     opt_readout_before_training: bool = False
@@ -69,6 +69,8 @@ class ConvPars:
 # Loss parameters
 @dataclass
 class LossPars:
+    lambda_task: float = 0.5
+    """ constant for binary entropy loss (reset by set_loss_pars_constants_for_training to 1 before  stages 1 and 2) """
     lambda_dx: float = 1
     """ constant for loss with respect to convergence of Euler function """
     lambda_w: float = 1
@@ -78,15 +80,15 @@ class LossPars:
     lambda_r_max: float = 1
     """ constant for loss with respect to maximum rates in the network """
     lambda_r_mean: float = 0.01
-    """ constant for loss with respect to maximum rates in the network; this is reset after pretraining """
+    """ constant for loss with respect to maximum rates in the network (reset by set_loss_pars_constants_for_training to 0.25 before stages 1 and 2) """
     Rmax_E: float = 40
     """ maximum firing rate for E neurons - rates above this are penalised """
     Rmax_I: float = 80
     """ maximum firing rate for I neurons - rates above this are penalised """
     Rmean_E = [25,25]
-    """ mean firing rate for E neurons for the middle and superficial layers - rates deviating from this are penalised. These values may be overwritten after pretraining. """
+    """ target mean firing rate for E neurons for the middle and superficial layers - rates deviating from this are penalised (reset by set_loss_pars_constants_for_training before stages 1 and 2) """
     Rmean_I = [50,50]
-    """ mean firing rate for I neurons for the middle and superficial layers - rates deviating from this are penalised. These values may be overwritten after pretraining. """
+    """ target mean firing rate for I neurons for the middle and superficial layers - rates deviating from this are penalised (reset by set_loss_pars_constants_for_training before stages 1 and 2) """
 
 
 def xy_distance(gridsize_Nx,gridsize_mm):
@@ -317,13 +319,13 @@ class PretrainedSSNPars:
 
 # Ranges for the randomization of parameters (at initialization)
 class RandomizePars:
-    J_range = [jnp.array([4, 4.8]),jnp.array([1.2,2]), jnp.array([4.6, 5.4]),jnp.array([0.8,1.6])]
+    J_range = [jnp.array([4, 4.8]),jnp.array([1.2,2]), jnp.array([4.6, 5.4]),jnp.array([0.8,1.6])] # [jnp.array([4, 5.5]),jnp.array([0.7,2]), jnp.array([4, 5.5]),jnp.array([0.7,2])]
     """ range of the initial Jm and Js trainable parameters """
-    c_range = jnp.array([4.5, 5.5])
+    c_range = jnp.array([4.5, 5.5]) # jnp.array([4.5, 5.5])
     """ range of the initial c trainable parameters """
-    f_range = jnp.array([0.6, 1.2])
+    f_range = jnp.array([0.6, 1.2]) # jnp.array([0.6, 1.2])
     """ range of the initial f trainable parameters """
-    g_range = jnp.array([0.15, 0.45])
+    g_range = jnp.array([0.15, 0.45]) # jnp.array([0.15, 0.45])
     """ range of the gE and gI parameters """
-    eta_range = jnp.array([3e-3, 5e-3])
+    eta_range = jnp.array([3e-3, 5e-3]) # jnp.array([3e-3, 5e-3])
     """ range of the learning rate parameter """

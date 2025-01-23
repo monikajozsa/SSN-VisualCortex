@@ -865,3 +865,13 @@ def update_csv_with_df(df, filename):
     
     # Save the updated dataframe back to the file
     updated_df.to_csv(filename, index=False)
+
+
+def set_loss_pars_constants_for_training(loss_pars, meanr_vec=None):
+    """ Set the constants in loss_pars for training - more emphasis on regulating mean rates and task performance """
+    loss_pars.lambda_r_mean = 0.25
+    loss_pars.lambda_task = 1
+    if meanr_vec is not None:
+        loss_pars.Rmean_E = meanr_vec[0]
+        loss_pars.Rmean_I = meanr_vec[1]
+    return loss_pars

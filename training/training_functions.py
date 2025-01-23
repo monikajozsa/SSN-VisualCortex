@@ -260,10 +260,10 @@ def train_ori_discr(
             if SGD_step > untrained_pars.pretrain_pars.min_stop_ind_stage_0 and len(psychometric_offsets)>2:
                 if untrained_pars.pretrain_pars.shuffle_labels:
                     if train_loss_all[0]>0.95*train_loss:
-                        print('Stopping pretraining - regularization terms are small enough.')
+                        print('Stopping pretraining with shuffled labels - regularization terms are small enough.')
                         break
                 elif all(jnp.array(psychometric_offsets[-2:]) > pretrain_offset_threshold[0]) and all(jnp.array(psychometric_offsets[-2:]) < pretrain_offset_threshold[1]):
-                    print('Stopping pretraining: desired accuracy achieved for training task.')
+                    print('Stopping pretraining: desired accuracy achieved for training task. Psychometric offset threshold is: ', psychometric_offsets[-1])
                     break
 
         if stage==1 and 'psychometric_offset' in locals():
@@ -271,7 +271,7 @@ def train_ori_discr(
                 avg_acc = train_acc
             else:
                 avg_acc = jnp.mean(jnp.asarray(train_accs[-min(SGD_step,3):]))
-            if avg_acc > stage_1_acc_th and float(psychometric_offset) < 10:
+            if avg_acc > stage_1_acc_th and float(psychometric_offset) < 20:
                 print("Early stop of stage 1: psychometric_offsets is {} and accuracy {} reached target {}".format(psychometric_offset, avg_acc, stage_1_acc_th))
                 break
         
@@ -301,9 +301,10 @@ def train_ori_discr(
                 m[1]['w_sig']=m[1]['w_sig'].at[untrained_pars.middle_grid_ind].set(-m[1]['w_sig'][untrained_pars.middle_grid_ind])
                 
                 # Print out the changes in accuracy
-                pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True) 
+                pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True)
+                train_acc_test_after_flipping, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False) 
                 if verbose:                
-                    print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc:', train_acc_test)
+                    print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc before and after flipping:', train_acc_test, train_acc_test_after_flipping)
             else:
                 # Update ssn layer parameters 
                 updates_ssn, opt_state_ssn = optimizer.update(grad[0], opt_state_ssn)
@@ -476,7 +477,7 @@ def loss_ori_discr(trained_pars_dict, readout_pars_dict, untrained_pars, train_d
     sig_input = jnp.dot(w_sig, (r_ref_box - r_target_box)) + b_sig     
     sig_output = sigmoid(sig_input)
     # ii) Calculate readout loss and the predicted label
-    loss_readout = binary_crossentropy_loss(train_data['label'], sig_output)
+    loss_readout = loss_pars.lambda_task * binary_crossentropy_loss(train_data['label'], sig_output)
     pred_label = jnp.round(sig_output)
     # ii) Calculate other loss terms
     # Loss for max mean rates deviation from baseline
