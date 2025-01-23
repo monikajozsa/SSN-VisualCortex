@@ -271,7 +271,7 @@ def train_ori_discr(
                 avg_acc = train_acc
             else:
                 avg_acc = jnp.mean(jnp.asarray(train_accs[-min(SGD_step,3):]))
-            if avg_acc > stage_1_acc_th and float(psychometric_offset) < 20:
+            if avg_acc > stage_1_acc_th and float(psychometric_offset) < 20: # TODO: make it part of untrained_pars
                 print("Early stop of stage 1: psychometric_offsets is {} and accuracy {} reached target {}".format(psychometric_offset, avg_acc, stage_1_acc_th))
                 break
         
@@ -303,7 +303,7 @@ def train_ori_discr(
                 # Print out the changes in accuracy
                 pretrain_acc_test, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= None, pretrain_task= True)
                 train_acc_test_after_flipping, _ = task_acc_test(trained_pars_dict, readout_pars_dict, untrained_pars, jit_on, test_offset= 4.0, pretrain_task= False) 
-                if verbose:                
+                if verbose:
                     print('Flipping readout parameters. Pretrain acc', pretrain_acc_test,'Training acc before and after flipping:', train_acc_test, train_acc_test_after_flipping)
             else:
                 # Update ssn layer parameters 

@@ -277,7 +277,8 @@ This section describes the content of the folders and files in this repository.
 - **`filter_for_run_and_stage`**: Filters a DataFrame to retrieve data corresponding to a specific training run and stage.
 - **`set_up_config_folder`**: Creates folders for training configurations and copies the necessary files to it.
 - **`configure_parameters_file`**: Changes `parameters.py` according to the training configuration. This function moves attributes between `TrainedSSNPars` and `SSNPars` classes and adjust `sup_mid_readout_contrib` in class `ReadoutPars` and `pretraining_task` in class `TrainingPars` depending on the configuration.
-- **`update_csv_with_df`**: updates an existing CSV file with a new DataFrame. It allows for new columns but otherwise, keeps the ordering of the original columns.
+- **`update_csv_with_df`**: Updates an existing CSV file with a new DataFrame. It allows for new columns but otherwise, keeps the ordering of the original columns.
+- **`set_loss_pars_constants_for_training`**: Sets the constants in loss_pars for stage 1 and stage 2 based on the previous stage.
 
 </details>
 
@@ -318,7 +319,8 @@ This section describes the content of the folders and files in this repository.
    - **`load_parameters`**:  Location: `util.py`
    - **`create_initial_parameters_df`**
    - **`filter_for_run_and_stage`**: Location: `util.py`
-   - **`exclude_runs`** 
+   - **`exclude_runs`**
+   - **`set_loss_pars_constants_for_training`**: Location: `util.py`
 
    </details>
 
@@ -333,7 +335,8 @@ This section describes the content of the folders and files in this repository.
    <summary>Functions called from `main_training` function</summary>
 
    - **`load_parameters`**:  Location: `util.py`
-   - **`train_ori_discr`**: Main training function running the SGD algorithm. Location: `training/training_functions.py` 
+   - **`train_ori_discr`**: Main training function running the SGD algorithm. Location: `training/training_functions.py`
+   - **`set_loss_pars_constants_for_training`**: Location: `util.py`
 
    </details>
 
