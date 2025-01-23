@@ -44,8 +44,8 @@ if not pretraining_pars.is_on:
     user_input = input(f"Type '{key}' to proceed without pretraining: ")
     if user_input != key:
         raise ValueError('Pretraining is off unintentionally. Stopping the run.')
-    if os.path.exists(os.path.join(root_folder, 'excluded_runs_from_pretraining.csv')):
-        excluded_runs_df = pd.read_csv(os.path.join(root_folder, 'excluded_runs_from_pretraining.csv'), header=None)
+    if os.path.exists(os.path.join(folder_path, 'excluded_runs_from_pretraining.csv')):
+        excluded_runs_df = pd.read_csv(os.path.join(folder_path, 'excluded_runs_from_pretraining.csv'), header=None)
         num_training = num_pretraining - len(excluded_runs_df)
     else:
         num_training = num_pretraining
