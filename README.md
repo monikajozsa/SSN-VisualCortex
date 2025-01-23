@@ -108,6 +108,7 @@ This section provides an explanation of how to use the scripts.
 
 4. **Run the Script**:
    - Execute `main.py` to begin the training and analysis.
+   
    <details><summary>Separating pretraining and training:</summary> Pretraining can be run separately from training by only running `main.py` till the end of 'pretraining' section. Then, to run training configurations using an already existing pretraining result, 
       (i) folder_path should be set to the folder corresponding to the pretraining results folder
       (ii) PretrainingPars.is_on should be set to False in `parameters.py`.
