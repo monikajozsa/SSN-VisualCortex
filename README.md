@@ -108,20 +108,20 @@ This section provides an explanation of how to use the scripts.
 
 4. **Run the Script**:
    - Execute `main.py` to begin the training and analysis.
-   
-   <details><summary>Separating pretraining and training:</summary> Pretraining can be run separately from training by only running `main.py` till the end of 'pretraining' section. Then, to run training configurations using an already existing pretraining result, 
-      (i) folder_path should be set to the folder corresponding to the pretraining results folder
-      (ii) PretrainingPars.is_on should be set to False in `parameters.py`.
-      </details>
 
-   <details><summary>Running pretraining with existing random initializations:</summary> 
-   Pretraining can be run with existing initial parameters. For this, create a folder with the `orimap.csv`, `init_parameters.csv` in it and set the folder_path variable in `main.py` to be this folder. Make sure to set PretrainingPars.is_on = True in `parameters.py`.
-      </details>
+<details><summary>Separating pretraining and training:</summary> Pretraining can be run separately from training by only running `main.py` till the end of 'pretraining' section. Then, to run training configurations using an already existing pretraining result, 
+   (i) folder_path should be set to the folder corresponding to the pretraining results folder
+   (ii) PretrainingPars.is_on should be set to False in `parameters.py`.
+   </details>
 
-   <details><summary>
-   Running random initialization with old function `randomize_params_old`:</summary> 
-   To run the random initialization using an older, less efficient procedure, use the `randomize_params_old` function in `main_pretraining.py` instead of `randomize_params`. The main difference is that `randomize_params` first selects middle layer parameters that satisfy certain conditions and then selects the superficial layer parameters. The older version, `randomize_params_old`, samples all parameters simultaneously. The `randomize_params_old` function is not recommended due to its inefficiency, especially when the sampling intervals are large.
-      </details>
+<details><summary>Running pretraining with existing random initializations:</summary> 
+Pretraining can be run with existing initial parameters. For this, create a folder with the `orimap.csv`, `init_parameters.csv` in it and set the folder_path variable in `main.py` to be this folder. Make sure to set PretrainingPars.is_on = True in `parameters.py`.
+   </details>
+
+<details><summary>
+Running random initialization with old function `randomize_params_old`:</summary> 
+To run the random initialization using an older, less efficient procedure, use the `randomize_params_old` function in `main_pretraining.py` instead of `randomize_params`. The main difference is that `randomize_params` first selects middle layer parameters that satisfy certain conditions and then selects the superficial layer parameters. The older version, `randomize_params_old`, samples all parameters simultaneously. The `randomize_params_old` function is not recommended due to its inefficiency, especially when the sampling intervals are large.
+   </details>
 
 ## Output File Structure
 

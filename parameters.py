@@ -244,77 +244,6 @@ class SSNPars:
     """ shaping tuning curves depending on the reference orientation of the stimulus """
     kappa_range = 90
     """ scaling the effect of all kappa parameters through: tanh_kappa*dist_from_single_ori**2/(2*(kappa_range**2)) """
-    
-
-# Trained SSN parameters - parameters can be moved between TrainedSSNPars and SSNPars depending on whether we want to train them or not
-@dataclass
-class TrainedSSNPars:
-    kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
-    """ shaping parameter for middle layer horizontal connections to achieve orientation selectivity """
-    kappa_f = jnp.array([0.0, 0.0])
-    """ shaping parameter for feedforward connections to achieve orientation selectivity """
-    cE_m: float = 0.0
-    """ baseline excitatory input (constant added to the output of excitatory neurons at middle layer) """
-    cI_m: float = 0.0
-    """ baseline inhibitory input (constant added to the output of inhibitory neurons at middle layer) """
-    cE_s: float = 0.0
-    """ baseline excitatory input (constant added to the output of excitatory neurons at superficial layer) """
-    cI_s: float = 0.0
-    """ baseline inhibitory input (constant added to the output of inhibitory neurons at superficial layer) """
-    f_E: float = 0.0
-    """ scaling constant for feedforwards connections to excitatory units in sup layer """
-    f_I: float = 0.0
-    """ scaling constant for feedforwards connections to inhibitory units in sup layer """
-    J_EE_m: float = 0.0
-    """ relative strength of weights of E/E pre/post cell-type in middle layer """
-    J_IE_m: float = 0.0
-    """ relative strength of weights of E/I pre/post cell-type in middle layer """
-    J_EI_m: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in middle layer """
-    J_II_m: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in middle layer """
-    J_EE_s: float = 0.0
-    """ relative strength of weights of E/E pre/post cell-type in superficial layer """
-    J_IE_s: float = 0.0
-    """ relative strength of weights of E/I pre/post cell-type in superficial layer """
-    J_EI_s: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in superficial layer """
-    J_II_s: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in superficial layer """
-    kappa_Jsup = jnp.array([[[0.0, 0.0], [0.0, 0.0]],[[0.0, 0.0], [0.0, 0.0]]])
-    """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity;
-    kappa_Jsup[0] and kappa_Jsup[1] are for pre- and post- synaptic connections, respectively """
-    
-@dataclass
-class PretrainedSSNPars:
-    cE_m: float = 0.0 
-    """ baseline excitatory input (constant added to the output of excitatory neurons at middle layer) """
-    cI_m: float = 0.0 
-    """ baseline inhibitory input (constant added to the output of inhibitory neurons at middle layer) """
-    cE_s: float = 0.0 
-    """ baseline excitatory input (constant added to the output of excitatory neurons at superficial layer) """
-    cI_s: float = 0.0 
-    """ baseline inhibitory input (constant added to the output of inhibitory neurons at superficial layer) """
-    f_E: float = 0.0 
-    """ scaling constant for feedforwards connections to excitatory units in sup layer """
-    f_I: float = 0.0
-    """ scaling constant for feedforwards connections to inhibitory units in sup layer """
-    J_EE_m: float = 0.0
-    """ relative strength of weights of E/E pre/post cell-type in middle layer """
-    J_IE_m: float = 0.0
-    """ relative strength of weights of E/I pre/post cell-type in middle layer """
-    J_EI_m: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in middle layer """
-    J_II_m: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in middle layer """
-    J_EE_s: float = 0.0
-    """ relative strength of weights of E/E pre/post cell-type in superficial layer """
-    J_IE_s: float = 0.0
-    """ relative strength of weights of E/I pre/post cell-type in superficial layer """
-    J_EI_s: float = 0.0
-    """ relative strength of weights of I/E pre/post cell-type in superficial layer """
-    J_II_s: float = 0.0
-    """ relative strength of weights of I/I pre/post cell-type in superficial layer """
 
 
 # Ranges for the randomization of parameters (at initialization)
@@ -329,3 +258,74 @@ class RandomizePars:
     """ range of the gE and gI parameters """
     eta_range = jnp.array([3e-3, 5e-3]) # jnp.array([3e-3, 5e-3])
     """ range of the learning rate parameter """
+
+########## Do not change the values in the next two classes as that has no effect on the results - vales are set through random initialization and training ##########
+# Trained SSN parameters - parameters can be moved between TrainedSSNPars and SSNPars depending on whether we want to train them or not
+@dataclass
+class TrainedSSNPars:
+    kappa_Jmid = jnp.array([[0.0, 0.0], [0.0, 0.0]])
+    """ shaping parameter for middle layer horizontal connections to achieve orientation selectivity - initialized from pretraining """
+    kappa_f = jnp.array([0.0, 0.0])
+    """ shaping parameter for feedforward connections to achieve orientation selectivity - initialized from pretraining """
+    cE_m: float = 0.0
+    """ baseline excitatory input (constant added to the output of excitatory neurons at middle layer) - initialized from pretraining """
+    cI_m: float = 0.0
+    """ baseline inhibitory input (constant added to the output of inhibitory neurons at middle layer) - initialized from pretraining """
+    cE_s: float = 0.0
+    """ baseline excitatory input (constant added to the output of excitatory neurons at superficial layer) - initialized from pretraining"""
+    cI_s: float = 0.0
+    """ baseline inhibitory input (constant added to the output of inhibitory neurons at superficial layer) - initialized from pretraining """
+    f_E: float = 0.0
+    """ scaling constant for feedforwards connections to excitatory units in sup layer - initialized from pretraining """
+    f_I: float = 0.0
+    """ scaling constant for feedforwards connections to inhibitory units in sup layer - initialized from pretraining """
+    J_EE_m: float = 0.0
+    """ relative strength of weights of E/E pre/post cell-type in middle layer - initialized from pretraining """
+    J_IE_m: float = 0.0
+    """ relative strength of weights of E/I pre/post cell-type in middle layer - initialized from pretraining """
+    J_EI_m: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in middle layer - initialized from pretraining """
+    J_II_m: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in middle layer - initialized from pretraining """
+    J_EE_s: float = 0.0
+    """ relative strength of weights of E/E pre/post cell-type in superficial layer - initialized from pretraining """
+    J_IE_s: float = 0.0
+    """ relative strength of weights of E/I pre/post cell-type in superficial layer - initialized from pretraining """
+    J_EI_s: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in superficial layer - initialized from pretraining """
+    J_II_s: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in superficial layer - initialized from pretraining """
+    kappa_Jsup = jnp.array([[[0.0, 0.0], [0.0, 0.0]],[[0.0, 0.0], [0.0, 0.0]]])
+    """ shaping parameter for superficial layer horizontal connections to achieve orientation selectivity;
+    kappa_Jsup[0] and kappa_Jsup[1] are for pre- and post- synaptic connections, respectively  - initialized from pretraining"""
+    
+@dataclass
+class PretrainedSSNPars:
+    cE_m: float = 0.0 
+    """ baseline excitatory input (constant added to the output of excitatory neurons at middle layer) - randomly initialized """
+    cI_m: float = 0.0 
+    """ baseline inhibitory input (constant added to the output of inhibitory neurons at middle layer) - randomly initialized """
+    cE_s: float = 0.0 
+    """ baseline excitatory input (constant added to the output of excitatory neurons at superficial layer) - randomly initialized """
+    cI_s: float = 0.0 
+    """ baseline inhibitory input (constant added to the output of inhibitory neurons at superficial layer) - randomly initialized """
+    f_E: float = 0.0 
+    """ scaling constant for feedforwards connections to excitatory units in sup layer - randomly initialized """
+    f_I: float = 0.0
+    """ scaling constant for feedforwards connections to inhibitory units in sup layer - randomly initialized """
+    J_EE_m: float = 0.0
+    """ relative strength of weights of E/E pre/post cell-type in middle layer - randomly initialized """
+    J_IE_m: float = 0.0
+    """ relative strength of weights of E/I pre/post cell-type in middle layer - randomly initialized """
+    J_EI_m: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in middle layer - randomly initialized """
+    J_II_m: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in middle layer - randomly initialized """
+    J_EE_s: float = 0.0
+    """ relative strength of weights of E/E pre/post cell-type in superficial layer - randomly initialized """
+    J_IE_s: float = 0.0
+    """ relative strength of weights of E/I pre/post cell-type in superficial layer - randomly initialized """
+    J_EI_s: float = 0.0
+    """ relative strength of weights of I/E pre/post cell-type in superficial layer - randomly initialized """
+    J_II_s: float = 0.0
+    """ relative strength of weights of I/I pre/post cell-type in superficial layer - randomly initialized """
