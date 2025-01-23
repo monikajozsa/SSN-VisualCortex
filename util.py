@@ -504,7 +504,7 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
         trained_pars_dict['log_f_E'] = selected_row['log_f_E']
     else:
         ssn_pars.f_E = selected_row['f_E']
-    if 'log_f_E' in par_keys or 'f_E' in par_keys:
+    if 'log_f_I' in par_keys or 'f_I' in par_keys:
         trained_pars_dict['log_f_I'] = selected_row['log_f_I']
     else:
         ssn_pars.f_I = selected_row['f_I']
@@ -534,7 +534,7 @@ def load_parameters(folder_path, run_index, stage=1, iloc_ind=-1, for_training=F
         df = filter_for_run_and_stage(df_all, run_index)
         selected_row = df.iloc[-1]
    
-    # Load the whole or the middle readout parameters depending on if the load is for training or pretraining
+    # Readout parameters: Load the whole or the middle readout parameters depending on if the load is for training or pretraining
     if for_training:
         middle_grid_inds = readout_pars.middle_grid_ind
     else:

@@ -80,14 +80,21 @@ def train_ori_discr(
     """
     Trains a two-layer SSN network model in a pretraining and a training stage. It first trains the SSN layer parameters and the readout parameters for a general orientation discrimination task. Then, it further trains the SSN layer parameters for a fine orientation discrimination task.
     
-    Parameters:
+    Inputs:
     - readout_pars_dict (dict): Parameters for the readout layer.
     - trained_pars_dict (dict): Parameters for the SSN layer.
-    - untrained_pars (class): Includes grid_pars, stimuli_pars, conn_pars_m, 
-                                  conn_pars_s, filter_pars, ssn_ori_map, ssn_pars, 
-                                  conv_pars, loss_pars, training_pars.
+    - untrained_pars (class): Includes orimap, gabor_filters, and parameter classes such as grid_pars, stimuli_pars, conn_pars_m, 
+                                  conn_pars_s, filter_pars, ssn_ori_map, ssn_pars, conv_pars, loss_pars, training_pars.
+    - stage (int): 0 for pretraining, 1 for training readout layer, 2 for training SSN layer.
+    - threshold (float): Accuracy threshold used to calculate psychometric offset threshold (where this accuracy is achieved).
+    - offset_step (float): Step size for adjusting the offset in the staircase algorithm.
     - results_filename (str, optional): Filename for saving results.
     - jit_on (bool): If True, enables JIT compilation for performance improvement.
+    - run_index (int): Index of the run.
+    - verbose (bool): If True, prints the training progress.
+
+    Outputs:
+    - trained_pars_dict (dict): Updated SSN layer parameters.
     """
     # Unpack training_pars and stimuli_pars from untrained_pars
     ssn_pars = untrained_pars.ssn_pars
